@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Želje · Begunje</title>
+<meta name="theme-color" content="#12192B" />
+<link rel="icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
+    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
+    --danger: #D97757; --ok: #7FB88F;
+    --radius: 16px; --radius-sm: 10px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 720px; margin:0 auto; padding: 0 16px 60px; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
+
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 78%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
+  .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
+    padding:2px 8px; border-radius:999px; }
+  .sub{ margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .backlink{ display:inline-block; margin: 8px 14px 0 0; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); }
+
+  h2.section{ font-size:15px; font-weight:800; margin: 22px 0 4px; letter-spacing:-0.01em; }
+  p.hint{ color:var(--muted); font-size:13px; margin: 4px 0 14px; line-height:1.5; }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  select, input[type=text], textarea{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:10px 12px; border-radius: var(--radius-sm); font-size:14.5px; width:100%; font-family:inherit;
+  }
+  textarea{ resize:vertical; min-height:70px; }
+  optgroup{ font-weight:800; }
+
+  .fileRow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .fileBtn{ background: var(--surface-2); border:1px solid var(--line); color:var(--text); font-weight:700;
+    padding:10px 14px; border-radius: var(--radius-sm); font-size:13px; cursor:pointer; flex:0 0 auto; }
+  .fileBtn input{ display:none; }
+  .thumbPreview{ width:56px; height:56px; border-radius:10px; object-fit:cover; border:1px solid var(--line); }
+  .clearImg{ background:none; border:0; color:var(--danger); font-size:12px; cursor:pointer; text-decoration:underline; }
+
+  .submitBtn{ margin-top:6px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .submitBtn:disabled{ opacity:.5; cursor:default; }
+
+  .toolRow{ display:flex; gap:8px; flex-wrap:wrap; margin: 14px 0; }
+  .toolBtn{ background: transparent; border:1px solid var(--line); color:var(--text); font-weight:700;
+    padding:8px 13px; border-radius:999px; font-size:12.5px; cursor:pointer; }
+  .toolBtn input{ display:none; }
+
+  .groupHead{ display:flex; align-items:baseline; gap:8px; margin: 20px 0 8px; }
+  .groupHead .n{ font-weight:800; font-size:15px; }
+  .groupHead .g{ font-size:11px; color:var(--muted); background:var(--surface-2); padding:2px 8px; border-radius:999px; }
+
+  .entry{ background:var(--surface); border:1px solid var(--line); border-radius: var(--radius-sm); padding:12px 14px; margin-bottom:8px; }
+  .entry .top2{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .entry .obdobje{ font-weight:700; font-size:13.5px; color: var(--accent); }
+  .entry .datum{ font-size:11px; color: var(--muted); }
+  .entry .opis{ font-size:13.5px; margin-top:6px; line-height:1.5; white-space:pre-wrap; }
+  .entry img.thumb{ margin-top:8px; max-width:100%; max-height:220px; border-radius:10px; border:1px solid var(--line); cursor:zoom-in; }
+  .delBtn{ background:none; border:0; color:var(--muted); cursor:pointer; font-size:16px; padding:2px 6px; flex:0 0 auto; }
+  .delBtn:hover{ color: var(--danger); }
+
+  .empty{ color:var(--muted); font-size:13.5px; padding: 20px 0; text-align:center; }
+
+  .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:50; display:flex;
+    align-items:center; justify-content:center; padding:20px; }
+  .modalOverlay img{ max-width:100%; max-height:90vh; border-radius:8px; }
+
+  footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ---------------------------------------------------------------------
+// Skupni seznam vseh zaposlenih (isti roster kot v admin.html), da lahko
+// želje vnašamo za kogar koli v zdravstveni negi, ne le za en oddelek.
+// ---------------------------------------------------------------------
+const SKUPINE = [
+  { naziv: "B - oddelek (SMS/TZN)", ljudje: ["ROZMAN A.","SVETINA S.","REJC J.","DOLAR T.","VOVK U."] },
+  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","DJEDOVIĆ M.","SMOLEJ N."] },
+  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC A.","BEČIROVIĆ N.","SUŠNIK J.","GAZIBARA A.","MRAVLJE U."] },
+  { naziv: "D - oddelek (SMS/TZN)", ljudje: ["MURIĆ A.","RANT L.","REKIĆ E.","VOZEL D.","MOČNIK S.","MEGLIČ J.","NUHANOVIĆ M.","STARE L.","TOMAŠIĆ N.","POGAČNIK M."] },
+  { naziv: "E1 - oddelek (SMS/TZN)", ljudje: ["BRATUŠA M.","SVETINA R.","URANKER M.","PETERMAN R.","MALER A."] },
+  { naziv: "E2 - oddelek (SMS/TZN)", ljudje: ["MUŠIĆ A.","BAJT A.","VOLARIČ N.","SODJA B.","TALIĆ A."] },
+  { naziv: "Dežurni kader (DMS/DZN)", ljudje: ["ALUKIĆ DINO","ARNEŽ GREGA","BOJIĆ MATEJ","PERVIZ AMAL","TOMAŽEVIČ SIMONA","TORKAR TANJA","HROVAT NINA","ŠUBIC PETRA","LUNAR MATEJA","MAVRI TRATNIK MAGDALENA","SALKIĆ MARUŠA","TRPIN SAŠA"] },
+  { naziv: "Nedežurni kader (DMS/DZN)", ljudje: ["BIZJAK TEA","GAZIBARA ALDIN","HUMAR SAŠA","LELIČ DIJANA","MAGLIĆ ALEKSANDER","MISOTIČ REBEKA","MUŠIČ INES","POGAČNIK TEJA","SEJDINOVIĆ MUSTAFA","SOFRIĆ NIKOLINA","VOZEL DEJAN"] },
+];
+
+// ---------------------------------------------------------------------
+// IndexedDB — želje shranjujemo tu, ne v localStorage, ker slike hitro
+// presežejo njegovo omejitev (~5–10 MB na izvor). IndexedDB nima take meje.
+// ---------------------------------------------------------------------
+const DB_NAME = "razpored-zelje";
+const STORE = "zelje";
+function openDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbPut(entry){
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(entry);
+    tx.oncomplete = () => res(entry);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function dbGetAll(){
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function dbDelete(id){
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+// Pomanjša sliko na največ 1600 px in jo pretvori v JPEG — telefonske
+// fotografije so sicer lahko več MB, kar bi bazo po nekaj vnosih napihnilo.
+function compressImage(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1600;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale); height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function download(filename, obj){
+  const blob = new Blob([JSON.stringify(obj)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function VnosForma({ onAdded }){
+  const [ime, setIme] = useState(SKUPINE[0].ljudje[0]);
+  const [obdobje, setObdobje] = useState("");
+  const [opis, setOpis] = useState("");
+  const [slika, setSlika] = useState(null); // data URL
+  const [nalaga, setNalaga] = useState(false);
+  const fileRef = useRef();
+
+  const onFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setNalaga(true);
+    try { setSlika(await compressImage(file)); }
+    finally { setNalaga(false); }
+    e.target.value = "";
+  };
+
+  const shrani = async () => {
+    if (!obdobje.trim() && !opis.trim() && !slika) return;
+    const entry = {
+      id: "z" + Date.now() + Math.random().toString(36).slice(2,7),
+      ime, obdobje: obdobje.trim(), opis: opis.trim(), slika,
+      datumVnosa: new Date().toISOString(),
+    };
+    await dbPut(entry);
+    setObdobje(""); setOpis(""); setSlika(null);
+    onAdded();
+  };
+
+  return (
+    <div className="card">
+      <div className="field">
+        <label htmlFor="ime">Zaposleni</label>
+        <select id="ime" value={ime} onChange={e => setIme(e.target.value)}>
+          {SKUPINE.map(g => (
+            <optgroup key={g.naziv} label={g.naziv}>
+              {g.ljudje.map(l => <option key={l} value={l}>{l}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor="obd">Obdobje</label>
+        <input id="obd" type="text" placeholder="npr. 9.–15. november, ali cel december"
+          value={obdobje} onChange={e => setObdobje(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="op">Želja / opomba (neobvezno, če je slika dovolj)</label>
+        <textarea id="op" placeholder="npr. želi prost vikend, ne more delati nočnih ..."
+          value={opis} onChange={e => setOpis(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Fotografija (neobvezno)</label>
+        <div className="fileRow">
+          <label className="fileBtn">
+            {nalaga ? "Obdelujem …" : "⬆ Dodaj fotografijo"}
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} />
+          </label>
+          {slika && <img className="thumbPreview" src={slika} alt="predogled" />}
+          {slika && <button className="clearImg" onClick={() => setSlika(null)}>odstrani sliko</button>}
+        </div>
+      </div>
+      <button className="submitBtn" onClick={shrani} disabled={nalaga}>Shrani željo</button>
+    </div>
+  );
+}
+
+function Lightbox({ src, onClose }){
+  if (!src) return null;
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <img src={src} alt="fotografija želje v polni velikosti" />
+    </div>
+  );
+}
+
+function App(){
+  const [entries, setEntries] = useState([]);
+  const [filter, setFilter] = useState("");
+  const [lightbox, setLightbox] = useState(null);
+  const importRef = useRef();
+
+  const reload = () => { dbGetAll().then(setEntries).catch(() => setEntries([])); };
+  useEffect(() => { reload(); }, []);
+
+  const grouped = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    const filtered = entries.filter(e =>
+      !f || e.ime.toLowerCase().includes(f) || (e.obdobje||"").toLowerCase().includes(f) || (e.opis||"").toLowerCase().includes(f)
+    );
+    const byIme = {};
+    filtered.forEach(e => { (byIme[e.ime] = byIme[e.ime] || []).push(e); });
+    Object.keys(byIme).forEach(k => byIme[k].sort((a,b) => b.datumVnosa.localeCompare(a.datumVnosa)));
+    return Object.keys(byIme).sort().map(ime => ({ ime, list: byIme[ime] }));
+  }, [entries, filter]);
+
+  const obrisi = async (id) => { await dbDelete(id); reload(); };
+
+  const izvozi = () => download("zelje-izvoz-" + new Date().toISOString().slice(0,10) + ".json", entries);
+
+  const uvozi = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const arr = JSON.parse(reader.result);
+        for (const entry of arr) await dbPut(entry);
+        reload();
+      } catch (err) { alert("Neveljavna datoteka: " + err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const skupajSlik = entries.filter(e => e.slika).length;
+
+  return (
+    <div className="wrap">
+      <header className="top">
+        <div className="wordmark"><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
+        <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
+        <div>
+          <a className="backlink" href="admin.html">‹ Generator razporeda</a>
+          <a className="backlink" href="dashboard.html">Nadzorna plošča ›</a>
+        </div>
+      </header>
+
+      <h2 className="section">Nov vnos</h2>
+      <VnosForma onAdded={reload} />
+
+      <div className="toolRow">
+        <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
+          onChange={e => setFilter(e.target.value)}
+          style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
+            padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
+        <button className="toolBtn" onClick={izvozi}>⬇ Izvozi vse ({entries.length})</button>
+        <label className="toolBtn">⬆ Uvozi<input ref={importRef} type="file" accept="application/json" onChange={uvozi} /></label>
+      </div>
+
+      <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
+
+      {grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
+
+      {grouped.map(g => (
+        <div key={g.ime}>
+          <div className="groupHead">
+            <span className="n">{g.ime}</span>
+            <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
+          </div>
+          {g.list.map(e => (
+            <div className="entry" key={e.id}>
+              <div className="top2">
+                <div>
+                  {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
+                  <div className="datum">{new Date(e.datumVnosa).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
+                </div>
+                <button className="delBtn" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
+              </div>
+              {e.opis && <div className="opis">{e.opis}</div>}
+              {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
+
+      <footer className="foot">
+        <p><b>Modul: želje zaposlenih.</b> Shranjeno lokalno v tem brskalniku (IndexedDB), ne na strežniku — velja samo na tej napravi. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
+        <p>Vnesene želje se ne prenesejo samodejno v generator (admin.html) — coordinator jih ročno upošteva pri kliku na tedne dopusta ali pri urejanju dežurstev.</p>
+      </footer>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

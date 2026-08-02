@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Generator razporeda · Begunje</title>
+<meta name="theme-color" content="#12192B" />
+<link rel="icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
+    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
+    --dop: #7FB88F; --pop: #E0916B; --noc: #6E8FD1; --h12: #A78BC9; --off: #4A5270; --off-text:#B9BFD1;
+    --danger: #D97757; --danger-bg: #3A2418; --ok: #7FB88F;
+    --radius: 16px; --radius-sm: 10px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 780px; margin:0 auto; padding: 0 16px 60px; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
+
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
+  .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
+    padding:2px 8px; border-radius:999px; }
+  .sub{ margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .backlink{ display:inline-block; margin-top:10px; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); }
+
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); padding:4px;
+    border-radius:999px; margin-top:14px; }
+  .tabs button{ flex:1; border:0; background:transparent; color:var(--muted); padding:10px 10px;
+    border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+
+  h2.section{ font-size:15px; font-weight:800; margin: 24px 0 10px; letter-spacing:-0.01em; }
+  p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5; }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  input[type=month], input[type=number], input[type=text], select{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; min-width:0;
+  }
+  select{ min-width: 90px; }
+  .chk{ display:flex; align-items:center; gap:8px; font-size:13.5px; }
+  .chk input{ width:17px; height:17px; accent-color: var(--accent); }
+
+  .deptRow{ display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0 4px; }
+  .deptBtn{ border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-weight:800;
+    padding:9px 16px; border-radius:999px; cursor:pointer; font-size:14px; }
+  .deptBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+
+  table.roster{ width:100%; border-collapse:separate; border-spacing:0; margin-top:10px; font-size:13px; }
+  table.roster th{ text-align:left; color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase;
+    letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.roster tr:last-child td{ border-bottom:0; }
+  .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:11px;
+    font-weight:800; padding:6px 9px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#2A1608; }
+
+  .genBtn{ margin-top:16px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .genBtn:disabled{ opacity:.5; cursor:default; }
+  .dlBtn{ margin-top:10px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
+    padding:11px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; }
+
+  .warnBox{ margin-top:14px; background: var(--danger-bg); border:1px solid var(--danger); border-radius: var(--radius-sm);
+    padding:12px 14px; font-size:13px; }
+  .warnBox .t{ font-weight:800; color: var(--danger); margin-bottom:6px; }
+  .warnBox li{ margin: 3px 0; }
+
+  .wardScroller{ margin-top:16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
+    -webkit-overflow-scrolling:touch; }
+  table.wardTable{ border-collapse:separate; border-spacing:0; width:max-content; }
+  table.wardTable th, table.wardTable td{ padding:8px 9px; font-size:12px; text-align:center; white-space:nowrap;
+    border-bottom:1px solid var(--line); border-right:1px solid var(--line); }
+  table.wardTable thead th{ background:var(--surface-2); color:var(--muted); font-weight:700; position:sticky; top:0; font-size:11px; }
+  table.wardTable td.name, table.wardTable th.name{ position:sticky; left:0; background:var(--surface); text-align:left;
+    font-weight:700; min-width:118px; max-width:118px; overflow:hidden; text-overflow:ellipsis; z-index:2; }
+  table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
+  .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
+
+  .dutyTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
+  .dutyTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px;
+    border-bottom:1px solid var(--line); }
+  .dutyTable td{ padding:8px; border-bottom:1px solid var(--line); }
+  .dutyTable tr.we td{ background: rgba(224,145,107,0.06); }
+  .dutyTable tr.warn td{ background: var(--danger-bg); }
+  .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; }
+  .pill.ok{ background: rgba(127,184,143,.18); color: var(--ok); }
+
+  .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
+  .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; }
+  .bar i{ display:block; height:100%; background: var(--accent); }
+
+  footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="generator-core.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useCallback, useEffect } = React;
+
+// ---------------------------------------------------------------------
+// Statični podatki o oddelkih (SMS/TZN) — enaki kot pri generiranju
+// oktobra 2026. Črka je stanje kalupa v tednu 28. 9. 2026 (sidro).
+// ---------------------------------------------------------------------
+const ANCHOR_MONDAY = "2026-09-28";
+const WARDS_META = {
+  B:  { naziv:"B - ODDELEK",  hsuffix:false, staff:[["ROZMAN A.","E"],["SVETINA S.","A"],["REJC J.","D"],["DOLAR T.","C"],["VOVK U.","B"]] },
+  C:  { naziv:"C - ODDELEK",  hsuffix:false, staff:[["ŠABIĆ S.","A"],["KODRAS N.","B"],["ROZMAN K.","C"],["DJEDOVIĆ M.","D"],["SMOLEJ N.","E"]] },
+  C1: { naziv:"C1 - ODDELEK", hsuffix:false, staff:[["DŽINIĆ A.","B"],["STARC E.","E"],["KARNIČAR J.","D"],["ZEKAN A.","A"],["ŠKANTAR M.","B"],["VALJAVEC A.","C"],["BEČIROVIĆ N.","D"],["SUŠNIK J.","A"],["GAZIBARA A.","C"],["MRAVLJE U.","E"]] },
+  D:  { naziv:"D - ODDELEK",  hsuffix:false, staff:[["MURIĆ A.","D"],["RANT L.","B"],["REKIĆ E.","B"],["VOZEL D.","E"],["MOČNIK S.","E"],["MEGLIČ J.","C"],["NUHANOVIĆ M.","C"],["STARE L.","D"],["TOMAŠIĆ N.","A"],["POGAČNIK M.","A"]] },
+  E1: { naziv:"E1 - ODDELEK", hsuffix:true,  staff:[["BRATUŠA M.","C"],["SVETINA R.","E"],["URANKER M.","A"],["PETERMAN R.","D"],["MALER A.","B"]] },
+  E2: { naziv:"E2 - ODDELEK", hsuffix:false, staff:[["MUŠIĆ A.","B"],["BAJT A.","C"],["VOLARIČ N.","E"],["SODJA B.","D"],["TALIĆ A.","A"]] },
+};
+
+// Dežurni kader DMS/DZN — stanje ob koncu julija 2026 (iz analize Kadrisa).
+const DEZURNI_ZACETNO = [
+  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:19, zadnje:"2026-07-16" },
+  { ime:"ARNEŽ GREGA", enota:"C", stevilo:18, zadnje:"2026-07-07" },
+  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:17, zadnje:"2026-07-26" },
+  { ime:"PERVIZ AMAL", enota:"D", stevilo:17, zadnje:"2026-07-21" },
+  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:17, zadnje:"2026-07-22" },
+  { ime:"TORKAR TANJA", enota:"134", stevilo:17, zadnje:"2026-07-27" },
+  { ime:"HROVAT NINA", enota:"134", stevilo:16, zadnje:"2026-07-10" },
+  { ime:"ŠUBIC PETRA", enota:"130", stevilo:16, zadnje:"2026-07-08" },
+  { ime:"LUNAR MATEJA", enota:"B", stevilo:15, zadnje:"2026-07-25" },
+  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:14, zadnje:"2026-07-28" },
+  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:5, zadnje:"2026-06-09" },
+  { ime:"TRPIN SAŠA", enota:"170", stevilo:4, zadnje:"2026-07-17" },
+];
+
+function classify(sifra){
+  const t=(sifra||"").toLowerCase();
+  if (t.startsWith("ld")) return "off";
+  if (t.startsWith("kpu")) return "off";
+  if (t.includes("nočna12")) return "h12";
+  if (t.includes("dnevna12")) return "h12";
+  if (t.startsWith("nočna")) return "noc";
+  if (t.startsWith("dopoldan")) return "dop";
+  if (t.startsWith("popoldan")) return "pop";
+  return "off";
+}
+const BARVE = { dop:"#7FB88F", pop:"#E0916B", noc:"#6E8FD1", h12:"#A78BC9", off:"#4A5270" };
+
+function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
+  const [y,m] = monthStr.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2,"0")}-01`;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+  return { startISO:start, endISO:end };
+}
+function mondaysInRange(startISO, endISO){
+  const { toDate, mondayOfWeek, fromDate, addDays } = Generator.util;
+  const out = [];
+  let d = mondayOfWeek(toDate(startISO));
+  const end = toDate(endISO);
+  while (d.getTime() <= end.getTime()){
+    out.push(fromDate(d));
+    d = addDays(d, 7);
+  }
+  return out;
+}
+function fmtShort(iso){
+  const d = new Date(iso+"T00:00:00Z");
+  return d.getUTCDate() + "." + (d.getUTCMonth()+1) + ".";
+}
+function download(filename, text){
+  const blob = new Blob([text], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------
+// Predlog prednosti za prost teden — na podlagi dejanske obremenjenosti
+// (nočne ure, nedelje/prazniki) iz nadzorne plošče (modul 3), ne iz
+// ugibanja. Kvota letnega dopusta ni znana vnaprej (ni je v Kadrisu, ki
+// smo ga analizirali) — vnese jo koordinator ročno, po zaposlenem.
+// ---------------------------------------------------------------------
+function PrednostniPanel({ staff, dopust, tedni, onPredlagaj, kvote, setKvote }){
+  const [baseline, setBaseline] = useState(null);
+  const [err, setErr] = useState(null);
+  const [sortKey, setSortKey] = useState("nedpraz");
+  const [sortDir, setSortDir] = useState(-1);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    fetch("dashboard-baseline.json").then(r => r.json())
+      .then(d => setBaseline(d.osnova_sms.podatki))
+      .catch(() => setErr("Ni mogoče naložiti dashboard-baseline.json — panel prikazuje samo imena, brez podatkov o obremenjenosti."));
+  }, []);
+
+  const rows = useMemo(() => {
+    return staff.map(([ime]) => {
+      const b = (baseline || []).find(z => z.ime === ime);
+      const dosedanjiLD = b ? b.ld : null;
+      const novihTaSeja = tedni.filter(mo => dopust[ime + "|" + mo]).length;
+      const kvota = kvote[ime] !== undefined && kvote[ime] !== "" ? Number(kvote[ime]) : null;
+      const preostane = (kvota != null && dosedanjiLD != null) ? kvota - dosedanjiLD - novihTaSeja : null;
+      return {
+        ime,
+        nocne: b ? b.nocne : null,
+        nedpraz: b ? b.nedpraz : null,
+        ld: dosedanjiLD,
+        novihTaSeja,
+        kvota,
+        preostane,
+      };
+    });
+  }, [staff, baseline, kvote, dopust, tedni]);
+
+  const sorted = useMemo(() => {
+    const arr = rows.slice();
+    arr.sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * sortDir;
+    });
+    return arr;
+  }, [rows, sortKey, sortDir]);
+
+  const onSort = (k) => { if (k === sortKey) setSortDir(d => -d); else { setSortKey(k); setSortDir(-1); } };
+  const maxNedpraz = Math.max(1, ...rows.map(r => r.nedpraz || 0));
+
+  const predlagaj = (ime) => {
+    const prostTeden = tedni.find(mo => !dopust[ime + "|" + mo]);
+    if (!prostTeden) { setMsg(ime + ": vsi vidni tedni so že označeni."); return; }
+    onPredlagaj(ime, prostTeden);
+    setMsg(null);
+  };
+
+  return (
+    <div className="card" style={{overflowX:"auto", marginTop:10}}>
+      {err && <p className="hint" style={{color:"var(--danger)"}}>{err}</p>}
+      <table className="roster">
+        <thead>
+          <tr>
+            <th>Zaposleni</th>
+            <th style={{cursor:"pointer"}} onClick={() => onSort("nocne")}>Nočne ure{sortKey==="nocne"?" ▾":""}</th>
+            <th style={{cursor:"pointer"}} onClick={() => onSort("nedpraz")}>Ned.+praz.{sortKey==="nedpraz"?" ▾":""}</th>
+            <th>Doslej LD</th>
+            <th>Letna kvota</th>
+            <th>Preostane</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => (
+            <tr key={r.ime}>
+              <td>{r.ime}</td>
+              <td>
+                {r.nocne != null ? r.nocne : "–"}
+                {r.nedpraz != null && <div className="bar"><i style={{width:(100*(r.nedpraz||0)/maxNedpraz)+"%"}}></i></div>}
+              </td>
+              <td>{r.nedpraz != null ? r.nedpraz : "–"}</td>
+              <td>{r.ld != null ? r.ld : "–"}</td>
+              <td>
+                <input type="number" style={{width:56}} min="0" placeholder="?"
+                  value={kvote[r.ime] !== undefined ? kvote[r.ime] : ""}
+                  onChange={e => setKvote(k => ({...k, [r.ime]: e.target.value}))} />
+              </td>
+              <td>{r.preostane != null ? r.preostane : <span style={{color:"var(--muted)"}}>vnesi kvoto</span>}</td>
+              <td><button className="weekToggle" onClick={() => predlagaj(r.ime)}>Predlagaj teden</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {msg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{msg}</p>}
+      <p className="hint" style={{marginTop:10, marginBottom:0}}>
+        Nočne ure in nedelje/prazniki so kumulativni podatki iz nadzorne plošče (modul 3) — kdor ima
+        največ (obarvan vrh razvrstitve), je najbolj upravičen do prostega tedna. Kvoto letnega dopusta
+        vnesite ročno po zaposlenem (ni je bilo mogoče razbrati iz analize prisotnosti). Gumb "Predlagaj
+        teden" samo označi prvi še neoznačeni teden spodaj — vi ga potrdite ali spremenite pred generiranjem.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function KalupTab(){
+  const [koda, setKoda] = useState("B");
+  const [month, setMonth] = useState("2026-11");
+  const [letters, setLetters] = useState({}); // override startLetter po imenu
+  const [dopust, setDopust] = useState({}); // "ime|monday" -> true
+  const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
+  const [rezultat, setRezultat] = useState(null);
+
+  const meta = WARDS_META[koda];
+  const { startISO, endISO } = monthRange(month);
+  const tedni = useMemo(() => mondaysInRange(startISO, endISO), [startISO, endISO]);
+
+  const toggleDopust = (ime, monday) => {
+    const key = ime + "|" + monday;
+    setDopust(d => ({ ...d, [key]: !d[key] }));
+  };
+
+  const generiraj = () => {
+    const staff = meta.staff.map(([ime, defLetter]) => ({
+      ime,
+      startLetter: letters[ime] || defLetter,
+      hsuffix: meta.hsuffix,
+      dopustTedni: tedni.filter(mo => dopust[ime + "|" + mo]),
+    }));
+    const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
+    setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, staff: meta.staff.map(([ime,l]) => ({ime, vloga:"SMS / TZN"})) });
+  };
+
+  const prenesi = () => {
+    if (!rezultat) return;
+    const data = { mesec: rezultat.mesec, oddelki: [{ koda: rezultat.koda, naziv: rezultat.naziv, zaposleni: rezultat.staff, dnevi: rezultat.dnevi }] };
+    download(`data-${rezultat.koda}-${rezultat.mesec}.json`, JSON.stringify(data, null, 1));
+  };
+
+  return (
+    <div>
+      <h2 className="section">1 · Oddelek in mesec</h2>
+      <div className="deptRow">
+        {Object.keys(WARDS_META).map(k => (
+          <button key={k} className="deptBtn" aria-pressed={k===koda} onClick={() => { setKoda(k); setRezultat(null); }}>{k}</button>
+        ))}
+      </div>
+      <div className="row" style={{marginTop:10}}>
+        <div className="field">
+          <label htmlFor="mm">Mesec</label>
+          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+        </div>
+      </div>
+
+      <h2 className="section">2 · Predlog prednosti za prost teden</h2>
+      <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
+      <PrednostniPanel staff={meta.staff} dopust={dopust} tedni={tedni} kvote={kvote} setKvote={setKvote}
+        onPredlagaj={(ime, teden) => toggleDopust(ime, teden)} />
+
+      <h2 className="section">3 · Kalup in dopust po zaposlenih</h2>
+      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej). Kliknite teden, da tisti teden zaposlenemu prisilno vpišete letni dopust ne glede na rotacijo.</p>
+      <div className="card" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead>
+            <tr>
+              <th>Zaposleni</th>
+              <th>Kalup</th>
+              {tedni.map(mo => <th key={mo}>Teden {fmtShort(mo)}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {meta.staff.map(([ime, defLetter]) => (
+              <tr key={ime}>
+                <td>{ime}</td>
+                <td>
+                  <select value={letters[ime] || defLetter} onChange={e => setLetters(l => ({...l, [ime]: e.target.value}))}>
+                    {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </td>
+                {tedni.map(mo => (
+                  <td key={mo}>
+                    <button className="weekToggle" aria-pressed={!!dopust[ime+"|"+mo]} onClick={() => toggleDopust(ime, mo)}>
+                      {dopust[ime+"|"+mo] ? "LD" : "—"}
+                    </button>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button className="genBtn" onClick={generiraj}>Generiraj razpored</button>
+
+      {rezultat && (
+        <React.Fragment>
+          <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
+          <div className="wardScroller">
+            <table className="wardTable">
+              <thead>
+                <tr>
+                  <th className="name">Zaposleni</th>
+                  {rezultat.dnevi.map(dn => (
+                    <th key={dn.datum} style={dn.dan==="SO"||dn.dan==="NE" ? {color:"var(--pop)"} : null}>
+                      {new Date(dn.datum+"T00:00:00Z").getUTCDate()}<br/>{dn.dan}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rezultat.staff.map(z => (
+                  <tr key={z.ime}>
+                    <td className="name">{z.ime}</td>
+                    {rezultat.dnevi.map(dn => {
+                      const sifra = dn.izmene[z.ime]; const cls = classify(sifra);
+                      return (
+                        <td key={dn.datum}>
+                          <span className="swatch" style={{background:BARVE[cls]+"33"}} title={sifra}>
+                            {cls==="off" ? "–" : (sifra||"").slice(0,3)}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function DezurstvaTab(){
+  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:""})));
+  const [month, setMonth] = useState("2026-08");
+  const [minRazmik, setMinRazmik] = useState(3);
+  const [prostDan, setProstDan] = useState(true);
+  const [rezultat, setRezultat] = useState(null);
+
+  const { startISO, endISO } = monthRange(month);
+
+  const updateField = (ime, field, value) => {
+    setRoster(r => r.map(z => z.ime===ime ? {...z, [field]: value} : z));
+  };
+
+  const generiraj = () => {
+    const staff = roster.map(z => ({
+      ime: z.ime,
+      obstojeceStevilo: Number(z.stevilo) || 0,
+      zadnjeDezurstvo: z.zadnje || null,
+      odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
+    }));
+    const res = Generator.generirajDezurstva({
+      startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan, staff,
+    });
+    setRezultat({ mesec: month, ...res });
+  };
+
+  const prenesi = () => {
+    if (!rezultat) return;
+    download(`dezurstva-${rezultat.mesec}.json`, JSON.stringify(rezultat, null, 1));
+  };
+
+  const maxNovih = rezultat ? Math.max(1, ...rezultat.stanje.map(s => s.novih)) : 1;
+
+  return (
+    <div>
+      <h2 className="section">1 · Dežurni kader — stanje ob začetku meseca</h2>
+      <p className="hint">Prednastavljeno s podatki iz analize Kadrisa (januar–julij 2026). Po potrebi popravite število in datum zadnjega dežurstva, ali dodajte odsotnosti (datumi ISO, ločeni z vejico).</p>
+      <div className="card" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th></tr></thead>
+          <tbody>
+            {roster.map(z => (
+              <tr key={z.ime}>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td><input type="number" style={{width:56}} value={z.stevilo} onChange={e => updateField(z.ime,"stevilo",e.target.value)} /></td>
+                <td><input type="text" style={{width:110}} value={z.zadnje} onChange={e => updateField(z.ime,"zadnje",e.target.value)} placeholder="LLLL-MM-DD" /></td>
+                <td><input type="text" style={{width:150}} value={z.odsotnosti} onChange={e => updateField(z.ime,"odsotnosti",e.target.value)} placeholder="2026-08-10, 2026-08-11" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section">2 · Mesec in pravila</h2>
+      <div className="card">
+        <div className="row">
+          <div className="field"><label htmlFor="dmonth">Mesec</label>
+            <input id="dmonth" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+          </div>
+          <div className="field"><label htmlFor="mr">Min. razmik (dni)</label>
+            <input id="mr" type="number" min="0" style={{width:70}} value={minRazmik} onChange={e => setMinRazmik(e.target.value)} />
+          </div>
+        </div>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="pd" type="checkbox" checked={prostDan} onChange={e => setProstDan(e.target.checked)} />
+          <label htmlFor="pd">Dan takoj po dežurstvu naj se ne razporeja na redno izmeno</label>
+        </div>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          To neposredno naslavlja ugotovitev iz analize: doslej je 65&nbsp;% dežurstev takoj sledila redna izmena brez počitka.
+        </p>
+      </div>
+
+      <button className="genBtn" onClick={generiraj}>Generiraj razpored dežurstev</button>
+
+      {rezultat && (
+        <React.Fragment>
+          {rezultat.opozorila.length > 0 && (
+            <div className="warnBox">
+              <div className="t">⚠ {rezultat.opozorila.length} dni brez samodejne rešitve</div>
+              <ul>{rezultat.opozorila.map(o => <li key={o.datum}>{o.datum}: {o.sporocilo}</li>)}</ul>
+            </div>
+          )}
+
+          <h2 className="section">3 · Predlagan razpored — {rezultat.mesec}</h2>
+          <table className="dutyTable">
+            <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
+            <tbody>
+              {rezultat.razpored.map(r => (
+                <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
+                  <td>{r.datum}</td><td>{r.dan}</td>
+                  <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h2 className="section">4 · Pravičnost — novo stanje</h2>
+          <table className="fairTable">
+            <thead><tr><th>Zaposleni</th><th>Prej</th><th>Novih</th><th>Skupaj</th></tr></thead>
+            <tbody>
+              {rezultat.stanje.map(s => (
+                <tr key={s.ime}>
+                  <td>{s.ime}</td><td>{s.steviloPrej}</td><td><b>{s.novih}</b></td><td>{s.steviloZdaj}
+                    <div className="bar"><i style={{width:(100*s.novih/maxNovih)+"%"}}></i></div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON</button>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+function App(){
+  const [tab, setTab] = useState("kalup");
+  return (
+    <div className="wrap">
+      <header className="top">
+        <div className="wordmark"><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
+        <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
+        <a className="backlink" href="index.html">‹ Nazaj na pregled razporeda</a>
+        <a className="backlink" href="zelje.html" style={{marginLeft:14}}>Želje zaposlenih ›</a>
+        <a className="backlink" href="dashboard.html" style={{marginLeft:14}}>Nadzorna plošča pravičnosti ›</a>
+        <div className="tabs" role="tablist">
+          <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
+          <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
+        </div>
+      </header>
+
+      {tab==="kalup" ? <KalupTab/> : <DezurstvaTab/>}
+
+      <footer className="foot">
+        <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
+        <p>Prenešeni JSON ročno zamenjajte v mobilni aplikaciji (faza 4 bo to samodejno).</p>
+      </footer>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

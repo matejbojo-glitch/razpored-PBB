@@ -1,0 +1,2493 @@
+{
+ "oddelki": [
+  {
+   "koda": "B",
+   "naziv": "B - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "ROZMAN A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "SVETINA S.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "REJC J.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "DOLAR T.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "VOVK U.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "ROZMAN A.": "",
+      "SVETINA S.": "NOČNA12",
+      "REJC J.": "",
+      "DOLAR T.": "",
+      "VOVK U.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "ROZMAN A.": "popoldan",
+      "SVETINA S.": "KPU",
+      "REJC J.": "dopoldan",
+      "DOLAR T.": "LD",
+      "VOVK U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "ROZMAN A.": "popoldan",
+      "SVETINA S.": "KPU",
+      "REJC J.": "dopoldan",
+      "DOLAR T.": "LD",
+      "VOVK U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "ROZMAN A.": "KPU",
+      "SVETINA S.": "popoldan",
+      "REJC J.": "dopoldan",
+      "DOLAR T.": "LD",
+      "VOVK U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "ROZMAN A.": "dopoldan",
+      "SVETINA S.": "popoldan",
+      "REJC J.": "NOČNA",
+      "DOLAR T.": "LD",
+      "VOVK U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "ROZMAN A.": "dopoldan",
+      "SVETINA S.": "popoldan do 19",
+      "REJC J.": "NOČNA od 19",
+      "DOLAR T.": "LD",
+      "VOVK U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "ROZMAN A.": "NOČNA12",
+      "SVETINA S.": "DNEVNA12",
+      "REJC J.": "",
+      "DOLAR T.": "",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "ROZMAN A.": "NOČNA12",
+      "SVETINA S.": "DNEVNA12",
+      "REJC J.": "",
+      "DOLAR T.": "",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "ROZMAN A.": "KPU",
+      "SVETINA S.": "NOČNA",
+      "REJC J.": "popoldan",
+      "DOLAR T.": "dopoldan",
+      "VOVK U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "ROZMAN A.": "KPU",
+      "SVETINA S.": "NOČNA",
+      "REJC J.": "popoldan",
+      "DOLAR T.": "dopoldan",
+      "VOVK U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "ROZMAN A.": "popoldan",
+      "SVETINA S.": "NOČNA",
+      "REJC J.": "KPU",
+      "DOLAR T.": "dopoldan",
+      "VOVK U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "ROZMAN A.": "popoldan",
+      "SVETINA S.": "KPU",
+      "REJC J.": "dopoldan",
+      "DOLAR T.": "NOČNA",
+      "VOVK U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "ROZMAN A.": "popoldan do 19",
+      "SVETINA S.": "KPU",
+      "REJC J.": "dopoldan",
+      "DOLAR T.": "NOČNA od 19",
+      "VOVK U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "ROZMAN A.": "DNEVNA12",
+      "SVETINA S.": "",
+      "REJC J.": "NOČNA12",
+      "DOLAR T.": "",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "ROZMAN A.": "DNEVNA12",
+      "SVETINA S.": "",
+      "REJC J.": "NOČNA12",
+      "DOLAR T.": "",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "ROZMAN A.": "NOČNA",
+      "SVETINA S.": "LD",
+      "REJC J.": "KPU",
+      "DOLAR T.": "popoldan",
+      "VOVK U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "ROZMAN A.": "NOČNA",
+      "SVETINA S.": "LD",
+      "REJC J.": "KPU",
+      "DOLAR T.": "popoldan",
+      "VOVK U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "ROZMAN A.": "NOČNA",
+      "SVETINA S.": "LD",
+      "REJC J.": "popoldan",
+      "DOLAR T.": "KPU",
+      "VOVK U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "ROZMAN A.": "KPU",
+      "SVETINA S.": "LD",
+      "REJC J.": "popoldan",
+      "DOLAR T.": "dopoldan",
+      "VOVK U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "ROZMAN A.": "KPU",
+      "SVETINA S.": "LD",
+      "REJC J.": "popoldan do 19",
+      "DOLAR T.": "dopoldan",
+      "VOVK U.": "NOČNA od 19"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "ROZMAN A.": "",
+      "SVETINA S.": "",
+      "REJC J.": "DNEVNA12",
+      "DOLAR T.": "NOČNA12",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "ROZMAN A.": "",
+      "SVETINA S.": "",
+      "REJC J.": "DNEVNA12",
+      "DOLAR T.": "NOČNA12",
+      "VOVK U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "ROZMAN A.": "LD",
+      "SVETINA S.": "dopoldan",
+      "REJC J.": "NOČNA",
+      "DOLAR T.": "KPU",
+      "VOVK U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "ROZMAN A.": "LD",
+      "SVETINA S.": "dopoldan",
+      "REJC J.": "NOČNA",
+      "DOLAR T.": "KPU",
+      "VOVK U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "ROZMAN A.": "LD",
+      "SVETINA S.": "dopoldan",
+      "REJC J.": "NOČNA",
+      "DOLAR T.": "popoldan",
+      "VOVK U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "ROZMAN A.": "LD",
+      "SVETINA S.": "NOČNA",
+      "REJC J.": "KPU",
+      "DOLAR T.": "popoldan",
+      "VOVK U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "ROZMAN A.": "LD",
+      "SVETINA S.": "NOČNA od 19",
+      "REJC J.": "KPU",
+      "DOLAR T.": "popoldan do 19",
+      "VOVK U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "ROZMAN A.": "",
+      "SVETINA S.": "",
+      "REJC J.": "",
+      "DOLAR T.": "DNEVNA12",
+      "VOVK U.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "ROZMAN A.": "",
+      "SVETINA S.": "",
+      "REJC J.": "",
+      "DOLAR T.": "DNEVNA12",
+      "VOVK U.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "ROZMAN A.": "dopoldan",
+      "SVETINA S.": "popoldan",
+      "REJC J.": "LD",
+      "DOLAR T.": "NOČNA",
+      "VOVK U.": "KPU"
+     }
+    }
+   ]
+  },
+  {
+   "koda": "C",
+   "naziv": "C - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "ŠABIĆ S.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "KODRAS N.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "ROZMAN K.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "DJEDOVIĆ M.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "SMOLEJ N.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA12",
+      "KODRAS N.": "DNEVNA12",
+      "ROZMAN K.": "",
+      "DJEDOVIĆ M.": "",
+      "SMOLEJ N.": ""
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "ŠABIĆ S.": "KPU",
+      "KODRAS N.": "NOČNA",
+      "ROZMAN K.": "LD",
+      "DJEDOVIĆ M.": "dopoldan",
+      "SMOLEJ N.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "ŠABIĆ S.": "KPU",
+      "KODRAS N.": "NOČNA",
+      "ROZMAN K.": "LD",
+      "DJEDOVIĆ M.": "dopoldan",
+      "SMOLEJ N.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "ŠABIĆ S.": "popoldan",
+      "KODRAS N.": "NOČNA",
+      "ROZMAN K.": "LD",
+      "DJEDOVIĆ M.": "dopoldan",
+      "SMOLEJ N.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "ŠABIĆ S.": "popoldan",
+      "KODRAS N.": "KPU",
+      "ROZMAN K.": "LD",
+      "DJEDOVIĆ M.": "NOČNA",
+      "SMOLEJ N.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "ŠABIĆ S.": "popoldan do 19",
+      "KODRAS N.": "KPU",
+      "ROZMAN K.": "LD",
+      "DJEDOVIĆ M.": "NOČNA od 19",
+      "SMOLEJ N.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "ŠABIĆ S.": "DNEVNA12",
+      "KODRAS N.": "",
+      "ROZMAN K.": "",
+      "DJEDOVIĆ M.": "",
+      "SMOLEJ N.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "ŠABIĆ S.": "DNEVNA12",
+      "KODRAS N.": "",
+      "ROZMAN K.": "",
+      "DJEDOVIĆ M.": "",
+      "SMOLEJ N.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA",
+      "KODRAS N.": "LD",
+      "ROZMAN K.": "dopoldan",
+      "DJEDOVIĆ M.": "popoldan",
+      "SMOLEJ N.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA",
+      "KODRAS N.": "LD",
+      "ROZMAN K.": "dopoldan",
+      "DJEDOVIĆ M.": "popoldan",
+      "SMOLEJ N.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA",
+      "KODRAS N.": "LD",
+      "ROZMAN K.": "dopoldan",
+      "DJEDOVIĆ M.": "KPU",
+      "SMOLEJ N.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "ŠABIĆ S.": "KPU",
+      "KODRAS N.": "LD",
+      "ROZMAN K.": "NOČNA",
+      "DJEDOVIĆ M.": "dopoldan",
+      "SMOLEJ N.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "ŠABIĆ S.": "KPU",
+      "KODRAS N.": "LD",
+      "ROZMAN K.": "NOČNA od 19",
+      "DJEDOVIĆ M.": "dopoldan",
+      "SMOLEJ N.": "popoldan do 19"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "",
+      "ROZMAN K.": "",
+      "DJEDOVIĆ M.": "NOČNA12",
+      "SMOLEJ N.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "",
+      "ROZMAN K.": "",
+      "DJEDOVIĆ M.": "NOČNA12",
+      "SMOLEJ N.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "ŠABIĆ S.": "LD",
+      "KODRAS N.": "dopoldan",
+      "ROZMAN K.": "popoldan",
+      "DJEDOVIĆ M.": "KPU",
+      "SMOLEJ N.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "ŠABIĆ S.": "LD",
+      "KODRAS N.": "dopoldan",
+      "ROZMAN K.": "popoldan",
+      "DJEDOVIĆ M.": "KPU",
+      "SMOLEJ N.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "ŠABIĆ S.": "LD",
+      "KODRAS N.": "dopoldan",
+      "ROZMAN K.": "KPU",
+      "DJEDOVIĆ M.": "popoldan",
+      "SMOLEJ N.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "ŠABIĆ S.": "LD",
+      "KODRAS N.": "NOČNA",
+      "ROZMAN K.": "dopoldan",
+      "DJEDOVIĆ M.": "popoldan",
+      "SMOLEJ N.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "ŠABIĆ S.": "LD",
+      "KODRAS N.": "NOČNA od 19",
+      "ROZMAN K.": "dopoldan",
+      "DJEDOVIĆ M.": "popoldan do 19",
+      "SMOLEJ N.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "",
+      "ROZMAN K.": "NOČNA12",
+      "DJEDOVIĆ M.": "DNEVNA12",
+      "SMOLEJ N.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "",
+      "ROZMAN K.": "NOČNA12",
+      "DJEDOVIĆ M.": "DNEVNA12",
+      "SMOLEJ N.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "ŠABIĆ S.": "dopoldan",
+      "KODRAS N.": "popoldan",
+      "ROZMAN K.": "KPU",
+      "DJEDOVIĆ M.": "NOČNA",
+      "SMOLEJ N.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "ŠABIĆ S.": "dopoldan",
+      "KODRAS N.": "popoldan",
+      "ROZMAN K.": "KPU",
+      "DJEDOVIĆ M.": "NOČNA",
+      "SMOLEJ N.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "ŠABIĆ S.": "dopoldan",
+      "KODRAS N.": "KPU",
+      "ROZMAN K.": "popoldan",
+      "DJEDOVIĆ M.": "NOČNA",
+      "SMOLEJ N.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA",
+      "KODRAS N.": "dopoldan",
+      "ROZMAN K.": "popoldan",
+      "DJEDOVIĆ M.": "KPU",
+      "SMOLEJ N.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "ŠABIĆ S.": "NOČNA od 19",
+      "KODRAS N.": "dopoldan",
+      "ROZMAN K.": "popoldan do 19",
+      "DJEDOVIĆ M.": "KPU",
+      "SMOLEJ N.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "NOČNA12",
+      "ROZMAN K.": "DNEVNA12",
+      "DJEDOVIĆ M.": "",
+      "SMOLEJ N.": ""
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "ŠABIĆ S.": "",
+      "KODRAS N.": "NOČNA12",
+      "ROZMAN K.": "DNEVNA12",
+      "DJEDOVIĆ M.": "",
+      "SMOLEJ N.": ""
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "ŠABIĆ S.": "popoldan",
+      "KODRAS N.": "KPU",
+      "ROZMAN K.": "NOČNA",
+      "DJEDOVIĆ M.": "LD",
+      "SMOLEJ N.": "dopoldan"
+     }
+    }
+   ]
+  },
+  {
+   "koda": "C1",
+   "naziv": "C1 - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "DŽINIĆ A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "STARC E.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "KARNIČAR J.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "ZEKAN A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "ŠKANTAR M.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "VALJAVEC A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "BEČIROVIĆ N.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "SUŠNIK J.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "GAZIBARA A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "MRAVLJE U.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "DŽINIĆ A.": "DNEVNA12",
+      "STARC E.": "",
+      "KARNIČAR J.": "",
+      "ZEKAN A.": "NOČNA12",
+      "ŠKANTAR M.": "DNEVNA12",
+      "VALJAVEC A.": "",
+      "BEČIROVIĆ N.": "",
+      "SUŠNIK J.": "NOČNA12",
+      "GAZIBARA A.": "",
+      "MRAVLJE U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA",
+      "STARC E.": "popoldan",
+      "KARNIČAR J.": "dopoldan",
+      "ZEKAN A.": "KPU",
+      "ŠKANTAR M.": "NOČNA",
+      "VALJAVEC A.": "LD",
+      "BEČIROVIĆ N.": "dopoldan",
+      "SUŠNIK J.": "KPU",
+      "GAZIBARA A.": "LD",
+      "MRAVLJE U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA",
+      "STARC E.": "popoldan",
+      "KARNIČAR J.": "dopoldan",
+      "ZEKAN A.": "KPU",
+      "ŠKANTAR M.": "NOČNA",
+      "VALJAVEC A.": "LD",
+      "BEČIROVIĆ N.": "dopoldan",
+      "SUŠNIK J.": "KPU",
+      "GAZIBARA A.": "LD",
+      "MRAVLJE U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA",
+      "STARC E.": "KPU",
+      "KARNIČAR J.": "dopoldan",
+      "ZEKAN A.": "popoldan",
+      "ŠKANTAR M.": "NOČNA",
+      "VALJAVEC A.": "LD",
+      "BEČIROVIĆ N.": "dopoldan",
+      "SUŠNIK J.": "popoldan",
+      "GAZIBARA A.": "LD",
+      "MRAVLJE U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "DŽINIĆ A.": "KPU",
+      "STARC E.": "dopoldan",
+      "KARNIČAR J.": "NOČNA",
+      "ZEKAN A.": "popoldan",
+      "ŠKANTAR M.": "KPU",
+      "VALJAVEC A.": "LD",
+      "BEČIROVIĆ N.": "NOČNA",
+      "SUŠNIK J.": "popoldan",
+      "GAZIBARA A.": "LD",
+      "MRAVLJE U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "DŽINIĆ A.": "KPU",
+      "STARC E.": "dopoldan",
+      "KARNIČAR J.": "NOČNA od 19",
+      "ZEKAN A.": "popoldan do 19",
+      "ŠKANTAR M.": "KPU",
+      "VALJAVEC A.": "LD",
+      "BEČIROVIĆ N.": "NOČNA od 19",
+      "SUŠNIK J.": "popoldan do 19",
+      "GAZIBARA A.": "LD",
+      "MRAVLJE U.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "NOČNA12",
+      "KARNIČAR J.": "",
+      "ZEKAN A.": "DNEVNA12",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "",
+      "BEČIROVIĆ N.": "",
+      "SUŠNIK J.": "DNEVNA12",
+      "GAZIBARA A.": "",
+      "MRAVLJE U.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "NOČNA12",
+      "KARNIČAR J.": "",
+      "ZEKAN A.": "DNEVNA12",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "",
+      "BEČIROVIĆ N.": "",
+      "SUŠNIK J.": "DNEVNA12",
+      "GAZIBARA A.": "",
+      "MRAVLJE U.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "DŽINIĆ A.": "LD",
+      "STARC E.": "KPU",
+      "KARNIČAR J.": "popoldan",
+      "ZEKAN A.": "NOČNA",
+      "ŠKANTAR M.": "LD",
+      "VALJAVEC A.": "dopoldan",
+      "BEČIROVIĆ N.": "popoldan",
+      "SUŠNIK J.": "NOČNA",
+      "GAZIBARA A.": "dopoldan",
+      "MRAVLJE U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "DŽINIĆ A.": "LD",
+      "STARC E.": "KPU",
+      "KARNIČAR J.": "popoldan",
+      "ZEKAN A.": "NOČNA",
+      "ŠKANTAR M.": "LD",
+      "VALJAVEC A.": "dopoldan",
+      "BEČIROVIĆ N.": "popoldan",
+      "SUŠNIK J.": "NOČNA",
+      "GAZIBARA A.": "dopoldan",
+      "MRAVLJE U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "DŽINIĆ A.": "LD",
+      "STARC E.": "popoldan",
+      "KARNIČAR J.": "KPU",
+      "ZEKAN A.": "NOČNA",
+      "ŠKANTAR M.": "LD",
+      "VALJAVEC A.": "dopoldan",
+      "BEČIROVIĆ N.": "KPU",
+      "SUŠNIK J.": "NOČNA",
+      "GAZIBARA A.": "dopoldan",
+      "MRAVLJE U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "DŽINIĆ A.": "LD",
+      "STARC E.": "popoldan",
+      "KARNIČAR J.": "dopoldan",
+      "ZEKAN A.": "KPU",
+      "ŠKANTAR M.": "LD",
+      "VALJAVEC A.": "NOČNA",
+      "BEČIROVIĆ N.": "dopoldan",
+      "SUŠNIK J.": "KPU",
+      "GAZIBARA A.": "NOČNA",
+      "MRAVLJE U.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "DŽINIĆ A.": "LD",
+      "STARC E.": "popoldan do 19",
+      "KARNIČAR J.": "dopoldan",
+      "ZEKAN A.": "KPU",
+      "ŠKANTAR M.": "LD",
+      "VALJAVEC A.": "NOČNA od 19",
+      "BEČIROVIĆ N.": "dopoldan",
+      "SUŠNIK J.": "KPU",
+      "GAZIBARA A.": "NOČNA od 19",
+      "MRAVLJE U.": "popoldan do 19"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "DNEVNA12",
+      "KARNIČAR J.": "NOČNA12",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "",
+      "BEČIROVIĆ N.": "NOČNA12",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "",
+      "MRAVLJE U.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "DNEVNA12",
+      "KARNIČAR J.": "NOČNA12",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "",
+      "BEČIROVIĆ N.": "NOČNA12",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "",
+      "MRAVLJE U.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "DŽINIĆ A.": "dopoldan",
+      "STARC E.": "NOČNA",
+      "KARNIČAR J.": "KPU",
+      "ZEKAN A.": "LD",
+      "ŠKANTAR M.": "dopoldan",
+      "VALJAVEC A.": "popoldan",
+      "BEČIROVIĆ N.": "KPU",
+      "SUŠNIK J.": "LD",
+      "GAZIBARA A.": "popoldan",
+      "MRAVLJE U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "DŽINIĆ A.": "dopoldan",
+      "STARC E.": "NOČNA",
+      "KARNIČAR J.": "KPU",
+      "ZEKAN A.": "LD",
+      "ŠKANTAR M.": "dopoldan",
+      "VALJAVEC A.": "popoldan",
+      "BEČIROVIĆ N.": "KPU",
+      "SUŠNIK J.": "LD",
+      "GAZIBARA A.": "popoldan",
+      "MRAVLJE U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "DŽINIĆ A.": "dopoldan",
+      "STARC E.": "NOČNA",
+      "KARNIČAR J.": "popoldan",
+      "ZEKAN A.": "LD",
+      "ŠKANTAR M.": "dopoldan",
+      "VALJAVEC A.": "KPU",
+      "BEČIROVIĆ N.": "popoldan",
+      "SUŠNIK J.": "LD",
+      "GAZIBARA A.": "KPU",
+      "MRAVLJE U.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA",
+      "STARC E.": "KPU",
+      "KARNIČAR J.": "popoldan",
+      "ZEKAN A.": "LD",
+      "ŠKANTAR M.": "NOČNA",
+      "VALJAVEC A.": "dopoldan",
+      "BEČIROVIĆ N.": "popoldan",
+      "SUŠNIK J.": "LD",
+      "GAZIBARA A.": "dopoldan",
+      "MRAVLJE U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA od 19",
+      "STARC E.": "KPU",
+      "KARNIČAR J.": "popoldan do 19",
+      "ZEKAN A.": "LD",
+      "ŠKANTAR M.": "NOČNA od 19",
+      "VALJAVEC A.": "dopoldan",
+      "BEČIROVIĆ N.": "popoldan do 19",
+      "SUŠNIK J.": "LD",
+      "GAZIBARA A.": "dopoldan",
+      "MRAVLJE U.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "",
+      "KARNIČAR J.": "DNEVNA12",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "NOČNA12",
+      "BEČIROVIĆ N.": "DNEVNA12",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "NOČNA12",
+      "MRAVLJE U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "DŽINIĆ A.": "",
+      "STARC E.": "",
+      "KARNIČAR J.": "DNEVNA12",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "",
+      "VALJAVEC A.": "NOČNA12",
+      "BEČIROVIĆ N.": "DNEVNA12",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "NOČNA12",
+      "MRAVLJE U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "DŽINIĆ A.": "popoldan",
+      "STARC E.": "LD",
+      "KARNIČAR J.": "NOČNA",
+      "ZEKAN A.": "dopoldan",
+      "ŠKANTAR M.": "popoldan",
+      "VALJAVEC A.": "KPU",
+      "BEČIROVIĆ N.": "NOČNA",
+      "SUŠNIK J.": "dopoldan",
+      "GAZIBARA A.": "KPU",
+      "MRAVLJE U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "DŽINIĆ A.": "popoldan",
+      "STARC E.": "LD",
+      "KARNIČAR J.": "NOČNA",
+      "ZEKAN A.": "dopoldan",
+      "ŠKANTAR M.": "popoldan",
+      "VALJAVEC A.": "KPU",
+      "BEČIROVIĆ N.": "NOČNA",
+      "SUŠNIK J.": "dopoldan",
+      "GAZIBARA A.": "KPU",
+      "MRAVLJE U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "DŽINIĆ A.": "KPU",
+      "STARC E.": "LD",
+      "KARNIČAR J.": "NOČNA",
+      "ZEKAN A.": "dopoldan",
+      "ŠKANTAR M.": "KPU",
+      "VALJAVEC A.": "popoldan",
+      "BEČIROVIĆ N.": "NOČNA",
+      "SUŠNIK J.": "dopoldan",
+      "GAZIBARA A.": "popoldan",
+      "MRAVLJE U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "DŽINIĆ A.": "dopoldan",
+      "STARC E.": "LD",
+      "KARNIČAR J.": "KPU",
+      "ZEKAN A.": "NOČNA",
+      "ŠKANTAR M.": "dopoldan",
+      "VALJAVEC A.": "popoldan",
+      "BEČIROVIĆ N.": "KPU",
+      "SUŠNIK J.": "NOČNA",
+      "GAZIBARA A.": "popoldan",
+      "MRAVLJE U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "DŽINIĆ A.": "dopoldan",
+      "STARC E.": "LD",
+      "KARNIČAR J.": "KPU",
+      "ZEKAN A.": "NOČNA od 19",
+      "ŠKANTAR M.": "dopoldan",
+      "VALJAVEC A.": "popoldan do 19",
+      "BEČIROVIĆ N.": "KPU",
+      "SUŠNIK J.": "NOČNA od 19",
+      "GAZIBARA A.": "popoldan do 19",
+      "MRAVLJE U.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA12",
+      "STARC E.": "",
+      "KARNIČAR J.": "",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "NOČNA12",
+      "VALJAVEC A.": "DNEVNA12",
+      "BEČIROVIĆ N.": "",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "DNEVNA12",
+      "MRAVLJE U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "DŽINIĆ A.": "NOČNA12",
+      "STARC E.": "",
+      "KARNIČAR J.": "",
+      "ZEKAN A.": "",
+      "ŠKANTAR M.": "NOČNA12",
+      "VALJAVEC A.": "DNEVNA12",
+      "BEČIROVIĆ N.": "",
+      "SUŠNIK J.": "",
+      "GAZIBARA A.": "DNEVNA12",
+      "MRAVLJE U.": ""
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "DŽINIĆ A.": "KPU",
+      "STARC E.": "dopoldan",
+      "KARNIČAR J.": "LD",
+      "ZEKAN A.": "popoldan",
+      "ŠKANTAR M.": "KPU",
+      "VALJAVEC A.": "NOČNA",
+      "BEČIROVIĆ N.": "LD",
+      "SUŠNIK J.": "popoldan",
+      "GAZIBARA A.": "NOČNA",
+      "MRAVLJE U.": "dopoldan"
+     }
+    }
+   ]
+  },
+  {
+   "koda": "D",
+   "naziv": "D - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "MURIĆ A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "RANT L.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "REKIĆ E.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "VOZEL D.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "MOČNIK S.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "MEGLIČ J.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "NUHANOVIĆ M.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "STARE L.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "TOMAŠIĆ N.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "POGAČNIK M.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "MURIĆ A.": "",
+      "RANT L.": "DNEVNA12",
+      "REKIĆ E.": "DNEVNA12",
+      "VOZEL D.": "",
+      "MOČNIK S.": "",
+      "MEGLIČ J.": "",
+      "NUHANOVIĆ M.": "",
+      "STARE L.": "",
+      "TOMAŠIĆ N.": "NOČNA12",
+      "POGAČNIK M.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "MURIĆ A.": "dopoldan",
+      "RANT L.": "NOČNA",
+      "REKIĆ E.": "NOČNA",
+      "VOZEL D.": "popoldan",
+      "MOČNIK S.": "popoldan",
+      "MEGLIČ J.": "LD",
+      "NUHANOVIĆ M.": "LD",
+      "STARE L.": "dopoldan",
+      "TOMAŠIĆ N.": "KPU",
+      "POGAČNIK M.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "MURIĆ A.": "dopoldan",
+      "RANT L.": "NOČNA",
+      "REKIĆ E.": "NOČNA",
+      "VOZEL D.": "popoldan",
+      "MOČNIK S.": "popoldan",
+      "MEGLIČ J.": "LD",
+      "NUHANOVIĆ M.": "LD",
+      "STARE L.": "dopoldan",
+      "TOMAŠIĆ N.": "KPU",
+      "POGAČNIK M.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "MURIĆ A.": "dopoldan",
+      "RANT L.": "NOČNA",
+      "REKIĆ E.": "NOČNA",
+      "VOZEL D.": "KPU",
+      "MOČNIK S.": "KPU",
+      "MEGLIČ J.": "LD",
+      "NUHANOVIĆ M.": "LD",
+      "STARE L.": "dopoldan",
+      "TOMAŠIĆ N.": "popoldan",
+      "POGAČNIK M.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "MURIĆ A.": "NOČNA",
+      "RANT L.": "KPU",
+      "REKIĆ E.": "KPU",
+      "VOZEL D.": "dopoldan",
+      "MOČNIK S.": "dopoldan",
+      "MEGLIČ J.": "LD",
+      "NUHANOVIĆ M.": "LD",
+      "STARE L.": "NOČNA",
+      "TOMAŠIĆ N.": "popoldan",
+      "POGAČNIK M.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "MURIĆ A.": "NOČNA od 19",
+      "RANT L.": "KPU",
+      "REKIĆ E.": "KPU",
+      "VOZEL D.": "dopoldan",
+      "MOČNIK S.": "dopoldan",
+      "MEGLIČ J.": "LD",
+      "NUHANOVIĆ M.": "LD",
+      "STARE L.": "NOČNA od 19",
+      "TOMAŠIĆ N.": "popoldan do 19",
+      "POGAČNIK M.": "popoldan do 19"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "MURIĆ A.": "",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "NOČNA12",
+      "MOČNIK S.": "NOČNA12",
+      "MEGLIČ J.": "",
+      "NUHANOVIĆ M.": "",
+      "STARE L.": "",
+      "TOMAŠIĆ N.": "DNEVNA12",
+      "POGAČNIK M.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "MURIĆ A.": "",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "NOČNA12",
+      "MOČNIK S.": "NOČNA12",
+      "MEGLIČ J.": "",
+      "NUHANOVIĆ M.": "",
+      "STARE L.": "",
+      "TOMAŠIĆ N.": "DNEVNA12",
+      "POGAČNIK M.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "MURIĆ A.": "popoldan",
+      "RANT L.": "LD",
+      "REKIĆ E.": "LD",
+      "VOZEL D.": "KPU",
+      "MOČNIK S.": "KPU",
+      "MEGLIČ J.": "dopoldan",
+      "NUHANOVIĆ M.": "dopoldan",
+      "STARE L.": "popoldan",
+      "TOMAŠIĆ N.": "NOČNA",
+      "POGAČNIK M.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "MURIĆ A.": "popoldan",
+      "RANT L.": "LD",
+      "REKIĆ E.": "LD",
+      "VOZEL D.": "KPU",
+      "MOČNIK S.": "KPU",
+      "MEGLIČ J.": "dopoldan",
+      "NUHANOVIĆ M.": "dopoldan",
+      "STARE L.": "popoldan",
+      "TOMAŠIĆ N.": "NOČNA",
+      "POGAČNIK M.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "MURIĆ A.": "KPU",
+      "RANT L.": "LD",
+      "REKIĆ E.": "LD",
+      "VOZEL D.": "popoldan",
+      "MOČNIK S.": "popoldan",
+      "MEGLIČ J.": "dopoldan",
+      "NUHANOVIĆ M.": "dopoldan",
+      "STARE L.": "KPU",
+      "TOMAŠIĆ N.": "NOČNA",
+      "POGAČNIK M.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "MURIĆ A.": "dopoldan",
+      "RANT L.": "LD",
+      "REKIĆ E.": "LD",
+      "VOZEL D.": "popoldan",
+      "MOČNIK S.": "popoldan",
+      "MEGLIČ J.": "NOČNA",
+      "NUHANOVIĆ M.": "NOČNA",
+      "STARE L.": "dopoldan",
+      "TOMAŠIĆ N.": "KPU",
+      "POGAČNIK M.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "MURIĆ A.": "dopoldan",
+      "RANT L.": "LD",
+      "REKIĆ E.": "LD",
+      "VOZEL D.": "popoldan do 19",
+      "MOČNIK S.": "popoldan do 19",
+      "MEGLIČ J.": "NOČNA od 19",
+      "NUHANOVIĆ M.": "NOČNA od 19",
+      "STARE L.": "dopoldan",
+      "TOMAŠIĆ N.": "KPU",
+      "POGAČNIK M.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "MURIĆ A.": "NOČNA12",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "DNEVNA12",
+      "MOČNIK S.": "DNEVNA12",
+      "MEGLIČ J.": "",
+      "NUHANOVIĆ M.": "",
+      "STARE L.": "NOČNA12",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "MURIĆ A.": "NOČNA12",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "DNEVNA12",
+      "MOČNIK S.": "DNEVNA12",
+      "MEGLIČ J.": "",
+      "NUHANOVIĆ M.": "",
+      "STARE L.": "NOČNA12",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "MURIĆ A.": "KPU",
+      "RANT L.": "dopoldan",
+      "REKIĆ E.": "dopoldan",
+      "VOZEL D.": "NOČNA",
+      "MOČNIK S.": "NOČNA",
+      "MEGLIČ J.": "popoldan",
+      "NUHANOVIĆ M.": "popoldan",
+      "STARE L.": "KPU",
+      "TOMAŠIĆ N.": "LD",
+      "POGAČNIK M.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "MURIĆ A.": "KPU",
+      "RANT L.": "dopoldan",
+      "REKIĆ E.": "dopoldan",
+      "VOZEL D.": "NOČNA",
+      "MOČNIK S.": "NOČNA",
+      "MEGLIČ J.": "popoldan",
+      "NUHANOVIĆ M.": "popoldan",
+      "STARE L.": "KPU",
+      "TOMAŠIĆ N.": "LD",
+      "POGAČNIK M.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "MURIĆ A.": "popoldan",
+      "RANT L.": "dopoldan",
+      "REKIĆ E.": "dopoldan",
+      "VOZEL D.": "NOČNA",
+      "MOČNIK S.": "NOČNA",
+      "MEGLIČ J.": "KPU",
+      "NUHANOVIĆ M.": "KPU",
+      "STARE L.": "popoldan",
+      "TOMAŠIĆ N.": "LD",
+      "POGAČNIK M.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "MURIĆ A.": "popoldan",
+      "RANT L.": "NOČNA",
+      "REKIĆ E.": "NOČNA",
+      "VOZEL D.": "KPU",
+      "MOČNIK S.": "KPU",
+      "MEGLIČ J.": "dopoldan",
+      "NUHANOVIĆ M.": "dopoldan",
+      "STARE L.": "popoldan",
+      "TOMAŠIĆ N.": "LD",
+      "POGAČNIK M.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "MURIĆ A.": "popoldan do 19",
+      "RANT L.": "NOČNA od 19",
+      "REKIĆ E.": "NOČNA od 19",
+      "VOZEL D.": "KPU",
+      "MOČNIK S.": "KPU",
+      "MEGLIČ J.": "dopoldan",
+      "NUHANOVIĆ M.": "dopoldan",
+      "STARE L.": "popoldan do 19",
+      "TOMAŠIĆ N.": "LD",
+      "POGAČNIK M.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "MURIĆ A.": "DNEVNA12",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "",
+      "MOČNIK S.": "",
+      "MEGLIČ J.": "NOČNA12",
+      "NUHANOVIĆ M.": "NOČNA12",
+      "STARE L.": "DNEVNA12",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "MURIĆ A.": "DNEVNA12",
+      "RANT L.": "",
+      "REKIĆ E.": "",
+      "VOZEL D.": "",
+      "MOČNIK S.": "",
+      "MEGLIČ J.": "NOČNA12",
+      "NUHANOVIĆ M.": "NOČNA12",
+      "STARE L.": "DNEVNA12",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "MURIĆ A.": "NOČNA",
+      "RANT L.": "popoldan",
+      "REKIĆ E.": "popoldan",
+      "VOZEL D.": "LD",
+      "MOČNIK S.": "LD",
+      "MEGLIČ J.": "KPU",
+      "NUHANOVIĆ M.": "KPU",
+      "STARE L.": "NOČNA",
+      "TOMAŠIĆ N.": "dopoldan",
+      "POGAČNIK M.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "MURIĆ A.": "NOČNA",
+      "RANT L.": "popoldan",
+      "REKIĆ E.": "popoldan",
+      "VOZEL D.": "LD",
+      "MOČNIK S.": "LD",
+      "MEGLIČ J.": "KPU",
+      "NUHANOVIĆ M.": "KPU",
+      "STARE L.": "NOČNA",
+      "TOMAŠIĆ N.": "dopoldan",
+      "POGAČNIK M.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "MURIĆ A.": "NOČNA",
+      "RANT L.": "KPU",
+      "REKIĆ E.": "KPU",
+      "VOZEL D.": "LD",
+      "MOČNIK S.": "LD",
+      "MEGLIČ J.": "popoldan",
+      "NUHANOVIĆ M.": "popoldan",
+      "STARE L.": "NOČNA",
+      "TOMAŠIĆ N.": "dopoldan",
+      "POGAČNIK M.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "MURIĆ A.": "KPU",
+      "RANT L.": "dopoldan",
+      "REKIĆ E.": "dopoldan",
+      "VOZEL D.": "LD",
+      "MOČNIK S.": "LD",
+      "MEGLIČ J.": "popoldan",
+      "NUHANOVIĆ M.": "popoldan",
+      "STARE L.": "KPU",
+      "TOMAŠIĆ N.": "NOČNA",
+      "POGAČNIK M.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "MURIĆ A.": "KPU",
+      "RANT L.": "dopoldan",
+      "REKIĆ E.": "dopoldan",
+      "VOZEL D.": "LD",
+      "MOČNIK S.": "LD",
+      "MEGLIČ J.": "popoldan do 19",
+      "NUHANOVIĆ M.": "popoldan do 19",
+      "STARE L.": "KPU",
+      "TOMAŠIĆ N.": "NOČNA od 19",
+      "POGAČNIK M.": "NOČNA od 19"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "MURIĆ A.": "",
+      "RANT L.": "NOČNA12",
+      "REKIĆ E.": "NOČNA12",
+      "VOZEL D.": "",
+      "MOČNIK S.": "",
+      "MEGLIČ J.": "DNEVNA12",
+      "NUHANOVIĆ M.": "DNEVNA12",
+      "STARE L.": "",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "MURIĆ A.": "",
+      "RANT L.": "NOČNA12",
+      "REKIĆ E.": "NOČNA12",
+      "VOZEL D.": "",
+      "MOČNIK S.": "",
+      "MEGLIČ J.": "DNEVNA12",
+      "NUHANOVIĆ M.": "DNEVNA12",
+      "STARE L.": "",
+      "TOMAŠIĆ N.": "",
+      "POGAČNIK M.": ""
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "MURIĆ A.": "LD",
+      "RANT L.": "KPU",
+      "REKIĆ E.": "KPU",
+      "VOZEL D.": "dopoldan",
+      "MOČNIK S.": "dopoldan",
+      "MEGLIČ J.": "NOČNA",
+      "NUHANOVIĆ M.": "NOČNA",
+      "STARE L.": "LD",
+      "TOMAŠIĆ N.": "popoldan",
+      "POGAČNIK M.": "popoldan"
+     }
+    }
+   ]
+  },
+  {
+   "koda": "E1",
+   "naziv": "E1 - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "BRATUŠA M.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "SVETINA R.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "URANKER M.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "PETERMAN R.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "MALER A.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "BRATUŠA M.": "",
+      "SVETINA R.": "",
+      "URANKER M.": "NOČNA12",
+      "PETERMAN R.": "",
+      "MALER A.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "BRATUŠA M.": "LD",
+      "SVETINA R.": "popoldan",
+      "URANKER M.": "KPU",
+      "PETERMAN R.": "dopoldan",
+      "MALER A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "BRATUŠA M.": "LD",
+      "SVETINA R.": "popoldan",
+      "URANKER M.": "KPU",
+      "PETERMAN R.": "dopoldan",
+      "MALER A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "BRATUŠA M.": "LD",
+      "SVETINA R.": "KPU",
+      "URANKER M.": "popoldan",
+      "PETERMAN R.": "dopoldan",
+      "MALER A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "BRATUŠA M.": "LD",
+      "SVETINA R.": "dopoldan",
+      "URANKER M.": "popoldan",
+      "PETERMAN R.": "NOČNA",
+      "MALER A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "BRATUŠA M.": "LD",
+      "SVETINA R.": "dopoldan",
+      "URANKER M.": "popoldan do 19h",
+      "PETERMAN R.": "NOČNA od 19h",
+      "MALER A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "BRATUŠA M.": "",
+      "SVETINA R.": "NOČNA12",
+      "URANKER M.": "DNEVNA12",
+      "PETERMAN R.": "",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "BRATUŠA M.": "",
+      "SVETINA R.": "NOČNA12",
+      "URANKER M.": "DNEVNA12",
+      "PETERMAN R.": "",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "BRATUŠA M.": "dopoldan",
+      "SVETINA R.": "KPU",
+      "URANKER M.": "NOČNA",
+      "PETERMAN R.": "popoldan",
+      "MALER A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "BRATUŠA M.": "dopoldan",
+      "SVETINA R.": "KPU",
+      "URANKER M.": "NOČNA",
+      "PETERMAN R.": "popoldan",
+      "MALER A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "BRATUŠA M.": "dopoldan",
+      "SVETINA R.": "popoldan",
+      "URANKER M.": "NOČNA",
+      "PETERMAN R.": "KPU",
+      "MALER A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "BRATUŠA M.": "NOČNA",
+      "SVETINA R.": "popoldan",
+      "URANKER M.": "KPU",
+      "PETERMAN R.": "dopoldan",
+      "MALER A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "BRATUŠA M.": "NOČNA od 19h",
+      "SVETINA R.": "popoldan do 19h",
+      "URANKER M.": "KPU",
+      "PETERMAN R.": "dopoldan",
+      "MALER A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "BRATUŠA M.": "",
+      "SVETINA R.": "DNEVNA12",
+      "URANKER M.": "",
+      "PETERMAN R.": "NOČNA12",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "BRATUŠA M.": "",
+      "SVETINA R.": "DNEVNA12",
+      "URANKER M.": "",
+      "PETERMAN R.": "NOČNA12",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "BRATUŠA M.": "popoldan",
+      "SVETINA R.": "NOČNA",
+      "URANKER M.": "LD",
+      "PETERMAN R.": "KPU",
+      "MALER A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "BRATUŠA M.": "popoldan",
+      "SVETINA R.": "NOČNA",
+      "URANKER M.": "LD",
+      "PETERMAN R.": "KPU",
+      "MALER A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "BRATUŠA M.": "KPU",
+      "SVETINA R.": "NOČNA",
+      "URANKER M.": "LD",
+      "PETERMAN R.": "popoldan",
+      "MALER A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "BRATUŠA M.": "dopoldan",
+      "SVETINA R.": "KPU",
+      "URANKER M.": "LD",
+      "PETERMAN R.": "popoldan",
+      "MALER A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "BRATUŠA M.": "dopoldan",
+      "SVETINA R.": "KPU",
+      "URANKER M.": "LD",
+      "PETERMAN R.": "popoldan do 19h",
+      "MALER A.": "NOČNA od 19h"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "BRATUŠA M.": "NOČNA12",
+      "SVETINA R.": "",
+      "URANKER M.": "",
+      "PETERMAN R.": "DNEVNA12",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "BRATUŠA M.": "NOČNA12",
+      "SVETINA R.": "",
+      "URANKER M.": "",
+      "PETERMAN R.": "DNEVNA12",
+      "MALER A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "BRATUŠA M.": "KPU",
+      "SVETINA R.": "LD",
+      "URANKER M.": "dopoldan",
+      "PETERMAN R.": "NOČNA",
+      "MALER A.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "BRATUŠA M.": "KPU",
+      "SVETINA R.": "LD",
+      "URANKER M.": "dopoldan",
+      "PETERMAN R.": "NOČNA",
+      "MALER A.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "BRATUŠA M.": "popoldan",
+      "SVETINA R.": "LD",
+      "URANKER M.": "dopoldan",
+      "PETERMAN R.": "NOČNA",
+      "MALER A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "BRATUŠA M.": "popoldan",
+      "SVETINA R.": "LD",
+      "URANKER M.": "NOČNA",
+      "PETERMAN R.": "KPU",
+      "MALER A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "BRATUŠA M.": "popoldan do 19h",
+      "SVETINA R.": "LD",
+      "URANKER M.": "NOČNA od 19h",
+      "PETERMAN R.": "KPU",
+      "MALER A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "BRATUŠA M.": "DNEVNA12",
+      "SVETINA R.": "",
+      "URANKER M.": "",
+      "PETERMAN R.": "",
+      "MALER A.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "BRATUŠA M.": "DNEVNA12",
+      "SVETINA R.": "",
+      "URANKER M.": "",
+      "PETERMAN R.": "",
+      "MALER A.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "BRATUŠA M.": "NOČNA",
+      "SVETINA R.": "dopoldan",
+      "URANKER M.": "popoldan",
+      "PETERMAN R.": "LD",
+      "MALER A.": "KPU"
+     }
+    }
+   ]
+  },
+  {
+   "koda": "E2",
+   "naziv": "E2 - ODDELEK",
+   "zaposleni": [
+    {
+     "ime": "MUŠIĆ A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "BAJT A.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "VOLARIČ N.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "SODJA B.",
+     "vloga": "SMS / TZN"
+    },
+    {
+     "ime": "TALIĆ A.",
+     "vloga": "SMS / TZN"
+    }
+   ],
+   "dnevi": [
+    {
+     "datum": "2026-11-01",
+     "dan": "NE",
+     "izmene": {
+      "MUŠIĆ A.": "DNEVNA12",
+      "BAJT A.": "",
+      "VOLARIČ N.": "",
+      "SODJA B.": "",
+      "TALIĆ A.": "NOČNA12"
+     }
+    },
+    {
+     "datum": "2026-11-02",
+     "dan": "PO",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA",
+      "BAJT A.": "LD",
+      "VOLARIČ N.": "popoldan",
+      "SODJA B.": "dopoldan",
+      "TALIĆ A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-03",
+     "dan": "TO",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA",
+      "BAJT A.": "LD",
+      "VOLARIČ N.": "popoldan",
+      "SODJA B.": "dopoldan",
+      "TALIĆ A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-04",
+     "dan": "SR",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA",
+      "BAJT A.": "LD",
+      "VOLARIČ N.": "KPU",
+      "SODJA B.": "dopoldan",
+      "TALIĆ A.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-05",
+     "dan": "ČE",
+     "izmene": {
+      "MUŠIĆ A.": "KPU",
+      "BAJT A.": "LD",
+      "VOLARIČ N.": "dopoldan",
+      "SODJA B.": "NOČNA",
+      "TALIĆ A.": "popoldan"
+     }
+    },
+    {
+     "datum": "2026-11-06",
+     "dan": "PE",
+     "izmene": {
+      "MUŠIĆ A.": "KPU",
+      "BAJT A.": "LD",
+      "VOLARIČ N.": "dopoldan",
+      "SODJA B.": "NOČNA od 19",
+      "TALIĆ A.": "popoldan do 19"
+     }
+    },
+    {
+     "datum": "2026-11-07",
+     "dan": "SO",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "",
+      "VOLARIČ N.": "NOČNA12",
+      "SODJA B.": "",
+      "TALIĆ A.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-08",
+     "dan": "NE",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "",
+      "VOLARIČ N.": "NOČNA12",
+      "SODJA B.": "",
+      "TALIĆ A.": "DNEVNA12"
+     }
+    },
+    {
+     "datum": "2026-11-09",
+     "dan": "PO",
+     "izmene": {
+      "MUŠIĆ A.": "LD",
+      "BAJT A.": "dopoldan",
+      "VOLARIČ N.": "KPU",
+      "SODJA B.": "popoldan",
+      "TALIĆ A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-10",
+     "dan": "TO",
+     "izmene": {
+      "MUŠIĆ A.": "LD",
+      "BAJT A.": "dopoldan",
+      "VOLARIČ N.": "KPU",
+      "SODJA B.": "popoldan",
+      "TALIĆ A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-11",
+     "dan": "SR",
+     "izmene": {
+      "MUŠIĆ A.": "LD",
+      "BAJT A.": "dopoldan",
+      "VOLARIČ N.": "popoldan",
+      "SODJA B.": "KPU",
+      "TALIĆ A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-12",
+     "dan": "ČE",
+     "izmene": {
+      "MUŠIĆ A.": "LD",
+      "BAJT A.": "NOČNA",
+      "VOLARIČ N.": "popoldan",
+      "SODJA B.": "dopoldan",
+      "TALIĆ A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-13",
+     "dan": "PE",
+     "izmene": {
+      "MUŠIĆ A.": "LD",
+      "BAJT A.": "NOČNA od 19",
+      "VOLARIČ N.": "popoldan do 19",
+      "SODJA B.": "dopoldan",
+      "TALIĆ A.": "KPU"
+     }
+    },
+    {
+     "datum": "2026-11-14",
+     "dan": "SO",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "",
+      "VOLARIČ N.": "DNEVNA12",
+      "SODJA B.": "NOČNA12",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-15",
+     "dan": "NE",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "",
+      "VOLARIČ N.": "DNEVNA12",
+      "SODJA B.": "NOČNA12",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-16",
+     "dan": "PO",
+     "izmene": {
+      "MUŠIĆ A.": "dopoldan",
+      "BAJT A.": "popoldan",
+      "VOLARIČ N.": "NOČNA",
+      "SODJA B.": "KPU",
+      "TALIĆ A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-17",
+     "dan": "TO",
+     "izmene": {
+      "MUŠIĆ A.": "dopoldan",
+      "BAJT A.": "popoldan",
+      "VOLARIČ N.": "NOČNA",
+      "SODJA B.": "KPU",
+      "TALIĆ A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-18",
+     "dan": "SR",
+     "izmene": {
+      "MUŠIĆ A.": "dopoldan",
+      "BAJT A.": "KPU",
+      "VOLARIČ N.": "NOČNA",
+      "SODJA B.": "popoldan",
+      "TALIĆ A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-19",
+     "dan": "ČE",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA",
+      "BAJT A.": "dopoldan",
+      "VOLARIČ N.": "KPU",
+      "SODJA B.": "popoldan",
+      "TALIĆ A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-20",
+     "dan": "PE",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA od 19",
+      "BAJT A.": "dopoldan",
+      "VOLARIČ N.": "KPU",
+      "SODJA B.": "popoldan do 19",
+      "TALIĆ A.": "LD"
+     }
+    },
+    {
+     "datum": "2026-11-21",
+     "dan": "SO",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "NOČNA12",
+      "VOLARIČ N.": "",
+      "SODJA B.": "DNEVNA12",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-22",
+     "dan": "NE",
+     "izmene": {
+      "MUŠIĆ A.": "",
+      "BAJT A.": "NOČNA12",
+      "VOLARIČ N.": "",
+      "SODJA B.": "DNEVNA12",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-23",
+     "dan": "PO",
+     "izmene": {
+      "MUŠIĆ A.": "popoldan",
+      "BAJT A.": "KPU",
+      "VOLARIČ N.": "LD",
+      "SODJA B.": "NOČNA",
+      "TALIĆ A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-24",
+     "dan": "TO",
+     "izmene": {
+      "MUŠIĆ A.": "popoldan",
+      "BAJT A.": "KPU",
+      "VOLARIČ N.": "LD",
+      "SODJA B.": "NOČNA",
+      "TALIĆ A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-25",
+     "dan": "SR",
+     "izmene": {
+      "MUŠIĆ A.": "KPU",
+      "BAJT A.": "popoldan",
+      "VOLARIČ N.": "LD",
+      "SODJA B.": "NOČNA",
+      "TALIĆ A.": "dopoldan"
+     }
+    },
+    {
+     "datum": "2026-11-26",
+     "dan": "ČE",
+     "izmene": {
+      "MUŠIĆ A.": "dopoldan",
+      "BAJT A.": "popoldan",
+      "VOLARIČ N.": "LD",
+      "SODJA B.": "KPU",
+      "TALIĆ A.": "NOČNA"
+     }
+    },
+    {
+     "datum": "2026-11-27",
+     "dan": "PE",
+     "izmene": {
+      "MUŠIĆ A.": "dopoldan",
+      "BAJT A.": "popoldan do 19",
+      "VOLARIČ N.": "LD",
+      "SODJA B.": "KPU",
+      "TALIĆ A.": "NOČNA od 19"
+     }
+    },
+    {
+     "datum": "2026-11-28",
+     "dan": "SO",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA12",
+      "BAJT A.": "DNEVNA12",
+      "VOLARIČ N.": "",
+      "SODJA B.": "",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-29",
+     "dan": "NE",
+     "izmene": {
+      "MUŠIĆ A.": "NOČNA12",
+      "BAJT A.": "DNEVNA12",
+      "VOLARIČ N.": "",
+      "SODJA B.": "",
+      "TALIĆ A.": ""
+     }
+    },
+    {
+     "datum": "2026-11-30",
+     "dan": "PO",
+     "izmene": {
+      "MUŠIĆ A.": "KPU",
+      "BAJT A.": "NOČNA",
+      "VOLARIČ N.": "dopoldan",
+      "SODJA B.": "LD",
+      "TALIĆ A.": "popoldan"
+     }
+    }
+   ]
+  }
+ ],
+ "mesec": "November 2026"
+}

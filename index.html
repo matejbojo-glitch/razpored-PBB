@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Razpored · Begunje</title>
+<meta name="description" content="Mesečni razpored dela zdravstvene nege, Psihiatrična bolnišnica Begunje" />
+<meta name="theme-color" content="#12192B" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Razpored" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg: #0d1322;
+    --bg-grad: #12192B;
+    --surface: #1B2540;
+    --surface-2: #212C4C;
+    --line: #2B375C;
+    --text: #F1F0EA;
+    --muted: #8B93A8;
+    --accent: #E8A33D;
+    --accent-ink: #2A1C05;
+    --dop: #7FB88F;
+    --pop: #E0916B;
+    --noc: #6E8FD1;
+    --h12: #A78BC9;
+    --off: #4A5270;
+    --off-text: #B9BFD1;
+    --danger: #D97757;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --tabular: "tnum" 1, "lnum" 1;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 480px; margin: 0 auto; padding: 0 16px 40px; }
+  a, button{ font-family: inherit; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+  header.top{
+    position: sticky; top:0; z-index: 20;
+    background: linear-gradient(180deg, var(--bg) 70%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px;
+  }
+  .wordmark{ display:flex; align-items:baseline; gap:8px; }
+  .wordmark .mark{
+    font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
+  }
+  .wordmark .dept{
+    font-size: 13px; color: var(--accent); font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .sub{ margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+
+  .segmented{
+    display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
+    padding:4px; border-radius: 999px; margin-top: 14px;
+  }
+  .segmented button{
+    flex:1; border:0; background:transparent; color: var(--muted);
+    padding: 9px 10px; border-radius: 999px; font-size: 13.5px; font-weight: 700;
+    cursor:pointer; transition: background .15s ease, color .15s ease;
+  }
+  .segmented button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); }
+
+  .changeLink{
+    display:inline-flex; align-items:center; gap:6px; margin-top:12px;
+    font-size: 12.5px; color: var(--muted); background:none; border:0; padding:0; cursor:pointer;
+    text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line);
+  }
+  .changeLink:hover{ color: var(--text); }
+
+  /* ---------- picker ---------- */
+  .pickTitle{ font-size: 22px; font-weight: 800; letter-spacing:-0.01em; margin: 18px 0 4px; }
+  .pickHint{ color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .deptCard{
+    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 14px; text-align:left; cursor:pointer; color: var(--text);
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .deptCard:active{ transform: scale(0.97); }
+  .deptCard:hover{ border-color: var(--accent); background: var(--surface-2); }
+  .deptCard .k{ font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .deptCard .n{ font-size: 12px; color: var(--muted); margin-top:2px; }
+
+  .nameList{ display:flex; flex-direction:column; gap:8px; margin-top: 6px; }
+  .nameRow{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 13px 14px; cursor:pointer; color: var(--text); text-align:left;
+  }
+  .nameRow:hover{ border-color: var(--accent); }
+  .nameRow .who .ime{ font-weight:700; font-size:15px; }
+  .nameRow .who .vloga{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+  .nameRow .chev{ color: var(--muted); }
+  .backRow{ display:flex; align-items:center; gap:8px; margin: 4px 0 10px; }
+  .backBtn{
+    background:none; border:0; color: var(--accent); font-weight:700; font-size:14px;
+    cursor:pointer; padding: 6px 0; display:flex; align-items:center; gap:4px;
+  }
+
+  /* ---------- my schedule ---------- */
+  .todayCard{
+    margin-top:16px; background: linear-gradient(135deg, var(--surface-2), var(--surface));
+    border:1px solid var(--line); border-radius: var(--radius); padding:16px;
+  }
+  .todayCard .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+  .todayCard .shift{ display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; }
+  .todayCard .shiftName{ font-size: 19px; font-weight: 800; letter-spacing:-0.01em; }
+  .todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
+
+  .weekLabel{
+    font-size: 12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+    color: var(--muted); margin: 22px 2px 8px;
+  }
+  .dayRow{
+    display:flex; align-items:center; gap:12px; padding: 10px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .dayRow:last-child{ border-bottom:0; }
+  .dayRow .dnum{
+    width: 40px; flex: 0 0 auto; text-align:center; font-variant-numeric: tabular-nums;
+  }
+  .dayRow .dnum .n{ font-size:18px; font-weight:800; line-height:1; }
+  .dayRow .dnum .d{ font-size:10px; color: var(--muted); text-transform:uppercase; margin-top:2px; }
+  .dayRow.today{ background: rgba(232,163,61,0.08); border-radius: 10px; }
+  .dayRow.today .dnum .n{ color: var(--accent); }
+  .dayRow.weekend .dnum .d{ color: var(--pop); }
+  .chip{
+    flex:1; display:flex; align-items:center; gap:8px; padding: 8px 12px;
+    border-radius: 999px; font-size: 13.5px; font-weight:700; min-width:0;
+  }
+  .chip .txt{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip.off{ color: var(--off-text); }
+
+  /* ---------- ward table ---------- */
+  .wardScroller{
+    margin-top: 16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
+    -webkit-overflow-scrolling: touch;
+  }
+  table.wardTable{ border-collapse:separate; border-spacing:0; width:max-content; }
+  table.wardTable th, table.wardTable td{
+    padding: 8px 9px; font-size: 12px; text-align:center; white-space:nowrap;
+    border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+  }
+  table.wardTable thead th{
+    background: var(--surface-2); color: var(--muted); font-weight:700; position:sticky; top:0; z-index:2;
+    font-size: 11px;
+  }
+  table.wardTable thead th.weekend{ color: var(--pop); }
+  table.wardTable td.name, table.wardTable th.name{
+    position:sticky; left:0; z-index:3; background: var(--surface); text-align:left;
+    font-weight:700; min-width:118px; max-width:118px; overflow:hidden; text-overflow:ellipsis;
+  }
+  table.wardTable thead th.name{ z-index:4; background: var(--surface-2); }
+  table.wardTable td.cell{ min-width:46px; }
+  table.wardTable td.me{ box-shadow: inset 0 0 0 2px var(--accent); }
+  .swatch{
+    display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700;
+  }
+
+  .legend{
+    margin-top:16px; display:flex; flex-wrap:wrap; gap:8px 14px; font-size:12px; color: var(--muted);
+  }
+  .legend .li{ display:flex; align-items:center; gap:6px; }
+  .legend .dot{ width:9px; height:9px; }
+
+  footer.foot{
+    margin-top: 30px; padding-top:16px; border-top:1px solid var(--line);
+    font-size: 11.5px; color: var(--muted); line-height:1.6;
+  }
+  footer.foot b{ color: var(--text); }
+
+  .installBar{
+    position: sticky; bottom: 0; margin-top: 20px; background: var(--surface);
+    border:1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .installBar .t{ font-size:13px; font-weight:700; }
+  .installBar .s{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+  .installBtn{
+    background: var(--accent); color: var(--accent-ink); border:0; border-radius:999px;
+    padding: 8px 14px; font-weight:800; font-size:12.5px; cursor:pointer; flex:0 0 auto;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useCallback } = React;
+
+const DAN_IME = { PO:"ponedeljek", TO:"torek", SR:"sreda", ČE:"četrtek", PE:"petek", SO:"sobota", NE:"nedelja" };
+const DELOVNI_ČAS = {
+  "dopoldan": "05.50–14.00",
+  "popoldan": "13.50–21.00",
+  "popoldan do 19": "13.50–19.00",
+  "popoldan do 19h": "13.50–19.00",
+  "NOČNA": "20.50–06.00",
+  "NOČNA od 19": "18.50–06.00",
+  "NOČNA od 19h": "18.50–06.00",
+  "NOČNA12": "17.50–06.00",
+  "DNEVNA12": "05.50–18.00",
+  "KPU": "koriščenje prostih ur",
+  "LD": "letni dopust",
+};
+
+function classify(sifra){
+  const t = (sifra || "").toLowerCase();
+  if (t.startsWith("ld")) return "off";
+  if (t.startsWith("kpu")) return "off";
+  if (t.includes("nočna12")) return "h12";
+  if (t.includes("dnevna12")) return "h12";
+  if (t.startsWith("nočna")) return "noc";
+  if (t.startsWith("dopoldan")) return "dop";
+  if (t.startsWith("popoldan")) return "pop";
+  return "off";
+}
+// Literal hex (ne CSS var()) — potrebujemo jih za sestavljanje prosojnih ozadij (hex + alfa).
+// Vrednosti morajo ostati usklajene z ustreznimi CSS spremenljivkami v :root.
+const BARVE = { dop:"#7FB88F", pop:"#E0916B", noc:"#6E8FD1", h12:"#A78BC9", off:"#4A5270" };
+const NAZIV_IZMENE = {
+  dop:"Dopoldan", pop:"Popoldan", noc:"Nočna", h12:"12-urna izmena", off:"Prosto",
+};
+
+function shiftLabel(sifra){
+  if (!sifra) return "Prosto";
+  return sifra;
+}
+
+function useLocalState(key, initial){
+  const [v, setV] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : initial; }
+    catch(e){ return initial; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){}
+  }, [key, v]);
+  return [v, setV];
+}
+
+function Picker({ data, onDone }){
+  const [oddelek, setOddelek] = useState(null);
+
+  if (!oddelek){
+    return (
+      <div>
+        <p className="pickTitle">Kdo ste?</p>
+        <p className="pickHint">Izberite svoj oddelek, nato svoje ime. To si aplikacija zapomni za naslednjič.</p>
+        <div className="grid2">
+          {data.oddelki.map(o => (
+            <button key={o.koda} className="deptCard" onClick={() => setOddelek(o)}>
+              <div className="k">{o.koda}</div>
+              <div className="n">{o.zaposleni.length} zaposlenih</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="backRow">
+        <button className="backBtn" onClick={() => setOddelek(null)}>‹ Nazaj</button>
+      </div>
+      <p className="pickTitle">{oddelek.naziv}</p>
+      <p className="pickHint">Izberite svoje ime s seznama.</p>
+      <div className="nameList">
+        {oddelek.zaposleni.map(z => (
+          <button key={z.ime} className="nameRow" onClick={() => onDone(oddelek.koda, z.ime)}>
+            <span className="who">
+              <div className="ime">{z.ime}</div>
+              <div className="vloga">{z.vloga}</div>
+            </span>
+            <span className="chev">›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function todayISO(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+
+function MyScheduleView({ oddelek, ime }){
+  const iso = todayISO();
+  const todayEntry = oddelek.dnevi.find(dn => dn.datum === iso);
+  const todaySifra = todayEntry ? todayEntry.izmene[ime] : null;
+  const todayCls = todayEntry ? classify(todaySifra) : null;
+
+  // grupiraj po tednih (ponedeljek-nedelja)
+  const tedni = useMemo(() => {
+    const out = [];
+    let cur = null;
+    oddelek.dnevi.forEach(dn => {
+      const d = new Date(dn.datum + "T00:00:00");
+      if (dn.dan === "PO" || !cur){
+        cur = []; out.push(cur);
+      }
+      cur.push(dn);
+    });
+    return out;
+  }, [oddelek]);
+
+  return (
+    <div>
+      {todayEntry && (
+        <div className="todayCard">
+          <div className="lbl">Danes · {new Date(iso+"T00:00:00").toLocaleDateString("sl-SI",{day:"numeric",month:"long"})}</div>
+          <div className="shift">
+            <span className="dot" style={{background: BARVE[todayCls]}}></span>
+            <div>
+              <div className="shiftName">{shiftLabel(todaySifra)}</div>
+              <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tedni.map((teden, i) => (
+        <div key={i}>
+          <div className="weekLabel">Teden {i+1}</div>
+          {teden.map(dn => {
+            const sifra = dn.izmene[ime];
+            const cls = classify(sifra);
+            const isToday = dn.datum === iso;
+            const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+            const d = new Date(dn.datum + "T00:00:00");
+            return (
+              <div key={dn.datum} className={"dayRow" + (isToday ? " today" : "") + (isWeekend ? " weekend" : "")}>
+                <div className="dnum">
+                  <div className="n">{d.getDate()}</div>
+                  <div className="d">{dn.dan}</div>
+                </div>
+                <div className={"chip" + (cls==="off" ? " off" : "")} style={{background: cls==="off" ? "transparent" : (BARVE[cls] + "26"), border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls])}}>
+                  <span className="dot" style={{background: BARVE[cls]}}></span>
+                  <span className="txt">{shiftLabel(sifra)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WardView({ oddelek, ime }){
+  return (
+    <div>
+      <div className="wardScroller">
+        <table className="wardTable">
+          <thead>
+            <tr>
+              <th className="name">Zaposleni</th>
+              {oddelek.dnevi.map(dn => (
+                <th key={dn.datum} className={dn.dan==="SO"||dn.dan==="NE" ? "weekend" : ""}>
+                  {new Date(dn.datum+"T00:00:00").getDate()}<br/>{dn.dan}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {oddelek.zaposleni.map(z => (
+              <tr key={z.ime}>
+                <td className="name">{z.ime}</td>
+                {oddelek.dnevi.map(dn => {
+                  const sifra = dn.izmene[z.ime];
+                  const cls = classify(sifra);
+                  const isMe = z.ime === ime;
+                  return (
+                    <td key={dn.datum} className={"cell" + (isMe ? " me" : "")}>
+                      <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
+                        {cls==="off" ? "–" : (sifra||"").slice(0,3)}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="legend">
+        <span className="li"><span className="dot" style={{background:"var(--dop)"}}></span>Dopoldan</span>
+        <span className="li"><span className="dot" style={{background:"var(--pop)"}}></span>Popoldan</span>
+        <span className="li"><span className="dot" style={{background:"var(--noc)"}}></span>Nočna</span>
+        <span className="li"><span className="dot" style={{background:"var(--h12)"}}></span>12-urna</span>
+        <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>LD / KPU / prosto</span>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [sel, setSel] = useLocalState("razpored.sel", null); // {oddelek, ime}
+  const [view, setView] = useState("my");
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstall, setShowInstall] = useState(false);
+
+  useEffect(() => {
+    fetch("data-oktober-2026.json").then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(setData).catch(e => setError(String(e)));
+  }, []);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator){
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+    const onPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowInstall(true); };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+  }, []);
+
+  const oddelek = useMemo(() => {
+    if (!data || !sel) return null;
+    return data.oddelki.find(o => o.koda === sel.oddelek) || null;
+  }, [data, sel]);
+
+  const onPickDone = useCallback((koda, ime) => {
+    setSel({ oddelek: koda, ime });
+    setView("my");
+  }, [setSel]);
+
+  const install = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+    setShowInstall(false);
+  };
+
+  return (
+    <div className="wrap">
+      <header className="top">
+        <div className="wordmark">
+          <span className="mark">Razpored</span>
+          {oddelek && <span className="dept">· {oddelek.koda}</span>}
+        </div>
+        <p className="sub">{data ? data.mesec : "Nalagam …"} · Psihiatrična bolnišnica Begunje</p>
+        {oddelek && (
+          <React.Fragment>
+            <div className="segmented" role="tablist">
+              <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
+              <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Cel oddelek</button>
+            </div>
+            <button className="changeLink" onClick={() => setSel(null)}>Spremeni oddelek / ime</button>
+          </React.Fragment>
+        )}
+      </header>
+
+      {error && <p style={{color:"var(--danger)"}}>Napaka pri nalaganju podatkov: {error}</p>}
+
+      {data && !sel && <Picker data={data} onDone={onPickDone} />}
+      {data && sel && oddelek && view==="my" && <MyScheduleView oddelek={oddelek} ime={sel.ime} />}
+      {data && sel && oddelek && view==="ward" && <WardView oddelek={oddelek} ime={sel.ime} />}
+
+      {showInstall && (
+        <div className="installBar">
+          <div>
+            <div className="t">Namesti na domači zaslon</div>
+            <div className="s">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
+          </div>
+          <button className="installBtn" onClick={install}>Namesti</button>
+        </div>
+      )}
+
+      <footer className="foot">
+        <p><b>Samo za branje</b> — različica 1 (faza 1). Za spremembe ali zamenjave se obrnite na koordinatorja oddelka.</p>
+        <p>Razpored temelji na osnovnem kalupu; dejanske spremembe (bolniška, zamenjave) se lahko razlikujejo. Preverite tudi na oglasni deski oddelka.</p>
+        <p><a href="admin.html" style={{color:"var(--muted)"}}>Za koordinatorje: generator razporeda ›</a></p>
+      </footer>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>

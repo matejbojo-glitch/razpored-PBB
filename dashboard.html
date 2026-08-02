@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Pravičnost · Begunje</title>
+<meta name="theme-color" content="#12192B" />
+<link rel="icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
+    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
+    --danger: #D97757; --ok: #7FB88F; --cool: #6E8FD1;
+    --radius: 16px; --radius-sm: 10px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 820px; margin:0 auto; padding: 0 16px 60px; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
+
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
+  .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
+    padding:2px 8px; border-radius:999px; }
+  .sub{ margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .backlink{ display:inline-block; margin: 4px 14px 0 0; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); }
+
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); padding:4px;
+    border-radius:999px; margin-top:14px; overflow-x:auto; }
+  .tabs button{ flex:0 0 auto; border:0; background:transparent; color:var(--muted); padding:9px 14px;
+    border-radius:999px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+
+  h2.section{ font-size:15px; font-weight:800; margin: 22px 0 4px; letter-spacing:-0.01em; }
+  p.hint{ color:var(--muted); font-size:13px; margin: 4px 0 14px; line-height:1.5; }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .uploadRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .fileBtn{ background: var(--surface-2); border:1px solid var(--line); color:var(--text); font-weight:700;
+    padding:9px 14px; border-radius: var(--radius-sm); font-size:13px; cursor:pointer; }
+  .fileBtn input{ display:none; }
+  .statusMsg{ font-size:12.5px; color: var(--ok); }
+  .statusMsg.err{ color: var(--danger); }
+
+  table.fair{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
+  table.fair th{ text-align:left; color:var(--muted); font-weight:700; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.03em; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; white-space:nowrap; }
+  table.fair th.active{ color: var(--accent); }
+  table.fair td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.fair tr.top td{ background: rgba(217,119,87,0.08); }
+  table.fair tr.bottom td{ background: rgba(127,184,143,0.07); }
+  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; min-width:60px; }
+  .bar i{ display:block; height:100%; background: var(--accent); }
+  .bar.cool i{ background: var(--cool); }
+  .num{ font-variant-numeric: tabular-nums; font-weight:700; }
+  .rank{ display:inline-block; width:20px; color:var(--muted); font-size:11px; }
+
+  .legend2{ display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:10px; }
+  .legend2 .li{ display:flex; align-items:center; gap:6px; }
+  .sw{ width:10px; height:10px; border-radius:3px; }
+
+  .dlBtn{ margin-top:16px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
+    padding:11px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; }
+
+  footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="dashboard-core.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+const PODSKUPINA_NAZIV = { A:"A · rotacijski izmenski kader", B:"B · dnevni z občasnim REDI", C:"C · izključno dnevni", D:"D · dolgotrajna odsotnost" };
+
+function download(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 1)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function useSort(data, defaultKey){
+  const [key, setKey] = useState(defaultKey);
+  const [dir, setDir] = useState(-1);
+  const sorted = useMemo(() => {
+    const arr = data.slice();
+    arr.sort((a,b) => (a[key]-b[key]) * dir);
+    return arr;
+  }, [data, key, dir]);
+  const onSort = (k) => { if (k===key) setDir(d=>-d); else { setKey(k); setDir(-1); } };
+  return { sorted, key, dir, onSort };
+}
+
+function Th({ label, k, sortKey, onSort }){
+  return <th className={k===sortKey ? "active" : ""} onClick={() => onSort(k)}>{label}{k===sortKey ? " ▾" : ""}</th>;
+}
+
+function FairBar({ value, max, cool }){
+  return <div className={"bar" + (cool ? " cool" : "")}><i style={{width: (max>0 ? 100*value/max : 0)+"%"}}></i></div>;
+}
+
+// ---------------------------------------------------------------------
+function SmsTab({ baseline, onUpdate }){
+  const [status, setStatus] = useState(null);
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "nedpraz");
+  const maxNedpraz = Math.max(1, ...baseline.podatki.map(z => z.nedpraz));
+  const maxNocne = Math.max(1, ...baseline.podatki.map(z => z.nocne));
+
+  const onFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result);
+        const delta = Dashboard.deltaFromKalupExport(json);
+        const n = Object.keys(delta).length;
+        onUpdate(Dashboard.mergeSmsBaseline(baseline.podatki, delta));
+        setStatus({ ok:true, msg: `Dodano: ${n} zaposlenih iz naloženega izvoza.` });
+      } catch (err) {
+        setStatus({ ok:false, msg: "Datoteka ni veljaven izvoz iz generatorja kalupa: " + err.message });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div>
+      <h2 className="section">Dodaj mesec</h2>
+      <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → "Prenesi JSON"). Prišteje se k spodnji osnovi.</p>
+      <div className="card">
+        <div className="uploadRow">
+          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+        </div>
+      </div>
+
+      <h2 className="section">Stanje — {baseline.obdobje}</h2>
+      <p className="hint">Kliknite naslov stolpca za razvrstitev. Obarvane vrstice: zgoraj (oranžno) največ nedelj/praznikov, spodaj (zeleno) najmanj.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th>
+            <Th label="Delovni dnevi" k="delo" sortKey={key} onSort={onSort} />
+            <Th label="Nočne izmene" k="nocne" sortKey={key} onSort={onSort} />
+            <Th label="Ned. + prazniki" k="nedpraz" sortKey={key} onSort={onSort} />
+            <Th label="Vikend" k="vikend" sortKey={key} onSort={onSort} />
+            <Th label="LD" k="ld" sortKey={key} onSort={onSort} />
+            <Th label="KPU" k="kpu" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime} className={i<3 ? "top" : (i>=sorted.length-3 ? "bottom" : "")}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td className="num">{z.delo}</td>
+                <td className="num">{z.nocne}<FairBar value={z.nocne} max={maxNocne} cool/></td>
+                <td className="num">{z.nedpraz}<FairBar value={z.nedpraz} max={maxNedpraz}/></td>
+                <td className="num">{z.vikend}</td>
+                <td className="num">{z.ld}</td>
+                <td className="num">{z.kpu}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button className="dlBtn" onClick={() => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function DezTab({ baseline, onUpdate }){
+  const [status, setStatus] = useState(null);
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "dezurstva");
+  const maxDez = Math.max(1, ...baseline.podatki.map(z => z.dezurstva));
+
+  const onFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result);
+        if (!json.stanje) throw new Error("manjka polje 'stanje'");
+        onUpdate(Dashboard.mergeDezBaseline(baseline.podatki, json.stanje));
+        setStatus({ ok:true, msg: `Dodano: ${json.stanje.length} zaposlenih iz naloženega izvoza dežurstev.` });
+      } catch (err) {
+        setStatus({ ok:false, msg: "Datoteka ni veljaven izvoz generatorja dežurstev: " + err.message });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div>
+      <h2 className="section">Dodaj mesec</h2>
+      <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → "Prenesi JSON"). Posodobi se samo število dežurstev — ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
+      <div className="card">
+        <div className="uploadRow">
+          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+        </div>
+      </div>
+
+      <h2 className="section">Stanje — {baseline.obdobje}</h2>
+      <p className="hint">To je isti seznam, ki ga admin.html uporabi kot izhodišče za naslednji generiran mesec — po nalaganju novega meseca tu prenesite posodobljeno osnovo in jo ročno vnesite v generator.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th>
+            <Th label="Dežurstva" k="dezurstva" sortKey={key} onSort={onSort} />
+            <Th label="Delovnih ur" k="ure" sortKey={key} onSort={onSort} />
+            <Th label="REDI ur" k="redi" sortKey={key} onSort={onSort} />
+            <Th label="NZV ur" k="nzv" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime} className={i<3 ? "top" : (i>=sorted.length-3 ? "bottom" : "")}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td className="num">{z.dezurstva}<FairBar value={z.dezurstva} max={maxDez}/></td>
+                <td className="num">{z.ure}</td>
+                <td className="num">{z.redi}</td>
+                <td className="num">{z.nzv}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
+      <button className="dlBtn" onClick={() => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function NedezTab({ baseline }){
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "noc");
+  const maxNoc = Math.max(1, ...baseline.podatki.map(z => z.noc));
+  return (
+    <div>
+      <h2 className="section">Stanje — {baseline.obdobje}</h2>
+      <p className="hint">Za to skupino (zaposleni brez 24-urnega dežurstva) generator še ne obstaja, zato tu ni nalaganja novih mesecev — samo pregled zadnjega znanega stanja iz analize Kadrisa.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th><th>Podskupina</th>
+            <Th label="Delovnih ur" k="ure" sortKey={key} onSort={onSort} />
+            <Th label="REDI ur" k="redi" sortKey={key} onSort={onSort} />
+            <Th label="Nočnih ur" k="noc" sortKey={key} onSort={onSort} />
+            <Th label="Nedelj" k="ned" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td style={{fontSize:11, color:"var(--muted)"}}>{PODSKUPINA_NAZIV[z.podskupina] || z.podskupina}</td>
+                <td className="num">{z.ure}</td>
+                <td className="num">{z.redi}</td>
+                <td className="num">{z.noc}<FairBar value={z.noc} max={maxNoc} cool/></td>
+                <td className="num">{z.ned}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [data, setData] = useState(null);
+  const [tab, setTab] = useState("sms");
+
+  React.useEffect(() => {
+    fetch("dashboard-baseline.json").then(r => r.json()).then(setData).catch(() => {});
+  }, []);
+
+  const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));
+
+  return (
+    <div className="wrap">
+      <header className="top">
+        <div className="wordmark"><span className="mark">Pravičnost</span><span className="tag">za koordinatorje</span></div>
+        <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
+        <div>
+          <a className="backlink" href="index.html">‹ Pregled razporeda</a>
+          <a className="backlink" href="admin.html">‹ Generator razporeda</a>
+          <a className="backlink" href="zelje.html">Želje zaposlenih ›</a>
+        </div>
+        <div className="tabs" role="tablist">
+          <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
+          <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
+          <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
+        </div>
+      </header>
+
+      {!data && <p className="hint">Nalagam osnovne podatke …</p>}
+      {data && tab==="sms" && <SmsTab baseline={data.osnova_sms} onUpdate={(n) => update("osnova_sms", n)} />}
+      {data && tab==="dez" && <DezTab baseline={data.osnova_dez} onUpdate={(n) => update("osnova_dez", n)} />}
+      {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
+
+      <footer className="foot">
+        <p><b>Modul 3 — nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova DMS/DZN iz 1. 1.–31. 7. 2026 (12 dežurnih, 11 nedežurnih) — vse iz analiz Kadrisa v tem pogovoru.</p>
+        <p>Nalaganje novega meseca posodobi samo v tej seji odprtega brskalnika. Za trajno shrambo prenesite posodobljeno osnovo in jo shranite namesto te datoteke, ali počakajte na fazo 4 (skupna baza).</p>
+      </footer>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
