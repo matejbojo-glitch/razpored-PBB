@@ -117,9 +117,39 @@
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
 <script src="generator-core.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useCallback, useEffect } = React;
+const { client } = RazporedAuth;
+
+// ---------------------------------------------------------------------
+// Objava generiranega razporeda naravnost v Supabase (schedule_entries),
+// poleg obstoječega ročnega prenosa JSON. Zaposlene poveže po polnem
+// imenu (profiles.full_name) — kdor se še ni registriral, se ne objavi
+// in je izpisan kot manjkajoč.
+// ---------------------------------------------------------------------
+async function publishScheduleRows(deptCode, rows){
+  const imena = [...new Set(rows.map(r => r.ime))];
+  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code").in("full_name", imena);
+  if (perr) throw perr;
+  const byIme = {};
+  profili.forEach(p => { byIme[p.full_name] = p; });
+  const manjkajo = imena.filter(i => !byIme[i]);
+  const vrstice = rows.filter(r => byIme[r.ime]).map(r => ({
+    employee_id: byIme[r.ime].id, department_code: deptCode, work_date: r.datum, shift_code: r.sifra || "",
+  }));
+  if (vrstice.length > 0){
+    const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    if (error) throw error;
+  }
+  const brezOddelka = profili.filter(p => !p.department_code).map(p => p.id);
+  if (brezOddelka.length > 0){
+    await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
+  }
+  return { objavljeno: vrstice.length, manjkajo };
+}
 
 // ---------------------------------------------------------------------
 // Statični podatki o oddelkih (SMS/TZN) — enaki kot pri generiranju
@@ -309,6 +339,8 @@ function KalupTab(){
   const [dopust, setDopust] = useState({}); // "ime|monday" -> true
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
   const [rezultat, setRezultat] = useState(null);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -334,6 +366,23 @@ function KalupTab(){
     if (!rezultat) return;
     const data = { mesec: rezultat.mesec, oddelki: [{ koda: rezultat.koda, naziv: rezultat.naziv, zaposleni: rezultat.staff, dnevi: rezultat.dnevi }] };
     download(`data-${rezultat.koda}-${rezultat.mesec}.json`, JSON.stringify(data, null, 1));
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      const rows = [];
+      rezultat.dnevi.forEach(dn => {
+        Object.keys(dn.izmene).forEach(ime => rows.push({ ime, datum: dn.datum, sifra: dn.izmene[ime] }));
+      });
+      const { objavljeno, manjkajo } = await publishScheduleRows(rezultat.koda, rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
   };
 
   return (
@@ -426,6 +475,10 @@ function KalupTab(){
             </table>
           </div>
           <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
+          <button className="genBtn" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+          </button>
+          {publishMsg && <p className="hint" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>
       )}
     </div>
@@ -439,6 +492,8 @@ function DezurstvaTab(){
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
   const [rezultat, setRezultat] = useState(null);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
 
   const { startISO, endISO } = monthRange(month);
 
@@ -462,6 +517,20 @@ function DezurstvaTab(){
   const prenesi = () => {
     if (!rezultat) return;
     download(`dezurstva-${rezultat.mesec}.json`, JSON.stringify(rezultat, null, 1));
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      const rows = rezultat.razpored.filter(r => r.zaposleni).map(r => ({ ime: r.zaposleni, datum: r.datum, sifra: "DEŽURSTVO" }));
+      const { objavljeno, manjkajo } = await publishScheduleRows("DEZ", rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
   };
 
   const maxNovih = rezultat ? Math.max(1, ...rezultat.stanje.map(s => s.novih)) : 1;
@@ -545,8 +614,71 @@ function DezurstvaTab(){
           </table>
 
           <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON</button>
+          <button className="genBtn" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+          </button>
+          {publishMsg && <p className="hint" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function UporabnikiTab(){
+  const [profili, setProfili] = useState(null);
+  const [status, setStatus] = useState({});
+
+  const reload = () => {
+    client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
+  };
+  useEffect(() => { reload(); }, []);
+
+  const posodobi = async (id, patch) => {
+    setStatus(s => ({ ...s, [id]: "shranjujem …" }));
+    const { error } = await client.from("profiles").update(patch).eq("id", id);
+    setStatus(s => ({ ...s, [id]: error ? ("napaka: " + error.message) : "shranjeno" }));
+    setProfili(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
+  };
+
+  if (profili === null) return <p className="hint">Nalagam …</p>;
+
+  return (
+    <div>
+      <h2 className="section">Uporabniki in vloge</h2>
+      <p className="hint">
+        Zaposleni se najprej sam registrira na login.html (dobi vlogo "Zaposleni"). Tukaj mu dodeliš pravo vlogo in
+        oddelek/ekipo (za vodje določa, čigave predloge menjav odobrijo na 1. stopnji). Ime naj se ujema s tistim v
+        generatorju razporeda, sicer objava v Supabase tega zaposlenega preskoči.
+      </p>
+      <div className="card" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead><tr><th>Ime</th><th>Vloga</th><th>Oddelek / ekipa</th><th></th></tr></thead>
+          <tbody>
+            {profili.map(p => (
+              <tr key={p.id}>
+                <td>{p.full_name}</td>
+                <td>
+                  <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                    <option value="user">Zaposleni</option>
+                    <option value="vodja">Vodja ekipe</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </td>
+                <td>
+                  <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
+                    <option value="">—</option>
+                    {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k}</option>)}
+                    <option value="DEZ">Dežurni</option>
+                    <option value="NEDEZ">Nedežurni</option>
+                  </select>
+                </td>
+                <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -559,24 +691,35 @@ function App(){
         <div className="wordmark"><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
         <a className="backlink" href="index.html">‹ Nazaj na pregled razporeda</a>
+        <a className="backlink" href="menjave.html" style={{marginLeft:14}}>Menjave ›</a>
         <a className="backlink" href="zelje.html" style={{marginLeft:14}}>Želje zaposlenih ›</a>
         <a className="backlink" href="dashboard.html" style={{marginLeft:14}}>Nadzorna plošča pravičnosti ›</a>
+        <button className="backlink" style={{marginLeft:14}} onClick={() => RazporedAuth.signOut()}>Odjava</button>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
+          <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
         </div>
       </header>
 
-      {tab==="kalup" ? <KalupTab/> : <DezurstvaTab/>}
+      {tab==="kalup" && <KalupTab/>}
+      {tab==="dez" && <DezurstvaTab/>}
+      {tab==="uporabniki" && <UporabnikiTab/>}
 
       <footer className="foot">
         <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
-        <p>Prenešeni JSON ročno zamenjajte v mobilni aplikaciji (faza 4 bo to samodejno).</p>
+        <p>Poleg ročnega prenosa JSON lahko rezultat objaviš neposredno v Supabase — to je edini vir podatkov, ki ga bere index.html.</p>
       </footer>
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+function Gate(){
+  const [ok, setOk] = useState(false);
+  useEffect(() => { RazporedAuth.requireRole(["admin"]).then(res => { if (res) setOk(true); }); }, []);
+  return ok ? <App/> : null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>
 </body>
 </html>

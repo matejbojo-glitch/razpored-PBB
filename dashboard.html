@@ -81,9 +81,11 @@
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
 <script src="dashboard-core.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
 
 <script type="text/babel" data-presets="react">
-const { useState, useMemo } = React;
+const { useState, useMemo, useEffect } = React;
 
 const PODSKUPINA_NAZIV = { A:"A · rotacijski izmenski kader", B:"B · dnevni z občasnim REDI", C:"C · izključno dnevni", D:"D · dolgotrajna odsotnost" };
 
@@ -309,7 +311,9 @@ function App(){
         <div>
           <a className="backlink" href="index.html">‹ Pregled razporeda</a>
           <a className="backlink" href="admin.html">‹ Generator razporeda</a>
+          <a className="backlink" href="menjave.html">Menjave ›</a>
           <a className="backlink" href="zelje.html">Želje zaposlenih ›</a>
+          <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
@@ -330,7 +334,12 @@ function App(){
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+function Gate(){
+  const [ok, setOk] = useState(false);
+  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) setOk(true); }); }, []);
+  return ok ? <App/> : null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>
 </body>
 </html>

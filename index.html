@@ -56,7 +56,7 @@
     background: linear-gradient(180deg, var(--bg) 70%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px;
   }
-  .wordmark{ display:flex; align-items:baseline; gap:8px; }
+  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
   .wordmark .mark{
     font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
   }
@@ -65,6 +65,15 @@
     letter-spacing: 0.02em;
   }
   .sub{ margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .whoRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
+  .whoRow .who{ font-size:12.5px; color:var(--muted); }
+  .whoRow .who b{ color:var(--text); }
+  .navLinks{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .navLink{ font-size:12px; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
+    text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0; font-family:inherit; }
+  .navLink:hover{ color:var(--text); }
+  .badge{ display:inline-block; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+    background:var(--danger); color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; margin-left:4px; }
 
   .segmented{
     display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
@@ -77,41 +86,11 @@
   }
   .segmented button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); }
 
-  .changeLink{
-    display:inline-flex; align-items:center; gap:6px; margin-top:12px;
-    font-size: 12.5px; color: var(--muted); background:none; border:0; padding:0; cursor:pointer;
-    text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line);
-  }
-  .changeLink:hover{ color: var(--text); }
-
-  /* ---------- picker ---------- */
-  .pickTitle{ font-size: 22px; font-weight: 800; letter-spacing:-0.01em; margin: 18px 0 4px; }
-  .pickHint{ color: var(--muted); font-size: 14px; margin: 0 0 18px; }
-  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .deptCard{
-    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
-    padding: 16px 14px; text-align:left; cursor:pointer; color: var(--text);
-    transition: transform .12s ease, border-color .12s ease, background .12s ease;
-  }
-  .deptCard:active{ transform: scale(0.97); }
-  .deptCard:hover{ border-color: var(--accent); background: var(--surface-2); }
-  .deptCard .k{ font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .deptCard .n{ font-size: 12px; color: var(--muted); margin-top:2px; }
-
-  .nameList{ display:flex; flex-direction:column; gap:8px; margin-top: 6px; }
-  .nameRow{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-sm);
-    padding: 13px 14px; cursor:pointer; color: var(--text); text-align:left;
-  }
-  .nameRow:hover{ border-color: var(--accent); }
-  .nameRow .who .ime{ font-weight:700; font-size:15px; }
-  .nameRow .who .vloga{ font-size:11.5px; color:var(--muted); margin-top:1px; }
-  .nameRow .chev{ color: var(--muted); }
-  .backRow{ display:flex; align-items:center; gap:8px; margin: 4px 0 10px; }
-  .backBtn{
-    background:none; border:0; color: var(--accent); font-weight:700; font-size:14px;
-    cursor:pointer; padding: 6px 0; display:flex; align-items:center; gap:4px;
+  .field{ display:flex; flex-direction:column; gap:5px; margin-top:12px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  select, input[type=month]{
+    background: var(--surface); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px;
   }
 
   /* ---------- my schedule ---------- */
@@ -210,11 +189,15 @@
 <script src="react.production.min.js"></script>
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useCallback } = React;
+const { client } = RazporedAuth;
 
 const DAN_IME = { PO:"ponedeljek", TO:"torek", SR:"sreda", ČE:"četrtek", PE:"petek", SO:"sobota", NE:"nedelja" };
+const DNI = ["PO","TO","SR","ČE","PE","SO","NE"];
 const DELOVNI_ČAS = {
   "dopoldan": "05.50–14.00",
   "popoldan": "13.50–21.00",
@@ -240,69 +223,11 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-// Literal hex (ne CSS var()) — potrebujemo jih za sestavljanje prosojnih ozadij (hex + alfa).
-// Vrednosti morajo ostati usklajene z ustreznimi CSS spremenljivkami v :root.
 const BARVE = { dop:"#7FB88F", pop:"#E0916B", noc:"#6E8FD1", h12:"#A78BC9", off:"#4A5270" };
-const NAZIV_IZMENE = {
-  dop:"Dopoldan", pop:"Popoldan", noc:"Nočna", h12:"12-urna izmena", off:"Prosto",
-};
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
   return sifra;
-}
-
-function useLocalState(key, initial){
-  const [v, setV] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : initial; }
-    catch(e){ return initial; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){}
-  }, [key, v]);
-  return [v, setV];
-}
-
-function Picker({ data, onDone }){
-  const [oddelek, setOddelek] = useState(null);
-
-  if (!oddelek){
-    return (
-      <div>
-        <p className="pickTitle">Kdo ste?</p>
-        <p className="pickHint">Izberite svoj oddelek, nato svoje ime. To si aplikacija zapomni za naslednjič.</p>
-        <div className="grid2">
-          {data.oddelki.map(o => (
-            <button key={o.koda} className="deptCard" onClick={() => setOddelek(o)}>
-              <div className="k">{o.koda}</div>
-              <div className="n">{o.zaposleni.length} zaposlenih</div>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="backRow">
-        <button className="backBtn" onClick={() => setOddelek(null)}>‹ Nazaj</button>
-      </div>
-      <p className="pickTitle">{oddelek.naziv}</p>
-      <p className="pickHint">Izberite svoje ime s seznama.</p>
-      <div className="nameList">
-        {oddelek.zaposleni.map(z => (
-          <button key={z.ime} className="nameRow" onClick={() => onDone(oddelek.koda, z.ime)}>
-            <span className="who">
-              <div className="ime">{z.ime}</div>
-              <div className="vloga">{z.vloga}</div>
-            </span>
-            <span className="chev">›</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function todayISO(){
@@ -310,30 +235,69 @@ function todayISO(){
   const p = n => String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
+function currentMonthStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function monthRange(monthStr){
+  const [y,m] = monthStr.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2,"0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+  return { startISO:start, endISO:end };
+}
+function daysInRange(startISO, endISO){
+  const out = [];
+  let d = new Date(startISO + "T00:00:00");
+  const end = new Date(endISO + "T00:00:00");
+  while (d.getTime() <= end.getTime()){
+    const wd = (d.getDay() + 6) % 7; // 0=PO..6=NE
+    const p = n => String(n).padStart(2,"0");
+    out.push({ datum: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`, dan: DNI[wd] });
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
 
-function MyScheduleView({ oddelek, ime }){
+function MyScheduleView({ userId, month }){
+  const [entries, setEntries] = useState(null);
+  const { startISO, endISO } = monthRange(month);
+  const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEntries(null);
+    client.from("schedule_entries").select("work_date, shift_code")
+      .eq("employee_id", userId).gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data }) => { if (!cancelled) setEntries(data || []); });
+    return () => { cancelled = true; };
+  }, [userId, startISO, endISO]);
+
+  const byDate = useMemo(() => {
+    const m = {};
+    (entries || []).forEach(e => { m[e.work_date] = e.shift_code; });
+    return m;
+  }, [entries]);
+
   const iso = todayISO();
-  const todayEntry = oddelek.dnevi.find(dn => dn.datum === iso);
-  const todaySifra = todayEntry ? todayEntry.izmene[ime] : null;
-  const todayCls = todayEntry ? classify(todaySifra) : null;
+  const todaySifra = byDate[iso];
+  const todayCls = classify(todaySifra);
 
-  // grupiraj po tednih (ponedeljek-nedelja)
   const tedni = useMemo(() => {
     const out = [];
     let cur = null;
-    oddelek.dnevi.forEach(dn => {
-      const d = new Date(dn.datum + "T00:00:00");
-      if (dn.dan === "PO" || !cur){
-        cur = []; out.push(cur);
-      }
+    days.forEach(dn => {
+      if (dn.dan === "PO" || !cur){ cur = []; out.push(cur); }
       cur.push(dn);
     });
     return out;
-  }, [oddelek]);
+  }, [days]);
+
+  if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
     <div>
-      {todayEntry && (
+      {startISO <= iso && iso <= endISO && (
         <div className="todayCard">
           <div className="lbl">Danes · {new Date(iso+"T00:00:00").toLocaleDateString("sl-SI",{day:"numeric",month:"long"})}</div>
           <div className="shift">
@@ -350,7 +314,7 @@ function MyScheduleView({ oddelek, ime }){
         <div key={i}>
           <div className="weekLabel">Teden {i+1}</div>
           {teden.map(dn => {
-            const sifra = dn.izmene[ime];
+            const sifra = byDate[dn.datum];
             const cls = classify(sifra);
             const isToday = dn.datum === iso;
             const isWeekend = dn.dan === "SO" || dn.dan === "NE";
@@ -374,7 +338,32 @@ function MyScheduleView({ oddelek, ime }){
   );
 }
 
-function WardView({ oddelek, ime }){
+function WardView({ deptCode, month, myId }){
+  const [employees, setEmployees] = useState(null);
+  const [entries, setEntries] = useState(null);
+  const { startISO, endISO } = monthRange(month);
+  const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEmployees(null); setEntries(null);
+    client.from("profiles").select("id, full_name").eq("department_code", deptCode).order("full_name")
+      .then(({ data }) => { if (!cancelled) setEmployees(data || []); });
+    client.from("schedule_entries").select("employee_id, work_date, shift_code")
+      .eq("department_code", deptCode).gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data }) => { if (!cancelled) setEntries(data || []); });
+    return () => { cancelled = true; };
+  }, [deptCode, startISO, endISO]);
+
+  const byEmpDate = useMemo(() => {
+    const m = {};
+    (entries || []).forEach(e => { m[e.employee_id + "|" + e.work_date] = e.shift_code; });
+    return m;
+  }, [entries]);
+
+  if (employees === null || entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
+  if (employees.length === 0) return <p className="sub" style={{marginTop:16}}>Za ta oddelek še ni dodeljenih zaposlenih.</p>;
+
   return (
     <div>
       <div className="wardScroller">
@@ -382,7 +371,7 @@ function WardView({ oddelek, ime }){
           <thead>
             <tr>
               <th className="name">Zaposleni</th>
-              {oddelek.dnevi.map(dn => (
+              {days.map(dn => (
                 <th key={dn.datum} className={dn.dan==="SO"||dn.dan==="NE" ? "weekend" : ""}>
                   {new Date(dn.datum+"T00:00:00").getDate()}<br/>{dn.dan}
                 </th>
@@ -390,13 +379,13 @@ function WardView({ oddelek, ime }){
             </tr>
           </thead>
           <tbody>
-            {oddelek.zaposleni.map(z => (
-              <tr key={z.ime}>
-                <td className="name">{z.ime}</td>
-                {oddelek.dnevi.map(dn => {
-                  const sifra = dn.izmene[z.ime];
+            {employees.map(z => (
+              <tr key={z.id}>
+                <td className="name">{z.full_name}</td>
+                {days.map(dn => {
+                  const sifra = byEmpDate[z.id + "|" + dn.datum];
                   const cls = classify(sifra);
-                  const isMe = z.ime === ime;
+                  const isMe = z.id === myId;
                   return (
                     <td key={dn.datum} className={"cell" + (isMe ? " me" : "")}>
                       <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
@@ -422,18 +411,26 @@ function WardView({ oddelek, ime }){
 }
 
 function App(){
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [sel, setSel] = useLocalState("razpored.sel", null); // {oddelek, ime}
+  const [auth, setAuth] = useState(null); // { session, profile }
+  const [depts, setDepts] = useState([]);
   const [view, setView] = useState("my");
+  const [month, setMonth] = useState(currentMonthStr());
+  const [wardCode, setWardCode] = useState(null);
+  const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
 
   useEffect(() => {
-    fetch("data-oktober-2026.json").then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    }).then(setData).catch(e => setError(String(e)));
+    RazporedAuth.requireAuth().then(res => {
+      if (!res) return;
+      setAuth(res);
+      setWardCode(res.profile ? res.profile.department_code : null);
+      RazporedAuth.unreadNotificationCount(res.session.user.id).then(setUnread);
+    });
+  }, []);
+
+  useEffect(() => {
+    client.from("departments").select("code, name").order("code").then(({ data }) => setDepts(data || []));
   }, []);
 
   useEffect(() => {
@@ -445,16 +442,6 @@ function App(){
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
-  const oddelek = useMemo(() => {
-    if (!data || !sel) return null;
-    return data.oddelki.find(o => o.koda === sel.oddelek) || null;
-  }, [data, sel]);
-
-  const onPickDone = useCallback((koda, ime) => {
-    setSel({ oddelek: koda, ime });
-    setView("my");
-  }, [setSel]);
-
   const install = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -463,30 +450,50 @@ function App(){
     setShowInstall(false);
   };
 
+  if (!auth) return null; // requireAuth preusmeri, če ni prijave
+
+  const { session, profile } = auth;
+  const canCoordinate = profile && (profile.role === "admin" || profile.role === "vodja");
+
   return (
     <div className="wrap">
       <header className="top">
         <div className="wordmark">
           <span className="mark">Razpored</span>
-          {oddelek && <span className="dept">· {oddelek.koda}</span>}
         </div>
-        <p className="sub">{data ? data.mesec : "Nalagam …"} · Psihiatrična bolnišnica Begunje</p>
-        {oddelek && (
-          <React.Fragment>
-            <div className="segmented" role="tablist">
-              <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
-              <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Cel oddelek</button>
-            </div>
-            <button className="changeLink" onClick={() => setSel(null)}>Spremeni oddelek / ime</button>
-          </React.Fragment>
+        <p className="sub">{new Date(month+"-01").toLocaleDateString("sl-SI",{month:"long", year:"numeric"})} · Psihiatrična bolnišnica Begunje</p>
+        <div className="whoRow">
+          <span className="who">Prijavljen: <b>{profile ? profile.full_name : session.user.email}</b></span>
+          <div className="navLinks">
+            <button className="navLink" onClick={() => location.href="menjave.html"}>Menjave{unread > 0 && <span className="badge">{unread}</span>}</button>
+            {canCoordinate && <button className="navLink" onClick={() => location.href="admin.html"}>Koordinator</button>}
+            <button className="navLink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
+          </div>
+        </div>
+
+        <div className="segmented" role="tablist">
+          <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
+          <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
+        </div>
+
+        {view==="ward" && (
+          <div className="field">
+            <label htmlFor="wd">Oddelek</label>
+            <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
+              <option value="" disabled>Izberi oddelek …</option>
+              {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+            </select>
+          </div>
         )}
+        <div className="field">
+          <label htmlFor="mm">Mesec</label>
+          <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} />
+        </div>
       </header>
 
-      {error && <p style={{color:"var(--danger)"}}>Napaka pri nalaganju podatkov: {error}</p>}
-
-      {data && !sel && <Picker data={data} onDone={onPickDone} />}
-      {data && sel && oddelek && view==="my" && <MyScheduleView oddelek={oddelek} ime={sel.ime} />}
-      {data && sel && oddelek && view==="ward" && <WardView oddelek={oddelek} ime={sel.ime} />}
+      {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}
+      {view==="ward" && wardCode && <WardView deptCode={wardCode} month={month} myId={session.user.id} />}
+      {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 
       {showInstall && (
         <div className="installBar">
@@ -499,9 +506,8 @@ function App(){
       )}
 
       <footer className="foot">
-        <p><b>Samo za branje</b> — različica 1 (faza 1). Za spremembe ali zamenjave se obrnite na koordinatorja oddelka.</p>
-        <p>Razpored temelji na osnovnem kalupu; dejanske spremembe (bolniška, zamenjave) se lahko razlikujejo. Preverite tudi na oglasni deski oddelka.</p>
-        <p><a href="admin.html" style={{color:"var(--muted)"}}>Za koordinatorje: generator razporeda ›</a></p>
+        <p><b>Razpored PBB</b> — prijavljen dostop. Za spremembe ali zamenjave uporabi "Menjave" zgoraj.</p>
+        <p>Razpored temelji na osnovnem kalupu; dejanske spremembe (bolniška, odobrene menjave) se odražajo sproti. Preverite tudi na oglasni deski oddelka.</p>
       </footer>
     </div>
   );
