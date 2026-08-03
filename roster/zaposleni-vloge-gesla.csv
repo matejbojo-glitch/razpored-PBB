@@ -1,0 +1,70 @@
+vir,priimek_ime,priimek,ime,matst,status,oddelek,email,geslo_predlog,opombe
+DMS,ALUKIĆ DINO,ALUKIĆ,DINO,823,admin,STROKOVNI VODJA,dino.alukic@pb-begunje.si,dino823,
+DMS,ARNEŽ GREGA,ARNEŽ,GREGA,1092,vodja,C/C1,grega.arnez@pb-begunje.si,grega1092,nadomeščanje Salkić Maruša - 
+DMS,BIZJAK TEA,BIZJAK,TEA,989,vodja,UA/SA/B2,tea.bizjak@pb-begunje.si,tea989,delo po 6 ur 
+DMS,BOJIĆ MATEJ,BOJIĆ,MATEJ,855,admin,STROKOVNI VODJA,matej.bojic@pb-begunje.si,matej855,
+DMS,HROVAT NINA,HROVAT,NINA,820,vodja,DB,nina.hrovat@pb-begunje.si,nina820,
+DMS,HUMAR SAŠA,HUMAR,SAŠA,705,user,SA,sasa.humar@pb-begunje.si,sasa705,
+DMS,LELIČ DIJANA,LELIČ,DIJANA,1090,vodja,E2/E1,dijana.lelic@pb-begunje.si,dijana1090,
+DMS,LUNAR MATEJA,LUNAR,MATEJA,844,vodja,B,mateja.lunar@pb-begunje.si,mateja844,
+DMS,MAGLIĆ ALEKSANDER,MAGLIĆ,ALEKSANDER,1001,vodja,E1/D,aleksander.maglic@pb-begunje.si,aleksander1001,
+DMS,MAVRI TRATNIK MAGDALENA,MAVRI TRATNIK,MAGDALENA,833,vodja,B1/SOB/NOB,magdalena.mavritratnik@pb-begunje.si,magdalena833,
+DMS,MISOTIČ REBEKA,MISOTIČ,REBEKA,1163,vodja,C,rebeka.misotic@pb-begunje.si,rebeka1163,
+DMS,MUŠIČ INES,MUŠIČ,INES,926,vodja,UA/SA,ines.music@pb-begunje.si,ines926,delo po 7 ur
+DMS,PERVIZ AMAL,PERVIZ,AMAL,887,vodja,D,amal.perviz@pb-begunje.si,amal887,
+DMS,POGAČNIK TEJA,POGAČNIK,TEJA,1058,vodja,E1,teja.pogacnik@pb-begunje.si,teja1058,trenutno porodniška - do julij 2027
+DMS,SALKIĆ MARUŠA,SALKIĆ,MARUŠA,925,vodja,C1,marusa.salkic@pb-begunje.si,marusa925,1x dežurstvo na mesec med tednom
+DMS,SOFRIĆ NIKOLINA,SOFRIĆ,NIKOLINA,1174,vodja,E2,nikolina.sofric@pb-begunje.si,nikolina1174,
+DMS,ŠUBIC PETRA,ŠUBIC,PETRA,905,vodja,B1/SOB/NOB,petra.subic@pb-begunje.si,petra905,
+DMS,TOMAŽEVIČ SIMONA,TOMAŽEVIČ,SIMONA,793,vodja,A,simona.tomazevic@pb-begunje.si,simona793,
+DMS,TORKAR TANJA,TORKAR,TANJA,965,vodja,DB,tanja.torkar@pb-begunje.si,tanja965,
+DMS,TRPIN SAŠA,TRPIN,SAŠA,870,vodja,UA/SA,sasa.trpin@pb-begunje.si,sasa870,1x dežurstvo na mesec med tednom
+DMS,DŽAMASTAGIĆ DENIS,DŽAMASTAGIĆ,DENIS,912,admin,PDZN,denis.dzamastagic@pb-begunje.si,denis912,
+DMS,VELUŠČEK METKA,VELUŠČEK,METKA,834,vodja,SOBO,metka.veluscek@pb-begunje.si,metka834,
+SMS.DMS,BAJT ANJA,BAJT,ANJA,830,user,E2,anja.bajt@pb-begunje.si,anja830,
+SMS.DMS,BEĆIROVIĆ NELVEDIN,BEĆIROVIĆ,NELVEDIN,1069,user,C1,nelvedin.becirovic@pb-begunje.si,nelvedin1069,
+SMS.DMS,BRATUŠA MARIJA,BRATUŠA,MARIJA,691,user,E1,marija.bratusa@pb-begunje.si,marija691,
+SMS.DMS,DJEDOVIĆ MARK,DJEDOVIĆ,MARK,1172,user,C,mark.djedovic@pb-begunje.si,mark1172,
+SMS.DMS,DOLAR TOMAŽ,DOLAR,TOMAŽ,747,user,B,tomaz.dolar@pb-begunje.si,tomaz747,
+SMS.DMS,DŽINIĆ AMIN,DŽINIĆ,AMIN,826,user,C1,amin.dzinic@pb-begunje.si,amin826,
+SMS.DMS,GASHI GENTIANA,GASHI,GENTIANA,1167,user,FLEXI/E2,gentiana.gashi@pb-begunje.si,gentiana1167,lahko tudi ponoči ob izpadih
+SMS.DMS,HUSEINBAŠIĆ AJLA,HUSEINBAŠIĆ,AJLA,1086,user,FLEXI/E2,ajla.huseinbasic@pb-begunje.si,ajla1086,lahko tudi ponoči ob izpadih
+SMS.DMS,JEREB SARA,JEREB,SARA,994,user,FLEXI/C,sara.jereb@pb-begunje.si,sara994,lahko tudi ponoči ob izpadih
+SMS.DMS,KARNIČAR JURE,KARNIČAR,JURE,1145,user,C1,jure.karnicar@pb-begunje.si,jure1145,
+SMS.DMS,KODRAS NADJA,KODRAS,NADJA,1089,user,C,nadja.kodras@pb-begunje.si,nadja1089,
+SMS.DMS,KOGOJ EVA,KOGOJ,EVA,1180,user,FLEXI/E2,eva.kogoj@pb-begunje.si,eva1180,lahko tudi ponoči ob izpadih
+SMS.DMS,KVRŽIĆ MARKO,KVRŽIĆ,MARKO,1051,user,FLEXI/C,marko.kvrzic@pb-begunje.si,marko1051,lahko tudi ponoči ob izpadih
+SMS.DMS,MALER ANTONINA,MALER,ANTONINA,971,user,E1,antonina.maler@pb-begunje.si,antonina971,
+SMS.DMS,MEGLIČ JAKA,MEGLIČ,JAKA,987,user,D,jaka.meglic@pb-begunje.si,jaka987,
+SMS.DMS,MOČNIK SIMONA,MOČNIK,SIMONA,1084,user,D,simona.mocnik@pb-begunje.si,simona1084,
+SMS.DMS,MRAVLJE UROŠ,MRAVLJE,UROŠ,997,user,D,uros.mravlje@pb-begunje.si,uros997,
+SMS.DMS,MURIĆ ALMA,MURIĆ,ALMA,964,user,D,alma.muric@pb-begunje.si,alma964,
+SMS.DMS,MUŠIĆ ALEN,MUŠIĆ,ALEN,1109,user,E2,alen.music@pb-begunje.si,alen1109,
+SMS.DMS,NUHANOVIĆ MERIMA,NUHANOVIĆ,MERIMA,909,user,D,merima.nuhanovic@pb-begunje.si,merima909,
+SMS.DMS,PETERMAN RENATA,PETERMAN,RENATA,818,user,E1,renata.peterman@pb-begunje.si,renata818,
+SMS.DMS,POGAČNIK MATEJ,POGAČNIK,MATEJ,1075,user,C1,matej.pogacnik@pb-begunje.si,matej1075,
+SMS.DMS,RANT LUKA,RANT,LUKA,1072,user,D,luka.rant@pb-begunje.si,luka1072,
+SMS.DMS,REJC JANA,REJC,JANA,973,user,B,jana.rejc@pb-begunje.si,jana973,
+SMS.DMS,REKIĆ ELMA,REKIĆ,ELMA,1106,user,D,elma.rekic@pb-begunje.si,elma1106,
+SMS.DMS,ROZMAN ANKA,ROZMAN,ANKA,715,user,B,anka.rozman@pb-begunje.si,anka715,
+SMS.DMS,ROZMAN KLARA,ROZMAN,KLARA,1062,user,C,klara.rozman@pb-begunje.si,klara1062,
+SMS.DMS,SMOLEJ NATAŠA,SMOLEJ,NATAŠA,1133,user,C,natasa.smolej@pb-begunje.si,natasa1133,"samo 1 vikend nočna ko pride po kalupu, drugih nočnih nima, kombiniraj s flexi"
+SMS.DMS,SODJA BARBARA,SODJA,BARBARA,1073,user,E2,barbara.sodja@pb-begunje.si,barbara1073,
+SMS.DMS,STARC ERIK,STARC,ERIK,1164,user,C1,erik.starc@pb-begunje.si,erik1164,
+SMS.DMS,STARE LUKA,STARE,LUKA,1143,user,C1,luka.stare@pb-begunje.si,luka1143,
+SMS.DMS,SUŠNIK JAKA,SUŠNIK,JAKA,1022,user,C1,jaka.susnik@pb-begunje.si,jaka1022,
+SMS.DMS,SVETINA ROBERT,SVETINA,ROBERT,633,user,E1,robert.svetina@pb-begunje.si,robert633,
+SMS.DMS,SVETINA SABINA,SVETINA,SABINA,676,user,B,sabina.svetina@pb-begunje.si,sabina676,
+SMS.DMS,ŠABIĆ SEBINA,ŠABIĆ,SEBINA,1152,user,C1,sebina.sabic@pb-begunje.si,sebina1152,
+SMS.DMS,ŠKANTAR MARK,ŠKANTAR,MARK,963,user,C1,mark.skantar@pb-begunje.si,mark963,
+SMS.DMS,TALIĆ AMIRA,TALIĆ,AMIRA,1159,user,E2,amira.talic@pb-begunje.si,amira1159,
+SMS.DMS,TOMAŠIĆ NIKOLINA,TOMAŠIĆ,NIKOLINA,1035,user,D,nikolina.tomasic@pb-begunje.si,nikolina1035,
+SMS.DMS,URANKER MOJCA,URANKER,MOJCA,604,user,E1,mojca.uranker@pb-begunje.si,mojca604,
+SMS.DMS,VALJAVEC ENEJ,VALJAVEC,ENEJ,1102,user,C1,enej.valjavec@pb-begunje.si,enej1102,
+SMS.DMS,VOLARIČ NEJC,VOLARIČ,NEJC,865,user,E2,nejc.volaric@pb-begunje.si,nejc865,
+SMS.DMS,VOVK URŠKA,VOVK,URŠKA,657,user,B,urska.vovk@pb-begunje.si,urska657,
+SMS.DMS,VOZEL NEJA,VOZEL,NEJA,1179,user,FLEXI/C,neja.vozel@pb-begunje.si,neja1179,lahko tudi ponoči ob izpadih
+SMS.DMS,VREVC MAJA,VREVC,MAJA,974,user,A / FLEXI,maja.vrevc@pb-begunje.si,maja974,omejitev 6 ur
+SMS.DMS,ZEKAN ALMEDIN,ZEKAN,ALMEDIN,852,user,C1,almedin.zekan@pb-begunje.si,almedin852,
+SMS.DMS,GAZIBARA ALDIN,GAZIBARA,ALDIN,1141,user,C1,aldin.gazibara@pb-begunje.si,aldin1141,
+SMS.DMS,VOZEL DEJAN,VOZEL,DEJAN,991,user,D,dejan.vozel@pb-begunje.si,dejan991,
