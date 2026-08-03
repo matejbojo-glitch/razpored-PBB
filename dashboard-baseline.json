@@ -565,12 +565,12 @@
   ]
  },
  "osnova_dez": {
-  "obdobje": "1. 1. – 31. 7. 2026",
+  "obdobje": "1. 1. – 30. 9. 2026",
   "podatki": [
    {
     "ime": "ALUKIĆ DINO",
     "enota": "E2",
-    "dezurstva": 19,
+    "dezurstva": 23,
     "ure": 1250.5,
     "redi": 15.8,
     "nzv": 346.1
@@ -578,7 +578,7 @@
    {
     "ime": "ARNEŽ GREGA",
     "enota": "C",
-    "dezurstva": 18,
+    "dezurstva": 20,
     "ure": 1231.5,
     "redi": 211.1,
     "nzv": 304.0
@@ -586,15 +586,15 @@
    {
     "ime": "BOJIĆ MATEJ",
     "enota": "C",
-    "dezurstva": 17,
+    "dezurstva": 23,
     "ure": 1224.7,
     "redi": 0.0,
     "nzv": 315.0
    },
    {
-    "ime": "HROVAT NINA",
+    "ime": "HORVAT NINA",
     "enota": "134",
-    "dezurstva": 16,
+    "dezurstva": 21,
     "ure": 1066.2,
     "redi": 0.0,
     "nzv": 265.0
@@ -602,7 +602,7 @@
    {
     "ime": "LUNAR MATEJA",
     "enota": "B",
-    "dezurstva": 15,
+    "dezurstva": 21,
     "ure": 1178.0,
     "redi": 0.0,
     "nzv": 258.5
@@ -610,7 +610,7 @@
    {
     "ime": "MAVRI TRATNIK MAGDALENA",
     "enota": "130",
-    "dezurstva": 14,
+    "dezurstva": 20,
     "ure": 928.1,
     "redi": 0.0,
     "nzv": 259.5
@@ -618,7 +618,7 @@
    {
     "ime": "PERVIZ AMAL",
     "enota": "D",
-    "dezurstva": 17,
+    "dezurstva": 23,
     "ure": 1133.6,
     "redi": 803.9,
     "nzv": 305.9
@@ -626,7 +626,7 @@
    {
     "ime": "SALKIĆ MARUŠA",
     "enota": "C1",
-    "dezurstva": 5,
+    "dezurstva": 8,
     "ure": 838.5,
     "redi": 663.7,
     "nzv": 77.5
@@ -634,7 +634,7 @@
    {
     "ime": "TOMAŽEVIČ SIMONA",
     "enota": "FLEXI/skupne",
-    "dezurstva": 17,
+    "dezurstva": 21,
     "ure": 1154.5,
     "redi": 0.0,
     "nzv": 298.5
@@ -642,7 +642,7 @@
    {
     "ime": "TORKAR TANJA",
     "enota": "134",
-    "dezurstva": 17,
+    "dezurstva": 21,
     "ure": 1156.0,
     "redi": 0.0,
     "nzv": 314.5
@@ -650,7 +650,7 @@
    {
     "ime": "TRPIN SAŠA",
     "enota": "170",
-    "dezurstva": 4,
+    "dezurstva": 9,
     "ure": 898.9,
     "redi": 8.0,
     "nzv": 70.0
@@ -658,10 +658,26 @@
    {
     "ime": "ŠUBIC PETRA",
     "enota": "130",
-    "dezurstva": 16,
+    "dezurstva": 21,
     "ure": 995.9,
     "redi": 14.6,
     "nzv": 299.0
+   },
+   {
+    "ime": "DŽAMASTAGIĆ DENIS",
+    "enota": "?",
+    "dezurstva": 23,
+    "ure": 0.0,
+    "redi": 0.0,
+    "nzv": 0.0
+   },
+   {
+    "ime": "VELUŠČEK METKA",
+    "enota": "?",
+    "dezurstva": 19,
+    "ure": 0.0,
+    "redi": 0.0,
+    "nzv": 0.0
    }
   ]
  },

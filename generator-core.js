@@ -103,13 +103,19 @@
    * opts.startISO / opts.endISO — razpon dni, za katere razporejamo (1 dežurstvo/dan)
    * opts.minRazmikDni — najmanjši razmik med dvema dežurstvoma iste osebe (privzeto 3)
    * opts.prostDanPoDezurstvu — ali dan takoj po dežurstvu velja kot blokiran za redno delo (privzeto true)
-   * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...] }]
+   * opts.maxVikendMesecno — ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
+   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje)
+   * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
+   *                 prostDanVTednu: "PO".."NE"|null }]
+   *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
+   *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
    */
   function generirajDezurstva(opts) {
     var start = toDate(opts.startISO);
     var end = toDate(opts.endISO);
     var minRazmik = opts.minRazmikDni != null ? opts.minRazmikDni : 3;
     var prostDanPo = opts.prostDanPoDezurstvu !== false;
+    var maxVikendMesecno = opts.maxVikendMesecno !== false;
 
     var stanje = {};
     opts.staff.forEach(function (z) {
@@ -117,6 +123,7 @@
         stevilo: z.obstojeceStevilo || 0,
         zadnje: z.zadnjeDezurstvo ? toDate(z.zadnjeDezurstvo) : null,
         odsotnosti: (z.odsotnosti || []).slice(),
+        vikendMesec: {}, // "YYYY-MM" -> število sobot/nedelj v tem generiranju
       };
     });
 
@@ -126,15 +133,20 @@
 
     for (var d = start; d.getTime() <= end.getTime(); d = addDays(d, 1)) {
       var iso = fromDate(d);
+      var wd = weekdayMon0(d);
+      var isVikend = wd === 5 || wd === 6; // SO ali NE
+      var mesecKey = iso.slice(0, 7);
       var kandidati = opts.staff.filter(function (z) {
         var s = stanje[z.ime];
         if (s.odsotnosti.indexOf(iso) !== -1) return false;
         if (s.zadnje && diffDays(d, s.zadnje) < minRazmik) return false;
+        if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) return false;
+        if (isVikend && maxVikendMesecno && (s.vikendMesec[mesecKey] || 0) >= 1) return false;
         return true;
       });
 
       if (kandidati.length === 0) {
-        opozorila.push({ datum: iso, sporocilo: "Noben zaposleni ne izpolnjuje pogojev (razmik ali odsotnost) — potreben ročni vnos." });
+        opozorila.push({ datum: iso, sporocilo: "Noben zaposleni ne izpolnjuje pogojev (razmik, odsotnost, prost dan ali vikend kvota) — potreben ročni vnos." });
         razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: null });
         continue;
       }
@@ -151,6 +163,9 @@
       var izbran = kandidati[0];
       stanje[izbran.ime].stevilo += 1;
       stanje[izbran.ime].zadnje = new Date(d.getTime());
+      if (isVikend) {
+        stanje[izbran.ime].vikendMesec[mesecKey] = (stanje[izbran.ime].vikendMesec[mesecKey] || 0) + 1;
+      }
       razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: izbran.ime });
 
       if (prostDanPo) {

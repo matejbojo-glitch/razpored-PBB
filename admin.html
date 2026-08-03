@@ -165,20 +165,29 @@ const WARDS_META = {
   E2: { naziv:"E2 - ODDELEK", hsuffix:false, staff:[["MUŠIĆ A.","B"],["BAJT A.","C"],["VOLARIČ N.","E"],["SODJA B.","D"],["TALIĆ A.","A"]] },
 };
 
-// Dežurni kader DMS/DZN — stanje ob koncu julija 2026 (iz analize Kadrisa).
+// Dežurni kader DMS/DZN — stanje ob koncu septembra 2026 (iz analize
+// "Dežurstva 2026" jan.–sep., dopolnjeno z objavljenim razporedom za
+// september). Popravljeno ime "HROVAT NINA" → "HORVAT NINA" (izvirni
+// Kadris zapisi so imeli dvoje: "Nina Hrovat" in "Horvat Nina" — analiza
+// ju je poenotila v "Nina Horvat"). Dodani dve osebi (Denis Džamastagić,
+// Metka Velušček), ki sta v septembrskem razporedu dežurali, a ju v tem
+// seznamu prej sploh ni bilo — njun "enota" ni znan, zato "?" (preveri
+// in popravi ročno).
 const DEZURNI_ZACETNO = [
-  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:19, zadnje:"2026-07-16" },
-  { ime:"ARNEŽ GREGA", enota:"C", stevilo:18, zadnje:"2026-07-07" },
-  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:17, zadnje:"2026-07-26" },
-  { ime:"PERVIZ AMAL", enota:"D", stevilo:17, zadnje:"2026-07-21" },
-  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:17, zadnje:"2026-07-22" },
-  { ime:"TORKAR TANJA", enota:"134", stevilo:17, zadnje:"2026-07-27" },
-  { ime:"HROVAT NINA", enota:"134", stevilo:16, zadnje:"2026-07-10" },
-  { ime:"ŠUBIC PETRA", enota:"130", stevilo:16, zadnje:"2026-07-08" },
-  { ime:"LUNAR MATEJA", enota:"B", stevilo:15, zadnje:"2026-07-25" },
-  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:14, zadnje:"2026-07-28" },
-  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:5, zadnje:"2026-06-09" },
-  { ime:"TRPIN SAŠA", enota:"170", stevilo:4, zadnje:"2026-07-17" },
+  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:23, zadnje:"2026-09-26" },
+  { ime:"ARNEŽ GREGA", enota:"C", stevilo:20, zadnje:"2026-09-20" },
+  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:23, zadnje:"2026-09-27", prostDanVTednu:"PO" },
+  { ime:"DŽAMASTAGIĆ DENIS", enota:"?", stevilo:23, zadnje:"2026-09-30" },
+  { ime:"PERVIZ AMAL", enota:"D", stevilo:23, zadnje:"2026-09-10" },
+  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:21, zadnje:"2026-09-29" },
+  { ime:"TORKAR TANJA", enota:"134", stevilo:21, zadnje:"2026-09-06" },
+  { ime:"HORVAT NINA", enota:"134", stevilo:21, zadnje:"2026-09-17" },
+  { ime:"ŠUBIC PETRA", enota:"130", stevilo:21, zadnje:"2026-09-28" },
+  { ime:"LUNAR MATEJA", enota:"B", stevilo:21, zadnje:"2026-09-23" },
+  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:20, zadnje:"2026-09-24" },
+  { ime:"VELUŠČEK METKA", enota:"?", stevilo:19, zadnje:"2026-09-12" },
+  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:8, zadnje:"2026-09-02" },
+  { ime:"TRPIN SAŠA", enota:"170", stevilo:9, zadnje:"2026-09-09" },
 ];
 
 function classify(sifra){
@@ -487,10 +496,11 @@ function KalupTab(){
 
 // ---------------------------------------------------------------------
 function DezurstvaTab(){
-  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:""})));
-  const [month, setMonth] = useState("2026-08");
+  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:"", prostDanVTednu: z.prostDanVTednu || ""})));
+  const [month, setMonth] = useState("2026-10");
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
+  const [maxVikend, setMaxVikend] = useState(true);
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
@@ -507,9 +517,11 @@ function DezurstvaTab(){
       obstojeceStevilo: Number(z.stevilo) || 0,
       zadnjeDezurstvo: z.zadnje || null,
       odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
+      prostDanVTednu: z.prostDanVTednu || null,
     }));
     const res = Generator.generirajDezurstva({
-      startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan, staff,
+      startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
+      maxVikendMesecno: maxVikend, staff,
     });
     setRezultat({ mesec: month, ...res });
   };
@@ -538,10 +550,10 @@ function DezurstvaTab(){
   return (
     <div>
       <h2 className="section">1 · Dežurni kader — stanje ob začetku meseca</h2>
-      <p className="hint">Prednastavljeno s podatki iz analize Kadrisa (januar–julij 2026). Po potrebi popravite število in datum zadnjega dežurstva, ali dodajte odsotnosti (datumi ISO, ločeni z vejico).</p>
+      <p className="hint">Prednastavljeno s podatki iz analize "Dežurstva 2026" (januar–september 2026, vključno z objavljenim septembrskim razporedom). Po potrebi popravite število in datum zadnjega dežurstva, ali dodajte odsotnosti (datumi ISO, ločeni z vejico). "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan — preverite in popravite ročno. Pravilo iz analize "dan pred dopustom se ne dežura" ni samodejno (generator ne loči zanesljivo med dopustom in drugimi omejitvami) — dodajte tisti dan ročno v odsotnosti, če velja.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
-          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th></tr></thead>
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Prost dan v tednu</th></tr></thead>
           <tbody>
             {roster.map(z => (
               <tr key={z.ime}>
@@ -550,6 +562,12 @@ function DezurstvaTab(){
                 <td><input type="number" style={{width:56}} value={z.stevilo} onChange={e => updateField(z.ime,"stevilo",e.target.value)} /></td>
                 <td><input type="text" style={{width:110}} value={z.zadnje} onChange={e => updateField(z.ime,"zadnje",e.target.value)} placeholder="LLLL-MM-DD" /></td>
                 <td><input type="text" style={{width:150}} value={z.odsotnosti} onChange={e => updateField(z.ime,"odsotnosti",e.target.value)} placeholder="2026-08-10, 2026-08-11" /></td>
+                <td>
+                  <select value={z.prostDanVTednu} onChange={e => updateField(z.ime,"prostDanVTednu",e.target.value)}>
+                    <option value="">—</option>
+                    {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -572,6 +590,15 @@ function DezurstvaTab(){
         </div>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
           To neposredno naslavlja ugotovitev iz analize: doslej je 65&nbsp;% dežurstev takoj sledila redna izmena brez počitka.
+        </p>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="mv" type="checkbox" checked={maxVikend} onChange={e => setMaxVikend(e.target.checked)} />
+          <label htmlFor="mv">Največ 1 sobota/nedelja na osebo na koledarski mesec</label>
+        </div>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Pravilo iz analize "Dežurstva 2026" (uporabljeno za september): noben zaposleni naj nima obeh vikend dni
+          (sobote in nedelje) v istem mesecu. Stolpec "Prost dan v tednu" zgoraj je stalna omejitev osebe (npr. Matej
+          Bojić nikoli ne dežura ob ponedeljkih) — ni vezan na posamezen mesec.
         </p>
       </div>
 
