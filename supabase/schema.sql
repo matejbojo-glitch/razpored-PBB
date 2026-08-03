@@ -44,6 +44,46 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Varovalka: "create table if not exists" zgoraj je no-op, če "profiles"
+-- že obstaja (npr. iz prejšnjega delnega zagona ali ročnega urejanja v
+-- Table Editorju) — NE doda manjkajočih stolpcev nazaj. Spodnje
+-- "add column if not exists" to zagotovi, ne glede na to, v kakšnem
+-- stanju je tabela pred tem zagonom.
+alter table public.profiles add column if not exists role text not null default 'user';
+alter table public.profiles add column if not exists department_code text;
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
+
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'vodja', 'user'));
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_department_code_fkey'
+  ) then
+    alter table public.profiles
+      add constraint profiles_department_code_fkey
+      foreign key (department_code) references public.departments (code) on update cascade;
+  end if;
+end $$;
+
+-- Enkratna migracija: če v tej bazi zaradi ročnega urejanja v Table
+-- Editorju obstaja ločen stolpec "Admin" (z veliko začetnico, namesto
+-- prave vloge v "role"), prenesi njegovo vrednost v "role" in stolpec
+-- odstrani. Koda (ta datoteka, login.html, admin.html, menjave.html,
+-- supabase-client.js) povsod dosledno uporablja "role" — to ostaja
+-- edino veljavno ime, "Admin" ni nikjer v kodi referenciran.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles' and column_name = 'Admin'
+  ) then
+    execute 'update public.profiles set role = "Admin" where "Admin" is not null';
+    execute 'alter table public.profiles drop column "Admin"';
+  end if;
+end $$;
+
 -- Ob registraciji ALI Auth → "Invite user" (auth.users insert) samodejno
 -- ustvari profil z vlogo 'user'. Ime se vzame iz signUp({ options: { data:
 -- { full_name } } }); pri povabilu po e-pošti te metapodatke večinoma ni,
