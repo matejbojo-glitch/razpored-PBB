@@ -119,6 +119,7 @@
 <script src="generator-core.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useCallback, useEffect } = React;
@@ -717,11 +718,7 @@ function App(){
       <header className="top">
         <div className="wordmark"><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
-        <a className="backlink" href="index.html">‹ Nazaj na pregled razporeda</a>
-        <a className="backlink" href="menjave.html" style={{marginLeft:14}}>Menjave ›</a>
-        <a className="backlink" href="zelje.html" style={{marginLeft:14}}>Želje zaposlenih ›</a>
-        <a className="backlink" href="dashboard.html" style={{marginLeft:14}}>Nadzorna plošča pravičnosti ›</a>
-        <button className="backlink" style={{marginLeft:14}} onClick={() => RazporedAuth.signOut()}>Odjava</button>
+        <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
@@ -737,6 +734,8 @@ function App(){
         <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
         <p>Poleg ročnega prenosa JSON lahko rezultat objaviš neposredno v Supabase — to je edini vir podatkov, ki ga bere index.html.</p>
       </footer>
+
+      <RazporedNav active="admin" role="admin" unread={0} />
     </div>
   );
 }

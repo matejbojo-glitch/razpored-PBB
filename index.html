@@ -191,6 +191,7 @@
 <script src="babel.min.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -453,7 +454,6 @@ function App(){
   if (!auth) return null; // requireAuth preusmeri, če ni prijave
 
   const { session, profile } = auth;
-  const canCoordinate = profile && (profile.role === "admin" || profile.role === "vodja");
 
   return (
     <div className="wrap">
@@ -465,8 +465,6 @@ function App(){
         <div className="whoRow">
           <span className="who">Prijavljen: <b>{profile ? profile.full_name : session.user.email}</b></span>
           <div className="navLinks">
-            <button className="navLink" onClick={() => location.href="menjave.html"}>Menjave{unread > 0 && <span className="badge">{unread}</span>}</button>
-            {canCoordinate && <button className="navLink" onClick={() => location.href="admin.html"}>Koordinator</button>}
             <button className="navLink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
           </div>
         </div>
@@ -506,9 +504,11 @@ function App(){
       )}
 
       <footer className="foot">
-        <p><b>Razpored PBB</b> — prijavljen dostop. Za spremembe ali zamenjave uporabi "Menjave" zgoraj.</p>
+        <p><b>Razpored PBB</b> — prijavljen dostop. Za spremembe ali zamenjave uporabi "Menjave" spodaj.</p>
         <p>Razpored temelji na osnovnem kalupu; dejanske spremembe (bolniška, odobrene menjave) se odražajo sproti. Preverite tudi na oglasni deski oddelka.</p>
       </footer>
+
+      <RazporedNav active="index" role={profile ? profile.role : "user"} unread={unread} />
     </div>
   );
 }

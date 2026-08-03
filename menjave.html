@@ -77,6 +77,7 @@
 <script src="babel.min.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback } = React;
@@ -303,10 +304,7 @@ function App(){
         <div className="wordmark"><span className="mark">Menjave izmen</span></div>
         <p className="sub">{profile ? profile.full_name : ""} · {RazporedAuth.ROLE_LABEL[profile ? profile.role : "user"]}</p>
         <div>
-          <button className="backlink" onClick={() => location.href="index.html"}>‹ Pregled razporeda</button>
-          {profile && (profile.role==="admin"||profile.role==="vodja") && (
-            <button className="backlink" onClick={() => location.href="admin.html"}>Koordinator ›</button>
-          )}
+          <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         </div>
       </header>
 
@@ -332,8 +330,10 @@ function App(){
       <MojeMenjave rows={mine} />
 
       <footer className="foot">
-        <p><b>Dvostopenjska odobritev.</b> 1. stopnja: vodja tvoje ekipe. 2. stopnja: administrator — šele po tem se izmeni dejansko zamenjata v razporedu. Obvestila o spremembi statusa dobiš v aplikaciji (oznaka ob "Menjave" na pregledu razporeda).</p>
+        <p><b>Dvostopenjska odobritev.</b> 1. stopnja: vodja tvoje ekipe. 2. stopnja: administrator — šele po tem se izmeni dejansko zamenjata v razporedu. Obvestila o spremembi statusa dobiš v aplikaciji (oznaka ob "Menjave" spodaj).</p>
       </footer>
+
+      <RazporedNav active="menjave" role={profile ? profile.role : "user"} unread={0} />
     </div>
   );
 }
