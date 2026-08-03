@@ -43,11 +43,11 @@
     if (!res) return null;
     if (!res.profile || allowedRoles.indexOf(res.profile.role) === -1) {
       document.body.innerHTML =
-        '<div style="max-width:480px;margin:80px auto;padding:20px;font-family:sans-serif;color:#F1F0EA;background:#12192B;border-radius:16px;text-align:center;">' +
+        '<div style="max-width:480px;margin:80px auto;padding:20px;font-family:sans-serif;color:#2B2712;background:#FFFFFF;border:1px solid #E1D9C2;border-radius:16px;text-align:center;">' +
         "<p><b>Nimaš dostopa do te strani.</b></p>" +
-        "<p style=\"color:#8B93A8;font-size:13px;\">Ta stran zahteva vlogo: " +
+        "<p style=\"color:#8A7F5E;font-size:13px;\">Ta stran zahteva vlogo: " +
         allowedRoles.map(function (r) { return ROLE_LABEL[r] || r; }).join(" ali ") +
-        ".</p><p><a href=\"index.html\" style=\"color:#E8A33D;\">‹ Nazaj na pregled razporeda</a></p></div>";
+        ".</p><p><a href=\"index.html\" style=\"color:#6E5F2A;\">‹ Nazaj na pregled razporeda</a></p></div>";
       return null;
     }
     return res;

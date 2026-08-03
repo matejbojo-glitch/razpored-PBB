@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Razpored · Begunje</title>
 <meta name="description" content="Mesečni razpored dela zdravstvene nege, Psihiatrična bolnišnica Begunje" />
-<meta name="theme-color" content="#12192B" />
+<meta name="theme-color" content="#FAF8F1" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -16,22 +16,23 @@
 
 <style>
   :root{
-    --bg: #0d1322;
-    --bg-grad: #12192B;
-    --surface: #1B2540;
-    --surface-2: #212C4C;
-    --line: #2B375C;
-    --text: #F1F0EA;
-    --muted: #8B93A8;
-    --accent: #E8A33D;
-    --accent-ink: #2A1C05;
-    --dop: #7FB88F;
-    --pop: #E0916B;
-    --noc: #6E8FD1;
-    --h12: #A78BC9;
-    --off: #4A5270;
-    --off-text: #B9BFD1;
-    --danger: #D97757;
+    --bg: #FAF8F1;
+    --bg-grad: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-2: #F2EEDF;
+    --line: #E1D9C2;
+    --text: #2B2712;
+    --muted: #8A7F5E;
+    --accent: #A79448;
+    --accent-2: #6E5F2A;
+    --accent-ink: #2B2712;
+    --dop: #4F9B6B;
+    --pop: #C9713F;
+    --noc: #4A67B0;
+    --h12: #8560A8;
+    --off: #8B8672;
+    --off-text: #6B6656;
+    --danger: #B3402A;
     --radius: 16px;
     --radius-sm: 10px;
     --tabular: "tnum" 1, "lnum" 1;
@@ -56,12 +57,13 @@
     background: linear-gradient(180deg, var(--bg) 70%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px;
   }
-  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .wordmark .logoSmall{ height:28px; width:auto; }
   .wordmark .mark{
     font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
   }
   .wordmark .dept{
-    font-size: 13px; color: var(--accent); font-weight: 700;
+    font-size: 13px; color: var(--accent-2); font-weight: 700;
     letter-spacing: 0.02em;
   }
   .sub{ margin: 2px 0 0; font-size: 13px; color: var(--muted); }
@@ -118,8 +120,8 @@
   }
   .dayRow .dnum .n{ font-size:18px; font-weight:800; line-height:1; }
   .dayRow .dnum .d{ font-size:10px; color: var(--muted); text-transform:uppercase; margin-top:2px; }
-  .dayRow.today{ background: rgba(232,163,61,0.08); border-radius: 10px; }
-  .dayRow.today .dnum .n{ color: var(--accent); }
+  .dayRow.today{ background: rgba(167,148,72,0.12); border-radius: 10px; }
+  .dayRow.today .dnum .n{ color: var(--accent-2); }
   .dayRow.weekend .dnum .d{ color: var(--pop); }
   .chip{
     flex:1; display:flex; align-items:center; gap:8px; padding: 8px 12px;
@@ -236,7 +238,7 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-const BARVE = { dop:"#7FB88F", pop:"#E0916B", noc:"#6E8FD1", h12:"#A78BC9", off:"#4A5270" };
+const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672" };
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
@@ -471,6 +473,7 @@ function App(){
     <div className="wrap">
       <header className="top">
         <div className="wordmark">
+          <img className="logoSmall" src="logo-pbb.png" alt="" />
           <span className="mark">Razpored</span>
         </div>
         <p className="sub">{new Date(month+"-01").toLocaleDateString("sl-SI",{month:"long", year:"numeric"})} · Psihiatrična bolnišnica Begunje</p>

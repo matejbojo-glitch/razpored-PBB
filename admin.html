@@ -4,15 +4,15 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Generator razporeda · Begunje</title>
-<meta name="theme-color" content="#12192B" />
+<meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
 
 <style>
   :root{
-    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
-    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
-    --dop: #7FB88F; --pop: #E0916B; --noc: #6E8FD1; --h12: #A78BC9; --off: #4A5270; --off-text:#B9BFD1;
-    --danger: #D97757; --danger-bg: #3A2418; --ok: #7FB88F;
+    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
+    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
+    --dop: #4F9B6B; --pop: #C9713F; --noc: #4A67B0; --h12: #8560A8; --off: #8B8672; --off-text:#6B6656;
+    --danger: #B3402A; --danger-bg: #FBEAE6; --ok: #4C8C63;
     --radius: 16px; --radius-sm: 10px;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -26,7 +26,8 @@
 
   header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
-  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .wordmark .logoSmall{ height:28px; width:auto; }
   .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
   .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
     padding:2px 8px; border-radius:999px; }
@@ -95,10 +96,10 @@
   .dutyTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px;
     border-bottom:1px solid var(--line); }
   .dutyTable td{ padding:8px; border-bottom:1px solid var(--line); }
-  .dutyTable tr.we td{ background: rgba(224,145,107,0.06); }
+  .dutyTable tr.we td{ background: rgba(201,113,63,0.08); }
   .dutyTable tr.warn td{ background: var(--danger-bg); }
   .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; }
-  .pill.ok{ background: rgba(127,184,143,.18); color: var(--ok); }
+  .pill.ok{ background: rgba(76,140,99,.16); color: var(--ok); }
 
   .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
   .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
@@ -211,7 +212,7 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-const BARVE = { dop:"#7FB88F", pop:"#E0916B", noc:"#6E8FD1", h12:"#A78BC9", off:"#4A5270" };
+const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672" };
 
 function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
   const [y,m] = monthStr.split("-").map(Number);
@@ -727,7 +728,7 @@ function App(){
   return (
     <div className="wrap">
       <header className="top">
-        <div className="wordmark"><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
         <button className="backlink no-print" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         <div className="tabs no-print" role="tablist">
