@@ -108,6 +108,15 @@
 
   footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+
+  @media print{
+    :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
+    body{ background:#fff !important; }
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+    table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
+    table.wardTable thead th, table.roster th{ background:#f2f2f2 !important; }
+  }
 </style>
 </head>
 <body>
@@ -484,11 +493,12 @@ function KalupTab(){
               </tbody>
             </table>
           </div>
-          <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
-          <button className="genBtn" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+          <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
+          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
-          {publishMsg && <p className="hint" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>
       )}
     </div>
@@ -641,11 +651,12 @@ function DezurstvaTab(){
             </tbody>
           </table>
 
-          <button className="dlBtn" onClick={prenesi}>⬇ Prenesi JSON</button>
-          <button className="genBtn" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+          <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON</button>
+          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
-          {publishMsg && <p className="hint" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>
       )}
     </div>
@@ -718,8 +729,8 @@ function App(){
       <header className="top">
         <div className="wordmark"><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
-        <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
-        <div className="tabs" role="tablist">
+        <button className="backlink no-print" onClick={() => RazporedAuth.signOut()}>Odjava</button>
+        <div className="tabs no-print" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
@@ -730,7 +741,7 @@ function App(){
       {tab==="dez" && <DezurstvaTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
 
-      <footer className="foot">
+      <footer className="foot no-print">
         <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
         <p>Poleg ročnega prenosa JSON lahko rezultat objaviš neposredno v Supabase — to je edini vir podatkov, ki ga bere index.html.</p>
       </footer>
