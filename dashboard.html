@@ -73,6 +73,11 @@
 
   footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+
+  @media print{
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+  }
 </style>
 </head>
 <body>
@@ -147,7 +152,7 @@ function SmsTab({ baseline, onUpdate }){
 
   return (
     <div>
-      <h2 className="section">Dodaj mesec</h2>
+      <h2 className="section no-print">Dodaj mesec</h2>
       <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → "Prenesi JSON"). Prišteje se k spodnji osnovi.</p>
       <div className="card">
         <div className="uploadRow">
@@ -186,7 +191,7 @@ function SmsTab({ baseline, onUpdate }){
           </tbody>
         </table>
       </div>
-      <button className="dlBtn" onClick={() => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+      <button className="dlBtn no-print" onClick={() => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
     </div>
   );
 }
@@ -217,7 +222,7 @@ function DezTab({ baseline, onUpdate }){
 
   return (
     <div>
-      <h2 className="section">Dodaj mesec</h2>
+      <h2 className="section no-print">Dodaj mesec</h2>
       <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → "Prenesi JSON"). Posodobi se samo število dežurstev — ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
       <div className="card">
         <div className="uploadRow">
@@ -253,7 +258,7 @@ function DezTab({ baseline, onUpdate }){
         </table>
       </div>
       <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
-      <button className="dlBtn" onClick={() => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+      <button className="dlBtn no-print" onClick={() => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
     </div>
   );
 }
@@ -311,11 +316,12 @@ function App({ role }){
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Pravičnost</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
-        <div className="tabs" role="tablist">
+        <div className="tabs no-print" role="tablist">
           <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
           <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
         </div>
+        <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
       </header>
 
       {!data && <p className="hint">Nalagam osnovne podatke …</p>}
@@ -323,7 +329,7 @@ function App({ role }){
       {data && tab==="dez" && <DezTab baseline={data.osnova_dez} onUpdate={(n) => update("osnova_dez", n)} />}
       {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
 
-      <footer className="foot">
+      <footer className="foot no-print">
         <p><b>Modul 3 — nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) — vse iz analiz Kadrisa.</p>
         <p>Nalaganje novega meseca posodobi samo v tej seji odprtega brskalnika. Za trajno shrambo prenesite posodobljeno osnovo in jo shranite namesto te datoteke, ali počakajte na fazo 4 (skupna baza).</p>
       </footer>

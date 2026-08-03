@@ -68,6 +68,11 @@
   .err{ color:var(--danger); font-size:13px; margin-top:8px; }
 
   footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
+
+  @media print{
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+  }
 </style>
 </head>
 <body>
@@ -321,14 +326,15 @@ function App(){
         </React.Fragment>
       )}
 
-      <h2 className="section">Nov predlog menjave</h2>
-      <p className="hint">Predlagaj menjavo izmene s sodelavcem. Predlog najprej pregleda vodja tvoje ekipe, nato še administrator — šele takrat se razpored dejansko spremeni.</p>
-      <NovPredlog myId={auth.session.user.id} colleagues={colleagues} onSubmitted={reload} />
+      <h2 className="section no-print">Nov predlog menjave</h2>
+      <p className="hint no-print">Predlagaj menjavo izmene s sodelavcem. Predlog najprej pregleda vodja tvoje ekipe, nato še administrator — šele takrat se razpored dejansko spremeni.</p>
+      <div className="no-print"><NovPredlog myId={auth.session.user.id} colleagues={colleagues} onSubmitted={reload} /></div>
 
       <h2 className="section">Moje menjave</h2>
       <MojeMenjave rows={mine} />
+      <button className="submitBtn no-print" style={{marginTop:10}} onClick={() => window.print()}>📄 Izvozi v PDF</button>
 
-      <footer className="foot">
+      <footer className="foot no-print">
         <p><b>Dvostopenjska odobritev.</b> 1. stopnja: vodja tvoje ekipe. 2. stopnja: administrator — šele po tem se izmeni dejansko zamenjata v razporedu. Obvestila o spremembi statusa dobiš v aplikaciji (oznaka ob "Menjave" spodaj).</p>
       </footer>
 
