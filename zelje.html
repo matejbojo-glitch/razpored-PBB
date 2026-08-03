@@ -93,6 +93,7 @@
 <script src="babel.min.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -268,7 +269,7 @@ function Lightbox({ src, onClose }){
   );
 }
 
-function App(){
+function App({ role }){
   const [entries, setEntries] = useState([]);
   const [filter, setFilter] = useState("");
   const [lightbox, setLightbox] = useState(null);
@@ -315,9 +316,6 @@ function App(){
         <div className="wordmark"><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
         <div>
-          <a className="backlink" href="admin.html">‹ Generator razporeda</a>
-          <a className="backlink" href="dashboard.html">Nadzorna plošča ›</a>
-          <a className="backlink" href="menjave.html">Menjave ›</a>
           <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         </div>
       </header>
@@ -366,13 +364,16 @@ function App(){
         <p><b>Modul: želje zaposlenih.</b> Shranjeno lokalno v tem brskalniku (IndexedDB), ne na strežniku — velja samo na tej napravi. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
         <p>Vnesene želje se ne prenesejo samodejno v generator (admin.html) — coordinator jih ročno upošteva pri kliku na tedne dopusta ali pri urejanju dežurstev.</p>
       </footer>
+
+      <RazporedNav active="zelje" role={role} unread={0} />
     </div>
   );
 }
 function Gate(){
   const [ok, setOk] = useState(false);
-  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) setOk(true); }); }, []);
-  return ok ? <App/> : null;
+  const [role, setRole] = useState("vodja");
+  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setOk(true); } }); }, []);
+  return ok ? <App role={role}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

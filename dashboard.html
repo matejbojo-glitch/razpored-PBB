@@ -83,6 +83,7 @@
 <script src="dashboard-core.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useEffect } = React;
@@ -293,7 +294,7 @@ function NedezTab({ baseline }){
   );
 }
 
-function App(){
+function App({ role }){
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("sms");
 
@@ -309,10 +310,6 @@ function App(){
         <div className="wordmark"><span className="mark">Pravičnost</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
         <div>
-          <a className="backlink" href="index.html">‹ Pregled razporeda</a>
-          <a className="backlink" href="admin.html">‹ Generator razporeda</a>
-          <a className="backlink" href="menjave.html">Menjave ›</a>
-          <a className="backlink" href="zelje.html">Želje zaposlenih ›</a>
           <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         </div>
         <div className="tabs" role="tablist">
@@ -331,13 +328,16 @@ function App(){
         <p><b>Modul 3 — nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) — vse iz analiz Kadrisa.</p>
         <p>Nalaganje novega meseca posodobi samo v tej seji odprtega brskalnika. Za trajno shrambo prenesite posodobljeno osnovo in jo shranite namesto te datoteke, ali počakajte na fazo 4 (skupna baza).</p>
       </footer>
+
+      <RazporedNav active="dashboard" role={role} unread={0} />
     </div>
   );
 }
 function Gate(){
   const [ok, setOk] = useState(false);
-  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) setOk(true); }); }, []);
-  return ok ? <App/> : null;
+  const [role, setRole] = useState("vodja");
+  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setOk(true); } }); }, []);
+  return ok ? <App role={role}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>
