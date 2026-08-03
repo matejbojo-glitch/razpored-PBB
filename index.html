@@ -181,6 +181,18 @@
   @media (prefers-reduced-motion: reduce){
     *{ transition:none !important; animation:none !important; }
   }
+
+  .pdfBtn{ margin-top:12px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
+    padding:10px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer; }
+
+  @media print{
+    :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
+    body{ background:#fff !important; }
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+    table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
+    table.wardTable thead th{ background:#f2f2f2 !important; }
+  }
 </style>
 </head>
 <body>
@@ -462,20 +474,20 @@ function App(){
           <span className="mark">Razpored</span>
         </div>
         <p className="sub">{new Date(month+"-01").toLocaleDateString("sl-SI",{month:"long", year:"numeric"})} · Psihiatrična bolnišnica Begunje</p>
-        <div className="whoRow">
+        <div className="whoRow no-print">
           <span className="who">Prijavljen: <b>{profile ? profile.full_name : session.user.email}</b></span>
           <div className="navLinks">
             <button className="navLink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
           </div>
         </div>
 
-        <div className="segmented" role="tablist">
+        <div className="segmented no-print" role="tablist">
           <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
           <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
         </div>
 
         {view==="ward" && (
-          <div className="field">
+          <div className="field no-print">
             <label htmlFor="wd">Oddelek</label>
             <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
               <option value="" disabled>Izberi oddelek …</option>
@@ -483,10 +495,11 @@ function App(){
             </select>
           </div>
         )}
-        <div className="field">
+        <div className="field no-print">
           <label htmlFor="mm">Mesec</label>
           <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} />
         </div>
+        <button className="pdfBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
       </header>
 
       {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}
@@ -494,7 +507,7 @@ function App(){
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 
       {showInstall && (
-        <div className="installBar">
+        <div className="installBar no-print">
           <div>
             <div className="t">Namesti na domači zaslon</div>
             <div className="s">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
