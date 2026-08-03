@@ -34,9 +34,15 @@ tvojo izrecno zahtevo so zdaj uveljavljeni v kodi:
 - **Močnik Simona**: D → **C** (dejanski razpored jo prikazuje med osnovnimi 5
   v oddelku C).
 - **Balek Mija**: dodana v **D** (prej v `WARDS_META` sploh ni bilo).
-- **Vozel D.** in **Gazibara A.**: odstranjena iz D/C1 (v dejanskem razporedu
-  nista del fiksne rotacije — najverjetneje zamenjava z istoimensko
-  dežurno/nedežurno osebo iste priimke).
+- **Vozel D.** (D, kalup E) in **Gazibara A.** (C1, kalup C): na izrecno željo
+  **znova dodana** v `WARDS_META`/`SKUPINE`, potem ko sta bila v prejšnjem
+  krogu odstranjena. Opozorilo ostaja v veljavi: dejanski razpored
+  `2026_SMS_RAZPORED.xlsx` ju v juniju 2026 ni prikazoval kot del fiksne
+  5-osebne rotacije teh oddelkov, kalup-črka je zato zgolj ocena brez
+  potrditve. Poleg tega se v `zelje.html` "Nedežurni kader" pojavljata tudi
+  "VOZEL DEJAN" in "GAZIBARA ALDIN" — če gre za isto osebo kot "VOZEL D."/
+  "GAZIBARA A." v SMS/ZZT skupini, je oseba zdaj vpisana dvakrat na dveh
+  seznamih; to je smiselno preveriti pri koordinatorju.
 
 **Verjetno samo tipkarski napaki v `WARDS_META`** (dejanski razpored uporablja
 isto pisavo kot obstoječa koda, ZAPOSLENI_1.8.xlsx pa drugačno):

@@ -47,9 +47,12 @@ zahtevo — glej `analiza-razporedov.md` §2 za dokaze):
 - **Močnik S.** premaknjena **D → C** (dejanski razpored jo prikazuje med
   osnovnimi 5 v oddelku C, ne D).
 - **Balek M.** dodana v oddelek **D** (prej je manjkala povsem).
-- **Vozel D.** in **Gazibara A.** odstranjena iz oddelkov D/C1 (v dejanskem
-  razporedu nista del fiksne rotacije — v obeh primerih šlo verjetno za
-  zamenjavo z istoimensko dežurno/nedežurno osebo).
+- **Vozel D.** (D) in **Gazibara A.** (C1) — na izrecno željo znova dodana,
+  potem ko sta bila v prejšnjem krogu odstranjena. Opozorilo velja naprej:
+  dejanski razpored ju v juniju 2026 ni prikazoval kot del fiksne rotacije
+  teh oddelkov, in oba imena se pojavita tudi na seznamu "Nedežurni kader" v
+  `zelje.html` ("VOZEL DEJAN", "GAZIBARA ALDIN") — če gre za isto osebo, je
+  zdaj vpisana dvakrat; preveri pri koordinatorju.
 - "Bečirović N." in "Valjavec A." (obstoječe črkovanje) so ostali nespremenjeni
   — dejanski razpored potrjuje, da je to pravilno črkovanje.
 
