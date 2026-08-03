@@ -1,16 +1,18 @@
 // Razpored PBB — service worker
-// Faza 1: samo za branje. Predpomni lupino aplikacije, da razpored
-// deluje tudi brez signala (npr. v kleti, izolirani sobi).
+// Faza 4: dodana prijava/vloge — HTML strani zdaj network-first (da nova
+// objava vedno pride skozi), knjižnice ostajajo cache-first (nespremenljive
+// med objavami). Prazna delovanje brez signala ostaja kot rezerva iz cacha.
 
-const CACHE = 'razpored-pbb-v1';
+const CACHE = 'razpored-pbb-v2';
 const ASSETS = [
   './',
   './index.html',
+  './login.html',
+  './menjave.html',
   './admin.html',
   './dashboard.html',
   './zelje.html',
   './manifest.json',
-  './data-oktober-2026.json',
   './generator-core.js',
   './dashboard-core.js',
   './dashboard-baseline.json',
@@ -18,7 +20,9 @@ const ASSETS = [
   './icon-512.png',
   './react.production.min.js',
   './react-dom.production.min.js',
-  './babel.min.js'
+  './babel.min.js',
+  './supabase-js.min.js',
+  './supabase-client.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,11 +39,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// network-first za podatke (da uporabnik dobi svež razpored, ko je na voljo),
-// cache-first za vse ostalo (lupina aplikacije naj se naloži takoj)
+// network-first za HTML/JSON (da uporabnik vedno dobi svežo objavo in svež
+// razpored, brez čakanja na novo različico service workerja), cache-first
+// samo za nespremenljive knjižnice — rezerva iz cacha ostane, če ni signala.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.endsWith('.json')) {
+  const isHtmlOrData = event.request.mode === 'navigate'
+    || url.pathname.endsWith('.html')
+    || url.pathname.endsWith('.json')
+    || url.pathname === '/' || url.pathname.endsWith('/');
+
+  if (isHtmlOrData) {
     event.respondWith(
       fetch(event.request)
         .then((res) => {
@@ -51,6 +61,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
