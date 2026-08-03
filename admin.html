@@ -727,10 +727,10 @@ function App(){
   const [tab, setTab] = useState("kalup");
   return (
     <div className="wrap">
+      <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
-        <button className="backlink no-print" onClick={() => RazporedAuth.signOut()}>Odjava</button>
         <div className="tabs no-print" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>

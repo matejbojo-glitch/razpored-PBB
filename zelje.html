@@ -313,12 +313,10 @@ function App({ role }){
 
   return (
     <div className="wrap">
+      <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
-        <div>
-          <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
-        </div>
       </header>
 
       <h2 className="section">Nov vnos</h2>

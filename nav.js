@@ -29,7 +29,13 @@
       " border-radius:999px; background:#B3402A; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
       ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
-      "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; } }";
+      "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; } }" +
+      ".rpLogout{ position:fixed; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:41;" +
+      " width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;" +
+      " background:rgba(255,255,255,0.94); border:1px solid #E1D9C2; color:#6E5F2A; font-size:17px;" +
+      " cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.1); padding:0; }" +
+      ".rpLogout:hover{ background:#F2EEDF; }" +
+      "@media print{ .rpLogout{ display:none !important; } }";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
@@ -95,5 +101,21 @@
     );
   }
 
+  // Krogla ikona za odjavo, fiksirana v zgornjem desnem kotu na vseh straneh.
+  function RazporedLogout() {
+    ensureStyle();
+    return e(
+      "button",
+      {
+        className: "rpLogout",
+        title: "Odjava",
+        "aria-label": "Odjava",
+        onClick: function () { if (root.RazporedAuth) root.RazporedAuth.signOut(); },
+      },
+      "🚪"
+    );
+  }
+
   root.RazporedNav = RazporedNav;
+  root.RazporedLogout = RazporedLogout;
 })(typeof window !== "undefined" ? window : this);

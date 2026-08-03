@@ -307,12 +307,10 @@ function App({ role }){
 
   return (
     <div className="wrap">
+      <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Pravičnost</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
-        <div>
-          <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
-        </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
