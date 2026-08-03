@@ -44,26 +44,50 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Ob registraciji (auth.users insert) samodejno ustvari profil z vlogo 'user'.
--- Ime se vzame iz signUp({ options: { data: { full_name } } }); brez njega
--- pade nazaj na e-poštni naslov, admin ga lahko kasneje popravi.
+-- Ob registraciji ALI Auth → "Invite user" (auth.users insert) samodejno
+-- ustvari profil z vlogo 'user'. Ime se vzame iz signUp({ options: { data:
+-- { full_name } } }); pri povabilu po e-pošti te metapodatke večinoma ni,
+-- zato pade nazaj na e-poštni naslov — admin ga kasneje popravi v
+-- admin.html → Uporabniki.
+--
+-- Sprožilec teče v transakciji GoTrue (Supabase Auth) storitve, ki jo
+-- izvaja vloga supabase_auth_admin, ne "postgres" iz SQL Editorja — zato
+-- spodnji grant-i, brez njih lahko GoTrue vrne generično napako
+-- "Database error saving new user", ko sprožilec zaradi manjkajočih
+-- pravic ne more zapisati v public.profiles.
+--
+-- Dodatno: telo je zavito v exception handler, da napaka pri ustvarjanju
+-- profila (npr. začasna težava, podvojen vnos) NIKOLI ne prepreči
+-- ustvarjanja samega Auth računa — brez tega bi vsaka nepričakovana
+-- napaka tu pomenila, da se noben nov uporabnik ne more registrirati/biti
+-- povabljen, dokler je ne odpravimo.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   insert into public.profiles (id, full_name, role)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.email, 'Neznano ime'),
     'user'
   )
   on conflict (id) do nothing;
   return new;
+exception
+  when others then
+    raise warning 'handle_new_user: ustvarjanje profila za % ni uspelo: %', new.id, sqlerrm;
+    return new;
 end;
 $$;
+
+-- Brez tega GoTrue (vloga supabase_auth_admin) pogosto ne more sprožiti
+-- zgornje funkcije, kar se navzven kaže kot "Database error saving new user".
+grant usage on schema public to supabase_auth_admin;
+grant all on public.profiles to supabase_auth_admin;
+grant execute on function public.handle_new_user() to supabase_auth_admin;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created

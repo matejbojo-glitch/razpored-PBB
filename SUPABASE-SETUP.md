@@ -6,6 +6,25 @@ Supabase projektu enkrat ročno pripraviti bazo — tega iz te seje nisem mogel
 narediti sam, ker imam samo **publishable (anon) ključ**, ne `service_role`
 ključa ali dostopa do SQL urejevalnika.
 
+## Popravek: "Database error saving new user" pri Auth → Invite user
+
+Če pri povabilu novega uporabnika (ali pri navadni registraciji) dobiš to
+napako, je vzrok skoraj zagotovo sprožilec `handle_new_user()`, ki ob
+vsakem novem `auth.users` vnosu doda vrstico v `public.profiles`. Ta
+sprožilec teče v transakciji vloge `supabase_auth_admin` (Supabase Auth
+storitev), ne `postgres` iz SQL Editorja — če ji manjkajo pravice na
+`public.profiles`, GoTrue vrne točno to generično sporočilo.
+
+**Popravek je že v `supabase/schema.sql`** (doda eksplicitne grante za
+`supabase_auth_admin` in naredi sprožilec odporen na napake, da nikoli ne
+prepreči ustvarjanja Auth računa). Samo **znova poženi celo datoteko**
+`supabase/schema.sql` v SQL Editorju — varno je pognati večkrat.
+
+Če napaka po tem vztraja, v Dashboard → Logs → Postgres Logs poišči
+natančno sporočilo za `handle_new_user` (zdaj se zaradi `raise warning`
+izpiše, namesto da požre napako) in ga pošlji naprej za natančnejšo
+diagnozo.
+
 ## 0. Preveri URL projekta
 
 V `supabase-client.js` je nastavljeno:
