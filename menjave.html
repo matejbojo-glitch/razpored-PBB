@@ -301,12 +301,10 @@ function App(){
 
   return (
     <div className="wrap">
+      <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Menjave izmen</span></div>
         <p className="sub">{profile ? profile.full_name : ""} · {RazporedAuth.ROLE_LABEL[profile ? profile.role : "user"]}</p>
-        <div>
-          <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
-        </div>
       </header>
 
       {profile && profile.role === "admin" && (

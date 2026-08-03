@@ -471,6 +471,7 @@ function App(){
 
   return (
     <div className="wrap">
+      <RazporedLogout/>
       <header className="top">
         <div className="wordmark">
           <img className="logoSmall" src="logo-pbb.png" alt="" />
@@ -479,9 +480,6 @@ function App(){
         <p className="sub">{new Date(month+"-01").toLocaleDateString("sl-SI",{month:"long", year:"numeric"})} · Psihiatrična bolnišnica Begunje</p>
         <div className="whoRow no-print">
           <span className="who">Prijavljen: <b>{profile ? profile.full_name : session.user.email}</b></span>
-          <div className="navLinks">
-            <button className="navLink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
-          </div>
         </div>
 
         <div className="segmented no-print" role="tablist">
