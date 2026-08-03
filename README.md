@@ -91,7 +91,7 @@ To ročno posodabljanje je smiselno samo za to prvo fazo. V naslednji fazi
 Tri kartice, vsaka s svojo osnovo iz že opravljenih analiz Kadrisa:
 
 - **SMS/TZN** — 56 oseb, obdobje 1. 1.–30. 9. 2026.
-- **Dežurni DMS/DZN** — 12 oseb, obdobje 1. 1.–31. 7. 2026.
+- **Dežurni DMS/DZN** — 14 oseb, obdobje 1. 1.–30. 9. 2026 (iz analize "Dežurstva 2026").
 - **Nedežurni DMS/DZN** — 11 oseb, isto obdobje, samo za pregled (za to
   skupino generator še ne obstaja, zato tu ni nalaganja novih mesecev).
 
