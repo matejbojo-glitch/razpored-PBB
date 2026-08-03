@@ -2,8 +2,10 @@
 // Faza 4: dodana prijava/vloge — HTML strani zdaj network-first (da nova
 // objava vedno pride skozi), knjižnice ostajajo cache-first (nespremenljive
 // med objavami). Prazna delovanje brez signala ostaja kot rezerva iz cacha.
+// v3: nov logo/barve bolnišnice — dvignjena verzija, da se slikovne datoteke
+// (ikone, logo-pbb.png), ki so cache-first, ponovno prenesejo.
 
-const CACHE = 'razpored-pbb-v2';
+const CACHE = 'razpored-pbb-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -18,11 +20,13 @@ const ASSETS = [
   './dashboard-baseline.json',
   './icon-192.png',
   './icon-512.png',
+  './logo-pbb.png',
   './react.production.min.js',
   './react-dom.production.min.js',
   './babel.min.js',
   './supabase-js.min.js',
-  './supabase-client.js'
+  './supabase-client.js',
+  './nav.js'
 ];
 
 self.addEventListener('install', (event) => {

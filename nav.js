@@ -15,19 +15,19 @@
     var css =
       "body{ padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important; }" +
       ".rpNav{ position:fixed; left:0; right:0; bottom:0; z-index:40;" +
-      " background: rgba(19,25,43,0.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);" +
-      " border-top:1px solid #2B375C; padding-bottom: env(safe-area-inset-bottom); }" +
+      " background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);" +
+      " border-top:1px solid #E1D9C2; padding-bottom: env(safe-area-inset-bottom); }" +
       ".rpNav .inner{ max-width:640px; margin:0 auto; display:flex; }" +
       ".rpNav a{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;" +
-      " padding:9px 4px 8px; background:none; border:0; color:#8B93A8; text-decoration:none; font-family:inherit;" +
+      " padding:9px 4px 8px; background:none; border:0; color:#8A7F5E; text-decoration:none; font-family:inherit;" +
       " cursor:pointer; font-size:10.5px; font-weight:700; position:relative; min-width:0; min-height:44px;" +
       " justify-content:center; }" +
-      ".rpNav a.active{ color:#E8A33D; }" +
+      ".rpNav a.active{ color:#6E5F2A; }" +
       ".rpNav .ic{ font-size:19px; line-height:1; }" +
       ".rpNav .lbl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }" +
       ".rpNav .badge{ position:absolute; top:2px; right:calc(50% - 20px); min-width:15px; height:15px; padding:0 3px;" +
-      " border-radius:999px; background:#D97757; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
-      ".rpNav .badge.warn{ background:#E8A33D; color:#2A1C05; }" +
+      " border-radius:999px; background:#B3402A; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
+      ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
       "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; } }";
     var style = document.createElement("style");

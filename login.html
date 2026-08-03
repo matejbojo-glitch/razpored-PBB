@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Prijava · Razpored Begunje</title>
-<meta name="theme-color" content="#12192B" />
+<meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
 <style>
   :root{
-    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
-    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
-    --danger: #D97757; --ok: #7FB88F; --radius: 16px; --radius-sm: 10px;
+    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
+    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
+    --danger: #B3402A; --ok: #4C8C63; --radius: 16px; --radius-sm: 10px;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
@@ -19,6 +19,7 @@
     min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
   }
   .wrap{ max-width:400px; margin:0 auto; padding: 60px 16px 40px; }
+  .logo{ display:block; margin:0 auto 10px; height:64px; width:auto; }
   .mark{ font-weight:800; font-size:22px; letter-spacing:-0.02em; text-align:center; display:block; }
   .sub{ text-align:center; color:var(--muted); font-size:13px; margin: 4px 0 28px; }
   .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
@@ -106,6 +107,7 @@ function App(){
 
   return (
     <div className="wrap">
+      <img className="logo" src="logo-pbb.png" alt="Psihiatrična bolnišnica Begunje" />
       <span className="mark">Razpored · Begunje</span>
       <p className="sub">Prijava zaposlenih zdravstvene nege</p>
       <div className="card">

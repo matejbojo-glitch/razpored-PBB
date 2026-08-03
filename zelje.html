@@ -4,14 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Želje · Begunje</title>
-<meta name="theme-color" content="#12192B" />
+<meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
 
 <style>
   :root{
-    --bg: #0d1322; --bg-grad: #12192B; --surface: #1B2540; --surface-2: #212C4C;
-    --line: #2B375C; --text: #F1F0EA; --muted: #8B93A8; --accent: #E8A33D; --accent-ink: #2A1C05;
-    --danger: #D97757; --ok: #7FB88F;
+    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
+    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
+    --danger: #B3402A; --ok: #4C8C63;
     --radius: 16px; --radius-sm: 10px;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -25,7 +25,8 @@
 
   header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 78%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
-  .wordmark{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .wordmark .logoSmall{ height:28px; width:auto; }
   .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
   .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
     padding:2px 8px; border-radius:999px; }
@@ -68,7 +69,7 @@
 
   .entry{ background:var(--surface); border:1px solid var(--line); border-radius: var(--radius-sm); padding:12px 14px; margin-bottom:8px; }
   .entry .top2{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-  .entry .obdobje{ font-weight:700; font-size:13.5px; color: var(--accent); }
+  .entry .obdobje{ font-weight:700; font-size:13.5px; color: var(--accent-2); }
   .entry .datum{ font-size:11px; color: var(--muted); }
   .entry .opis{ font-size:13.5px; margin-top:6px; line-height:1.5; white-space:pre-wrap; }
   .entry img.thumb{ margin-top:8px; max-width:100%; max-height:220px; border-radius:10px; border:1px solid var(--line); cursor:zoom-in; }
@@ -313,7 +314,7 @@ function App({ role }){
   return (
     <div className="wrap">
       <header className="top">
-        <div className="wordmark"><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
         <div>
           <button className="backlink" onClick={() => RazporedAuth.signOut()}>Odjava</button>
