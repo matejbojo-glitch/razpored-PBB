@@ -1,6 +1,6 @@
 # Analiza: 2026_SMS_RAZPORED.xlsx, Letni_dopusti_in_omejitve_za_NZV.xlsx, obvestilo_spremembe_slu_baZN.docx
 
-## 1. Kalup črke (rotacijska rotacija A–E) — diagnostika, NE uporabljeno
+## 1. Kalup črke (rotacijska rotacija A–E) — diagnostika
 
 Iz `2026_SMS_RAZPORED.xlsx` (dejanski, podpisan razpored za junij 2026, po
 oddelkih B/C/C1/D/E1/E2) sem izluščil realno zaporedje izmen za vsakega
@@ -15,23 +15,28 @@ niso povsem pravilne, bodisi (b) je prišlo do dejanskih sprememb kalupa med
 junijem in septembrom 2026, bodisi (c) je moja metoda premalo natančna (ne loči
 zanesljivo dopusta/KPU od pravih neujemanj).
 
-**Nisem spremenil nobene kalup-črke v `WARDS_META`** — ujemanje pod ~90 % ni
-dovolj zanesljivo, da bi lahko z gotovostjo prepisal realen razpored živih
-ljudi. Polni rezultat (vseh 44 oseb, z odstotki in konkretnimi neujemanji) je
-na voljo v `roster/kalup-ujemanje-raw.txt`, če ga želiš pregledati sam ali mi
-poveš, katera oseba ima zagotovo znano pravo črko, da preverim natančneje.
+Za štiri osebe, ki so bile premaknjene/dodane v `WARDS_META` (glej §2), sem
+uporabil najboljše ujemanje kot izhodiščno črko (Pogačnik M. 88 %, Mravlje U.
+59 %, Močnik S. 65 %, Balek M. 63 %) — to je zdaj v kodi, a jasno komentirano
+kot ocena. Polni rezultat (vseh 44 oseb, z odstotki in konkretnimi neujemanji)
+je na voljo v `roster/kalup-ujemanje-raw.txt`, če ga želiš natančneje
+pregledati ali popraviti prek `admin.html` → Kalup (spustni seznam s črko
+ob vsakem zaposlenem).
 
-## 2. Potrjeni/dvojno potrjeni popravki oddelkov (SMS/ZZT)
+## 2. Popravki oddelkov (SMS/ZZT) — UVELJAVLJENO v `WARDS_META`/`zelje.html`
 
 Primerjava `2026_SMS_RAZPORED.xlsx` (dejanski razpored) IN `ZAPOSLENI_1.8.xlsx`
-(HR STATUS/ODDELEK) **soglasno** kaže:
+(HR STATUS/ODDELEK) je pokazala vrsto neskladij z obstoječim `WARDS_META`. Na
+tvojo izrecno zahtevo so zdaj uveljavljeni v kodi:
 
-- **Pogačnik Matej** je dejansko v oddelku **C1**, ne D (`WARDS_META` ga ima v D).
-- **Mravlje Uroš** je dejansko v oddelku **D**, ne C1 (`WARDS_META` ga ima v C1).
-
-To sta edina primera, kjer se DVA neodvisna vira strinjata — ostale razlike,
-ki sem jih našel prej (glej `roster/README.md`), imajo nasprotujoče si vire in
-jih nisem spreminjal.
+- **Pogačnik Matej**: D → **C1** (dvojno potrjeno).
+- **Mravlje Uroš**: C1 → **D** (dvojno potrjeno).
+- **Močnik Simona**: D → **C** (dejanski razpored jo prikazuje med osnovnimi 5
+  v oddelku C).
+- **Balek Mija**: dodana v **D** (prej v `WARDS_META` sploh ni bilo).
+- **Vozel D.** in **Gazibara A.**: odstranjena iz D/C1 (v dejanskem razporedu
+  nista del fiksne rotacije — najverjetneje zamenjava z istoimensko
+  dežurno/nedežurno osebo iste priimke).
 
 **Verjetno samo tipkarski napaki v `WARDS_META`** (dejanski razpored uporablja
 isto pisavo kot obstoječa koda, ZAPOSLENI_1.8.xlsx pa drugačno):
@@ -78,33 +83,35 @@ potrdil barvno shemo s primerjavo proti že znanim vrednostim iz analize
 (Grega Arnež, Aleksander Maglić — ujemanje do dneva natančno):
 
 - **Rdeča (`FFE06666`) = dopust** (LD) — blokira ta dan IN dan pred začetkom
-  rdečega bloka (če ni ponedeljek → petek prej).
+  rdečega bloka (če se blok začne v ponedeljek, tudi petek pred njim; sobota
+  vmes ostane prosta).
 - **Rumena (tema-barva #7) = omejitev** — blokira samo ta dan, brez pravila
   "dan prej".
 - Svetlo rožnata (`FFF8D4D3`) na sobote/nedelje je samo splošno oblikovanje
   koledarja (vikend), ne osebna oznaka — ignorirano.
 
+**UVELJAVLJENO v `generator-core.js`**: `generirajDezurstva()` zdaj sprejme
+ločeni polji `dopust` (rdeče) in `omejitve` (rumeno) na osebo in samodejno
+izračuna pravilo "dan pred dopustom" (glej testni primer v komentarjih
+funkcije). `admin.html` → Dežurstva ima zdaj ločena vnosna polja "Dopust
+(rdeče)" in "Omejitve (rumeno)" namesto, da bi vse šlo v splošne "Odsotnosti".
+
 ### Konkretni podatki za oktober 2026 (naslednji mesec za generiranje)
 
 Za razliko od septembra je oktober **veliko lažji mesec** — omejitve imajo
-samo tri osebe:
+samo tri osebe. Pripravljeno za neposredno kopiranje v `admin.html` →
+Dežurstva, v ustrezno polje (Dopust ali Omejitve):
 
-| Oseba | Blokirani dnevi (rdeče/rumeno) |
-|---|---|
-| Grega Arnež | 1., 2. (rdeče/dopust), 22., 23., 24., 25. (rumeno/omejitev) |
-| Metka Velušček | 1., 2., 3., 4., 13., 14. (rumeno/omejitev) |
-| Tanja Torkar | 23., 24., 25. (rumeno/omejitev) |
+| Oseba | Dopust (rdeče) | Omejitve (rumeno) |
+|---|---|---|
+| Grega Arnež | `2026-10-01, 2026-10-02` | `2026-10-22, 2026-10-23, 2026-10-24, 2026-10-25` |
+| Metka Velušček | — | `2026-10-01, 2026-10-02, 2026-10-03, 2026-10-04, 2026-10-13, 2026-10-14` |
+| Tanja Torkar | — | `2026-10-23, 2026-10-24, 2026-10-25` |
 
 Pravilo "dan pred dopustom" tu ne doda dodatnih dni znotraj oktobra (Arnežev
-rdeči blok se začne 1. 10., dan prej je še september). Pripravljeno za
-neposredno kopiranje v `admin.html` → Dežurstva → polje "Odsotnosti":
-
-- Grega Arnež: `2026-10-01, 2026-10-02, 2026-10-22, 2026-10-23, 2026-10-24, 2026-10-25`
-- Metka Velušček: `2026-10-01, 2026-10-02, 2026-10-03, 2026-10-04, 2026-10-13, 2026-10-14`
-- Tanja Torkar: `2026-10-23, 2026-10-24, 2026-10-25`
-
-Ostalih 11 dežurnih oseb v oktobru nima nobene barvne omejitve v tej
-preglednici.
+rdeči blok se začne 1. 10., dan prej je že september — izven obsega
+generiranja). Ostalih 11 dežurnih oseb v oktobru nima nobene barvne omejitve
+v tej preglednici.
 
 ## 6. Obrazec "Obvestilo koordinatorici za razporejanje kadra v ZN"
 

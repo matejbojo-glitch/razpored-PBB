@@ -167,11 +167,20 @@ async function publishScheduleRows(deptCode, rows){
 // oktobra 2026. Črka je stanje kalupa v tednu 28. 9. 2026 (sidro).
 // ---------------------------------------------------------------------
 const ANCHOR_MONDAY = "2026-09-28";
+// Popravljeno po analizi dejanskega razporeda "2026_SMS_RAZPORED.xlsx" (junij
+// 2026, po oddelkih) in ZAPOSLENI_1.8.xlsx — glej roster/analiza-razporedov.md.
+// Premiki, potrjeni z realnim razporedom: Pogačnik M. C1 (ne D), Mravlje U. D
+// (ne C1), Močnik S. C (ne D), Balek M. dodan v D (prej manjkal), Vozel D. in
+// Gazibara A. odstranjena (v realnem razporedu nista del fiksne 5-6-osebne
+// kalup rotacije tega oddelka, temveč dežurna/FLEXI zasedba). Črke pri
+// premaknjenih/dodanih osebah so ocenjene z ujemanjem realnih junijskih izmen
+// (glej roster/kalup-ujemanje-raw.txt) — kjer ujemanje ni ~90%+, je označeno
+// kot "preveri", priporočamo ročno preverbo pred zaupanjem generiranemu razporedu.
 const WARDS_META = {
   B:  { naziv:"B - ODDELEK",  hsuffix:false, staff:[["ROZMAN A.","E"],["SVETINA S.","A"],["REJC J.","D"],["DOLAR T.","C"],["VOVK U.","B"]] },
-  C:  { naziv:"C - ODDELEK",  hsuffix:false, staff:[["ŠABIĆ S.","A"],["KODRAS N.","B"],["ROZMAN K.","C"],["DJEDOVIĆ M.","D"],["SMOLEJ N.","E"]] },
-  C1: { naziv:"C1 - ODDELEK", hsuffix:false, staff:[["DŽINIĆ A.","B"],["STARC E.","E"],["KARNIČAR J.","D"],["ZEKAN A.","A"],["ŠKANTAR M.","B"],["VALJAVEC A.","C"],["BEČIROVIĆ N.","D"],["SUŠNIK J.","A"],["GAZIBARA A.","C"],["MRAVLJE U.","E"]] },
-  D:  { naziv:"D - ODDELEK",  hsuffix:false, staff:[["MURIĆ A.","D"],["RANT L.","B"],["REKIĆ E.","B"],["VOZEL D.","E"],["MOČNIK S.","E"],["MEGLIČ J.","C"],["NUHANOVIĆ M.","C"],["STARE L.","D"],["TOMAŠIĆ N.","A"],["POGAČNIK M.","A"]] },
+  C:  { naziv:"C - ODDELEK",  hsuffix:false, staff:[["ŠABIĆ S.","A"],["KODRAS N.","B"],["ROZMAN K.","C"],["MOČNIK S.","D"],["SMOLEJ N.","E"]] }, // MOČNIK S.: D — ujemanje 65%, preveri
+  C1: { naziv:"C1 - ODDELEK", hsuffix:false, staff:[["DŽINIĆ A.","B"],["STARC E.","E"],["KARNIČAR J.","D"],["ZEKAN A.","A"],["ŠKANTAR M.","B"],["VALJAVEC A.","C"],["BEČIROVIĆ N.","D"],["SUŠNIK J.","A"],["POGAČNIK M.","A"]] }, // POGAČNIK M.: A — ujemanje 88%
+  D:  { naziv:"D - ODDELEK",  hsuffix:false, staff:[["MURIĆ A.","D"],["RANT L.","B"],["REKIĆ E.","B"],["BALEK M.","A"],["MEGLIČ J.","C"],["NUHANOVIĆ M.","C"],["STARE L.","D"],["TOMAŠIĆ N.","A"],["MRAVLJE U.","C"]] }, // BALEK M.: A — ujemanje 63%, preveri; MRAVLJE U.: C — ujemanje 59%, preveri
   E1: { naziv:"E1 - ODDELEK", hsuffix:true,  staff:[["BRATUŠA M.","C"],["SVETINA R.","E"],["URANKER M.","A"],["PETERMAN R.","D"],["MALER A.","B"]] },
   E2: { naziv:"E2 - ODDELEK", hsuffix:false, staff:[["MUŠIĆ A.","B"],["BAJT A.","C"],["VOLARIČ N.","E"],["SODJA B.","D"],["TALIĆ A.","A"]] },
 };
@@ -508,7 +517,7 @@ function KalupTab(){
 
 // ---------------------------------------------------------------------
 function DezurstvaTab(){
-  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:"", prostDanVTednu: z.prostDanVTednu || ""})));
+  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:"", dopust:"", omejitve:"", prostDanVTednu: z.prostDanVTednu || ""})));
   const [month, setMonth] = useState("2026-10");
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
@@ -529,6 +538,8 @@ function DezurstvaTab(){
       obstojeceStevilo: Number(z.stevilo) || 0,
       zadnjeDezurstvo: z.zadnje || null,
       odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
+      dopust: z.dopust.split(",").map(s => s.trim()).filter(Boolean),
+      omejitve: z.omejitve.split(",").map(s => s.trim()).filter(Boolean),
       prostDanVTednu: z.prostDanVTednu || null,
     }));
     const res = Generator.generirajDezurstva({
@@ -562,10 +573,10 @@ function DezurstvaTab(){
   return (
     <div>
       <h2 className="section">1 · Dežurni kader — stanje ob začetku meseca</h2>
-      <p className="hint">Prednastavljeno s podatki iz analize "Dežurstva 2026" (januar–september 2026, vključno z objavljenim septembrskim razporedom). Po potrebi popravite število in datum zadnjega dežurstva, ali dodajte odsotnosti (datumi ISO, ločeni z vejico). "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan — preverite in popravite ročno. Pravilo iz analize "dan pred dopustom se ne dežura" ni samodejno (generator ne loči zanesljivo med dopustom in drugimi omejitvami) — dodajte tisti dan ročno v odsotnosti, če velja.</p>
+      <p className="hint">Prednastavljeno s podatki iz analize "Dežurstva 2026" (januar–september 2026, vključno z objavljenim septembrskim razporedom). Po potrebi popravite število in datum zadnjega dežurstva. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan — preverite in popravite ročno. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Odsotnosti" ostane za druge, splošne razloge brez tega samodejnega pravila.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
-          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Prost dan v tednu</th></tr></thead>
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th></tr></thead>
           <tbody>
             {roster.map(z => (
               <tr key={z.ime}>
@@ -574,6 +585,8 @@ function DezurstvaTab(){
                 <td><input type="number" style={{width:56}} value={z.stevilo} onChange={e => updateField(z.ime,"stevilo",e.target.value)} /></td>
                 <td><input type="text" style={{width:110}} value={z.zadnje} onChange={e => updateField(z.ime,"zadnje",e.target.value)} placeholder="LLLL-MM-DD" /></td>
                 <td><input type="text" style={{width:150}} value={z.odsotnosti} onChange={e => updateField(z.ime,"odsotnosti",e.target.value)} placeholder="2026-08-10, 2026-08-11" /></td>
+                <td><input type="text" style={{width:150}} value={z.dopust} onChange={e => updateField(z.ime,"dopust",e.target.value)} placeholder="2026-10-14, 2026-10-15" /></td>
+                <td><input type="text" style={{width:150}} value={z.omejitve} onChange={e => updateField(z.ime,"omejitve",e.target.value)} placeholder="2026-10-22, 2026-10-23" /></td>
                 <td>
                   <select value={z.prostDanVTednu} onChange={e => updateField(z.ime,"prostDanVTednu",e.target.value)}>
                     <option value="">—</option>
@@ -667,10 +680,12 @@ function DezurstvaTab(){
 // ---------------------------------------------------------------------
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
+  const [oddelki, setOddelki] = useState([]);
   const [status, setStatus] = useState({});
 
   const reload = () => {
     client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
   };
   useEffect(() => { reload(); }, []);
 
@@ -683,42 +698,62 @@ function UporabnikiTab(){
 
   if (profili === null) return <p className="hint">Nalagam …</p>;
 
+  // Razvrsti po trenutnem (primarnem) oddelku, tako da premik nekoga v drug
+  // oddelek spodaj takoj premakne njegovo vrstico v pravo skupino.
+  const imeOddelka = { "": "Brez dodeljenega oddelka" };
+  oddelki.forEach(o => { imeOddelka[o.code] = o.name; });
+  const skupine = {};
+  profili.forEach(p => {
+    const k = p.department_code || "";
+    (skupine[k] = skupine[k] || []).push(p);
+  });
+  const vrstniRedKod = [""].concat(oddelki.map(o => o.code)).filter((k, i, arr) => arr.indexOf(k) === i);
+  const vseKode = Object.keys(skupine).sort((a, b) => vrstniRedKod.indexOf(a) - vrstniRedKod.indexOf(b));
+
+  const OddelekSelect = ({ p }) => (
+    <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
+      <option value="">— brez oddelka —</option>
+      {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+    </select>
+  );
+
   return (
     <div>
       <h2 className="section">Uporabniki in vloge</h2>
       <p className="hint">
         Zaposleni se najprej sam registrira na login.html (dobi vlogo "Zaposleni"). Tukaj mu dodeliš pravo vlogo in
         oddelek/ekipo (za vodje določa, čigave predloge menjav odobrijo na 1. stopnji). Ime naj se ujema s tistim v
-        generatorju razporeda, sicer objava v Supabase tega zaposlenega preskoči.
+        generatorju razporeda, sicer objava v Supabase tega zaposlenega preskoči. Zaposleni so spodaj razvrščeni po
+        trenutnem (primarnem) oddelku — premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
       </p>
-      <div className="card" style={{overflowX:"auto"}}>
-        <table className="roster">
-          <thead><tr><th>Ime</th><th>Vloga</th><th>Oddelek / ekipa</th><th></th></tr></thead>
-          <tbody>
-            {profili.map(p => (
-              <tr key={p.id}>
-                <td>{p.full_name}</td>
-                <td>
-                  <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
-                    <option value="user">Zaposleni</option>
-                    <option value="vodja">Vodja ekipe</option>
-                    <option value="admin">Administrator</option>
-                  </select>
-                </td>
-                <td>
-                  <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
-                    <option value="">—</option>
-                    {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k}</option>)}
-                    <option value="DEZ">Dežurni</option>
-                    <option value="NEDEZ">Nedežurni</option>
-                  </select>
-                </td>
-                <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {vseKode.map(k => (
+        <div key={k || "brez"} style={{marginTop:14}}>
+          <h3 style={{fontSize:13, fontWeight:800, color:"var(--muted)", textTransform:"uppercase", letterSpacing:".03em", margin:"0 0 6px"}}>
+            {imeOddelka[k] || k} <span style={{fontWeight:400, textTransform:"none"}}>({skupine[k].length})</span>
+          </h3>
+          <div className="card" style={{overflowX:"auto"}}>
+            <table className="roster">
+              <thead><tr><th>Ime</th><th>Vloga</th><th>Oddelek / ekipa</th><th></th></tr></thead>
+              <tbody>
+                {skupine[k].map(p => (
+                  <tr key={p.id}>
+                    <td>{p.full_name}</td>
+                    <td>
+                      <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                        <option value="user">Zaposleni</option>
+                        <option value="vodja">Vodja ekipe</option>
+                        <option value="admin">Administrator</option>
+                      </select>
+                    </td>
+                    <td><OddelekSelect p={p} /></td>
+                    <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

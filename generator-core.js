@@ -106,9 +106,14 @@
    * opts.maxVikendMesecno — ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
    *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje)
    * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
-   *                 prostDanVTednu: "PO".."NE"|null }]
+   *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...] }]
    *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
    *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
+   *   dopust — dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
+   *   SAMI PO SEBI, poleg tega se samodejno blokira dan pred ZAČETKOM vsakega strnjenega dopustnega
+   *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim — sobota vmes ostane prosta),
+   *   po pravilu iz analize "Dežurstva 2026"
+   *   omejitve — dnevi "rumene" omejitve: blokirani samo ti dnevi, brez pravila o dnevu prej
    */
   function generirajDezurstva(opts) {
     var start = toDate(opts.startISO);
@@ -119,10 +124,23 @@
 
     var stanje = {};
     opts.staff.forEach(function (z) {
+      var dopust = (z.dopust || []).slice().sort();
+      var blokirano = {};
+      (z.odsotnosti || []).forEach(function (iso) { blokirano[iso] = true; });
+      (z.omejitve || []).forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) {
+        var prejIso = fromDate(addDays(toDate(iso), -1));
+        if (dopust.indexOf(prejIso) !== -1) return; // iso ni začetek bloka
+        blokirano[prejIso] = true;
+        if (weekdayMon0(toDate(iso)) === 0) { // blok se začne v ponedeljek -> tudi petek prej
+          blokirano[fromDate(addDays(toDate(iso), -3))] = true;
+        }
+      });
       stanje[z.ime] = {
         stevilo: z.obstojeceStevilo || 0,
         zadnje: z.zadnjeDezurstvo ? toDate(z.zadnjeDezurstvo) : null,
-        odsotnosti: (z.odsotnosti || []).slice(),
+        odsotnosti: Object.keys(blokirano),
         vikendMesec: {}, // "YYYY-MM" -> število sobot/nedelj v tem generiranju
       };
     });
