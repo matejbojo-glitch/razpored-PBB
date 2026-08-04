@@ -219,9 +219,9 @@ const DEZURNI_ZACETNO = [
   { ime:"ŠUBIC PETRA", enota:"130", stevilo:18, zadnje:"2026-08-19", minMesecno:2, maxMesecno:3 },
   { ime:"LUNAR MATEJA", enota:"B", stevilo:18, zadnje:"2026-08-28", minMesecno:2, maxMesecno:3 },
   { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:18, zadnje:"2026-08-30", minMesecno:2, maxMesecno:3 },
-  { ime:"VELUŠČEK METKA", enota:"?", stevilo:17, zadnje:"2026-08-10", minMesecno:2, maxMesecno:3 },
-  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:7, zadnje:"2026-08-24", minMesecno:1, maxMesecno:1 },
-  { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27", minMesecno:1, maxMesecno:1 },
+  { ime:"VELUŠČEK METKA", enota:"?", stevilo:17, zadnje:"2026-08-10", minMesecno:2, maxMesecno:2 },
+  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:7, zadnje:"2026-08-24", minMesecno:1, maxMesecno:1, samoMedTednom:true },
+  { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27", minMesecno:1, maxMesecno:1, samoMedTednom:true },
 ];
 
 // Dopust (rdeče) / omejitve (rumeno) za september 2026, izluščeno neposredno
@@ -584,6 +584,43 @@ function DezurstvaTab(){
     setRoster(r => r.map(z => z.ime===ime ? {...z, [field]: value} : z));
   };
 
+  // Prebere barvno razpredelnico "Želje" (leave_entries) za izbrani mesec in
+  // vrne { IME: { dopust:[iso,...], omejitve:[iso,...] } }. "bs"/"sti" se
+  // obravnavata kot omejitve (blokiran samo ta dan, brez pravila "dan prej").
+  const nalozitIzZelja = async (mesec) => {
+    const { startISO: s, endISO: e } = monthRange(mesec);
+    const { data, error } = await client.from("leave_entries").select("full_name, work_date, kind")
+      .gte("work_date", s).lte("work_date", e);
+    if (error || !data) return null;
+    const grouped = {};
+    data.forEach(row => {
+      const key = (row.full_name || "").toUpperCase();
+      if (!grouped[key]) grouped[key] = { dopust: [], omejitve: [] };
+      if (row.kind === "ld") grouped[key].dopust.push(row.work_date);
+      else grouped[key].omejitve.push(row.work_date);
+    });
+    return grouped;
+  };
+
+  const uporabiVZelja = (izZelja, noviMesec) => {
+    setRoster(r => r.map(z => {
+      let dopust = "", omejitve = "";
+      if (izZelja && izZelja[z.ime]) {
+        dopust = izZelja[z.ime].dopust.join(",");
+        omejitve = izZelja[z.ime].omejitve.join(",");
+      } else if (noviMesec === "2026-09") {
+        const sept = SEPT_2026_DOPUST_OMEJITVE[z.ime] || { dopust:"", omejitve:"" };
+        dopust = sept.dopust; omejitve = sept.omejitve;
+      }
+      return { ...z, dopust, omejitve, odsotnosti:"" };
+    }));
+  };
+
+  useEffect(() => {
+    nalozitIzZelja(month).then(izZelja => { if (izZelja && Object.keys(izZelja).length) uporabiVZelja(izZelja, month); });
+    // eslint-disable-next-line
+  }, []);
+
   const uvoziCSV = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -618,6 +655,7 @@ function DezurstvaTab(){
       prostDanVTednu: z.prostDanVTednu || null,
       minMesecno: z.minMesecno === "" ? null : Number(z.minMesecno),
       maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
+      samoMedTednom: !!z.samoMedTednom,
     }));
     const res = Generator.generirajDezurstva({
       startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
@@ -665,7 +703,7 @@ function DezurstvaTab(){
       </div>
       <div className="card no-print" style={{overflowX:"auto"}}>
         <table className="roster">
-          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th><th>Min/mes</th><th>Maks/mes</th></tr></thead>
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th><th>Min/mes</th><th>Maks/mes</th><th>Samo med tednom</th></tr></thead>
           <tbody>
             {roster.map(z => (
               <tr key={z.ime}>
@@ -684,6 +722,7 @@ function DezurstvaTab(){
                 </td>
                 <td><input type="number" min="0" style={{width:50}} value={z.minMesecno} onChange={e => updateField(z.ime,"minMesecno",e.target.value)} /></td>
                 <td><input type="number" min="0" style={{width:50}} value={z.maxMesecno} onChange={e => updateField(z.ime,"maxMesecno",e.target.value)} /></td>
+                <td style={{textAlign:"center"}}><input type="checkbox" checked={!!z.samoMedTednom} onChange={e => updateField(z.ime,"samoMedTednom",e.target.checked)} /></td>
               </tr>
             ))}
           </tbody>
@@ -694,14 +733,19 @@ function DezurstvaTab(){
       <div className="card no-print">
         <div className="row">
           <div className="field"><label htmlFor="dmonth">Mesec</label>
-            <input id="dmonth" type="month" value={month} onChange={e => {
+            <input id="dmonth" type="month" value={month} onChange={async e => {
               const noviMesec = e.target.value;
               setMonth(noviMesec); setRezultat(null);
-              setRoster(r => r.map(z => {
-                const sept = noviMesec === "2026-09" ? (SEPT_2026_DOPUST_OMEJITVE[z.ime] || { dopust:"", omejitve:"" }) : { dopust:"", omejitve:"" };
-                return { ...z, dopust: sept.dopust, omejitve: sept.omejitve, odsotnosti:"" };
-              }));
+              const izZelja = await nalozitIzZelja(noviMesec);
+              uporabiVZelja(izZelja, noviMesec);
             }} />
+          </div>
+          <div className="field"><label>&nbsp;</label>
+            <button className="dlBtn" type="button" onClick={async () => {
+              const izZelja = await nalozitIzZelja(month);
+              uporabiVZelja(izZelja, month);
+              setUvozMsg("Osveženo iz razpredelnice Želje.");
+            }}>🔄 Osveži iz Želje</button>
           </div>
           <div className="field"><label htmlFor="mr">Min. razmik (dni)</label>
             <input id="mr" type="number" min="0" style={{width:70}} value={minRazmik} onChange={e => setMinRazmik(e.target.value)} />

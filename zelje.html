@@ -85,6 +85,51 @@
   footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
 
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); padding:4px;
+    border-radius: var(--radius-sm); margin: 14px 0; }
+  .tabs button{ flex:1; border:0; background:transparent; color:var(--muted); padding:10px 10px;
+    border-radius:8px; font-weight:800; font-size:13px; cursor:pointer; font-family:inherit; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+
+  .penRow{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
+  .penHint{ font-size:12px; color:var(--muted); margin-right:2px; }
+  .penBtn{ display:flex; align-items:center; gap:6px; border:1.5px solid var(--line); background:var(--surface);
+    border-radius:999px; padding:6px 12px 6px 8px; cursor:pointer; font-size:12.5px; font-weight:700; color:var(--text); }
+  .penBtn.active{ border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(167,148,72,.22); }
+  .penSwatch{ width:14px; height:14px; border-radius:5px; display:inline-block; border:1px solid rgba(0,0,0,.12); }
+  .penBtn.eraser .penSwatch{ background:repeating-linear-gradient(45deg,#fff,#fff 3px,#eee 3px,#eee 6px); }
+
+  .monthRow{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+  .monthNav{ display:flex; align-items:center; gap:8px; }
+  .navBtn{ border:1px solid var(--line); background:var(--surface); border-radius:8px; width:30px; height:30px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--text); }
+  .navBtn:hover{ background:var(--surface-2); border-color:var(--accent); }
+  .monthLbl{ font-size:14.5px; font-weight:800; min-width:130px; text-align:center; }
+
+  .gridScroll{ overflow:auto; max-height:66vh; border:1px solid var(--line); border-radius:var(--radius-sm); }
+  table.grid{ border-collapse:separate; border-spacing:0; font-size:11.5px; min-width:100%; }
+  table.grid thead th{ position:sticky; top:0; background:var(--surface); z-index:3; border-bottom:1px solid var(--line);
+    padding:4px 2px; font-weight:700; color:var(--muted); text-align:center; min-width:24px; }
+  table.grid thead tr.dnr th{ top:0; font-size:11px; padding-top:7px; }
+  table.grid thead tr.dwr th{ top:22px; font-size:9px; text-transform:uppercase; padding-bottom:7px; color:var(--muted); }
+  table.grid th.corner{ position:sticky; left:0; top:0; z-index:5; background:var(--surface); text-align:left; padding:6px 10px; min-width:140px; font-weight:800; color:var(--text); }
+  table.grid th.we, table.grid td.we{ background: rgba(167,148,72,.10); }
+  table.grid th.hol, table.grid td.hol{ background: rgba(179,64,42,.08); }
+  table.grid th.tot{ position:sticky; top:0; z-index:3; min-width:44px; }
+  table.grid tbody th.nm{ position:sticky; left:0; z-index:2; background:var(--surface); text-align:left; padding:5px 10px;
+    font-weight:700; color:var(--text); border-right:1px solid var(--line); white-space:nowrap; font-size:12px; }
+  table.grid tbody tr:nth-child(even) th.nm{ background:var(--surface-2); }
+  table.grid tbody tr:nth-child(even) td.tot{ background:var(--surface-2); }
+  table.grid td.cell{ width:24px; height:22px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); cursor:pointer; }
+  table.grid td.cell:hover{ outline:2px solid var(--accent-2); outline-offset:-2px; }
+  table.grid td.tot{ text-align:center; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line); }
+
+  .logList{ list-style:none; margin:0; padding:0; max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; }
+  .logList li{ padding:7px 11px; font-size:12px; border-bottom:1px solid var(--surface-2); color:var(--text); }
+  .logList li:last-child{ border-bottom:0; }
+  .logList li .t{ color:var(--muted); font-weight:700; margin-right:5px; }
+  .logList li .who{ color:var(--accent-2); font-weight:800; }
+
   @media print{
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
@@ -199,6 +244,236 @@ function download(filename, obj){
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// ---------------------------------------------------------------------
+// Razpredelnica dopustov/omejitev — barvna, po dnevih, vezana na Supabase
+// (leave_entries). Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02"
+// v admin.html: koordinator tu klikne/povleče čez dneve, generator
+// dežurstev pa te vnose samodejno prebere (glej admin.html "Osveži iz Želje").
+// ---------------------------------------------------------------------
+const VSI_LJUDJE = SKUPINE.reduce((acc, g) => acc.concat(g.ljudje.map(ime => ({ ime, skupina: g.naziv }))), []);
+
+const PEN_META = {
+  omejitev: { label: "Omejitev", barva: "#FFD966" },
+  ld: { label: "LD (dopust)", barva: "#E06666" },
+  bs: { label: "BS (bolniška)", barva: "#93C47D" },
+  sti: { label: "STI (štud. dopust)", barva: "#B4A7D6" },
+};
+const DOW_SL = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
+const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
+
+function easterSunday(year){
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4;
+  const l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31);
+  const day=((h+l-7*m+114)%31)+1;
+  return new Date(year, month-1, day);
+}
+const FIXED_HOLIDAYS = [
+  [1,1],[1,2],[2,8],[4,27],[5,1],[5,2],[6,25],[8,15],[10,31],[11,1],[12,25],[12,26],
+];
+const holidayCache = {};
+function holidaySetFor(year){
+  if (holidayCache[year]) return holidayCache[year];
+  const set = new Set(FIXED_HOLIDAYS.map(([m,d]) => m+"-"+d));
+  const es = easterSunday(year);
+  set.add((es.getMonth()+1)+"-"+es.getDate());
+  const em = new Date(es); em.setDate(es.getDate()+1);
+  set.add((em.getMonth()+1)+"-"+em.getDate());
+  holidayCache[year] = set;
+  return set;
+}
+function jeDanPraznik(y,m,d){ return holidaySetFor(y).has((m+1)+"-"+d); }
+function danovVMesecu(y,m){ return new Date(y,m+1,0).getDate(); }
+function dowZa(y,m,d){ return DOW_SL[new Date(y,m,d).getDay()]; }
+function jeVikend(y,m,d){ const l = dowZa(y,m,d); return l==="SOB"||l==="NED"; }
+function pad2(n){ return String(n).padStart(2,"0"); }
+function isoZa(y,m,d){ return y+"-"+pad2(m+1)+"-"+pad2(d); }
+
+function Razpredelnica({ myId }){
+  const [view, setView] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const [cells, setCells] = useState({}); // "IME|ISO" -> kind
+  const [pen, setPen] = useState("omejitev");
+  const [nalagam, setNalagam] = useState(true);
+  const [status, setStatus] = useState("");
+  const [log, setLog] = useState([]);
+  const isDragging = useRef(false);
+  const dragValue = useRef(null);
+  const skipClick = useRef(false);
+
+  const nd = danovVMesecu(view.year, view.month);
+  const dnevi = useMemo(() => Array.from({length: nd}, (_, i) => i+1), [nd]);
+  const startISO = isoZa(view.year, view.month, 1);
+  const endISO = isoZa(view.year, view.month, nd);
+
+  const nalozi = () => {
+    setNalagam(true);
+    RazporedAuth.client.from("leave_entries").select("full_name, work_date, kind")
+      .gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data }) => {
+        const m = {};
+        (data || []).forEach(r => { m[r.full_name + "|" + r.work_date] = r.kind; });
+        setCells(m);
+        setNalagam(false);
+      });
+    RazporedAuth.client.from("leave_entries_log").select("*").order("created_at", { ascending:false }).limit(80)
+      .then(({ data }) => setLog(data || []));
+  };
+  useEffect(() => { nalozi(); }, [view.year, view.month]);
+
+  const trenutnaVrednost = (ime, iso) => cells[ime+"|"+iso] || null;
+
+  const nastaviCelico = async (ime, iso, vrednost) => {
+    const key = ime+"|"+iso;
+    setCells(c => {
+      const novo = { ...c };
+      if (vrednost) novo[key] = vrednost; else delete novo[key];
+      return novo;
+    });
+    setStatus("Shranjujem …");
+    try {
+      if (vrednost) {
+        await RazporedAuth.client.from("leave_entries").upsert(
+          { full_name: ime, work_date: iso, kind: vrednost, created_by: myId },
+          { onConflict: "full_name,work_date" }
+        );
+      } else {
+        await RazporedAuth.client.from("leave_entries").delete().eq("full_name", ime).eq("work_date", iso);
+      }
+      setStatus("Shranjeno " + new Date().toLocaleTimeString("sl-SI", {hour:"2-digit", minute:"2-digit"}));
+    } catch (e) {
+      setStatus("Napaka: " + (e.message || String(e)));
+    }
+  };
+
+  const izracunajNovo = (trenutna) => (pen === "erase" ? null : (trenutna === pen ? null : pen));
+
+  const onCellClick = (ime, iso) => {
+    if (skipClick.current) { skipClick.current = false; return; }
+    nastaviCelico(ime, iso, izracunajNovo(trenutnaVrednost(ime, iso)));
+  };
+  const onCellPointerDown = (e, ime, iso) => {
+    if (e.pointerType !== "mouse") return;
+    skipClick.current = true;
+    isDragging.current = true;
+    dragValue.current = izracunajNovo(trenutnaVrednost(ime, iso));
+    nastaviCelico(ime, iso, dragValue.current);
+  };
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!isDragging.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = el && el.closest && el.closest("[data-cell]");
+      if (!cell) return;
+      nastaviCelico(cell.dataset.ime, cell.dataset.iso, dragValue.current);
+    };
+    const onUp = () => { isDragging.current = false; };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    return () => { document.removeEventListener("pointermove", onMove); document.removeEventListener("pointerup", onUp); };
+  }, [pen]);
+
+  const ldStevilo = (ime) => dnevi.filter(d => trenutnaVrednost(ime, isoZa(view.year, view.month, d)) === "ld").length;
+
+  const pojdiNaMesec = (y, m) => setView({ year: y, month: m });
+
+  return (
+    <div>
+      <p className="hint">
+        Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
+        samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" — LD (dopust) samodejno blokira tudi dan pred
+        začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan.
+      </p>
+      <div className="penRow no-print">
+        <span className="penHint">Barva:</span>
+        {Object.keys(PEN_META).map(k => (
+          <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
+            <span className="penSwatch" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
+          </button>
+        ))}
+        <button className={"penBtn eraser" + (pen==="erase" ? " active" : "")} onClick={() => setPen("erase")}>
+          <span className="penSwatch"></span>Izbriši
+        </button>
+      </div>
+
+      <div className="monthRow no-print">
+        <div className="monthNav">
+          <button className="navBtn" onClick={() => { let m=view.month-1,y=view.year; if(m<0){m=11;y--;} pojdiNaMesec(y,m); }}>‹</button>
+          <div className="monthLbl">{MESECI_SL[view.month][0].toUpperCase()+MESECI_SL[view.month].slice(1)} {view.year}</div>
+          <button className="navBtn" onClick={() => { let m=view.month+1,y=view.year; if(m>11){m=0;y++;} pojdiNaMesec(y,m); }}>›</button>
+        </div>
+        <span className="hint" style={{margin:0}}>{nalagam ? "Nalagam …" : status}</span>
+      </div>
+
+      <div className="gridScroll">
+        <table className="grid">
+          <thead>
+            <tr className="dnr">
+              <th className="corner">{MESECI_SL[view.month]} {view.year}</th>
+              {dnevi.map(d => {
+                const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
+                return <th key={d} className={cls}>{d}</th>;
+              })}
+              <th className="tot">LD dni</th>
+            </tr>
+            <tr className="dwr">
+              <th className="corner" style={{top:22}}></th>
+              {dnevi.map(d => {
+                const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
+                return <th key={d} className={cls}>{dowZa(view.year, view.month, d)}</th>;
+              })}
+              <th className="tot"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {VSI_LJUDJE.map(({ ime }) => (
+              <tr key={ime}>
+                <th className="nm">{ime}</th>
+                {dnevi.map(d => {
+                  const iso = isoZa(view.year, view.month, d);
+                  const val = trenutnaVrednost(ime, iso);
+                  const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
+                  return (
+                    <td key={d} className={"cell " + cls} data-cell data-ime={ime} data-iso={iso}
+                      style={val ? {backgroundColor: PEN_META[val].barva} : null}
+                      title={ime + " — " + d + ". " + MESECI_SL[view.month] + ": " + (val ? PEN_META[val].label : "brez vnosa")}
+                      onClick={() => onCellClick(ime, iso)}
+                      onPointerDown={(e) => onCellPointerDown(e, ime, iso)}
+                    />
+                  );
+                })}
+                <td className="tot">{ldStevilo(ime)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section no-print">Zgodovina sprememb</h2>
+      <ul className="logList no-print">
+        {log.length === 0 && <li className="log-empty">Ni še zabeleženih sprememb.</li>}
+        {log.map(entry => {
+          const dt = new Date(entry.created_at);
+          return (
+            <li key={entry.id}>
+              <span className="t">{dt.toLocaleDateString("sl-SI")} {dt.toLocaleTimeString("sl-SI",{hour:"2-digit",minute:"2-digit"})}</span>
+              <span className="who">{entry.editor_name || "Neznano"}</span>: {entry.full_name}, {new Date(entry.work_date+"T00:00:00").getDate()}. {MESECI_SL[new Date(entry.work_date+"T00:00:00").getMonth()]}:{" "}
+              {entry.from_kind ? PEN_META[entry.from_kind].label : "brez"} → {entry.to_kind ? PEN_META[entry.to_kind].label : "brez"}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function VnosForma({ onAdded }){
   const [ime, setIme] = useState(SKUPINE[0].ljudje[0]);
   const [obdobje, setObdobje] = useState("");
@@ -275,7 +550,8 @@ function Lightbox({ src, onClose }){
   );
 }
 
-function App({ role }){
+function App({ role, myId }){
+  const [tab, setTab] = useState("razpredelnica");
   const [entries, setEntries] = useState([]);
   const [filter, setFilter] = useState("");
   const [lightbox, setLightbox] = useState(null);
@@ -324,52 +600,63 @@ function App({ role }){
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
       </header>
 
-      <div className="no-print">
-        <h2 className="section">Nov vnos</h2>
-        <VnosForma onAdded={reload} />
+      <div className="tabs no-print" role="tablist">
+        <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
+        <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
       </div>
 
-      <div className="toolRow no-print">
-        <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
-          onChange={e => setFilter(e.target.value)}
-          style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
-            padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
-        <button className="toolBtn" onClick={izvozi}>⬇ Izvozi vse ({entries.length})</button>
-        <label className="toolBtn">⬆ Uvozi<input ref={importRef} type="file" accept="application/json" onChange={uvozi} /></label>
-        <button className="toolBtn" onClick={() => window.print()}>📄 Izvozi v PDF</button>
-      </div>
+      {tab === "razpredelnica" && <Razpredelnica myId={myId} />}
 
-      <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
-
-      {grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
-
-      {grouped.map(g => (
-        <div key={g.ime}>
-          <div className="groupHead">
-            <span className="n">{g.ime}</span>
-            <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
+      {tab === "zelje" && (
+        <React.Fragment>
+          <div className="no-print">
+            <h2 className="section">Nov vnos</h2>
+            <VnosForma onAdded={reload} />
           </div>
-          {g.list.map(e => (
-            <div className="entry" key={e.id}>
-              <div className="top2">
-                <div>
-                  {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
-                  <div className="datum">{new Date(e.datumVnosa).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
-                </div>
-                <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
+
+          <div className="toolRow no-print">
+            <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
+              onChange={e => setFilter(e.target.value)}
+              style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
+                padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
+            <button className="toolBtn" onClick={izvozi}>⬇ Izvozi vse ({entries.length})</button>
+            <label className="toolBtn">⬆ Uvozi<input ref={importRef} type="file" accept="application/json" onChange={uvozi} /></label>
+            <button className="toolBtn" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          </div>
+
+          <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
+
+          {grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
+
+          {grouped.map(g => (
+            <div key={g.ime}>
+              <div className="groupHead">
+                <span className="n">{g.ime}</span>
+                <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
               </div>
-              {e.opis && <div className="opis">{e.opis}</div>}
-              {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
+              {g.list.map(e => (
+                <div className="entry" key={e.id}>
+                  <div className="top2">
+                    <div>
+                      {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
+                      <div className="datum">{new Date(e.datumVnosa).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
+                    </div>
+                    <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
+                  </div>
+                  {e.opis && <div className="opis">{e.opis}</div>}
+                  {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
+                </div>
+              ))}
             </div>
           ))}
-        </div>
-      ))}
 
-      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
+          <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
+        </React.Fragment>
+      )}
 
       <footer className="foot no-print">
-        <p><b>Modul: želje zaposlenih.</b> Shranjeno lokalno v tem brskalniku (IndexedDB), ne na strežniku — velja samo na tej napravi. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
-        <p>Vnesene želje se ne prenesejo samodejno v generator (admin.html) — coordinator jih ročno upošteva pri kliku na tedne dopusta ali pri urejanju dežurstev.</p>
+        <p><b>Razpredelnica dopusti/omejitve</b> je shranjena v Supabase (leave_entries) in jo generator dežurstev (admin.html) prebere samodejno.</p>
+        <p><b>Seznam želja</b> (besedilo/fotografija) ostaja shranjen lokalno v tem brskalniku (IndexedDB) — velja samo na tej napravi; koordinator ga ročno upošteva. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
       </footer>
 
       <RazporedNav active="zelje" role={role} unread={0} />
@@ -379,8 +666,9 @@ function App({ role }){
 function Gate(){
   const [ok, setOk] = useState(false);
   const [role, setRole] = useState("vodja");
-  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setOk(true); } }); }, []);
-  return ok ? <App role={role}/> : null;
+  const [myId, setMyId] = useState(null);
+  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setMyId(res.session.user.id); setOk(true); } }); }, []);
+  return ok ? <App role={role} myId={myId}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

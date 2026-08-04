@@ -108,9 +108,12 @@
    *   ta vikend dan se šteje kot eno od njenih mesečnih dežurstev, ne dodatno zraven)
    * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
    *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...],
-   *                 minMesecno: število|null, maxMesecno: število|null }]
+   *                 minMesecno: število|null, maxMesecno: število|null, samoMedTednom: bool }]
    *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
    *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
+   *   samoMedTednom — trdo pravilo (iz "Zaposleni - Oddelki", Predloga razporeda vodje NZV): oseba nikoli
+   *   ne dežura ob sobotah/nedeljah, ne glede na maxVikendMesecno (npr. Salkić Maruša, Trpin Saša: "1x
+   *   dežurstvo na mesec med tednom")
    *   dopust — dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
    *   SAMI PO SEBI, poleg tega se samodejno blokira dan pred ZAČETKOM vsakega strnjenega dopustnega
    *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim — sobota vmes ostane prosta),
@@ -167,6 +170,7 @@
         if (s.odsotnosti.indexOf(iso) !== -1) return false;
         if (s.zadnje && diffDays(d, s.zadnje) < minRazmik) return false;
         if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) return false;
+        if (z.samoMedTednom && isVikend) return false;
         if (isVikend && maxVikendMesecno && (s.vikendMesec[mesecKey] || 0) >= 1) return false;
         if (z.maxMesecno != null && (s.mesecStevilo[mesecKey] || 0) >= z.maxMesecno) return false;
         return true;

@@ -30,7 +30,21 @@ insert into public.departments (code, name) values
   ('E1', 'E1 - ODDELEK'),
   ('E2', 'E2 - ODDELEK'),
   ('DEZ',   'Dežurni kader (DMS/DZN)'),
-  ('NEDEZ', 'Nedežurni kader (DMS/DZN)')
+  ('NEDEZ', 'Nedežurni kader (DMS/DZN)'),
+  -- Dodatne kode enot, ki jih vodijo nosilci oddelkov/vodje (iz
+  -- "Predloga razporeda vodje NZV") — ločeno od kod zgoraj, ker gre za
+  -- vodstveno pokritost enote, ne za SMS/ZZT izmenski kalup.
+  ('PDZN', 'PDZN — pomočnik direktorja za ZN'),
+  ('SOBO', 'SOBO'),
+  ('ZO',   'ŽO'),
+  ('MO',   'MO'),
+  ('PO',   'PO'),
+  ('A',    'A - ODDELEK'),
+  ('B1B2', 'B1, B2'),
+  ('DB',   'DB'),
+  ('SA',   'SA'),
+  ('URGENCA', 'Urgenca'),
+  ('U2',   'U2')
 on conflict (code) do update set name = excluded.name;
 
 -- ---------------------------------------------------------------------
@@ -515,3 +529,153 @@ begin
 end;
 $$;
 grant execute on function public.decide_swap_admin(bigint, boolean, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 9) leave_entries — barvna razpredelnica dopustov/omejitev (zavihek
+--    "Želje"), ki jo generator dežurstev/vodij bere samodejno.
+--    Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02 ..." v
+--    admin.html z vizualnim pobarvanim koledarjem (glej zelje.html).
+-- ---------------------------------------------------------------------
+create table if not exists public.leave_entries (
+  id bigint generated always as identity primary key,
+  full_name text not null,
+  work_date date not null,
+  kind text not null check (kind in ('omejitev', 'ld', 'bs', 'sti')),
+  note text,
+  created_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (full_name, work_date)
+);
+
+create table if not exists public.leave_entries_log (
+  id bigint generated always as identity primary key,
+  full_name text not null,
+  work_date date not null,
+  from_kind text,
+  to_kind text,
+  editor_id uuid references auth.users (id) on delete set null,
+  editor_name text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.leave_entries enable row level security;
+alter table public.leave_entries_log enable row level security;
+
+drop policy if exists leave_entries_select on public.leave_entries;
+create policy leave_entries_select on public.leave_entries
+  for select to authenticated using (true);
+
+drop policy if exists leave_entries_write on public.leave_entries;
+create policy leave_entries_write on public.leave_entries
+  for all to authenticated
+  using (public.current_role_is('admin') or public.current_role_is('vodja'))
+  with check (public.current_role_is('admin') or public.current_role_is('vodja'));
+
+drop policy if exists leave_entries_log_select on public.leave_entries_log;
+create policy leave_entries_log_select on public.leave_entries_log
+  for select to authenticated using (true);
+
+-- Vpisi v dnevnik gredo samo prek sprožilca spodaj (SECURITY DEFINER), ne
+-- neposredno od odjemalca — zato ni potrebe po "insert" politiki za
+-- authenticated na leave_entries_log.
+
+create or replace function public.log_leave_entry_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_editor_name text;
+begin
+  select full_name into v_editor_name from public.profiles where id = auth.uid();
+  if tg_op = 'INSERT' then
+    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (new.full_name, new.work_date, null, new.kind, auth.uid(), v_editor_name);
+    return new;
+  elsif tg_op = 'UPDATE' then
+    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (new.full_name, new.work_date, old.kind, new.kind, auth.uid(), v_editor_name);
+    return new;
+  elsif tg_op = 'DELETE' then
+    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (old.full_name, old.work_date, old.kind, null, auth.uid(), v_editor_name);
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists on_leave_entry_change on public.leave_entries;
+create trigger on_leave_entry_change
+  after insert or update or delete on public.leave_entries
+  for each row execute function public.log_leave_entry_change();
+
+-- ---------------------------------------------------------------------
+-- 10) lead_departments — 22 vodij/nosilcev oddelkov (iz "Predloga
+--     razporeda vodje NZV"): domači oddelek, ali sodelujejo pri
+--     dežurstvih, mesečna kvota/omejitve, nadomeščanje ob odsotnosti.
+--     Ločeno od profiles.department_code, ker gre za VODSTVENO
+--     pokritost enote (en vodja = ena "domača" enota), ne za vlogo v
+--     Supabase Auth pomenu.
+-- ---------------------------------------------------------------------
+create table if not exists public.lead_departments (
+  full_name text primary key,
+  department_code text references public.departments (code) on update cascade,
+  dezurstvo_dovoljeno boolean not null default false,
+  max_mesecno integer,
+  samo_med_tednom boolean not null default false,
+  delovnik text,
+  ur_na_dan numeric,
+  odsotnost_tip text,
+  odsotnost_do date,
+  nadomesca text,
+  opomba text
+);
+
+alter table public.lead_departments enable row level security;
+drop policy if exists lead_departments_select on public.lead_departments;
+create policy lead_departments_select on public.lead_departments
+  for select to authenticated using (true);
+drop policy if exists lead_departments_write_admin on public.lead_departments;
+create policy lead_departments_write_admin on public.lead_departments
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+insert into public.lead_departments
+  (full_name, department_code, dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, delovnik, ur_na_dan, odsotnost_tip, odsotnost_do, nadomesca, opomba)
+values
+  ('ALUKIĆ DINO', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'BOJIĆ MATEJ', 'ob odsotnosti (LD, BS) nadomeščanje Bojić Matej'),
+  ('ARNEŽ GREGA', 'C1', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LUNAR MATEJA', 'ob odsotnosti (LD, BS) nadomeščanje Lunar Mateja'),
+  ('BIZJAK TEA', 'SA', false, null, false, 'dopoldne/popoldne', 6, null, null, null, 'delo po 6 ur'),
+  ('BOJIĆ MATEJ', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'ob odsotnosti (LD, BS) nadomeščanje Dino Alukić'),
+  ('DŽAMASTAGIĆ DENIS', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'Pomočnik direktorja za zdravstveno nego; ob odsotnosti nadomeščanje Dino Alukić, nato Matej Bojić'),
+  ('HROVAT NINA', 'DB', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'TORKAR TANJA', 'ob odsotnosti (LD, BS) nadomeščanje Torkar Tanja'),
+  ('HUMAR SAŠA', 'SA', false, null, false, 'dopoldne/popoldne', null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) nadomeščanje Bizjak Tea, nato Trpin Saša'),
+  ('LELIĆ DIJANA', 'E2', false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
+  ('LUNAR MATEJA', 'B', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ARNEŽ GREGA', 'ob odsotnosti (LD, BS) nadomeščanje Arnež Grega'),
+  ('MAGLIĆ ALEKSANDER', 'E1', false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LELIĆ DIJANA', 'ob odsotnosti (LD, BS) nadomeščanje Dijana Lelić'),
+  ('MAVRI TRATNIK MAGDALENA', 'B1B2', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ŠUBIC PETRA', 'ob odsotnosti (LD, BS) nadomeščanje Šubic Petra'),
+  ('MISOTIČ REBEKA', 'C', false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
+  ('MUŠIČ INES', 'SA', false, null, false, 'dopoldne', 7, null, null, null, 'delo po 7 ur'),
+  ('PERVIZ AMAL', 'D', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
+  ('POGAČNIK TEJA', 'E1', false, null, false, 'dopoldne 7.00-15.30', null, 'porodniška', '2027-07-31', null, 'trenutno porodniška - do julij 2027'),
+  ('SALKIĆ MARUŠA', 'C1', true, 1, true, 'dopoldne 7.00-15.30', null, null, null, null, '1x dežurstvo na mesec med tednom'),
+  ('SOFRIĆ NIKOLINA', 'E2', false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
+  ('ŠUBIC PETRA', 'B1B2', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAVRI TRATNIK MAGDALENA', 'ob odsotnosti (LD, BS) nadomeščanje Magdalena Mavri Tratnik'),
+  ('TOMAŽEVIČ SIMONA', 'A', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'VELUŠČEK METKA', 'ob odsotnosti (LD, BS) nadomeščanje Velušček Metka'),
+  ('TORKAR TANJA', 'DB', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'HROVAT NINA', 'ob odsotnosti (LD, BS) nadomeščanje Hrovat Nina'),
+  ('TRPIN SAŠA', 'SA', true, 1, true, 'dopoldne 7.00-15.30', null, null, null, null, 'ob odsotnosti (LD, BS) Bizjak Tea, Musić Ines'),
+  ('VELUŠČEK METKA', 'SOBO', true, 2, false, 'dopoldne 7.00-15.30', null, null, null, 'DŽAMASTAGIĆ DENIS', 'ob odsotnosti (LD, BS) nadomeščanje Džamastagić Denis')
+on conflict (full_name) do update set
+  department_code = excluded.department_code,
+  dezurstvo_dovoljeno = excluded.dezurstvo_dovoljeno,
+  max_mesecno = excluded.max_mesecno,
+  samo_med_tednom = excluded.samo_med_tednom,
+  delovnik = excluded.delovnik,
+  ur_na_dan = excluded.ur_na_dan,
+  odsotnost_tip = excluded.odsotnost_tip,
+  odsotnost_do = excluded.odsotnost_do,
+  nadomesca = excluded.nadomesca,
+  opomba = excluded.opomba;
