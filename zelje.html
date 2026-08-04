@@ -145,6 +145,8 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -320,6 +322,9 @@ function Razpredelnica({ role, myId, myFullName }){
   const isDragging = useRef(false);
   const dragValue = useRef(null);
   const skipClick = useRef(false);
+  const uvozRef = useRef();
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
 
   const rokPretekel = useMemo(() => {
     let dm = view.month - 1, dy = view.year;
@@ -375,6 +380,40 @@ function Razpredelnica({ role, myId, myFullName }){
     }
   };
 
+  // Množičen uvoz iz datoteke (samo admin, gumb spodaj je gatiran na jeAdmin) —
+  // ista oblika kot v admin.html DezurstvaTab: ime,dopust,omejitve (datumi v
+  // enem polju ločeni s podpičjem). Piše neposredno v Supabase (leave_entries),
+  // zato ga takoj vidijo vsi uporabniki, ne samo lokalni generator.
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","dopust","omejitve"], ["ime","full_name"]);
+      const zapisi = [];
+      objekti.forEach(o => {
+        const ime = (o.ime || "").trim().toUpperCase();
+        if (!ime) return;
+        (o.dopust || "").split(";").map(s => s.trim()).filter(Boolean).forEach(iso => {
+          zapisi.push({ full_name: ime, work_date: iso, kind: "ld", created_by: myId });
+        });
+        (o.omejitve || "").split(";").map(s => s.trim()).filter(Boolean).forEach(iso => {
+          zapisi.push({ full_name: ime, work_date: iso, kind: "omejitev", created_by: myId });
+        });
+      });
+      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic (pričakovano: ime,dopust,omejitve)."); return; }
+      const { error } = await RazporedAuth.client.from("leave_entries").upsert(zapisi, { onConflict: "full_name,work_date" });
+      if (error) throw error;
+      setUvozMsg(`Uvoženih ${zapisi.length} vnosov iz "${file.name}".`);
+      nalozi();
+    } catch (e) {
+      setUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
   const izracunajNovo = (trenutna) => (pen === "erase" ? null : (trenutna === pen ? null : pen));
 
   const zavrniUrejanje = (ime) => {
@@ -426,6 +465,20 @@ function Razpredelnica({ role, myId, myFullName }){
           ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
           : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
       </p>
+      {jeAdmin && (
+        <div className="card no-print" style={{marginBottom:10}}>
+          <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
+            onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+          <button className="submitBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
+            {uvozBusy ? "Nalagam …" : "📤 Množičen uvoz dopusta/omejitev (CSV/Excel/PDF)"}
+          </button>
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>
+            Oblika: <code>ime,dopust,omejitve</code> (datumi ločeni s podpičjem, npr. <code>2026-09-01;2026-09-02</code>).
+            Piše neposredno v razpredelnico (Supabase) — takoj vidno vsem.
+          </p>
+          {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+        </div>
+      )}
       <div className="penRow no-print">
         <span className="penHint">Barva:</span>
         {Object.keys(PEN_META).map(k => (

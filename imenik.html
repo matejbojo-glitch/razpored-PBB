@@ -100,6 +100,8 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -310,8 +312,11 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
 function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   const [uvozi, setUvozi] = useState(null);
   const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
   const [novo, setNovo] = useState({ full_name:"", email:"", phone:"", role:"user", department_code:"" });
   const [dodajBusy, setDodajBusy] = useState(false);
+  const [gsheetUrl, setGsheetUrl] = useState("");
+  const [pdfBesedilo, setPdfBesedilo] = useState(null); // surovo besedilo iz PDF, čaka na ročni pregled/uvoz
   const fileRef = useRef();
 
   const nalozi = () => {
@@ -324,30 +329,77 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     return error;
   };
 
-  const uvoziCSV = (file) => {
+  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo: vsaka
+  // vrstica-objekt ima polja full_name,email,phone,role,department_code.
+  const uvoziVrsticeObjekte = async (vrsticeObj) => {
+    let ok = 0, napak = 0;
+    for (const v of vrsticeObj) {
+      const full_name = (v.full_name || "").trim();
+      const email = (v.email || "").trim();
+      if (!full_name || !email) { napak++; continue; }
+      const role = ["admin","vodja","user"].includes(v.role) ? v.role : "user";
+      const err = await dodajVrstico({
+        full_name, email, phone: (v.phone || "").trim() || null,
+        role, department_code: (v.department_code || "").trim() || null,
+      });
+      if (err) napak++; else ok++;
+    }
+    setUvozMsg(`Uvoženo ${ok} vrstic` + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
+    nalozi();
+  };
+
+  const STOLPCI = ["full_name","email","phone","role","department_code"];
+  const GLAVE = ["full_name","ime"];
+
+  const uvoziDatoteko = async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const text = String(reader.result || "");
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const prva = (lines[0] || "").toLowerCase();
-      const zacni = prva.startsWith("full_name") || prva.startsWith("ime") ? 1 : 0;
-      let ok = 0, napak = 0;
-      for (let i = zacni; i < lines.length; i++) {
-        const deli = lines[i].split(",").map(s => s.trim());
-        const [full_name, email, phone, role, department_code] = deli;
-        if (!full_name || !email) { napak++; continue; }
-        const err = await dodajVrstico({
-          full_name, email, phone: phone || null,
-          role: ["admin","vodja","user"].includes(role) ? role : "user",
-          department_code: department_code || null,
-        });
-        if (err) napak++; else ok++;
+    setUvozBusy(true); setUvozMsg(null); setPdfBesedilo(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") {
+        // PDF nima zanesljivih stolpcev (glej opombo v import-utils.js) — samo
+        // izvlečemo golo besedilo in ga damo v urejljivo polje spodaj, admin
+        // ga preoblikuje v CSV vrstice in klikne "Uvozi urejeno besedilo".
+        setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
+        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila — preveri/uredi spodaj v obliko "full_name,email,phone,role,department_code" pred uvozom.`);
+      } else {
+        const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
+        await uvoziVrsticeObjekte(vrsticeObj);
       }
-      setUvozMsg(`Uvoženo ${ok} vrstic` + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
-      nalozi();
-    };
-    reader.readAsText(file, "UTF-8");
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziIzGoogleSheet = async () => {
+    if (!gsheetUrl.trim()) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(gsheetUrl.trim());
+      const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
+      await uvoziVrsticeObjekte(vrsticeObj);
+    } catch (e) {
+      setUvozMsg("Napaka pri branju Google Sheets: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziUrejenoPdfBesedilo = async () => {
+    if (!pdfBesedilo) return;
+    setUvozBusy(true);
+    try {
+      const vrsteVrstic = window.ImportUtils.csvBesedilaVVrstice(pdfBesedilo);
+      const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
+      await uvoziVrsticeObjekte(vrsticeObj);
+      setPdfBesedilo(null);
+    } catch (e) {
+      setUvozMsg("Napaka pri uvozu: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
   };
 
   const dodajRocno = async () => {
@@ -394,13 +446,32 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         spodaj povežeš z njenim novim profilom — s tem se telefon/vloga/oddelek prekopirajo vanj.
       </p>
       <div className="card">
-        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{display:"none"}}
-          onChange={e => { uvoziCSV(e.target.files[0]); e.target.value = ""; }} />
-        <button className="submitBtn" onClick={() => fileRef.current && fileRef.current.click()}>📤 Uvoz iz CSV</button>
+        <input ref={fileRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="submitBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz iz datoteke (CSV / Excel / PDF)"}
+        </button>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
-          Oblika: <code>full_name,email,phone,role,department_code</code> (role: admin/vodja/user; department_code
-          prazen, če ni znan). Prva vrstica je lahko glava (samodejno preskočena).
+          Stolpci (CSV/Excel): <code>full_name,email,phone,role,department_code</code> (role: admin/vodja/user;
+          department_code prazen, če ni znan). Prva vrstica je lahko glava (samodejno preskočena). PDF nima
+          zanesljivih stolpcev, zato se iz njega samo izvleče golo besedilo — uredi ga spodaj v isto obliko pred
+          uvozom.
         </p>
+        <div className="field" style={{marginTop:10}}>
+          <label>… ali povezava do Google Sheets (deljeno kot "vsak, ki ima povezavo, lahko ogleda")</label>
+          <div style={{display:"flex", gap:8}}>
+            <input type="url" value={gsheetUrl} onChange={e => setGsheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..." style={{flex:1}} />
+            <button className="submitBtn" disabled={uvozBusy || !gsheetUrl.trim()} onClick={uvoziIzGoogleSheet}>Uvozi</button>
+          </div>
+        </div>
+        {pdfBesedilo !== null && (
+          <div className="field" style={{marginTop:10}}>
+            <label>Golo besedilo iz PDF — preoblikuj v vrstice "full_name,email,phone,role,department_code" (ena oseba na vrstico)</label>
+            <textarea rows={10} value={pdfBesedilo} onChange={e => setPdfBesedilo(e.target.value)} style={{width:"100%", fontFamily:"monospace"}} />
+            <button className="submitBtn" style={{marginTop:8}} disabled={uvozBusy} onClick={uvoziUrejenoPdfBesedilo}>Uvozi urejeno besedilo</button>
+          </div>
+        )}
         {uvozMsg && <p className="okMsg">{uvozMsg}</p>}
       </div>
 
