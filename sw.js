@@ -6,8 +6,12 @@
 // (ikone, logo-pbb.png), ki so cache-first, ponovno prenesejo.
 // v4: dodana stran imenik.html (kontakti/imenik zaposlenih).
 // v5: dodana stran nastavitve.html (ikona ⚙️ poleg odjave).
+// v6: dodan uvoz Excel/Google Sheets/PDF (xlsx.core.min.js, import-utils.js) —
+// pdf.min.mjs/pdf.worker.min.mjs se NISTA dodala v precache, ker se naložita
+// šele ob prvi uporabi uvoza PDF (dynamic import), splošni fetch-handler spodaj
+// pa ju po prvem nalaganju vseeno predpomni (cache-first veja za ne-HTML/JSON).
 
-const CACHE = 'razpored-pbb-v5';
+const CACHE = 'razpored-pbb-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -30,7 +34,9 @@ const ASSETS = [
   './babel.min.js',
   './supabase-js.min.js',
   './supabase-client.js',
-  './nav.js'
+  './nav.js',
+  './xlsx.core.min.js',
+  './import-utils.js'
 ];
 
 self.addEventListener('install', (event) => {

@@ -130,6 +130,8 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
@@ -627,6 +629,9 @@ function DezurstvaTab(){
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
   const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [gsheetUrl, setGsheetUrl] = useState("");
+  const [pdfBesedilo, setPdfBesedilo] = useState(null);
   const uvozRef = useRef();
 
   const { startISO, endISO } = monthRange(month);
@@ -672,27 +677,57 @@ function DezurstvaTab(){
     // eslint-disable-next-line
   }, []);
 
-  const uvoziCSV = (file) => {
+  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo.
+  const uporabiVrsticeOmejitev = (vrsteVrstic, viraOpis) => {
+    const posodobitve = {};
+    vrsteVrstic.forEach(deli => {
+      const ime = (deli[0] || "").trim().toUpperCase();
+      if (!ime || ["IME","FULL_NAME"].includes(ime)) return; // preskoči morebitno glavo
+      const dopust = (deli[1] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+      const omejitve = (deli[2] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+      posodobitve[ime] = { dopust, omejitve };
+    });
+    setRoster(r => r.map(z => posodobitve[z.ime] ? { ...z, dopust: posodobitve[z.ime].dopust, omejitve: posodobitve[z.ime].omejitve } : z));
+    const neujemajoci = Object.keys(posodobitve).filter(ime => !roster.some(z => z.ime === ime));
+    setUvozMsg(`Uvoženo ${Object.keys(posodobitve).length} vrstic iz ${viraOpis}.` + (neujemajoci.length ? ` Neprepoznana imena (preskočeno): ${neujemajoci.join(", ")}.` : ""));
+  };
+
+  const uvoziDatoteko = async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || "");
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const zacni = lines[0] && lines[0].toLowerCase().startsWith("ime") ? 1 : 0;
-      const posodobitve = {};
-      for (let i = zacni; i < lines.length; i++) {
-        const deli = lines[i].split(",");
-        const ime = (deli[0] || "").trim().toUpperCase();
-        if (!ime) continue;
-        const dopust = (deli[1] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
-        const omejitve = (deli[2] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
-        posodobitve[ime] = { dopust, omejitve };
+    setUvozBusy(true); setUvozMsg(null); setPdfBesedilo(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") {
+        setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
+        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila — preveri/uredi spodaj v obliko "ime,dopust,omejitve" pred uvozom. Če je PDF povsem barvna preglednica brez besedilnih datumov (kot "Letni dopusti in omejitve"), to ne bo delovalo — pošlji jo Claude Code seji.`);
+      } else {
+        uporabiVrsticeOmejitev(vrsteVrstic, `datoteke "${file.name}"`);
       }
-      setRoster(r => r.map(z => posodobitve[z.ime] ? { ...z, dopust: posodobitve[z.ime].dopust, omejitve: posodobitve[z.ime].omejitve } : z));
-      const neujemajoci = Object.keys(posodobitve).filter(ime => !roster.some(z => z.ime === ime));
-      setUvozMsg(`Uvoženo ${Object.keys(posodobitve).length} vrstic iz "${file.name}".` + (neujemajoci.length ? ` Neprepoznana imena (preskočeno): ${neujemajoci.join(", ")}.` : ""));
-    };
-    reader.readAsText(file, "UTF-8");
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziIzGoogleSheet = async () => {
+    if (!gsheetUrl.trim()) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(gsheetUrl.trim());
+      uporabiVrsticeOmejitev(vrsteVrstic, "Google Sheets");
+    } catch (e) {
+      setUvozMsg("Napaka pri branju Google Sheets: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziUrejenoPdfBesedilo = () => {
+    if (!pdfBesedilo) return;
+    const vrsteVrstic = window.ImportUtils.csvBesedilaVVrstice(pdfBesedilo);
+    uporabiVrsticeOmejitev(vrsteVrstic, "urejenega PDF besedila");
+    setPdfBesedilo(null);
   };
 
   const generiraj = () => {
@@ -741,15 +776,33 @@ function DezurstvaTab(){
       <h2 className="section no-print">1 · Dežurni kader — stanje ob začetku meseca</h2>
       <p className="hint no-print">Prednastavljeno s podatki iz uradnega seznama dežurstev jan.–avg. 2026 (glej roster/analiza-razporedov.md §1a). Dopust/omejitve za september so prednastavljeni iz priloženega dokumenta "Letni dopusti in omejitve za NZV — september 2026" (§1b). Za VSAK naslednji mesec je treba dopust/omejitve/odsotnosti znova vnesti — ročno ali z uvozom spodaj — ker se ob spremembi meseca samodejno počistijo (razen za 2026-09, ki ostane prednastavljen). Po potrebi popravite število in datum zadnjega dežurstva. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" je mesečna kvota dežurstev (Salkić in Trpin: 1, ostali: 2–3, na izrecno, trajno navodilo) — vikend dan šteje kot eno od teh dežurstev, ne dodatno.</p>
       <div className="card no-print" style={{marginBottom:12}}>
-        <input ref={uvozRef} type="file" accept=".csv,text/csv" style={{display:"none"}}
-          onChange={e => { uvoziCSV(e.target.files[0]); e.target.value = ""; }} />
-        <button className="dlBtn" onClick={() => uvozRef.current && uvozRef.current.click()}>📤 Uvoz omejitev iz datoteke (CSV)</button>
+        <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz omejitev iz datoteke (CSV / Excel / PDF)"}
+        </button>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
-          Oblika CSV: vsaka vrstica <code>ime,dopust,omejitve</code> (ime kot v tabeli spodaj; več datumov v enem
+          Oblika CSV/Excel: vsaka vrstica <code>ime,dopust,omejitve</code> (ime kot v tabeli spodaj; več datumov v enem
           polju ločenih s podpičjem, npr. <code>2026-09-01;2026-09-02</code>). Primer:
-          roster/omejitve-september-2026.csv. Prava barvna PDF/Excel preglednica ni samodejno berljiva v brskalniku
-          (ni ustreznega vgrajenega parserja) — pošlji jo Claude Code seji, ki jo pretvori v tak CSV.
+          roster/omejitve-september-2026.csv. PDF z besedilnimi datumi se da uvoziti prek spodnjega pregleda; povsem
+          barvna preglednica brez besedila (kot "Letni dopusti in omejitve") žal še vedno ni samodejno berljiva —
+          pošlji jo Claude Code seji.
         </p>
+        <div className="field" style={{marginTop:10}}>
+          <label>… ali povezava do Google Sheets (deljeno kot "vsak, ki ima povezavo, lahko ogleda")</label>
+          <div style={{display:"flex", gap:8}}>
+            <input type="url" value={gsheetUrl} onChange={e => setGsheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..." style={{flex:1}} />
+            <button className="dlBtn" disabled={uvozBusy || !gsheetUrl.trim()} onClick={uvoziIzGoogleSheet}>Uvozi</button>
+          </div>
+        </div>
+        {pdfBesedilo !== null && (
+          <div className="field" style={{marginTop:10}}>
+            <label>Golo besedilo iz PDF — preoblikuj v vrstice "ime,dopust,omejitve" (ena oseba na vrstico)</label>
+            <textarea rows={10} value={pdfBesedilo} onChange={e => setPdfBesedilo(e.target.value)} style={{width:"100%", fontFamily:"monospace"}} />
+            <button className="dlBtn" style={{marginTop:8}} disabled={uvozBusy} onClick={uvoziUrejenoPdfBesedilo}>Uvozi urejeno besedilo</button>
+          </div>
+        )}
         {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
       </div>
       <div className="card no-print" style={{overflowX:"auto"}}>
