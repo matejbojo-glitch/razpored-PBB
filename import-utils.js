@@ -204,5 +204,24 @@ window.ImportUtils = (function () {
     return { objekti: out, najdeniStolpci: Object.keys(indeksi) };
   }
 
-  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice };
+  // Pretvori datum, zapisan kot besedilo v slovenski obliki DD.MM.LLLL (ali
+  // DD/MM/LLLL) - tako HR izvozi (Excel) POGOSTO zapišejo "Datum rojstva" kot
+  // navadno besedilo, ne kot pravo Excel datumsko celico - v ISO YYYY-MM-DD.
+  // Brez tega bi npr. Postgres "date" stolpec "19.08.2002" razumel kot
+  // MM.DD.LLLL (privzet vrstni red), kar bi za dneve >12 vrglo napako, za
+  // ostale pa tiho zamenjalo dan/mesec. Že-ISO ali prazne vrednosti pustimo
+  // pri miru.
+  function normalizirajDatum(s) {
+    const t = (s || "").toString().trim();
+    if (!t) return "";
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    const m = t.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+    if (m) {
+      const [, d, mo, y] = m;
+      return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+    }
+    return t;
+  }
+
+  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum };
 })();

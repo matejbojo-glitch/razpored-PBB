@@ -13,8 +13,12 @@
 // v7: import-utils.js razširjen (glava-po-imenu mapiranje stolpcev, datumi iz
 // Excela) — dvignjena verzija, da se cache-first predpomnjena stara različica
 // datoteke povsod zamenja s to novo.
+// v8: popravek pravega hrošča — "Datum rojstva" kot besedilo DD.MM.LLLL (ne
+// prava Excel datumska celica) se je pošiljalo v Postgres "date" stolpec
+// nepretvorjeno, kar je za dneve >12 vrglo napako, za ostale pa tiho
+// zamenjalo dan/mesec (import-utils.js normalizirajDatum()).
 
-const CACHE = 'razpored-pbb-v7';
+const CACHE = 'razpored-pbb-v8';
 const ASSETS = [
   './',
   './index.html',

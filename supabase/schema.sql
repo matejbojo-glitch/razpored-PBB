@@ -332,7 +332,14 @@ create table if not exists public.contact_imports (
   position_name text,
   manager_name text,
   parental_leave text,
-  annual_leave_total integer
+  annual_leave_total integer,
+  -- Tekoče stanje dopusta (preostanek dni), ki ga admin redno posodablja z
+  -- uvozom nove Excel tabele (na izrecno željo) — ločeno od letne kvote
+  -- (annual_leave_total, fiksna za celo leto), ker se to spreminja med letom.
+  -- leave_balance_asof je privzeto 1. v tekočem mesecu, če datoteka nima
+  -- lastnega stolpca z datumom.
+  leave_balance_days integer,
+  leave_balance_asof date
 );
 
 alter table public.contact_imports enable row level security;
@@ -356,6 +363,8 @@ create table if not exists public.profile_hr_details (
   manager_name text,
   parental_leave text,
   annual_leave_total integer,
+  leave_balance_days integer,
+  leave_balance_asof date,
   updated_at timestamptz not null default now()
 );
 
