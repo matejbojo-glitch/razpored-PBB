@@ -892,6 +892,12 @@ function VodjeTab(){
   const [nalagam, setNalagam] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  // Ročni popravki po izračunu: "datum|stolpec" -> besedilo (prepiše prikaz
+  // in izvoz, NE pa objave v Supabase, ker se poljubnega besedila ne da
+  // zanesljivo preslikati nazaj na eno osebo/employee_id).
+  const [popravki, setPopravki] = useState({});
+  // Prosto besedilo "Izjeme in opombe" na dan (ne na osebo/stolpec).
+  const [izjeme, setIzjeme] = useState({});
 
   useEffect(() => {
     client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
@@ -950,7 +956,35 @@ function VodjeTab(){
       dnevi.push(vrstica);
     }
     setRezultat({ mesec: month, stolpci: stolpciOddelkov, dnevi, objavaVrstice });
+    setPopravki({});
+    setIzjeme({});
     setNalagam(false);
+  };
+
+  const celica = (dn, k) => {
+    const key = dn.datum + "|" + k;
+    return popravki[key] != null ? popravki[key] : (dn.celice[k] || "");
+  };
+  const nastaviPopravek = (dn, k, vrednost) => {
+    setPopravki(p => ({ ...p, [dn.datum + "|" + k]: vrednost }));
+  };
+
+  const izvoziCSV = () => {
+    if (!rezultat) return;
+    const glava = ["Datum", "Dan", ...stolpciPrikaz, "Izjeme in opombe"];
+    const vrstice = rezultat.dnevi.map(dn => [
+      dn.datum, dn.dan,
+      ...stolpciPrikaz.map(k => celica(dn, k)),
+      izjeme[dn.datum] || "",
+    ]);
+    const csv = [glava, ...vrstice]
+      .map(vrsta => vrsta.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `vodje-${rezultat.mesec}.csv`; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   const objavi = async () => {
@@ -978,7 +1012,10 @@ function VodjeTab(){
         domačem oddelku; LD/BS/STI vnosi iz razpredelnice "Želje" ga premaknejo v ustrezen stolpec namesto oddelka
         (STI je prikazan pod "IZOB"). "Omejitev" (rumena) nima lastnega stolpca v izvirni predlogi — te dni presodi
         koordinator ročno. Zvezdica (*) ob kratici pomeni daljšo odsotnost (npr. porodniška), ne enodnevno LD/BS.
-        Stolpec DEŽURSTVO se prekriva z dežurnim generatorjem, če je ta mesec že objavljen.
+        Stolpec DEŽURSTVO se prekriva z dežurnim generatorjem, če je ta mesec že objavljen. Po izračunu lahko
+        katero koli celico ročno prepišeš (npr. za nadomeščanje) — to spremeni samo prikaz/izvoz (PDF/CSV), ne pa
+        objave v Supabase (ta ostane vezana na izračunano, ne ročno prepisano vrednost, ker prostega besedila ni
+        mogoče zanesljivo preslikati nazaj na eno osebo). Stolpec "Izjeme in opombe" je za splošne dnevne opombe.
       </p>
       <div className="card no-print">
         <div className="row">
@@ -997,6 +1034,7 @@ function VodjeTab(){
                 <tr>
                   <th className="name">Datum</th>
                   {stolpciPrikaz.map(k => <th key={k}>{imeOddelka[k] ? k : k}</th>)}
+                  <th>Izjeme in opombe</th>
                 </tr>
               </thead>
               <tbody>
@@ -1004,8 +1042,15 @@ function VodjeTab(){
                   <tr key={dn.datum}>
                     <td className="name">{new Date(dn.datum+"T00:00:00").getUTCDate()}. {dn.dan}</td>
                     {stolpciPrikaz.map(k => (
-                      <td key={k}><span className="swatch" style={{background: dn.celice[k] ? "rgba(167,148,72,.18)" : "transparent"}}>{dn.celice[k] || "–"}</span></td>
+                      <td key={k}>
+                        <input type="text" value={celica(dn, k)} onChange={e => nastaviPopravek(dn, k, e.target.value)}
+                          style={{width:44, textAlign:"center", background: celica(dn,k) ? "rgba(167,148,72,.18)" : "transparent", border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 2px"}} />
+                      </td>
                     ))}
+                    <td>
+                      <input type="text" value={izjeme[dn.datum] || ""} onChange={e => setIzjeme(iz => ({...iz, [dn.datum]: e.target.value}))}
+                        placeholder="—" style={{width:150, background:"transparent", border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 6px"}} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1013,8 +1058,9 @@ function VodjeTab(){
           </div>
 
           <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" style={{marginTop:8}} onClick={izvoziCSV}>⬇ Izvozi CSV</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
-            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (izračunano, brez ročnih popravkov)"}
           </button>
           {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>

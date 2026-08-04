@@ -305,7 +305,8 @@ function imenaSeUjemata(a, b){
 }
 
 function Razpredelnica({ role, myId, myFullName }){
-  const jeKoordinator = role === "admin" || role === "vodja";
+  const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
+  const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
   const [view, setView] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -326,7 +327,7 @@ function Razpredelnica({ role, myId, myFullName }){
     return new Date() > rok;
   }, [view.year, view.month]);
 
-  const smemUrejati = (ime) => jeKoordinator || (imenaSeUjemata(ime, myFullName) && !rokPretekel);
+  const smemUrejati = (ime) => jeAdmin || (imenaSeUjemata(ime, myFullName) && !rokPretekel);
 
   const nd = danovVMesecu(view.year, view.month);
   const dnevi = useMemo(() => Array.from({length: nd}, (_, i) => i+1), [nd]);
@@ -377,7 +378,7 @@ function Razpredelnica({ role, myId, myFullName }){
 
   const zavrniUrejanje = (ime) => {
     setStatus(
-      !jeKoordinator && !imenaSeUjemata(ime, myFullName)
+      !jeAdmin && !imenaSeUjemata(ime, myFullName)
         ? "Ni dovoljeno — lahko urejaš samo svojo vrstico."
         : "Rok za vnos za ta mesec je potekel (10. v prejšnjem mesecu)."
     );
@@ -420,8 +421,8 @@ function Razpredelnica({ role, myId, myFullName }){
         Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
         samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" — LD (dopust) samodejno blokira tudi dan pred
         začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan.
-        {jeKoordinator
-          ? " Kot administrator/vodja lahko urejaš vrstico kogar koli, kadar koli."
+        {jeAdmin
+          ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
           : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
       </p>
       <div className="penRow no-print">
@@ -469,8 +470,8 @@ function Razpredelnica({ role, myId, myFullName }){
             {VSI_LJUDJE.map(({ ime }) => {
               const jeMoja = imenaSeUjemata(ime, myFullName);
               return (
-                <tr key={ime} style={!jeKoordinator && !jeMoja ? {opacity:.6} : null}>
-                  <th className="nm">{ime}{jeMoja && !jeKoordinator ? " (jaz)" : ""}</th>
+                <tr key={ime} style={!jeAdmin && !jeMoja ? {opacity:.6} : null}>
+                  <th className="nm">{ime}{jeMoja && !jeAdmin ? " (jaz)" : ""}</th>
                   {dnevi.map(d => {
                     const iso = isoZa(view.year, view.month, d);
                     const val = trenutnaVrednost(ime, iso);

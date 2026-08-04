@@ -161,7 +161,7 @@ korak ni bil potreben:
 | Vloga | Vidi razpredelnico | Ureja | Vidi zgodovino sprememb |
 |---|---|---|---|
 | **admin** | vseh | vseh, kadar koli | da |
-| **vodja** | vseh | vseh, kadar koli | ne |
+| **vodja** | vseh | samo svojo vrstico, do 10. v mesecu pred prikazanim mesecem | ne |
 | **user** | vseh | samo svojo vrstico, do 10. v mesecu pred prikazanim mesecem | ne |
 
 Uveljavljeno na obeh koncih: v vmesniku (`zelje.html`) IN v RLS politiki
