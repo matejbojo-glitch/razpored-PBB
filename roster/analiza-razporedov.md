@@ -46,6 +46,49 @@ je na voljo v `roster/kalup-ujemanje-raw.txt`, če ga želiš natančneje
 pregledati ali popraviti prek `admin.html` → Kalup (spustni seznam s črko
 ob vsakem zaposlenem).
 
+## 1a. Dežurstva jan.–avg. 2026 (dežurni kader DMS/DZN) — UVELJAVLJENO v `DEZURNI_ZACETNO`
+
+Posredoval si uraden, popoln seznam dežurstev za vseh 14 oseb dežurnega kadra,
+dan za dnem, od 1. 1. do 31. 8. 2026 (243 vnosov) — shranjen v
+`roster/dezurstva-jan-avg-2026.tsv`. Iz tega sem izračunal točno število
+dosedanjih dežurstev in datum zadnjega dežurstva za vsako osebo ter to
+uporabil za posodobitev `DEZURNI_ZACETNO` v `admin.html` (prej ocena "stanje
+ob koncu septembra" iz analize dokumenta "Dežurstva 2026", zdaj točen podatek
+"stanje ob koncu avgusta").
+
+| Oseba | Št. dežurstev (jan.–avg.) | Zadnje dežurstvo |
+|---|---|---|
+| Alukić Dino | 21 | 20. 8. 2026 |
+| Arnež Grega | 18 | 3. 8. 2026 |
+| Bojić Matej | 21 | 26. 8. 2026 |
+| Džamastagić Denis | 21 | 29. 8. 2026 |
+| Perviz Amal | 21 | 21. 8. 2026 |
+| Tomaževič Simona | 18 | 31. 8. 2026 |
+| Torkar Tanja | 19 | 16. 8. 2026 |
+| Hrovat Nina | 18 | 23. 8. 2026 |
+| Šubic Petra | 18 | 19. 8. 2026 |
+| Lunar Mateja | 18 | 28. 8. 2026 |
+| Mavri Tratnik Magdalena | 18 | 30. 8. 2026 |
+| Velušček Metka | 17 | 10. 8. 2026 |
+| Salkić Maruša | 7 | 24. 8. 2026 |
+| Trpin Saša | 8 | 27. 8. 2026 |
+
+**Opozorilo:** ti podatki NE vključujejo september — če je kdo dežural po
+31. 8., trenutni "stevilo"/"zadnje" tega ne bosta odražala, dokler ne
+posreduješ tudi septembrskih podatkov.
+
+**Preverjeni/nakazani vzorci "prost dan v tednu":** Bojić Matej se v vseh 21
+dežurstvih niti enkrat ni pojavil v ponedeljek — to **potrjuje** obstoječe
+`prostDanVTednu:"PO"` v kodi. Podoben vzorec (nikoli določen dan v tednu) se
+pri vzorcu 17–21 dežurstev pojavi tudi pri: Alukić Dino (nikoli petek),
+Džamastagić Denis (nikoli petek), Perviz Amal (nikoli četrtek), Velušček
+Metka (nikoli četrtek). Teh štirih **nisem** uveljavil kot pravilo v kodi —
+za razliko od Bojića, kjer je ta izjema izrecno omenjena tudi v izvirni
+analizi "Dežurstva 2026", so ti štirje primeri samo statistična opažanja iz
+tega seznama (verjetnost naključja pri 18–21 vzorcih ni zanemarljiva). Če
+katera od teh oseb dejansko ima tak stalni prosti dan, mi povej ime + dan, pa
+ga dodam v `DEZURNI_ZACETNO` enako kot pri Bojiću.
+
 ## 2. Popravki oddelkov (SMS/ZZT) — UVELJAVLJENO v `WARDS_META`/`zelje.html`
 
 Primerjava `2026_SMS_RAZPORED.xlsx` (dejanski razpored) IN `ZAPOSLENI_1.8.xlsx`

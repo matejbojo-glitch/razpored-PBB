@@ -189,29 +189,34 @@ const WARDS_META = {
   E2: { naziv:"E2 - ODDELEK", hsuffix:false, staff:[["MUŠIĆ A.","B"],["BAJT A.","C"],["VOLARIČ N.","E"],["SODJA B.","D"],["TALIĆ A.","A"]] },
 };
 
-// Dežurni kader DMS/DZN — stanje ob koncu septembra 2026 (iz analize
-// "Dežurstva 2026" jan.–sep., dopolnjeno z objavljenim razporedom za
-// september). Popravljeno ime "HROVAT NINA" → "HROVAT NINA" (izvirni
-// Kadris zapisi so imeli dvoje: "Nina Hrovat" in "Horvat Nina" — analiza
-// ju je poenotila v "Nina Horvat"). Dodani dve osebi (Denis Džamastagić,
-// Metka Velušček), ki sta v septembrskem razporedu dežurali, a ju v tem
-// seznamu prej sploh ni bilo — njun "enota" ni znan, zato "?" (preveri
-// in popravi ročno).
+// Dežurni kader DMS/DZN — stanje ob koncu avgusta 2026, iz uradnega seznama
+// dežurstev jan.–avg. 2026 (posredoval uporabnik, 243 vnosov, preverjeno v
+// celoti — glej roster/dezurstva-jan-avg-2026.tsv in
+// roster/analiza-razporedov.md §1a). To NADOMESTI prejšnjo oceno "stanje ob
+// koncu septembra", ki je temeljila na analizi dokumenta "Dežurstva 2026" —
+// ta nova stevilo/zadnje so točna za obdobje jan.–avg., a NE vključujejo
+// morebitnih dežurstev v septembru (za te ni bilo posredovanih podatkov).
+// BOJIĆ MATEJ: prostDanVTednu "PO" potrjeno — v vseh 21 dežurstvih se niti
+// enkrat ni pojavil v ponedeljek. Podobne (a manj zanesljive, ker temeljijo
+// samo na statistiki 18–21 vzorcev) vzorce kažejo tudi ALUKIĆ DINO (nikoli
+// petek), DŽAMASTAGIĆ DENIS (nikoli petek), PERVIZ AMAL (nikoli četrtek) in
+// VELUŠČEK METKA (nikoli četrtek) — NISO uveljavljeni kot pravilo, ker gre
+// lahko za naključje; priporočamo preverbo pri koordinatorju.
 const DEZURNI_ZACETNO = [
-  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:23, zadnje:"2026-09-26" },
-  { ime:"ARNEŽ GREGA", enota:"C", stevilo:20, zadnje:"2026-09-20" },
-  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:23, zadnje:"2026-09-27", prostDanVTednu:"PO" },
-  { ime:"DŽAMASTAGIĆ DENIS", enota:"?", stevilo:23, zadnje:"2026-09-30" },
-  { ime:"PERVIZ AMAL", enota:"D", stevilo:23, zadnje:"2026-09-10" },
-  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:21, zadnje:"2026-09-29" },
-  { ime:"TORKAR TANJA", enota:"134", stevilo:21, zadnje:"2026-09-06" },
-  { ime:"HROVAT NINA", enota:"134", stevilo:21, zadnje:"2026-09-17" },
-  { ime:"ŠUBIC PETRA", enota:"130", stevilo:21, zadnje:"2026-09-28" },
-  { ime:"LUNAR MATEJA", enota:"B", stevilo:21, zadnje:"2026-09-23" },
-  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:20, zadnje:"2026-09-24" },
-  { ime:"VELUŠČEK METKA", enota:"?", stevilo:19, zadnje:"2026-09-12" },
-  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:8, zadnje:"2026-09-02" },
-  { ime:"TRPIN SAŠA", enota:"170", stevilo:9, zadnje:"2026-09-09" },
+  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:21, zadnje:"2026-08-20" },
+  { ime:"ARNEŽ GREGA", enota:"C", stevilo:18, zadnje:"2026-08-03" },
+  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:21, zadnje:"2026-08-26", prostDanVTednu:"PO" },
+  { ime:"DŽAMASTAGIĆ DENIS", enota:"?", stevilo:21, zadnje:"2026-08-29" },
+  { ime:"PERVIZ AMAL", enota:"D", stevilo:21, zadnje:"2026-08-21" },
+  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:18, zadnje:"2026-08-31" },
+  { ime:"TORKAR TANJA", enota:"134", stevilo:19, zadnje:"2026-08-16" },
+  { ime:"HROVAT NINA", enota:"134", stevilo:18, zadnje:"2026-08-23" },
+  { ime:"ŠUBIC PETRA", enota:"130", stevilo:18, zadnje:"2026-08-19" },
+  { ime:"LUNAR MATEJA", enota:"B", stevilo:18, zadnje:"2026-08-28" },
+  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:18, zadnje:"2026-08-30" },
+  { ime:"VELUŠČEK METKA", enota:"?", stevilo:17, zadnje:"2026-08-10" },
+  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:7, zadnje:"2026-08-24" },
+  { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27" },
 ];
 
 function classify(sifra){
