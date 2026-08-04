@@ -330,7 +330,8 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     reader.onload = async () => {
       const text = String(reader.result || "");
       const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const zacni = lines[0] && lines[0].toLowerCase().startsWith("full_name") || lines[0].toLowerCase().startsWith("ime") ? 1 : 0;
+      const prva = (lines[0] || "").toLowerCase();
+      const zacni = prva.startsWith("full_name") || prva.startsWith("ime") ? 1 : 0;
       let ok = 0, napak = 0;
       for (let i = zacni; i < lines.length; i++) {
         const deli = lines[i].split(",").map(s => s.trim());

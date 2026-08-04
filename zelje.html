@@ -154,12 +154,13 @@ const { useState, useEffect, useMemo, useRef } = React;
 // želje vnašamo za kogar koli v zdravstveni negi, ne le za en oddelek.
 // ---------------------------------------------------------------------
 const SKUPINE = [
+  { naziv: "A - oddelek, MT (SMS)", ljudje: ["VREVC M.","JEREB S."] },
   { naziv: "B - oddelek (SMS/TZN)", ljudje: ["ROZMAN A.","SVETINA S.","REJC J.","DOLAR T.","VOVK U."] },
-  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","MOČNIK S.","SMOLEJ N."] },
-  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC A.","BEČIROVIĆ N.","SUŠNIK J.","POGAČNIK M.","GAZIBARA A."] },
+  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","MOČNIK S.","SMOLEJ N.","DJEDOVIĆ M.","HUSEINBAŠIĆ A.","VOZEL N."] },
+  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC E.","BEĆIROVIĆ N.","SUŠNIK J.","POGAČNIK M.","GAZIBARA A."] },
   { naziv: "D - oddelek (SMS/TZN)", ljudje: ["MURIĆ A.","RANT L.","REKIĆ E.","BALEK M.","MEGLIČ J.","NUHANOVIĆ M.","STARE L.","TOMAŠIĆ N.","MRAVLJE U.","VOZEL D."] },
   { naziv: "E1 - oddelek (SMS/TZN)", ljudje: ["BRATUŠA M.","SVETINA R.","URANKER M.","PETERMAN R.","MALER A."] },
-  { naziv: "E2 - oddelek (SMS/TZN)", ljudje: ["MUŠIĆ A.","BAJT A.","VOLARIČ N.","SODJA B.","TALIĆ A."] },
+  { naziv: "E2 - oddelek (SMS/TZN)", ljudje: ["MUŠIĆ A.","BAJT A.","VOLARIČ N.","SODJA B.","TALIĆ A.","GASHI G.","KOGOJ E.","KVRŽIĆ M."] },
   { naziv: "Dežurni kader (DMS/DZN)", ljudje: ["ALUKIĆ DINO","ARNEŽ GREGA","BOJIĆ MATEJ","DŽAMASTAGIĆ DENIS","PERVIZ AMAL","TOMAŽEVIČ SIMONA","TORKAR TANJA","HROVAT NINA","ŠUBIC PETRA","LUNAR MATEJA","MAVRI TRATNIK MAGDALENA","VELUŠČEK METKA","SALKIĆ MARUŠA","TRPIN SAŠA"] },
   { naziv: "Nedežurni kader (DMS/DZN)", ljudje: ["BIZJAK TEA","GAZIBARA ALDIN","HUMAR SAŠA","LELIČ DIJANA","MAGLIĆ ALEKSANDER","MISOTIČ REBEKA","MUŠIČ INES","POGAČNIK TEJA","SEJDINOVIĆ MUSTAFA","SOFRIĆ NIKOLINA","VOZEL DEJAN"] },
 ];

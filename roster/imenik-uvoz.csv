@@ -1,70 +1,70 @@
 full_name,email,phone,role,department_code
-ALUKIĆ DINO,dino.alukic@pb-begunje.si,,admin,
-ARNEŽ GREGA,grega.arnez@pb-begunje.si,,vodja,
-BIZJAK TEA,tea.bizjak@pb-begunje.si,,vodja,
-BOJIĆ MATEJ,matej.bojic@pb-begunje.si,,admin,
-HROVAT NINA,nina.hrovat@pb-begunje.si,,vodja,
-HUMAR SAŠA,sasa.humar@pb-begunje.si,,user,
-LELIČ DIJANA,dijana.lelic@pb-begunje.si,,vodja,
-LUNAR MATEJA,mateja.lunar@pb-begunje.si,,vodja,
-MAGLIĆ ALEKSANDER,aleksander.maglic@pb-begunje.si,,vodja,
-MAVRI TRATNIK MAGDALENA,magdalena.mavritratnik@pb-begunje.si,,vodja,
-MISOTIČ REBEKA,rebeka.misotic@pb-begunje.si,,vodja,
-MUŠIČ INES,ines.music@pb-begunje.si,,vodja,
-PERVIZ AMAL,amal.perviz@pb-begunje.si,,vodja,
-POGAČNIK TEJA,teja.pogacnik@pb-begunje.si,,vodja,
-SALKIĆ MARUŠA,marusa.salkic@pb-begunje.si,,vodja,
-SOFRIĆ NIKOLINA,nikolina.sofric@pb-begunje.si,,vodja,
-ŠUBIC PETRA,petra.subic@pb-begunje.si,,vodja,
-TOMAŽEVIČ SIMONA,simona.tomazevic@pb-begunje.si,,vodja,
-TORKAR TANJA,tanja.torkar@pb-begunje.si,,vodja,
-TRPIN SAŠA,sasa.trpin@pb-begunje.si,,vodja,
-DŽAMASTAGIĆ DENIS,denis.dzamastagic@pb-begunje.si,,admin,
-VELUŠČEK METKA,metka.veluscek@pb-begunje.si,,vodja,
-BAJT ANJA,anja.bajt@pb-begunje.si,,user,
-BEĆIROVIĆ NELVEDIN,nelvedin.becirovic@pb-begunje.si,,user,
-BRATUŠA MARIJA,marija.bratusa@pb-begunje.si,,user,
-DJEDOVIĆ MARK,mark.djedovic@pb-begunje.si,,user,
-DOLAR TOMAŽ,tomaz.dolar@pb-begunje.si,,user,
-DŽINIĆ AMIN,amin.dzinic@pb-begunje.si,,user,
-GASHI GENTIANA,gentiana.gashi@pb-begunje.si,,user,
-HUSEINBAŠIĆ AJLA,ajla.huseinbasic@pb-begunje.si,,user,
-JEREB SARA,sara.jereb@pb-begunje.si,,user,
-KARNIČAR JURE,jure.karnicar@pb-begunje.si,,user,
-KODRAS NADJA,nadja.kodras@pb-begunje.si,,user,
-KOGOJ EVA,eva.kogoj@pb-begunje.si,,user,
-KVRŽIĆ MARKO,marko.kvrzic@pb-begunje.si,,user,
-MALER ANTONINA,antonina.maler@pb-begunje.si,,user,
-MEGLIČ JAKA,jaka.meglic@pb-begunje.si,,user,
-MOČNIK SIMONA,simona.mocnik@pb-begunje.si,,user,
-MRAVLJE UROŠ,uros.mravlje@pb-begunje.si,,user,
-MURIĆ ALMA,alma.muric@pb-begunje.si,,user,
-MUŠIĆ ALEN,alen.music@pb-begunje.si,,user,
-NUHANOVIĆ MERIMA,merima.nuhanovic@pb-begunje.si,,user,
-PETERMAN RENATA,renata.peterman@pb-begunje.si,,user,
-POGAČNIK MATEJ,matej.pogacnik@pb-begunje.si,,user,
-RANT LUKA,luka.rant@pb-begunje.si,,user,
-REJC JANA,jana.rejc@pb-begunje.si,,user,
-REKIĆ ELMA,elma.rekic@pb-begunje.si,,user,
-ROZMAN ANKA,anka.rozman@pb-begunje.si,,user,
-ROZMAN KLARA,klara.rozman@pb-begunje.si,,user,
-SMOLEJ NATAŠA,natasa.smolej@pb-begunje.si,,user,
-SODJA BARBARA,barbara.sodja@pb-begunje.si,,user,
-STARC ERIK,erik.starc@pb-begunje.si,,user,
-STARE LUKA,luka.stare@pb-begunje.si,,user,
-SUŠNIK JAKA,jaka.susnik@pb-begunje.si,,user,
-SVETINA ROBERT,robert.svetina@pb-begunje.si,,user,
-SVETINA SABINA,sabina.svetina@pb-begunje.si,,user,
-ŠABIĆ SEBINA,sebina.sabic@pb-begunje.si,,user,
-ŠKANTAR MARK,mark.skantar@pb-begunje.si,,user,
-TALIĆ AMIRA,amira.talic@pb-begunje.si,,user,
-TOMAŠIĆ NIKOLINA,nikolina.tomasic@pb-begunje.si,,user,
-URANKER MOJCA,mojca.uranker@pb-begunje.si,,user,
-VALJAVEC ENEJ,enej.valjavec@pb-begunje.si,,user,
-VOLARIČ NEJC,nejc.volaric@pb-begunje.si,,user,
-VOVK URŠKA,urska.vovk@pb-begunje.si,,user,
-VOZEL NEJA,neja.vozel@pb-begunje.si,,user,
-VREVC MAJA,maja.vrevc@pb-begunje.si,,user,
-ZEKAN ALMEDIN,almedin.zekan@pb-begunje.si,,user,
-GAZIBARA ALDIN,aldin.gazibara@pb-begunje.si,,user,
-VOZEL DEJAN,dejan.vozel@pb-begunje.si,,user,
+ALUKIĆ DINO,dino.alukic@pb-begunje.si,031 531 047,admin,PDZN
+ARNEŽ GREGA,grega.arnez@pb-begunje.si,040 207 564,vodja,C1
+BAJT ANJA,anja.bajt@pb-begunje.si,030 329 308,user,E2
+BEĆIROVIĆ NELVEDIN,nelvedin.becirovic@pb-begunje.si,030 392 889,user,C1
+BIZJAK TEA,tea.bizjak@pb-begunje.si,031 679 941,vodja,SA
+BOJIĆ MATEJ,matej.bojic@pb-begunje.si,040 594 084,admin,PDZN
+BRATUŠA MARIJA,marija.bratusa@pb-begunje.si,040 242 631,user,E1
+DJEDOVIĆ MARK,mark.djedovic@pb-begunje.si,040 660 948,user,C
+DOLAR TOMAŽ,tomaz.dolar@pb-begunje.si,041 673 018,user,B
+DŽAMASTAGIĆ DENIS,denis.dzamastagic@pb-begunje.si,041 246 534,admin,PDZN
+DŽINIĆ AMIN,amin.dzinic@pb-begunje.si,040 455 973,user,C1
+GASHI GENTIANA,gentiana.gashi@pb-begunje.si,051 839 847,user,E2
+GAZIBARA ALDIN,aldin.gazibara@pb-begunje.si,040 976 946,user,C1
+HROVAT NINA,nina.hrovat@pb-begunje.si,041 704 698,vodja,DB
+HUMAR SAŠA,sasa.humar@pb-begunje.si,040 167 852,vodja,SA
+HUSEINBAŠIĆ AJLA,ajla.huseinbasic@pb-begunje.si,040 576 189,user,C
+JEREB SARA,sara.jereb@pb-begunje.si,040 977 151,user,A
+KARNIČAR JURE,jure.karnicar@pb-begunje.si,040 596 097,user,C1
+KODRAS NADJA,nadja.kodras@pb-begunje.si,031 657 498,user,C
+KOGOJ EVA,eva.kogoj@pb-begunje.si,040 673 150,user,E2
+KVRŽIĆ MARKO,marko.kvrzic@pb-begunje.si,070 839 384,user,E2
+LELIČ DIJANA,dijana.lelic@pb-begunje.si,040 860 857,vodja,E2
+LUNAR MATEJA,mateja.lunar@pb-begunje.si,031 338 630,vodja,B
+MAGLIĆ ALEKSANDER,aleksander.maglic@pb-begunje.si,031 618 126,vodja,E1
+MALER ANTONINA,antonina.maler@pb-begunje.si,051 437 291,user,E1
+MAVRI TRATNIK MAGDALENA,magdalena.mavri@pb-begunje.si,040 749 232,vodja,B1B2
+MEGLIČ JAKA,jaka.meglic@pb-begunje.si,051 421 128,user,D
+MISOTIČ REBEKA,rebeka.misotic@pb-begunje.si,040 548 780,vodja,C
+MOČNIK SIMONA,simona.mocnik@pb-begunje.si,040 883 057,user,C
+MRAVLJE UROŠ,uros.mravlje@pb-begunje.si,041 661 177,user,C1
+MURIĆ ALMA,alma.muric@pb-begunje.si,040 359 966,user,D
+MUŠIČ INES,ines.music@pb-begunje.si,040 200 574,vodja,SA
+MUŠIĆ ALEN,alen.music@pb-begunje.si,040 298 295,user,E2
+NUHANOVIĆ MERIMA,merima.nuhanovic@pb-begunje.si,040 750 144,user,D
+PERVIZ AMAL,amal.perviz@pb-begunje.si,040 430 910,vodja,D
+PETERMAN RENATA,renata.peterman@pb-begunje.si,051 305 412,user,E1
+POGAČNIK MATEJ,matej.pogacnik@pb-begunje.si,041 596 990,user,D
+POGAČNIK TEJA,teja.pogacnik@pb-begunje.si,051 896 791,vodja,E1
+RANT LUKA,luka.rant@pb-begunje.si,031 846 567,user,D
+REJC JANA,jana.rejc@pb-begunje.si,031 523 130,user,B
+REKIĆ ELMA,elma.rekic@pb-begunje.si,040 517 400,user,D
+ROZMAN ANKA,anka.rozman@pb-begunje.si,031 293 883,user,B
+ROZMAN KLARA,klara.rozman@pb-begunje.si,051 359 167,user,C
+SALKIĆ MARUŠA,marusa.salkic@pb-begunje.si,040 892 409,vodja,C1
+SMOLEJ NATAŠA,natasa.smolej@pb-begunje.si,040 825 663,user,C
+SODJA BARBARA,barbara.sodja@pb-begunje.si,041 616 369,user,E2
+SOFRIĆ NIKOLINA,nikolina.sofric@pb-begunje.si,068 161 165,vodja,E2
+STARC ERIK,erik.starc@pb-begunje.si,041 511 540,user,C1
+STARE LUKA,luka.stare@pb-begunje.si,051 887 171,user,D
+SUŠNIK JAKA,jaka.susnik@pb-begunje.si,051 260 138,user,C1
+SVETINA ROBERT,robert.svetina@pb-begunje.si,041 787 599,user,E1
+SVETINA SABINA,sabina.svetina@pb-begunje.si,031 666 938,user,C
+ŠABIĆ SEBINA,sebina.sabic@pb-begunje.si,070 403 669,user,C
+ŠKANTAR MARK,mark.skantar@pb-begunje.si,031 239 878,user,C1
+ŠUBIC PETRA,petra.subic@pb-begunje.si,041 434 915,vodja,B1B2
+TALIĆ AMIRA,amira.talic@pb-begunje.si,041 575 107,user,E2
+TOMAŠIĆ NIKOLINA,nikolina.tomasic@pb-begunje.si,070 174 885,user,D
+TOMAŽEVIČ SIMONA,simona.tomazevic@pb-begunje.si,031 402 911,vodja,A
+TORKAR TANJA,tanja.torkar@pb-begunje.si,031 843 992,vodja,DB
+TRPIN SAŠA,sasa.trpin@pb-begunje.si,031 567 326,vodja,SA
+URANKER MOJCA,mojca.uranker@pb-begunje.si,040 322 599,user,E1
+VALJAVEC ENEJ,enej.valjavec@pb-begunje.si,040 458 853,user,C1
+VELUŠČEK METKA,metka.veluscek@pb-begunje.si,040 468 096,vodja,SOBO
+VOLARIČ NEJC,nejc.volaric@pb-begunje.si,041 449 994,user,E2
+VOVK URŠKA,urska.vovk@pb-begunje.si,031 866 443,user,B
+VOZEL DEJAN,dejan.vozel@pb-begunje.si,040 154 930,user,D
+VOZEL NEJA,neja.vozel@pb-begunje.si,040 154 991,user,C
+VREVC MAJA,maja.miljkovic@pb-begunje.si,051 273 540,user,A
+ZEKAN ALMEDIN,almedin.zekan@pb-begunje.si,040 552 469,user,C1
