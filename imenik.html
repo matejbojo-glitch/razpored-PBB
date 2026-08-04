@@ -387,7 +387,12 @@ const GLAVE_MAPA = {
   full_name: ["full_name","priimek in ime","ime in priimek","ime"],
   email: ["email","elektronska pošta","elektronska posta","e-pošta","e-posta"],
   phone: ["phone","telefon"],
-  role: ["role"],
+  // "vloga" dodan nazaj (v. 1 tega uvoza je bil namenoma izpuščen, ker bi
+  // generičen HR izvoz lahko tu imel delovno-mestno klasifikacijo namesto
+  // aplikacijske vloge) - v resničnih datotekah admin/vodja/user vrednosti
+  // uporablja, in obstoječa zaščita spodaj (le "admin"/"vodja"/"user" so
+  // veljavne, sicer "user") vsako neveljavno vrednost varno prestreže.
+  role: ["role","vloga"],
   department_code: ["department_code","oddelek"],
   employee_code: ["employee_code","šifra zaposlenega","sifra zaposlenega"],
   birth_date: ["birth_date","datum rojstva"],
@@ -435,7 +440,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     return {
       full_name, email, phone: (v.phone || "").trim() || null, role, department_code,
       employee_code: (v.employee_code || "").trim() || null,
-      birth_date: (v.birth_date || "").trim() || null,
+      birth_date: window.ImportUtils.normalizirajDatum(v.birth_date) || null,
       position_name: (v.position_name || "").trim() || null,
       manager_name: (v.manager_name || "").trim() || null,
       parental_leave: (v.parental_leave || "").trim() || null,
