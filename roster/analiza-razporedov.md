@@ -28,6 +28,16 @@ podpira ročni preklop "LD" po tednu za posameznika (gumb ob vsakem tednu),
 kar je pravi mehanizem za obravnavo dopusta pri generiranju — kalup-črka v
 `WARDS_META` ostaja samo privzeto (osnovno) stanje za tedne BREZ dopusta.
 
+**Dodatno (na tvoje opozorilo o poletnem času):** analizirani mesec je junij
+— vrh poletnih dopustov in obdobje z največ oddanimi željami (`zelje.html`).
+V takih obdobjih se razpored prilagaja dopustom in omejitvam bolj intenzivno
+kot preostanek leta, zato je pričakovano, da bo ujemanje s kalupom v poletnih
+mesecih sistematično nižje kot npr. jeseni/pozimi — to velja za VSE
+zaposlene v tem oddelku, ne samo za štiri prej izpostavljene. Nižjih
+odstotkov v poletnih mesecih torej ni treba jemati kot signal za popravek
+`WARDS_META`; kalup-črka je pravilna osnova, poletna odstopanja se rešujejo
+sproti prek "LD" preklopa, ne prek spremembe privzete črke.
+
 Za štiri osebe, ki so bile premaknjene/dodane v `WARDS_META` (glej §2), sem
 uporabil najboljše ujemanje kot izhodiščno črko (Pogačnik M. 88 %, Mravlje U.
 59 %, Močnik S. 65 %, Balek M. 63 %) — to je zdaj v kodi, a jasno komentirano

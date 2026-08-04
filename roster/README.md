@@ -68,7 +68,10 @@ oddane želje/dopuste ni mogoče sestaviti drugače — del neujemanja v analizi
 gre pripisati temu, ne napaki pri izbiri črke. `admin.html` → Kalup že ima
 gumb za ročni preklop "LD" po tednu za vsakega zaposlenega — to je pravi
 mehanizem za dopust pri generiranju; `WARDS_META` določa samo privzeto črko
-za tedne brez dopusta.
+za tedne brez dopusta. Analizirani mesec (junij) je poleg tega vrh poletnih
+dopustov in oddanih želja — v takih obdobjih se razpored prilagaja dopustom
+in omejitvam bolj kot preostanek leta, zato je nižje ujemanje v poletnih
+mesecih pričakovano za VSE zaposlene, ne samo za teh štiri.
 
 **Še vedno niso v `WARDS_META`** (obstajajo v uradnem seznamu, a jih fiksni
 5-osebni kalup model ne podpira dobro): Huseinbašić A., Vozel N. (Neja), Gashi
