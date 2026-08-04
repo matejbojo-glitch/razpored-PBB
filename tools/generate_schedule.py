@@ -1,372 +1,468 @@
-#!/usr/bin/env python3
-"""Mesečni generator razporeda za oddelke A/B/C/C1/D/E1/E2 (OR-Tools CP-SAT).
-
-Samostojen skript (ni (še) povezan s spletno aplikacijo/Supabase) — bere
-schedule_data.json, reši razporejanje kot problem omejitev (constraint
-programming) in izvozi rezultat v Excel.
-
-Uporaba:
-    python3 generate_schedule.py --start 2026-10-01 --end 2026-10-31
-
-Zahteva: pip install ortools pandas openpyxl
-
-OPOZORILA O POENOSTAVITVAH (glej tudi izpis ob koncu teka):
-  - Oddelek A ima v podatkih SAMO Maja Vrevc kot SMS, a zahteva po 1 SMS
-    tako za DOPOLDNE kot POPOLDNE vsak dan — ona lahko pokrije le enega od
-    dveh (max 6h/dan, ena izmena). Model zato izbere, katerega od dveh
-    pokrije, drugi ostane nezaseden in se izpiše kot opozorilo — v
-    podatkih ni druge osebe, dodeljene oddelku A, ki bi lahko pokrila
-    drugega. Preveri, ali manjka oseba v schedule_data.json.
-  - "PONOČI" za oddelek A je "shared_from": ["B","E1"] — v tem izvozu ni
-    modelirano kot ločena obveznost (izpustimo), ker ni jasno po katerem
-    pravilu naj CP izbere, KATERA oseba iz B/E1 to noč "tudi" krije A (ali
-    gre za fizično isto osebo, ki krije oba oddelka, ali za dodaten
-    obisk) — če imaš natančnejše pravilo, povej in dopolnim.
-  - C1 "special_rule": "1 SMS + Gazibara Aldin" — implementirano kot trda
-    zahteva po 2 moških SMS (vsi C1 SMS v podatkih so tako ali tako moški),
-    BREZ posebne prisile, da mora biti Gazibara Aldin vedno eden od njiju
-    (nejasno, ali je to mišljeno kot trdo ali mehko pravilo) — Gazibara
-    ostane le označen (is_gazibara), pripravljen za dodatno pravilo, če ga
-    natančno opišeš.
-  - FLEXI kader je privzeto na voljo za DOPOLDNE/POPOLDNE na domačem
-    oddelku (C ali E2); "can_cover_night_on_absence" ni uveljavljeno kot
-    ločeno pravilo, ker v podatkih ni konkretnih datumov odsotnosti, ki bi
-    sprožili izjemo — če posreduješ dejanski koledar odsotnosti, ga lahko
-    vključim, da FLEXI dobi nočne izmene samo takrat.
-  - Fiksni DMS/Admin koordinatorji (fixed_morning: Alukić, Bojić,
-    Džamastagić, Hrovat, Torkar, Mavri Tratnik, Šubic, Velušček, Mušič,
-    Trpin, Humar, Bizjak, ter DMS del A/B/C/C1/D/E1/E2) niso del CP
-    modela — razporejeni so deterministično (delovni dan = na svojem
-    mestu), ker njihov urnik ni kombinatoričen problem. handle_absence()
-    spodaj omogoča ročno zamenjavo z nadomestno osebo (substitute) za
-    posamezen dan, po pravilu iz JSON-a.
+# -*- coding: utf-8 -*-
 """
+Generator mesečnega urnika za oddelke A, B, C, C1, D, E1, E2
+na podlagi schedule_data.json, z OR-Tools CP-SAT.
 
-import argparse
+POMEMBNO — predpostavke, ki jih je treba potrditi (glej NAVODILA_IN_VPRASANJA.md):
+  1. DMS (vodje) delajo FIKSNO dopoldne ob delavnikih (pon-pet), ob vikendih/praznikih
+     NE delajo (to sledi obstoječi logiki dežurstva, ki je bila dogovorjena že prej).
+  2. Vikend/praznik: namesto DOPOLDNE/POPOLDNE/PONOČI velja DNEVNA12 + NOČNA12.
+     Ker schedule_data.json ne navaja izrecnih vikend zasedb, sem privzel:
+       DNEVNA12 potreba = POPOLDNE potreba tega oddelka (delovnik SMS del)
+       NOČNA12  potreba = PONOČI potreba tega oddelka
+     PROSIM POTRDI ali popravi te številke (glej vprašanja na koncu poročila).
+  3. Oddelek A / PONOČI ("shared_from": ["B","E1"]) ni modeliran kot dodatna
+     zadolžitev (ker si sam označil "odvisno od meseca, določi se naknadno") —
+     v izpisu je samo opomba, da nočno stražo za A tisto noč "pokriva" B/E1.
+  4. C1 "special_rule": "1 SMS + Gazibara Aldin" — ker so VSI C1 SMS že moški,
+     omejitev "mora biti moški" je avtomatično izpolnjena; pravilo o Gazibari
+     Aldinu NI posebej vsiljeno (nejasno, ali mora biti VEDNO na izmeni, ali je
+     samo ena od možnih kombinacij) — glej vprašanja.
+  5. Zaposleni z "role": "Admin" ali oddelki izven {A,B,C,C1,D,E1,E2} (DB,
+     B1/SOB/NOB, UA/SA, UA/SA/B2, SOBO, ADMIN) NISO del tega urnika — to so
+     vodje, ki jih pokriva ločen sistem dežurstva (dogovorjeno v prejšnjih
+     korakih), ne ta oddelčni SMS/DMS urnik.
+"""
 import json
 import sys
-from collections import defaultdict
-from datetime import date, timedelta
-from pathlib import Path
-
-import pandas as pd
+import datetime
+import calendar
+import collections
 from ortools.sat.python import cp_model
+import pandas as pd
 
-SHIFTS = ["DOPOLDNE", "POPOLDNE", "PONOČI"]
-WARD_DEPARTMENTS = ["A", "B", "C", "C1", "D", "E1", "E2"]
-# Kazni v ciljni funkciji (utežene, ne trde meje) — nezasedeno mesto je
-# veliko dražje od neenakomerne razporeditve nočnih/vikend izmen.
-PENALTY_UNMET_SLOT = 1000
-PENALTY_FAIRNESS = 1
+# ------------------------------------------------------------------
+# 0. NASTAVITVE
+# ------------------------------------------------------------------
+MESEC = 10
+LETO = 2026
+DATA_FILE = "schedule_data.json"
+OUTPUT_FILE = "urnik_rezultat.xlsx"
+SOLVER_TIME_LIMIT_SEC = 60
 
+SCHEDULED_DEPTS = ["A", "B", "C", "C1", "D", "E1", "E2"]
+WEEKDAY_SHIFTS = ["DOPOLDNE", "POPOLDNE", "PONOČI"]
+WEEKEND_SHIFTS = ["DNEVNA12", "NOČNA12"]
+NIGHT_SHIFTS = {"PONOČI", "NOČNA12"}
 
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--json", default=str(Path(__file__).parent / "schedule_data.json"))
-    p.add_argument("--start", required=True, help="YYYY-MM-DD")
-    p.add_argument("--end", required=True, help="YYYY-MM-DD")
-    p.add_argument("--output", default="urnik_rezultat.xlsx")
-    p.add_argument("--time-limit", type=float, default=30.0, help="Sekunde za CP-SAT solver (privzeto 30)")
-    return p.parse_args()
+# Misotič Rebeka (MIS) in Sofrić Nikolina (SOF) sta bili poleti 2026 vkljuceni v
+# FLEXI kot zacasna pokritost izostankov ("poletni flexi") - od oktobra 2026
+# naprej postaneta redni del FLEXI bazena (dogovorjeno z uporabnikom).
+FLEXI_FROM = {"MIS": (2026, 10), "SOF": (2026, 10)}
 
+# Oddelek A nima lastne nocne/vikend ekipe: nocno (PONOČI) in cel vikend
+# (DNEVNA12 + NOČNA12) zanj "mimogrede" pokriva karkoli je tisti mesec na
+# vrsti med oddelkoma B in E1 (izmenicno po mesecih, zacetek: avgust 2026 = B).
+A_COVERAGE_START = (2026, 8, "B")   # (leto, mesec, oddelek) prvega meseca rotacije
+A_COVERAGE_ALTERNATE = {"B": "E1", "E1": "B"}
 
-def load_data(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+def a_coverage_department(mesec, leto):
+    """Kateri oddelek (B ali E1) ta mesec 'mimogrede' pokriva nocno/vikend za A."""
+    start_leto, start_mesec, start_dept = A_COVERAGE_START
+    months_diff = (leto - start_leto) * 12 + (mesec - start_mesec)
+    dept = start_dept
+    for _ in range(abs(months_diff)):
+        dept = A_COVERAGE_ALTERNATE[dept]
+    return dept
 
-
-def daterange(start, end):
-    d = start
-    while d <= end:
-        yield d
-        d += timedelta(days=1)
-
-
-def is_weekend(d):
-    return d.weekday() >= 5  # 5=SO, 6=NE
-
-
-class Scheduler:
-    def __init__(self, data, days):
-        self.data = data
-        self.days = days
-        self.employees = {e["code"]: e for e in data["employees"]}
-        self.dept_req = data["department_requirements"]
-        self.model = cp_model.CpModel()
-        self.work = {}  # (code, day, shift) -> BoolVar
-        self.slack = {}  # (dept, day, shift, label) -> IntVar (nezasedena mesta)
-        self.warnings = []
-        self._build_pools()
-
-    # -------------------------------------------------------------
-    def _build_pools(self):
-        """Razdeli osebje na tiste, ki so del CP modela (izmenski SMS/FLEXI),
-        in tiste, ki so razporejeni deterministično (fixed_morning DMS/Admin)."""
-        self.shift_pool = defaultdict(list)  # dept -> [code, ...] (SMS "shift")
-        self.flexi_pool = defaultdict(list)  # dept -> [code, ...] (FLEXI "morning_afternoon")
-        self.fixed_morning = []  # code list, izven CP modela
-
-        for code, e in self.employees.items():
-            if e.get("status") == "maternity_leave":
-                continue  # ne razporeja se
-            stype = e.get("schedule_type")
-            dept = e.get("department")
-            if stype == "shift" and dept in WARD_DEPARTMENTS:
-                self.shift_pool[dept].append(code)
-            elif e.get("is_flexi") and stype == "morning_afternoon" and e.get("role") != "DMS":
-                # FLEXI SMS kader (Jereb, Kvržić, Vozel N., Gashi, Huseinbašić, Kogoj)
-                self.flexi_pool[dept].append(code)
-            elif e.get("department") == "A" and stype == "morning_afternoon":
-                self.shift_pool["A"].append(code)  # Vrevc M. — posebej obravnavana spodaj
-            elif stype == "fixed_morning" or (e.get("is_flexi") and e.get("role") == "DMS"):
-                self.fixed_morning.append(code)
-            # ostali (npr. Humar S. — "User", morning_afternoon, brez is_flexi) niso del
-            # oddelčnega CP modela za A-E2 — zunaj obsega te preglednice.
-
-    # -------------------------------------------------------------
-    def _var(self, code, d, shift):
-        key = (code, d, shift)
-        if key not in self.work:
-            self.work[key] = self.model.NewBoolVar(f"w_{code}_{d.isoformat()}_{shift}")
-        return self.work[key]
-
-    def _eligible_shifts(self, code):
-        e = self.employees[code]
-        if e.get("schedule_type") == "morning_afternoon":
-            return ["DOPOLDNE", "POPOLDNE"]  # brez nočnih (urne omejitve)
-        return SHIFTS
-
-    def build(self):
-        all_codes = set()
-        for pool in list(self.shift_pool.values()) + list(self.flexi_pool.values()):
-            all_codes.update(pool)
-
-        # --- 1) vsak človek kvečjemu ena izmena na dan ------------------
-        for code in all_codes:
-            for d in self.days:
-                vars_today = [self._var(code, d, s) for s in self._eligible_shifts(code)]
-                if vars_today:
-                    self.model.Add(sum(vars_today) <= 1)
-
-        # --- 2) počitek po nočni: naslednji dan popolnoma prost ---------
-        for code in all_codes:
-            if "PONOČI" not in self._eligible_shifts(code):
-                continue
-            for i, d in enumerate(self.days[:-1]):
-                nxt = self.days[i + 1]
-                next_vars = [self._var(code, nxt, s) for s in self._eligible_shifts(code)]
-                if next_vars:
-                    self.model.Add(sum(next_vars) <= 1 - self._var(code, d, "PONOČI"))
-
-        # --- 3) oddelčne zahteve (s "slack" za nezasedena mesta) --------
-        objective_terms = []
-        for dept in WARD_DEPARTMENTS:
-            req = self.dept_req.get(dept, {})
-            for shift in SHIFTS:
-                rule = req.get(shift, {})
-                if "shared_from" in rule:
-                    continue  # posebno pravilo za A/PONOČI — glej opombe na vrhu datoteke
-                for d in self.days:
-                    objective_terms += self._apply_requirement(dept, shift, d, rule)
-
-        # --- 4) posebna pravila za oddelek A (Vrevc: D ALI P, ne oboje) -
-        # (self-consistentno z 1) — vsak dan kvečjemu ena od dveh, kar je
-        # avtomatsko zagotovljeno, ker ima Vrevc samo eno "ime" v poolu A.
-
-        # --- 5) Smolej: največ 1 vikend nočna izmena na mesec -----------
-        if "Smolej N." in self.employees:
-            vikend_noci = [
-                self._var("Smolej N.", d, "PONOČI") for d in self.days if is_weekend(d)
-            ]
-            if vikend_noci:
-                self.model.Add(sum(vikend_noci) <= 1)
-
-        # --- 6) Salkić: 1x dežurstvo/mesec med tednom --------------------
-        # (Salkić je fixed_morning DMS, dežurstvo je ločen modul v spletni
-        # aplikaciji — glej generator-core.js — tu ni relevantno.)
-
-        # --- 7) pravičnost: minimiziraj razpon nočnih/vikend izmen -------
-        for dept in WARD_DEPARTMENTS:
-            pool = self.shift_pool.get(dept, [])
-            night_pool = [c for c in pool if "PONOČI" in self._eligible_shifts(c)]
-            if len(night_pool) < 2:
-                continue
-            counts = []
-            for code in night_pool:
-                cnt = sum(self._var(code, d, "PONOČI") for d in self.days)
-                cvar = self.model.NewIntVar(0, len(self.days), f"nights_{code}")
-                self.model.Add(cvar == cnt)
-                counts.append(cvar)
-            mx = self.model.NewIntVar(0, len(self.days), f"max_nights_{dept}")
-            mn = self.model.NewIntVar(0, len(self.days), f"min_nights_{dept}")
-            self.model.AddMaxEquality(mx, counts)
-            self.model.AddMinEquality(mn, counts)
-            spread = self.model.NewIntVar(0, len(self.days), f"spread_{dept}")
-            self.model.Add(spread == mx - mn)
-            objective_terms.append(spread * PENALTY_FAIRNESS)
-
-        self.model.Minimize(sum(objective_terms))
-
-    def _apply_requirement(self, dept, shift, d, rule):
-        terms = []
-        eligible_shift = [c for c in self.shift_pool.get(dept, []) if shift in self._eligible_shifts(c)]
-        eligible_flexi = [c for c in self.flexi_pool.get(dept, []) if shift in self._eligible_shifts(c)]
-
-        if dept == "A":
-            # Vrevc: natanko 1 od {DOPOLDNE, POPOLDNE} — obravnavano prek
-            # slacka, ker realno pogosto ne bo pokrila obeh na isti dan.
-            fixed_sms = [c for c in eligible_shift if self.employees[c]["code"] == "Vrevc M."]
-            need = 1
-            terms += self._require(dept, shift, d, "SMS(A)", fixed_sms, need)
-            return terms
-
-        if "SMS_male" in rule or "SMS_female" in rule:
-            males = [c for c in eligible_shift if self.employees[c].get("gender") == "M"]
-            females = [c for c in eligible_shift if self.employees[c].get("gender") == "F"]
-            if "SMS_male" in rule:
-                terms += self._require(dept, shift, d, "SMS_M", males, rule["SMS_male"])
-            if "SMS_female" in rule:
-                terms += self._require(dept, shift, d, "SMS_F", females, rule["SMS_female"])
-            return terms
-
-        if "SMS" in rule:
-            terms += self._require(dept, shift, d, "SMS", eligible_shift, rule["SMS"])
-        if "FLEXI" in rule:
-            terms += self._require(dept, shift, d, "FLEXI", eligible_flexi, rule["FLEXI"])
-        # "DMS" je fixed_morning — zunaj CP modela (deterministično).
-        return terms
-
-    def _require(self, dept, shift, d, label, candidates, need):
-        varlist = [self._var(c, d, shift) for c in candidates]
-        slack = self.model.NewIntVar(0, need, f"slack_{dept}_{shift}_{label}_{d.isoformat()}")
-        if varlist:
-            self.model.Add(sum(varlist) + slack == need)
-        else:
-            self.model.Add(slack == need)
-        self.slack[(dept, shift, label, d)] = slack
-        return [slack * PENALTY_UNMET_SLOT]
-
-    # -------------------------------------------------------------
-    def solve(self, time_limit):
-        solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = time_limit
-        solver.parameters.num_search_workers = 8
-        status = solver.Solve(self.model)
-        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            raise RuntimeError("CP-SAT ni našel nobene rešitve (status=%s)" % solver.StatusName(status))
-        self.solver = solver
-        self.status = status
-        return solver
-
-    # -------------------------------------------------------------
-    def extract(self):
-        solver = self.solver
-        rows = []
-        for (code, d, shift), var in self.work.items():
-            if solver.Value(var):
-                e = self.employees[code]
-                rows.append({
-                    "datum": d.isoformat(),
-                    "dan": d.strftime("%a").upper(),
-                    "oddelek": e.get("department"),
-                    "izmena": shift,
-                    "oseba": e["name"],
-                    "koda": code,
-                    "vloga": e.get("role"),
-                })
-        for d in self.days:
-            for code in self.fixed_morning:
-                e = self.employees[code]
-                if d.weekday() >= 5:
-                    continue  # fixed_morning so delovniki, glej opombo o vikendih spodaj
-                rows.append({
-                    "datum": d.isoformat(),
-                    "dan": d.strftime("%a").upper(),
-                    "oddelek": e.get("department"),
-                    "izmena": "DOPOLDNE",
-                    "oseba": e["name"],
-                    "koda": code,
-                    "vloga": e.get("role"),
-                })
-        df = pd.DataFrame(rows).sort_values(["datum", "oddelek", "izmena"])
-
-        for (dept, shift, label, d), var in self.slack.items():
-            val = solver.Value(var)
-            if val > 0:
-                self.warnings.append(
-                    f"{d.isoformat()} {dept} {shift} [{label}]: manjka {val} mesto(a) — ni dovolj razpoložljivega kadra v podatkih."
-                )
-        return df
-
-
-def handle_absence(schedule_df, employees, absent_code, absent_date, shift="DOPOLDNE"):
-    """Ročna zamenjava fixed_morning osebe z njeno nadomestno osebo (substitute
-    iz schedule_data.json) za en dan. Vrne KOPIJO DataFrame-a s spremembo.
-    Primer: handle_absence(df, employees, "TOM", date(2026,10,5))
-    """
-    sub_code = employees.get(absent_code, {}).get("substitute")
-    if not sub_code or sub_code not in employees:
-        raise ValueError(f"{absent_code} nima veljavnega nadomestnega (substitute) v schedule_data.json")
-    mask = (
-        (schedule_df["koda"] == absent_code)
-        & (schedule_df["datum"] == absent_date.isoformat())
-        & (schedule_df["izmena"] == shift)
-    )
-    out = schedule_df.copy()
-    out.loc[mask, ["oseba", "koda"]] = [employees[sub_code]["name"], sub_code]
+# Slovenski dela prosti prazniki (enako kot v predlogah za Excel) —
+# vikend/praznik uporablja DNEVNA12/NOČNA12 namesto obicajnih 3 izmen.
+_EASTER_MONDAY = {2026: (4, 6), 2027: (3, 29), 2028: (4, 17), 2029: (4, 2), 2030: (4, 22)}
+def prazniki_za_leto(leto):
+    em = _EASTER_MONDAY.get(leto)
+    days = [(1,1),(1,2),(2,8),(4,27),(5,1),(5,2),(6,25),(8,15),(10,31),(11,1),(12,25),(12,26)]
+    out = {datetime.date(leto, m, d) for (m, d) in days}
+    if em:
+        out.add(datetime.date(leto, em[0], em[1]))
     return out
 
+# ------------------------------------------------------------------
+# 1. NALAGANJE PODATKOV
+# ------------------------------------------------------------------
+def load_data(path=DATA_FILE):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
-INVALID_SHEET_CHARS = str.maketrans({c: "-" for c in r'\/?*[]:'})
+def build_calendar(mesec, leto):
+    n_days = calendar.monthrange(leto, mesec)[1]
+    prazniki = prazniki_za_leto(leto)
+    days = []
+    for d in range(1, n_days + 1):
+        dt = datetime.date(leto, mesec, d)
+        is_weekend = dt.weekday() >= 5  # 5=sobota,6=nedelja
+        is_holiday = dt in prazniki
+        days.append({"day": d, "date": dt, "is_off_type": is_weekend or is_holiday})
+    return days
+
+# ------------------------------------------------------------------
+# 2. KATEGORIZACIJA ZAPOSLENIH
+# ------------------------------------------------------------------
+def categorize(data, mesec=None, leto=None):
+    emps = {e["code"]: e for e in data["employees"]}
+    rel = [e for e in data["employees"] if e["department"] in SCHEDULED_DEPTS]
+
+    # izloci odsotne (npr. porodniska)
+    active = [e for e in rel if e.get("status") != "maternity_leave"]
+
+    dms_fixed = [e for e in active if e["role"] == "DMS" and e.get("schedule_type") == "fixed_morning"]
+    vrevc = next(e for e in active if e["code"] == "Vrevc M.")  # posebna, fiksna SMS za A
+
+    def flexi_eligible(e):
+        if not e.get("is_flexi"):
+            return False
+        limit = FLEXI_FROM.get(e["code"])
+        if limit is None or mesec is None or leto is None:
+            return True
+        return (leto, mesec) >= limit
+
+    flexi_pool = [e for e in active if flexi_eligible(e)]
+    turnus_sms = [e for e in active if e["role"] == "SMS" and not e.get("is_flexi")
+                  and e["code"] != "Vrevc M."]
+
+    return dict(all_active=active, dms_fixed=dms_fixed, vrevc=vrevc,
+                flexi_pool=flexi_pool, turnus_sms=turnus_sms, by_code=emps)
 
 
-def safe_sheet_name(name, used):
-    clean = name.translate(INVALID_SHEET_CHARS)[:31] or "list"
-    base, i = clean, 1
-    while clean in used:
-        suffix = f"~{i}"
-        clean = base[: 31 - len(suffix)] + suffix
-        i += 1
-    used.add(clean)
-    return clean
+def dept_of(e):
+    return e["department"]
+
+# ------------------------------------------------------------------
+# 3. NORMALIZACIJA ZAHTEV PO ODDELKIH (iz department_requirements)
+# ------------------------------------------------------------------
+def normalize_requirements(data):
+    """Vrne: req[dept][shift] = {'sms': n, 'sms_m': n, 'sms_f': n, 'flexi': n,
+    'dms': bool, 'fixed_sms': code|None, 'mode': 'generic'|'gendered'}."""
+    raw = data["department_requirements"]
+    req = {}
+    for dept, shifts in raw.items():
+        req[dept] = {}
+        for shift in WEEKDAY_SHIFTS:
+            spec = shifts.get(shift, {})
+            gendered = ("SMS_male" in spec) or ("SMS_female" in spec)
+            req[dept][shift] = dict(
+                sms=spec.get("SMS", 0),
+                sms_m=spec.get("SMS_male", 0),
+                sms_f=spec.get("SMS_female", 0),
+                flexi=spec.get("FLEXI", 0),
+                dms=bool(spec.get("DMS", 0)),
+                fixed_sms=spec.get("fixed_sms"),
+                shared_from=spec.get("shared_from"),
+                mode="gendered" if gendered else "generic",
+            )
+        pop = req[dept]["POPOLDNE"]; noc = req[dept]["PONOČI"]; dop = req[dept]["DOPOLDNE"]
+        if dept in ("C", "E2"):
+            # Uporabnik: "DNEVNA je samo 1 oseba dodatna na C/E2 oddelku" -> vikend
+            # dnevna izmena na C in E2 je pokrita z EN samo (flexi) osebo, brez
+            # locenega rednega turnus-SMS mesta.
+            req[dept]["DNEVNA12"] = dict(sms=0, sms_m=0, sms_f=0, flexi=1,
+                                          dms=False, fixed_sms=None, shared_from=None, mode="generic")
+        else:
+            req[dept]["DNEVNA12"] = dict(
+                sms=max(pop["sms"], dop["sms"]), sms_m=max(pop["sms_m"], dop["sms_m"]),
+                sms_f=max(pop["sms_f"], dop["sms_f"]), flexi=max(pop["flexi"], dop["flexi"]),
+                dms=False, fixed_sms=pop.get("fixed_sms") or dop.get("fixed_sms"), shared_from=None,
+                mode=pop["mode"])
+        req[dept]["NOČNA12"] = dict(
+            sms=noc["sms"], sms_m=noc["sms_m"], sms_f=noc["sms_f"], flexi=noc.get("flexi", 0),
+            dms=False, fixed_sms=None, shared_from=noc.get("shared_from"), mode=noc["mode"])
+    return req
 
 
-def export_excel(df, path, warnings):
-    used_names = set()
-    with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name=safe_sheet_name("Vsi vnosi", used_names), index=False)
-        for dept, sub in df.groupby("oddelek"):
-            piv = sub.pivot_table(index=["datum", "dan"], columns="izmena", values="oseba", aggfunc=lambda x: ", ".join(x))
-            piv.to_excel(writer, sheet_name=safe_sheet_name(f"Oddelek {dept}", used_names))
-        for oseba, sub in df.groupby("oseba"):
-            sub[["datum", "dan", "oddelek", "izmena"]].to_excel(writer, sheet_name=safe_sheet_name(oseba, used_names), index=False)
-        if warnings:
-            pd.DataFrame({"opozorilo": warnings}).to_excel(writer, sheet_name=safe_sheet_name("Opozorila", used_names), index=False)
+# ------------------------------------------------------------------
+# 4. CP-SAT MODEL
+# ------------------------------------------------------------------
+def shifts_for_day(is_off_type):
+    return WEEKEND_SHIFTS if is_off_type else WEEKDAY_SHIFTS
+
+def build_and_solve(data, mesec, leto, time_limit=SOLVER_TIME_LIMIT_SEC, verbose=True):
+    cal = build_calendar(mesec, leto)
+    cats = categorize(data, mesec, leto)
+    req = normalize_requirements(data)
+    turnus_sms = cats["turnus_sms"]
+    flexi_pool = cats["flexi_pool"]
+    vrevc = cats["vrevc"]
+
+    model = cp_model.CpModel()
+    work = {}  # (code, day, shift) -> BoolVar
+
+    def add_var(e, day, shift):
+        key = (e["code"], day, shift)
+        if key not in work:
+            work[key] = model.NewBoolVar(f"w_{e['code']}_{day}_{shift}")
+        return work[key]
+
+    # -- spremenljivke: turnus SMS (lahko delajo vse izmene svojega oddelka,
+    #    vkljucno z nocno) --
+    for e in turnus_sms:
+        for dinfo in cal:
+            for shift in shifts_for_day(dinfo["is_off_type"]):
+                add_var(e, dinfo["day"], shift)
+
+    # -- spremenljivke: FLEXI bazen (samo dopoldne/popoldne oz. DNEVNA12 na
+    #    vikendu/prazniku - nocnih izmen v osnovnem urniku NE dobijo, ker so
+    #    po opisu namenjene izpadom, ne rednemu nocnemu turnusu) --
+    DAY_SHIFTS_ONLY = {"DOPOLDNE": True, "POPOLDNE": True, "PONOČI": False,
+                       "DNEVNA12": True, "NOČNA12": False}
+    for e in flexi_pool:
+        for dinfo in cal:
+            for shift in shifts_for_day(dinfo["is_off_type"]):
+                if DAY_SHIFTS_ONLY[shift]:
+                    add_var(e, dinfo["day"], shift)
+
+    # -- spremenljivka: Vrevc Maja (oddelek A, max 6h/dan => kvecjemu 1 izmena/dan,
+    #    samo dopoldne/popoldne oz. DNEVNA12) --
+    for dinfo in cal:
+        for shift in shifts_for_day(dinfo["is_off_type"]):
+            if DAY_SHIFTS_ONLY[shift]:
+                add_var(vrevc, dinfo["day"], shift)
+
+    # ---------------- TRDO PRAVILO 1: max 1 izmena / dan / oseba ----------------
+    by_emp_day = collections.defaultdict(list)
+    for (code, day, shift), var in work.items():
+        by_emp_day[(code, day)].append(var)
+    worked_any = {}
+    for (code, day), vars_ in by_emp_day.items():
+        model.Add(sum(vars_) <= 1)
+        wv = model.NewBoolVar(f"any_{code}_{day}")
+        model.AddMaxEquality(wv, vars_)
+        worked_any[(code, day)] = wv
+
+    # ---------------- TRDO PRAVILO 2: 24h počitek po nočni izmeni ----------------
+    night_shift_by_day_type = {}  # day -> ime nocne izmene tisti dan
+    for dinfo in cal:
+        night_shift_by_day_type[dinfo["day"]] = "NOČNA12" if dinfo["is_off_type"] else "PONOČI"
+    max_day = cal[-1]["day"]
+    for (code, day, shift), var in list(work.items()):
+        if shift in NIGHT_SHIFTS and day < max_day:
+            nxt = worked_any.get((code, day + 1))
+            if nxt is not None:
+                model.Add(var + nxt <= 1)
+
+    # ---------------- TRDO PRAVILO 3: pokritost po oddelkih ----------------
+    dept_pool = collections.defaultdict(list)   # dept -> [employee dict]
+    for e in turnus_sms:
+        dept_pool[e["department"]].append(e)
+    flexi_by_dept = collections.defaultdict(list)
+    for e in flexi_pool:
+        flexi_by_dept[e["department"]].append(e)
+
+    coverage_notes = []
+    for dinfo in cal:
+        day = dinfo["day"]
+        shifts_today = shifts_for_day(dinfo["is_off_type"])
+        for dept in SCHEDULED_DEPTS:
+            for shift in shifts_today:
+                r = req[dept][shift]
+                pool = dept_pool.get(dept, [])
+                # posebna obravnava oddelka A: samo Vrevc (fixed_sms), ni "obicajnega" bazena
+                if dept == "A":
+                    if shift in ("DOPOLDNE", "POPOLDNE", "DNEVNA12"):
+                        v = work.get((vrevc["code"], day, shift))
+                        # potreba je vedno <=1 (r['sms'] najvec 1) - ni dodatne enakosti,
+                        # ker Vrevc lahko manjka (ni nadomestne SMS za A privzeto)
+                    continue  # PONOČI/NOČNA12 za A: shared_from B/E1, glej opombo spodaj
+                vars_generic = [work[(e["code"], day, shift)] for e in pool
+                                 if (e["code"], day, shift) in work]
+                if r["mode"] == "gendered":
+                    vars_m = [v for e, v in zip(pool, vars_generic) if e.get("gender") == "M"]
+                    vars_f = [v for e, v in zip(pool, vars_generic) if e.get("gender") == "F"]
+                    if r["sms_m"] > 0:
+                        model.Add(sum(vars_m) == r["sms_m"])
+                    if r["sms_f"] > 0:
+                        model.Add(sum(vars_f) == r["sms_f"])
+                else:
+                    if r["sms"] > 0:
+                        model.Add(sum(vars_generic) == r["sms"])
+                if r["flexi"] > 0:
+                    fpool = flexi_by_dept.get(dept, [])
+                    fvars = [work[(e["code"], day, shift)] for e in fpool
+                              if (e["code"], day, shift) in work]
+                    model.Add(sum(fvars) == r["flexi"])
+
+    return model, work, cal, cats, req, dept_pool, flexi_by_dept, vrevc
 
 
-def main():
-    args = parse_args()
-    data = load_data(args.json)
-    start = date.fromisoformat(args.start)
-    end = date.fromisoformat(args.end)
-    days = list(daterange(start, end))
+def add_soft_objective(model, work, cal, cats, dept_pool):
+    """MEHKA PRAVILA: (a) Smolej Nataša max. 1 vikend nočna/mesec (mocno penalizirano,
+    ne trdo, kot je uporabnik oznacil pod 'soft constraints'); (b) pravicna porazdelitev
+    nocnih in vikend izmen znotraj vsakega oddelka (minimiziramo najvecje odstopanje)."""
+    penalty_terms = []
 
-    sched = Scheduler(data, days)
-    sched.build()
-    sched.solve(args.time_limit)
-    df = sched.extract()
-    export_excel(df, args.output, sched.warnings)
+    # (a) Smolej
+    smolej_code = "Smolej N."
+    weekend_nights_smolej = [work[(smolej_code, d["day"], "NOČNA12")]
+                              for d in cal if d["is_off_type"]
+                              and (smolej_code, d["day"], "NOČNA12") in work]
+    if weekend_nights_smolej:
+        total_wn = model.NewIntVar(0, len(weekend_nights_smolej), "smolej_wn_total")
+        model.Add(total_wn == sum(weekend_nights_smolej))
+        excess = model.NewIntVar(0, len(weekend_nights_smolej), "smolej_wn_excess")
+        model.Add(excess >= total_wn - 1)
+        penalty_terms.append(excess * 1000)  # mocna utez - skoraj trdo pravilo
 
-    print(f"Zapisano {len(df)} vnosov v {args.output}")
-    if sched.warnings:
-        print(f"\n{len(sched.warnings)} opozoril (nezasedena mesta) — glej tudi zavihek 'Opozorila' v Excelu:")
-        for w in sched.warnings[:30]:
-            print("  -", w)
-        if len(sched.warnings) > 30:
-            print(f"  … in še {len(sched.warnings) - 30}")
-    else:
-        print("Brez opozoril — vse zahtevane pozicije so zasedene.")
+    # (b) pravicna porazdelitev po oddelkih (nocne + vikend izmene)
+    max_day = cal[-1]["day"]
+    for dept, pool in dept_pool.items():
+        night_counts, weekend_counts = [], []
+        for e in pool:
+            code = e["code"]
+            n_vars = [work[(code, d, s)] for d in range(1, max_day + 1)
+                      for s in ("PONOČI", "NOČNA12") if (code, d, s) in work]
+            w_vars = [work[(code, d["day"], s)] for d in cal if d["is_off_type"]
+                      for s in shifts_for_day(True) if (code, d["day"], s) in work]
+            if n_vars:
+                nc = model.NewIntVar(0, len(n_vars), f"night_cnt_{code}")
+                model.Add(nc == sum(n_vars))
+                night_counts.append(nc)
+            if w_vars:
+                wc = model.NewIntVar(0, len(w_vars), f"wknd_cnt_{code}")
+                model.Add(wc == sum(w_vars))
+                weekend_counts.append(wc)
+        if night_counts:
+            mx = model.NewIntVar(0, max_day, f"max_night_{dept}")
+            model.AddMaxEquality(mx, night_counts)
+            penalty_terms.append(mx * 5)
+        if weekend_counts:
+            mxw = model.NewIntVar(0, max_day, f"max_wknd_{dept}")
+            model.AddMaxEquality(mxw, weekend_counts)
+            penalty_terms.append(mxw * 5)
+
+    model.Minimize(sum(penalty_terms))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    data = load_data()
+    model, work, cal, cats, req, dept_pool, flexi_by_dept, vrevc = build_and_solve(data, MESEC, LETO)
+    print("St. spremenljivk:", len(work))
+    add_soft_objective(model, work, cal, cats, dept_pool)
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = SOLVER_TIME_LIMIT_SEC
+    solver.parameters.num_search_workers = 8
+    status = solver.Solve(model)
+    print("Status:", solver.StatusName(status))
+    print("Cas resevanja:", solver.WallTime(), "s")
+    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        print("Vrednost cilja (penalty):", solver.ObjectiveValue())
+
+
+# ------------------------------------------------------------------
+# 5. IZGRADNJA REZULTATA (DataFrame na oddelek) + izvoz v Excel
+# ------------------------------------------------------------------
+SHIFT_LABEL = {  # oznake, konsistentne z obstojecimi razporedi (glej prejsnje datoteke)
+    "DOPOLDNE": "Dopoldan", "POPOLDNE": "Popoldan", "PONOČI": "Nočna",
+    "DNEVNA12": "Dnevna 12", "NOČNA12": "Nočna 12",
+}
+
+def extract_schedule(solver, work, cal, cats, dept_pool, flexi_by_dept, vrevc, data, mesec, leto):
+    """Vrne dict: dept -> pandas.DataFrame (vrstice=dnevi, stolpci=osebe)."""
+    by_code = cats["by_code"]
+    dms_fixed = {e["department"]: e for e in cats["dms_fixed"]}
+    a_cover_dept = a_coverage_department(mesec, leto)
+
+    result = {}
+    for dept in SCHEDULED_DEPTS:
+        cols = []
+        col_codes = []
+        if dept == "A":
+            pool = [by_code["TOM"], vrevc]
+        else:
+            dms = dms_fixed.get(dept)
+            pool = ([dms] if dms else []) + dept_pool.get(dept, []) + flexi_by_dept.get(dept, [])
+        for e in pool:
+            col_codes.append(e["code"])
+            cols.append(e.get("name", e["code"]))
+
+        rows = []
+        idx = []
+        for dinfo in cal:
+            day, is_off = dinfo["day"], dinfo["is_off_type"]
+            idx.append(dinfo["date"].strftime("%d.%m.%Y"))
+            row = {}
+            for e, col in zip(pool, cols):
+                code = e["code"]
+                if e.get("schedule_type") == "fixed_morning":
+                    row[col] = "Dopoldan" if not is_off else ""  # DMS ne dela vikendov (predpostavka)
+                    continue
+                val = ""
+                for shift in shifts_for_day(is_off):
+                    key = (code, day, shift)
+                    if key in work and solver.Value(work[key]) == 1:
+                        val = SHIFT_LABEL[shift]
+                        if dept == a_cover_dept and shift in ("PONOČI", "DNEVNA12", "NOČNA12"):
+                            val += " (+A)"
+                        break
+                row[col] = val
+            rows.append(row)
+        df = pd.DataFrame(rows, index=idx, columns=cols)
+        df.index.name = "Datum"
+        result[dept] = df
+    return result
+
+
+def export_to_excel(schedules, path=OUTPUT_FILE):
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        for dept, df in schedules.items():
+            df.to_excel(writer, sheet_name=dept)
+    print("Zapisano:", path)
+
+
+# ------------------------------------------------------------------
+# 6. MODUL NADOMESCANJA OB ODSOTNOSTI
+# ------------------------------------------------------------------
+SUBSTITUTE_MAP = {
+    "TOM": "VEL", "LUN": "ARN", "ARN": "LUN", "PER": "MAG", "MAG": "LEL",
+    "LEL": "MAG", "ALU": "BOJ", "BOJ": "ALU", "DŽA": "ALU", "HRO": "TOR",
+    "TOR": "HRO", "TRA": "ŠUB", "ŠUB": "TRA", "VEL": "DŽA",
+}
+
+def handle_absence(schedules, data, absent_employee_code, date_str, shift):
+    """Ob odsotnosti VODJE (DMS s fiksnim substitute v JSON) v schedules[dept]
+    zamenja njeno/njegovo celico za dani datum z nadomestnim vodjo. Za SMS/turnus
+    osebje (brez fiksnega 'substitute' polja) samo označi celico kot 'ODSOTEN -
+    ROČNO NADOMESTI', ker JSON za njih nima definiranega samodejnega nadomestila.
+
+    Vrne seznam (dept, sporocilo) sprememb, ki jih je funkcija naredila."""
+    by_code = {e["code"]: e for e in data["employees"]}
+    absent = by_code.get(absent_employee_code)
+    if absent is None:
+        return [("-", f"Koda '{absent_employee_code}' ni najdena med zaposlenimi.")]
+
+    changes = []
+    sub_code = SUBSTITUTE_MAP.get(absent_employee_code) or absent.get("substitute")
+    dept = absent["department"] if absent["department"] in schedules else None
+
+    if sub_code and sub_code in by_code and dept:
+        sub = by_code[sub_code]
+        df = schedules[dept]
+        col_absent = absent.get("name", absent_employee_code)
+        col_sub = sub.get("name", sub_code)
+        if date_str in df.index and col_absent in df.columns:
+            df.loc[date_str, col_absent] = "LD/BS - nadomešča:"
+            if col_sub in df.columns:
+                df.loc[date_str, col_sub] = SHIFT_LABEL.get(shift, shift)
+            changes.append((dept, f"{col_absent} odsoten {date_str} ({shift}) -> nadomešča {col_sub}"))
+        else:
+            changes.append((dept, f"Datum {date_str} ali oseba {col_absent} ni v urniku oddelka {dept}."))
+    else:
+        for d, df in schedules.items():
+            col = absent.get("name", absent_employee_code)
+            if col in df.columns and date_str in df.index:
+                df.loc[date_str, col] = "ODSOTEN - ROČNO NADOMESTI"
+                changes.append((d, f"{col} označen odsoten {date_str} — brez definiranega "
+                                    f"samodejnega nadomestila v JSON, prosim ročno izberi zamenjavo "
+                                    f"(npr. iz FLEXI bazena, ce je oddelek C ali E2)."))
+    return changes
+
+
+if __name__ == "__main__":
+    print(f"Oddelek A - ta mesec ({MESEC}.{LETO}) nočno/vikend pokriva:",
+          a_coverage_department(MESEC, LETO))
+    print("FLEXI bazen ta mesec:", [e["code"] for e in cats["flexi_pool"]])
+    schedules = extract_schedule(solver, work, cal, cats, dept_pool, flexi_by_dept, vrevc, data, MESEC, LETO)
+    for dept, df in schedules.items():
+        print(dept, df.shape)
+    export_to_excel(schedules)
+
+    demo = handle_absence(schedules, data, "ARN", cal[4]["date"].strftime("%d.%m.%Y"), "DOPOLDNE")
+    for d, msg in demo:
+        print("[handle_absence]", d, "-", msg)
