@@ -30,12 +30,17 @@
       ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
       "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; } }" +
-      ".rpLogout{ position:fixed; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:41;" +
-      " width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;" +
-      " background:rgba(255,255,255,0.94); border:1px solid #E1D9C2; color:#6E5F2A; font-size:17px;" +
-      " cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.1); padding:0; }" +
-      ".rpLogout:hover{ background:#F2EEDF; }" +
-      "@media print{ .rpLogout{ display:none !important; } }";
+      ".rpTopIcons{ position:fixed; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:41;" +
+      " display:flex; align-items:center; gap:8px; }" +
+      ".rpIconBtn{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" +
+      " background:rgba(255,255,255,0.96); border:1px solid #E1D9C2; color:#6E5F2A; font-size:17px; line-height:1;" +
+      " text-decoration:none; cursor:pointer; padding:0; box-shadow:0 2px 8px rgba(43,39,18,0.10);" +
+      " transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease; }" +
+      ".rpIconBtn:hover{ background:#F2EEDF; box-shadow:0 4px 12px rgba(43,39,18,0.16); transform:translateY(-1px); }" +
+      ".rpIconBtn:active{ transform:translateY(0) scale(.94); box-shadow:0 1px 4px rgba(43,39,18,0.12); }" +
+      ".rpIconBtn.logout:hover{ background:#FBEAE6; color:#B3402A; border-color:#F0C9BE; }" +
+      ".rpIconBtn.settings.active{ background:#F2EEDF; color:#2B2712; border-color:#A79448; }" +
+      "@media print{ .rpTopIcons{ display:none !important; } }";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
@@ -102,18 +107,37 @@
     );
   }
 
-  // Krogla ikona za odjavo, fiksirana v zgornjem desnem kotu na vseh straneh.
+  // Par okroglih ikon, fiksiranih v zgornjem desnem kotu na vseh straneh:
+  // nastavitve (⚙️, link na nastavitve.html) in odjava (🚪). Ohranjeno ime
+  // "RazporedLogout" (klicano na vseh straneh) — zdaj izriše oba gumba
+  // skupaj, da ni treba spreminjati vsake strani posebej.
   function RazporedLogout() {
     ensureStyle();
+    var trenutna = (location.pathname.split("/").pop() || "").toLowerCase();
+    var naNastavitvah = trenutna === "nastavitve.html";
     return e(
-      "button",
-      {
-        className: "rpLogout",
-        title: "Odjava",
-        "aria-label": "Odjava",
-        onClick: function () { if (root.RazporedAuth) root.RazporedAuth.signOut(); },
-      },
-      "🚪"
+      "div",
+      { className: "rpTopIcons" },
+      e(
+        "a",
+        {
+          className: "rpIconBtn settings" + (naNastavitvah ? " active" : ""),
+          href: "nastavitve.html",
+          title: "Nastavitve",
+          "aria-label": "Nastavitve",
+        },
+        "⚙️"
+      ),
+      e(
+        "button",
+        {
+          className: "rpIconBtn logout",
+          title: "Odjava",
+          "aria-label": "Odjava",
+          onClick: function () { if (root.RazporedAuth) root.RazporedAuth.signOut(); },
+        },
+        "🚪"
+      )
     );
   }
 
