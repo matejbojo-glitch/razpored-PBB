@@ -323,12 +323,50 @@ create table if not exists public.contact_imports (
   role text check (role in ('admin', 'vodja', 'user')),
   department_code text references public.departments (code) on update cascade,
   linked_profile_id uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Dodatna HR polja iz uradnega seznama zaposlenih (šifra zaposlenega, datum
+  -- rojstva, naziv delovnega mesta, vodja, starševsko varstvo, letni dopust) —
+  -- na izrecno željo, da se ti podatki ob povezavi prenesejo na uporabnika.
+  employee_code text,
+  birth_date date,
+  position_name text,
+  manager_name text,
+  parental_leave text,
+  annual_leave_total integer
 );
 
 alter table public.contact_imports enable row level security;
 drop policy if exists contact_imports_admin on public.contact_imports;
 create policy contact_imports_admin on public.contact_imports
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+-- profile_hr_details: dodatni HR podatki (šifra zaposlenega, datum rojstva,
+-- naziv delovnega mesta, vodja, starševsko varstvo, letni dopust), ki se
+-- prekopirajo iz contact_imports ob "Poveži". Bolj občutljivi kot telefon
+-- (rojstni datum!), zato ožja vidljivost kot pri contact_phones: lastnik vidi
+-- SAMO svoje ("vsak vidi podatke samo zase"), admin vidi in ureja vse,
+-- vodja NIMA dostopa (ni bilo izrecno naročeno, za razliko od telefona).
+create table if not exists public.profile_hr_details (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  employee_code text,
+  birth_date date,
+  position_name text,
+  manager_name text,
+  parental_leave text,
+  annual_leave_total integer,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profile_hr_details enable row level security;
+drop policy if exists profile_hr_details_select on public.profile_hr_details;
+create policy profile_hr_details_select on public.profile_hr_details
+  for select to authenticated using (
+    profile_id = auth.uid() or public.current_role_is('admin')
+  );
+drop policy if exists profile_hr_details_admin_write on public.profile_hr_details;
+create policy profile_hr_details_admin_write on public.profile_hr_details
   for all to authenticated
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));

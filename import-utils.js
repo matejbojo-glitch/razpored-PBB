@@ -33,13 +33,27 @@ window.ImportUtils = (function () {
     return vrstice.filter(v => v.some(p => (p || "").trim() !== ""));
   }
 
+  function xlsxCelicaVBesedilo(c) {
+    if (c === null || c === undefined) return "";
+    // cellDates:true (glej spodaj) pretvori datumsko oblikovane celice v JS
+    // Date namesto Excel serijske številke — tu jo damo v ISO obliko
+    // (YYYY-MM-DD), da se ujema s preostalo aplikacijo (datumi so povsod ISO).
+    if (c instanceof Date && !isNaN(c)) {
+      // getUTC* (ne krajevni čas) - SheetJS datumske celice bere kot UTC
+      // polnoč, krajevni čas bi lahko ob negativnem UTC odmiku premaknil dan.
+      const y = c.getUTCFullYear(), m = String(c.getUTCMonth()+1).padStart(2,"0"), d = String(c.getUTCDate()).padStart(2,"0");
+      return `${y}-${m}-${d}`;
+    }
+    return String(c);
+  }
+
   function xlsxVVrstice(arrayBuffer) {
     if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka xlsx.core.min.js).");
-    const wb = window.XLSX.read(arrayBuffer, { type: "array" });
+    const wb = window.XLSX.read(arrayBuffer, { type: "array", cellDates: true });
     const prviList = wb.SheetNames[0];
     const sheet = wb.Sheets[prviList];
     const vrstice = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
-    return vrstice.map(v => v.map(c => (c === null || c === undefined) ? "" : String(c)));
+    return vrstice.map(v => v.map(xlsxCelicaVBesedilo));
   }
 
   let pdfjsPromise = null;
@@ -163,5 +177,32 @@ window.ImportUtils = (function () {
     return out;
   }
 
-  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, csvBesedilaVVrstice };
+  // Splošnejša različica za realne datoteke, kjer vrstni red stolpcev ni
+  // znan vnaprej (npr. uraden HR izvoz z veliko stolpci v poljubnem
+  // vrstnem redu). Prva vrstica MORA biti glava. glaveMapa je
+  // { kanoničnoIme: [možne glave, case-insensitive] }. Stolpci, ki jih ni v
+  // datoteki, ostanejo prazen string "" v vsakem vrnjenem objektu.
+  function vVrsticeObjekteGlave(vrsteVrstic, glaveMapa) {
+    if (!vrsteVrstic.length) return [];
+    const glava = vrsteVrstic[0].map(g => (g || "").toString().trim().toLowerCase());
+    const indeksi = {};
+    Object.keys(glaveMapa).forEach(kanonicno => {
+      const mozne = glaveMapa[kanonicno].map(g => g.toLowerCase());
+      const idx = glava.findIndex(g => mozne.includes(g));
+      if (idx !== -1) indeksi[kanonicno] = idx;
+    });
+    const out = [];
+    for (let i = 1; i < vrsteVrstic.length; i++) {
+      const vrstica = vrsteVrstic[i];
+      const obj = {};
+      Object.keys(glaveMapa).forEach(kanonicno => {
+        const idx = indeksi[kanonicno];
+        obj[kanonicno] = idx !== undefined ? (vrstica[idx] || "").toString().trim() : "";
+      });
+      if (Object.values(obj).some(v => v !== "")) out.push(obj);
+    }
+    return { objekti: out, najdeniStolpci: Object.keys(indeksi) };
+  }
+
+  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice };
 })();

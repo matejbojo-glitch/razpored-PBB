@@ -191,13 +191,47 @@ function Seznam({ osebe, oddelki, onOdpri }){
 // ---------------------------------------------------------------------
 // Profil ene osebe.
 // ---------------------------------------------------------------------
+const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"" };
+
 function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
   const jeMoj = oseba.id === myId;
+  const smemVidetiHr = jeMoj || myRole === "admin";
   const [telefon, setTelefon] = useState(oseba.phone || "");
   const [vloga, setVloga] = useState(oseba.role);
   const [oddelek, setOddelek] = useState(oseba.department_code || "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [hr, setHr] = useState(null); // null = še ni naloženo
+  const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
+  const [hrBusy, setHrBusy] = useState(false);
+  const [hrMsg, setHrMsg] = useState(null);
+
+  useEffect(() => {
+    if (!smemVidetiHr) { setHr(null); return; }
+    client.from("profile_hr_details").select("*").eq("profile_id", oseba.id).maybeSingle()
+      .then(({ data }) => { setHr(data || {}); setHrEdit(data ? { ...HR_PRAZNO, ...data, annual_leave_total: data.annual_leave_total ?? "" } : HR_PRAZNO); });
+    // eslint-disable-next-line
+  }, [oseba.id, smemVidetiHr]);
+
+  const shraniHr = async () => {
+    setHrBusy(true); setHrMsg(null);
+    try {
+      const { error } = await client.from("profile_hr_details").upsert({
+        profile_id: oseba.id,
+        employee_code: hrEdit.employee_code.trim() || null,
+        birth_date: hrEdit.birth_date || null,
+        position_name: hrEdit.position_name.trim() || null,
+        manager_name: hrEdit.manager_name.trim() || null,
+        parental_leave: hrEdit.parental_leave.trim() || null,
+        annual_leave_total: hrEdit.annual_leave_total !== "" ? Number(hrEdit.annual_leave_total) : null,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setHr({ ...hrEdit });
+      setHrMsg({ ok:true, text:"Shranjeno." });
+    } catch (e) { setHrMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setHrBusy(false); }
+  };
 
   const shraniTelefonOsebno = async () => {
     setBusy(true); setMsg(null);
@@ -258,6 +292,18 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
         {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
       </div>
 
+      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null) && (
+        <div className="card">
+          {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
+          {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{hr.birth_date}</div></div>}
+          {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
+          {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
+          {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
+          {hr.annual_leave_total != null && hr.annual_leave_total !== "" && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki — vidni samo tebi (admin) in tej osebi."}</p>
+        </div>
+      )}
+
       {jeMoj && (
         <React.Fragment>
           <h2 className="section no-print">Moja telefonska številka</h2>
@@ -299,6 +345,18 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
             <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
             {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
           </div>
+
+          <h2 className="section no-print">HR podatki (admin, vidno samo tebi in tej osebi)</h2>
+          <div className="card no-print">
+            <div className="field"><label>Šifra zaposlenega</label><input type="text" value={hrEdit.employee_code} onChange={e => setHrEdit(h => ({...h, employee_code:e.target.value}))} /></div>
+            <div className="field"><label>Datum rojstva</label><input type="date" value={hrEdit.birth_date} onChange={e => setHrEdit(h => ({...h, birth_date:e.target.value}))} /></div>
+            <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={hrEdit.position_name} onChange={e => setHrEdit(h => ({...h, position_name:e.target.value}))} /></div>
+            <div className="field"><label>Vodja (naziv)</label><input type="text" value={hrEdit.manager_name} onChange={e => setHrEdit(h => ({...h, manager_name:e.target.value}))} /></div>
+            <div className="field"><label>Starševsko varstvo</label><input type="text" value={hrEdit.parental_leave} onChange={e => setHrEdit(h => ({...h, parental_leave:e.target.value}))} /></div>
+            <div className="field"><label>Letni dopust 2026 (skupaj)</label><input type="number" value={hrEdit.annual_leave_total} onChange={e => setHrEdit(h => ({...h, annual_leave_total:e.target.value}))} /></div>
+            <button className="submitBtn" onClick={shraniHr} disabled={hrBusy}>{hrBusy ? "Shranjujem …" : "Shrani HR podatke"}</button>
+            {hrMsg && <p className={hrMsg.ok ? "okMsg" : "err"}>{hrMsg.text}</p>}
+          </div>
         </React.Fragment>
       )}
     </div>
@@ -309,11 +367,45 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
 // Admin: uvoz seznama zaposlenih (še neregistriranih) + povezovanje z
 // dejanskimi profili, ko se oseba sama registrira.
 // ---------------------------------------------------------------------
+// Mapiranje "Naziv enote organizacijske strukture" (uraden HR izvoz) na
+// department_code, kadar datoteka nima ločenega stolpca department_code.
+// Samo za 6 negovalnih oddelkov z znano, stabilno poimenovanje enote — za
+// vodstvo/druge enote department_code ostane prazen, admin ga dopolni ročno.
+const UNIT_TO_DEPT = {
+  "zn - oddelek b": "B", "zn - oddelek c": "C", "zn - oddelek c1 (intenziva)": "C1",
+  "zn - oddelek d (intenziva)": "D", "zn - oddelek e1": "E1", "zn - oddelek e2": "E2",
+  "zn - oddelek a, mt": "A",
+};
+
+// Kanonična polja, ki jih zna uvoz prepoznati po glavi stolpca (poljuben
+// vrstni red, case-insensitive) — pokriva tako preprosto CSV obliko
+// (full_name,email,...) kot uraden HR izvoz v slovenščini. Namenoma NI
+// mapiranja "vloga" -> role: v HR izvozu "vloga" pomeni delovno-mestno
+// klasifikacijo (npr. "DMS/SMS"), ne aplikacijsko vlogo (admin/vodja/user) —
+// to vedno določa admin ročno.
+const GLAVE_MAPA = {
+  full_name: ["full_name","priimek in ime","ime in priimek","ime"],
+  email: ["email","elektronska pošta","elektronska posta","e-pošta","e-posta"],
+  phone: ["phone","telefon"],
+  role: ["role"],
+  department_code: ["department_code","oddelek"],
+  employee_code: ["employee_code","šifra zaposlenega","sifra zaposlenega"],
+  birth_date: ["birth_date","datum rojstva"],
+  position_name: ["position_name","naziv delovnega mesta"],
+  org_unit_name: ["org_unit_name","naziv enote organizacijske strukture"],
+  manager_name: ["manager_name","vodja (naziv)","vodja"],
+  parental_leave: ["parental_leave","starševsko varstvo","starsevsko varstvo"],
+  annual_leave_total: ["annual_leave_total","letni dopust 2026 (skupaj)","letni dopust (skupaj)","letni dopust"],
+};
+
+const PRAZEN_NOV = { full_name:"", email:"", phone:"", role:"user", department_code:"",
+  employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"" };
+
 function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   const [uvozi, setUvozi] = useState(null);
   const [uvozMsg, setUvozMsg] = useState(null);
   const [uvozBusy, setUvozBusy] = useState(false);
-  const [novo, setNovo] = useState({ full_name:"", email:"", phone:"", role:"user", department_code:"" });
+  const [novo, setNovo] = useState(PRAZEN_NOV);
   const [dodajBusy, setDodajBusy] = useState(false);
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [pdfBesedilo, setPdfBesedilo] = useState(null); // surovo besedilo iz PDF, čaka na ročni pregled/uvoz
@@ -329,19 +421,35 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     return error;
   };
 
-  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo: vsaka
-  // vrstica-objekt ima polja full_name,email,phone,role,department_code.
+  const vrsticaVZapis = (v) => {
+    const full_name = (v.full_name || "").trim();
+    const email = (v.email || "").trim();
+    if (!full_name || !email) return null;
+    const role = ["admin","vodja","user"].includes(v.role) ? v.role : "user";
+    let department_code = (v.department_code || "").trim() || null;
+    if (!department_code && v.org_unit_name) {
+      department_code = UNIT_TO_DEPT[v.org_unit_name.trim().toLowerCase()] || null;
+    }
+    const annual_leave_total = v.annual_leave_total !== undefined && v.annual_leave_total !== "" && !isNaN(Number(v.annual_leave_total))
+      ? Number(v.annual_leave_total) : null;
+    return {
+      full_name, email, phone: (v.phone || "").trim() || null, role, department_code,
+      employee_code: (v.employee_code || "").trim() || null,
+      birth_date: (v.birth_date || "").trim() || null,
+      position_name: (v.position_name || "").trim() || null,
+      manager_name: (v.manager_name || "").trim() || null,
+      parental_leave: (v.parental_leave || "").trim() || null,
+      annual_leave_total,
+    };
+  };
+
+  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo.
   const uvoziVrsticeObjekte = async (vrsticeObj) => {
     let ok = 0, napak = 0;
     for (const v of vrsticeObj) {
-      const full_name = (v.full_name || "").trim();
-      const email = (v.email || "").trim();
-      if (!full_name || !email) { napak++; continue; }
-      const role = ["admin","vodja","user"].includes(v.role) ? v.role : "user";
-      const err = await dodajVrstico({
-        full_name, email, phone: (v.phone || "").trim() || null,
-        role, department_code: (v.department_code || "").trim() || null,
-      });
+      const zapis = vrsticaVZapis(v);
+      if (!zapis) { napak++; continue; }
+      const err = await dodajVrstico(zapis);
       if (err) napak++; else ok++;
     }
     setUvozMsg(`Uvoženo ${ok} vrstic` + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
@@ -350,6 +458,16 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 
   const STOLPCI = ["full_name","email","phone","role","department_code"];
   const GLAVE = ["full_name","ime"];
+
+  // Prebere surove vrstice v vrstice-objekte: najprej poskusi prepoznati
+  // glavo po imenu (poljuben vrstni red, tudi uraden HR izvoz z več stolpci),
+  // če ne prepozna NOBENEGA stolpca pa pade nazaj na preprosto pozicijsko
+  // obliko full_name,email,phone,role,department_code (brez/z glavo).
+  const vVrsticeObjekteSplosno = (vrsteVrstic) => {
+    const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, GLAVE_MAPA);
+    if (najdeniStolpci.length > 0) return objekti;
+    return window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
+  };
 
   const uvoziDatoteko = async (file) => {
     if (!file) return;
@@ -363,8 +481,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
         setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila — preveri/uredi spodaj v obliko "full_name,email,phone,role,department_code" pred uvozom.`);
       } else {
-        const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
-        await uvoziVrsticeObjekte(vrsticeObj);
+        await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
       }
     } catch (e) {
       setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
@@ -378,8 +495,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     setUvozBusy(true); setUvozMsg(null);
     try {
       const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(gsheetUrl.trim());
-      const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
-      await uvoziVrsticeObjekte(vrsticeObj);
+      await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
     } catch (e) {
       setUvozMsg("Napaka pri branju Google Sheets: " + (e.message || String(e)));
     } finally {
@@ -392,8 +508,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     setUvozBusy(true);
     try {
       const vrsteVrstic = window.ImportUtils.csvBesedilaVVrstice(pdfBesedilo);
-      const vrsticeObj = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
-      await uvoziVrsticeObjekte(vrsticeObj);
+      await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
       setPdfBesedilo(null);
     } catch (e) {
       setUvozMsg("Napaka pri uvozu: " + (e.message || String(e)));
@@ -403,14 +518,12 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   };
 
   const dodajRocno = async () => {
-    if (!novo.full_name.trim() || !novo.email.trim()) return;
+    const zapis = vrsticaVZapis(novo);
+    if (!zapis) return;
     setDodajBusy(true);
-    const err = await dodajVrstico({
-      full_name: novo.full_name.trim(), email: novo.email.trim(),
-      phone: novo.phone.trim() || null, role: novo.role, department_code: novo.department_code || null,
-    });
+    const err = await dodajVrstico(zapis);
     setDodajBusy(false);
-    if (!err) { setNovo({ full_name:"", email:"", phone:"", role:"user", department_code:"" }); nalozi(); }
+    if (!err) { setNovo(PRAZEN_NOV); nalozi(); }
     else alert(err.message || String(err));
   };
 
@@ -429,6 +542,16 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     if (uvoz.phone) {
       await client.from("contact_phones").upsert({ profile_id: profileId, phone: uvoz.phone, updated_at: new Date().toISOString() });
     }
+    const imaHrPodatke = uvoz.employee_code || uvoz.birth_date || uvoz.position_name || uvoz.manager_name || uvoz.parental_leave || uvoz.annual_leave_total != null;
+    if (imaHrPodatke) {
+      await client.from("profile_hr_details").upsert({
+        profile_id: profileId,
+        employee_code: uvoz.employee_code || null, birth_date: uvoz.birth_date || null,
+        position_name: uvoz.position_name || null, manager_name: uvoz.manager_name || null,
+        parental_leave: uvoz.parental_leave || null, annual_leave_total: uvoz.annual_leave_total,
+        updated_at: new Date().toISOString(),
+      });
+    }
     await client.from("contact_imports").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
     nalozi();
     onSpremenjeno();
@@ -441,9 +564,10 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     <div className="no-print">
       <h2 className="section">Uvoz zaposlenih (admin)</h2>
       <p className="hint">
-        Naloži seznam vseh zaposlenih (ime, e-pošta, telefon, predlagana vloga, oddelek) — ni jih treba, da so
-        se že prijavili v aplikacijo. Ko se oseba pozneje sama registrira s to e-pošto v login.html, jo tukaj
-        spodaj povežeš z njenim novim profilom — s tem se telefon/vloga/oddelek prekopirajo vanj.
+        Naloži seznam vseh zaposlenih — ni jih treba, da so se že prijavili v aplikacijo. Ko se oseba pozneje sama
+        registrira s to e-pošto v login.html, jo tukaj spodaj povežeš z njenim novim profilom — s tem se telefon in
+        HR podatki (rojstni datum, delovno mesto, vodja, starševsko varstvo, letni dopust) prekopirajo vanj. HR
+        podatke po povezavi vidi samo ta oseba sama in admin — nikoli vodja ali drugi.
       </p>
       <div className="card">
         <input ref={fileRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
@@ -452,8 +576,11 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
           {uvozBusy ? "Nalagam …" : "📤 Uvoz iz datoteke (CSV / Excel / PDF)"}
         </button>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
-          Stolpci (CSV/Excel): <code>full_name,email,phone,role,department_code</code> (role: admin/vodja/user;
-          department_code prazen, če ni znan). Prva vrstica je lahko glava (samodejno preskočena). PDF nima
+          Datoteka mora imeti glavo (prva vrstica z imeni stolpcev) — prepozna tako preprosto obliko
+          (<code>full_name,email,phone,role,department_code</code>) kot uraden HR izvoz v slovenščini ("Priimek in
+          ime", "Elektronska pošta", "Datum rojstva", "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo",
+          "Letni dopust 2026 (skupaj)" …) — vrstni red stolpcev ni pomemben. Oddelek se, če ni izrecnega stolpca,
+          poskusi razbrati iz "Naziv enote organizacijske strukture" (samo za 6 negovalnih oddelkov). PDF nima
           zanesljivih stolpcev, zato se iz njega samo izvleče golo besedilo — uredi ga spodaj v isto obliko pred
           uvozom.
         </p>
@@ -491,6 +618,17 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
             {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
           </select>
         </div>
+        <details>
+          <summary style={{cursor:"pointer", fontSize:12.5, color:"var(--muted)", fontWeight:700, marginBottom:8}}>
+            + Dodatni HR podatki (neobvezno — po povezavi vidna samo osebi in adminu)
+          </summary>
+          <div className="field"><label>Šifra zaposlenega</label><input type="text" value={novo.employee_code} onChange={e => setNovo(n => ({...n, employee_code:e.target.value}))} /></div>
+          <div className="field"><label>Datum rojstva</label><input type="date" value={novo.birth_date} onChange={e => setNovo(n => ({...n, birth_date:e.target.value}))} /></div>
+          <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={novo.position_name} onChange={e => setNovo(n => ({...n, position_name:e.target.value}))} /></div>
+          <div className="field"><label>Vodja (naziv)</label><input type="text" value={novo.manager_name} onChange={e => setNovo(n => ({...n, manager_name:e.target.value}))} /></div>
+          <div className="field"><label>Starševsko varstvo</label><input type="text" value={novo.parental_leave} onChange={e => setNovo(n => ({...n, parental_leave:e.target.value}))} /></div>
+          <div className="field"><label>Letni dopust 2026 (skupaj)</label><input type="number" value={novo.annual_leave_total} onChange={e => setNovo(n => ({...n, annual_leave_total:e.target.value}))} /></div>
+        </details>
         <button className="submitBtn" onClick={dodajRocno} disabled={dodajBusy}>{dodajBusy ? "Dodajam …" : "+ Dodaj v seznam za uvoz"}</button>
       </div>
 
@@ -505,6 +643,9 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
               <div className="info" style={{cursor:"default"}}>
                 <div className="name">{u.full_name}</div>
                 <div className="meta"><span className="pill pending">še ni registriran</span><span>{u.email}</span></div>
+                {(u.position_name || u.manager_name) && (
+                  <div className="meta">{[u.position_name, u.manager_name && ("vodja: " + u.manager_name)].filter(Boolean).join(" · ")}</div>
+                )}
               </div>
             </div>
             {ujemanje ? (

@@ -182,6 +182,28 @@ zapisu ne blokirajo dostopa.
    Imeniku pri njej klikne "Poveži" (samodejno predlagano, če se e-pošti
    ujemata) — s tem se telefon/vloga/oddelek prekopirajo v njen pravi profil.
 
+## 5d. Uvoz Excel/Google Sheets/PDF + dodatni HR podatki — spet zahteva ponoven zagon
+
+- Uvoz v Imeniku (in na več drugih mestih: Dežurstva, Kalup, Uporabniki,
+  Razpredelnica) zdaj poleg CSV sprejme tudi **Excel** (.xlsx/.xls), **Google
+  Sheets** (javno objavljena povezava) in **PDF** (izvleček golega besedila,
+  ker brskalnik ne vidi barve celic — glej opombo v `import-utils.js`).
+- V Imeniku uvoz prepozna tudi **uraden HR izvoz** (stolpci v poljubnem
+  vrstnem redu: "Priimek in ime", "Elektronska pošta", "Datum rojstva",
+  "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo", "Letni
+  dopust 2026 (skupaj)" …) — NE stolpca "vloga" iz HR izvoza (to je delovno-
+  mestna klasifikacija, ne aplikacijska vloga admin/vodja/user, ki jo vedno
+  določa admin ročno).
+- Ti dodatni HR podatki se ob "Poveži" prekopirajo v novo tabelo
+  `profile_hr_details` — vidljivost je ožja kot pri telefonu: **samo lastnik
+  in admin**, vodja NIMA dostopa (rojstni datum je občutljivejši od
+  telefonske številke, za razliko od telefona ni bilo izrecno naročeno, da
+  ga vidi tudi vodja).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda stolpce na
+`contact_imports` (employee_code, birth_date, position_name, manager_name,
+parental_leave, annual_leave_total) in novo tabelo `profile_hr_details`.
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov
