@@ -465,6 +465,9 @@ function KalupTab(){
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
+  const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
+  const kvoteFileRef = useRef();
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -473,6 +476,24 @@ function KalupTab(){
   const toggleDopust = (ime, monday) => {
     const key = ime + "|" + monday;
     setDopust(d => ({ ...d, [key]: !d[key] }));
+  };
+
+  const uvoziKvote = async (file) => {
+    if (!file) return;
+    setKvoteUvozBusy(true); setKvoteUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setKvoteUvozMsg("PDF ni podprt za uvoz kvot (ni stolpcev) — uporabi CSV/Excel."); return; }
+      const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","kvota"], ["ime","full_name"]);
+      const nove = {};
+      objekti.forEach(o => { if (o.ime && o.kvota !== "") nove[o.ime.toUpperCase()] = o.kvota; });
+      setKvote(k => ({ ...k, ...nove }));
+      setKvoteUvozMsg(`Uvoženih ${Object.keys(nove).length} kvot iz "${file.name}".`);
+    } catch (e) {
+      setKvoteUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setKvoteUvozBusy(false);
+    }
   };
 
   const generiraj = () => {
@@ -526,6 +547,15 @@ function KalupTab(){
 
       <h2 className="section">2 · Predlog prednosti za prost teden</h2>
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
+      <div className="card no-print" style={{marginBottom:10}}>
+        <input ref={kvoteFileRef} type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}}
+          onChange={e => { uvoziKvote(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={kvoteUvozBusy} onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()}>
+          {kvoteUvozBusy ? "Nalagam …" : "📤 Uvozi letne kvote dopusta (CSV/Excel)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>Oblika: <code>ime,kvota</code> (ime kot spodaj v tabeli).</p>
+        {kvoteUvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{kvoteUvozMsg}</p>}
+      </div>
       <PrednostniPanel staff={meta.staff} dopust={dopust} tedni={tedni} kvote={kvote} setKvote={setKvote}
         onPredlagaj={(ime, teden) => toggleDopust(ime, teden)} />
 
@@ -1123,10 +1153,22 @@ function VodjeTab(){
 }
 
 // ---------------------------------------------------------------------
+// Ista logika kot imenaSeUjemata v zelje.html (vreča besed, vrstni red ni
+// pomemben) — tu podvojena, ker ni skupnega JS modula med statičnimi stranmi.
+function imenaSeUjemataAdmin(a, b){
+  const na = (a||"").trim().toUpperCase().replace(/\s+/g," ");
+  const nb = (b||"").trim().toUpperCase().replace(/\s+/g," ");
+  if (!na || !nb) return false;
+  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
+}
+
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
   const [status, setStatus] = useState({});
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const uvozRef = useRef();
 
   const reload = () => {
     client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
@@ -1139,6 +1181,31 @@ function UporabnikiTab(){
     const { error } = await client.from("profiles").update(patch).eq("id", id);
     setStatus(s => ({ ...s, [id]: error ? ("napaka: " + error.message) : "shranjeno" }));
     setProfili(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
+  };
+
+  const uvoziVlogeOddelke = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["full_name","role","department_code"], ["full_name","ime"]);
+      let ok = 0, neujemajoci = [];
+      for (const o of objekti) {
+        if (!o.full_name) continue;
+        const p = profili.find(pr => imenaSeUjemataAdmin(pr.full_name, o.full_name));
+        if (!p) { neujemajoci.push(o.full_name); continue; }
+        const patch = {};
+        if (o.role && ["admin","vodja","user"].includes(o.role)) patch.role = o.role;
+        if (o.department_code !== undefined && o.department_code !== "") patch.department_code = o.department_code;
+        if (Object.keys(patch).length) { await posodobi(p.id, patch); ok++; }
+      }
+      setUvozMsg(`Posodobljenih ${ok} obstoječih uporabnikov.` + (neujemajoci.length ? ` Ni najdenih (oseba se še ni registrirala — uporabi Imenik): ${neujemajoci.join(", ")}.` : ""));
+    } catch (e) {
+      setUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
   };
 
   if (profili === null) return <p className="hint">Nalagam …</p>;
@@ -1171,6 +1238,18 @@ function UporabnikiTab(){
         generatorju razporeda, sicer objava v Supabase tega zaposlenega preskoči. Zaposleni so spodaj razvrščeni po
         trenutnem (primarnem) oddelku — premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
       </p>
+      <div className="card" style={{marginBottom:14}}>
+        <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}}
+          onChange={e => { uvoziVlogeOddelke(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvozi vloge/oddelke iz datoteke (CSV/Excel)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Oblika: <code>full_name,role,department_code</code> — velja samo za osebe, ki so se že same registrirale
+          (ujemanje po imenu, vrstni red besed ni pomemben). Za še neregistrirane osebe uporabi Imenik.
+        </p>
+        {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
       {vseKode.map(k => (
         <div key={k || "brez"} style={{marginTop:14}}>
           <h3 style={{fontSize:13, fontWeight:800, color:"var(--muted)", textTransform:"uppercase", letterSpacing:".03em", margin:"0 0 6px"}}>
