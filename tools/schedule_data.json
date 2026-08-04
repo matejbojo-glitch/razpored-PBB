@@ -1,0 +1,110 @@
+{
+  "department_requirements": {
+    "A": {
+      "DOPOLDNE": {"DMS": 1, "SMS": 1, "fixed_sms": "Vrevc Maja"},
+      "POPOLDNE": {"SMS": 1, "fixed_sms": "Vrevc Maja"},
+      "PONOČI": {"shared_from": ["B", "E1"]}
+    },
+    "B": {
+      "DOPOLDNE": {"DMS": 1, "SMS": 1},
+      "POPOLDNE": {"SMS": 1},
+      "PONOČI": {"SMS": 1}
+    },
+    "C": {
+      "DOPOLDNE": {"DMS": 1, "SMS": 1, "FLEXI": 1},
+      "POPOLDNE": {"SMS": 1, "FLEXI": 1},
+      "PONOČI": {"SMS": 1}
+    },
+    "C1": {
+      "DOPOLDNE": {"DMS": 1, "SMS_male": 2, "special_rule": "1 SMS + Gazibara Aldin"},
+      "POPOLDNE": {"SMS_male": 2, "special_rule": "1 SMS + Gazibara Aldin"},
+      "PONOČI": {"SMS_male": 2, "special_rule": "1 SMS + Gazibara Aldin"}
+    },
+    "D": {
+      "DOPOLDNE": {"DMS": 1, "SMS_male": 1, "SMS_female": 1},
+      "POPOLDNE": {"SMS_male": 1, "SMS_female": 1},
+      "PONOČI": {"SMS_male": 1, "SMS_female": 1}
+    },
+    "E1": {
+      "DOPOLDNE": {"DMS": 1},
+      "POPOLDNE": {"SMS": 1},
+      "PONOČI": {"SMS": 1}
+    },
+    "E2": {
+      "DOPOLDNE": {"DMS": 1, "SMS": 1, "FLEXI": 1},
+      "POPOLDNE": {"SMS": 1, "FLEXI": 1},
+      "PONOČI": {"SMS": 1}
+    }
+  },
+  "employees": [
+    {"id": 793, "name": "Simona Tomaževič", "code": "TOM", "role": "DMS", "department": "A", "schedule_type": "fixed_morning", "substitute": "VEL"},
+    {"id": 974, "name": "Maja Vrevc", "code": "Vrevc M.", "role": "SMS", "department": "A", "schedule_type": "morning_afternoon", "max_hours_per_day": 6},
+    {"id": 844, "name": "Mateja Lunar", "code": "LUN", "role": "DMS", "department": "B", "schedule_type": "fixed_morning", "substitute": "ARN"},
+    {"id": 747, "name": "Tomaž Dolar", "code": "Dolar T.", "role": "SMS", "gender": "M", "department": "B", "schedule_type": "shift"},
+    {"id": 973, "name": "Jana Rejc", "code": "Rejc J.", "role": "SMS", "gender": "F", "department": "B", "schedule_type": "shift"},
+    {"id": 715, "name": "Anka Rozman", "code": "Rozman A.", "role": "SMS", "gender": "F", "department": "B", "schedule_type": "shift"},
+    {"id": 676, "name": "Sabina Svetina", "code": "Svetina S.", "role": "SMS", "gender": "F", "department": "B", "schedule_type": "shift"},
+    {"id": 657, "name": "Urška Vovk", "code": "Vovk U.", "role": "SMS", "gender": "F", "department": "B", "schedule_type": "shift"},
+    {"id": 1092, "name": "Grega Arnež", "code": "ARN", "role": "DMS", "department": "C", "covers_departments": ["C", "C1"], "schedule_type": "fixed_morning", "substitute": "LUN"},
+    {"id": 1172, "name": "Mark Djedović", "code": "Djedović M.", "role": "SMS", "gender": "M", "department": "C", "schedule_type": "shift"},
+    {"id": 1089, "name": "Nadja Kodras", "code": "Kodras N.", "role": "SMS", "gender": "F", "department": "C", "schedule_type": "shift"},
+    {"id": 1062, "name": "Klara Rozman", "code": "Rozman K.", "role": "SMS", "gender": "F", "department": "C", "schedule_type": "shift"},
+    {"id": 1133, "name": "Nataša Smolej", "code": "Smolej N.", "role": "SMS", "gender": "F", "department": "C", "schedule_type": "shift", "constraints": ["max_1_weekend_night_per_month", "combine_with_flexi"]},
+    {"id": 1152, "name": "Sebina Šabić", "code": "Šabić S.", "role": "SMS", "gender": "F", "department": "C", "schedule_type": "shift"},
+    {"id": 925, "name": "Maruša Salkić", "code": "SAL", "role": "DMS", "department": "C1", "schedule_type": "fixed_morning", "constraints": ["1x_weekday_duty_per_month"]},
+    {"id": 1069, "name": "Nelvedin Bećirović", "code": "Bećirović N.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 826, "name": "Amin Džinić", "code": "Džinić A.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1141, "name": "Aldin Gazibara", "code": "Gazibara A.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift", "is_gazibara": true},
+    {"id": 1145, "name": "Jure Karničar", "code": "Karničar J.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1075, "name": "Matej Pogačnik", "code": "Pogačnik M.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1164, "name": "Erik Starc", "code": "Starc E.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1143, "name": "Luka Stare", "code": "Stare L.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1022, "name": "Jaka Sušnik", "code": "Sušnik J.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 963, "name": "Mark Škantar", "code": "Škantar M.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 1102, "name": "Enej Valjavec", "code": "Valjavec E.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 852, "name": "Almedin Zekan", "code": "Zekan A.", "role": "SMS", "gender": "M", "department": "C1", "schedule_type": "shift"},
+    {"id": 887, "name": "Amal Perviz", "code": "PER", "role": "DMS", "department": "D", "schedule_type": "fixed_morning", "substitute": "MAG"},
+    {"id": 987, "name": "Jaka Meglič", "code": "Meglič J.", "role": "SMS", "gender": "M", "department": "D", "schedule_type": "shift"},
+    {"id": 1084, "name": "Simona Močnik", "code": "Močnik S.", "role": "SMS", "gender": "F", "department": "D", "schedule_type": "shift"},
+    {"id": 997, "name": "Uroš Mravlje", "code": "Mravlje U.", "role": "SMS", "gender": "M", "department": "D", "schedule_type": "shift"},
+    {"id": 964, "name": "Alma Murić", "code": "Murić A.", "role": "SMS", "gender": "F", "department": "D", "schedule_type": "shift"},
+    {"id": 909, "name": "Merima Nuhanović", "code": "Nuhanović M.", "role": "SMS", "gender": "F", "department": "D", "schedule_type": "shift"},
+    {"id": 1072, "name": "Luka Rant", "code": "Rant L.", "role": "SMS", "gender": "M", "department": "D", "schedule_type": "shift"},
+    {"id": 1106, "name": "Elma Rekić", "code": "Rekić E.", "role": "SMS", "gender": "F", "department": "D", "schedule_type": "shift"},
+    {"id": 1035, "name": "Nikolina Tomašić", "code": "Tomašić N.", "role": "SMS", "gender": "F", "department": "D", "schedule_type": "shift"},
+    {"id": 991, "name": "Dejan Vozel", "code": "Vozel D.", "role": "SMS", "gender": "M", "department": "D", "schedule_type": "shift"},
+    {"id": 1001, "name": "Aleksander Maglić", "code": "MAG", "role": "DMS", "department": "E1", "covers_departments": ["E1", "D"], "schedule_type": "fixed_morning", "substitute": "LEL"},
+    {"id": 1058, "name": "Teja Pogačnik", "code": "POG", "role": "DMS", "department": "E1", "status": "maternity_leave"},
+    {"id": 691, "name": "Marija Bratuša", "code": "Bratuša M.", "role": "SMS", "gender": "F", "department": "E1", "schedule_type": "shift"},
+    {"id": 971, "name": "Antonina Maler", "code": "Maler A.", "role": "SMS", "gender": "F", "department": "E1", "schedule_type": "shift"},
+    {"id": 818, "name": "Renata Peterman", "code": "Peterman R.", "role": "SMS", "gender": "F", "department": "E1", "schedule_type": "shift"},
+    {"id": 633, "name": "Robert Svetina", "code": "Svetina R.", "role": "SMS", "gender": "M", "department": "E1", "schedule_type": "shift"},
+    {"id": 604, "name": "Mojca Uranker", "code": "Uranker M.", "role": "SMS", "gender": "F", "department": "E1", "schedule_type": "shift"},
+    {"id": 1090, "name": "Dijana Lelić", "code": "LEL", "role": "DMS", "department": "E2", "covers_departments": ["E2", "E1"], "schedule_type": "fixed_morning", "substitute": "MAG"},
+    {"id": 830, "name": "Anja Bajt", "code": "Bajt A.", "role": "SMS", "gender": "F", "department": "E2", "schedule_type": "shift"},
+    {"id": 1109, "name": "Alen Mušić", "code": "Mušić A.", "role": "SMS", "gender": "M", "department": "E2", "schedule_type": "shift"},
+    {"id": 1073, "name": "Barbara Sodja", "code": "Sodja B.", "role": "SMS", "gender": "F", "department": "E2", "schedule_type": "shift"},
+    {"id": 1159, "name": "Amira Talić", "code": "Talić A.", "role": "SMS", "gender": "F", "department": "E2", "schedule_type": "shift"},
+    {"id": 865, "name": "Nejc Volarič", "code": "Volarič N.", "role": "SMS", "gender": "M", "department": "E2", "schedule_type": "shift"},
+    {"id": 1163, "name": "Rebeka Misotič", "code": "MIS", "role": "DMS", "department": "C", "is_flexi": true, "schedule_type": "morning_afternoon"},
+    {"id": 994, "name": "Sara Jereb", "code": "Jereb S.", "role": "SMS", "department": "C", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 1051, "name": "Marko Kvržić", "code": "Kvržić M.", "role": "SMS", "department": "C", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 1179, "name": "Neja Vozel", "code": "Vozel N.", "role": "SMS", "department": "C", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 1174, "name": "Nikolina Sofrić", "code": "SOF", "role": "DMS", "department": "E2", "is_flexi": true, "schedule_type": "morning_afternoon"},
+    {"id": 1167, "name": "Gentiana Gashi", "code": "Gashi G.", "role": "SMS", "department": "E2", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 1086, "name": "Ajla Huseinbašić", "code": "Huseinbašić A.", "role": "SMS", "department": "E2", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 1180, "name": "Eva Kogoj", "code": "Kogoj E.", "role": "SMS", "department": "E2", "is_flexi": true, "schedule_type": "morning_afternoon", "can_cover_night_on_absence": true},
+    {"id": 823, "name": "Dino Alukić", "code": "ALU", "role": "Admin", "department": "ADMIN", "schedule_type": "fixed_morning", "substitute": "BOJ"},
+    {"id": 855, "name": "Matej Bojić", "code": "BOJ", "role": "Admin", "department": "ADMIN", "schedule_type": "fixed_morning", "substitute": "ALU"},
+    {"id": 912, "name": "Denis Džamastagić", "code": "DŽA", "role": "Admin", "department": "ADMIN", "schedule_type": "fixed_morning", "substitute": "ALU"},
+    {"id": 820, "name": "Nina Hrovat", "code": "HRO", "role": "DMS", "department": "DB", "schedule_type": "fixed_morning", "substitute": "TOR"},
+    {"id": 965, "name": "Tanja Torkar", "code": "TOR", "role": "DMS", "department": "DB", "schedule_type": "fixed_morning", "substitute": "HRO"},
+    {"id": 833, "name": "Magdalena Mavri Tratnik", "code": "TRA", "role": "DMS", "department": "B1/SOB/NOB", "schedule_type": "fixed_morning", "substitute": "ŠUB"},
+    {"id": 905, "name": "Petra Šubic", "code": "ŠUB", "role": "DMS", "department": "B1/SOB/NOB", "schedule_type": "fixed_morning", "substitute": "TRA"},
+    {"id": 834, "name": "Metka Velušček", "code": "VEL", "role": "DMS", "department": "SOBO", "schedule_type": "fixed_morning", "substitute": "DŽA"},
+    {"id": 989, "name": "Tea Bizjak", "code": "BIZ", "role": "DMS", "department": "UA/SA/B2", "schedule_type": "morning_afternoon", "max_hours_per_day": 6},
+    {"id": 926, "name": "Ines Mušić", "code": "MUŠ", "role": "DMS", "department": "UA/SA", "schedule_type": "fixed_morning", "max_hours_per_day": 7},
+    {"id": 870, "name": "Saša Trpin", "code": "TRP", "role": "DMS", "department": "UA/SA", "schedule_type": "fixed_morning", "substitute": "BIZ_MUS"},
+    {"id": 705, "name": "Saša Humar", "code": "HUM", "role": "User", "department": "SA", "schedule_type": "morning_afternoon", "substitute": "BIZ_TRP"}
+  ]
+}
