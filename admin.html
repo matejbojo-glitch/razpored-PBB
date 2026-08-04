@@ -170,12 +170,16 @@ const ANCHOR_MONDAY = "2026-09-28";
 // Popravljeno po analizi dejanskega razporeda "2026_SMS_RAZPORED.xlsx" (junij
 // 2026, po oddelkih) in ZAPOSLENI_1.8.xlsx — glej roster/analiza-razporedov.md.
 // Premiki, potrjeni z realnim razporedom: Pogačnik M. C1 (ne D), Mravlje U. D
-// (ne C1), Močnik S. C (ne D), Balek M. dodan v D (prej manjkal), Vozel D. in
-// Gazibara A. odstranjena (v realnem razporedu nista del fiksne 5-6-osebne
-// kalup rotacije tega oddelka, temveč dežurna/FLEXI zasedba). Črke pri
+// (ne C1), Močnik S. C (ne D), Balek M. dodan v D (prej manjkal); Vozel D. in
+// Gazibara A. sta bila kot ne-rotacijska najprej odstranjena, nato na
+// izrecno željo znova dodana (glej roster/README.md za razlago). Črke pri
 // premaknjenih/dodanih osebah so ocenjene z ujemanjem realnih junijskih izmen
 // (glej roster/kalup-ujemanje-raw.txt) — kjer ujemanje ni ~90%+, je označeno
-// kot "preveri", priporočamo ročno preverbo pred zaupanjem generiranemu razporedu.
+// kot "preveri". POZOR: nizko ujemanje ni nujno napaka v izbrani črki — v
+// času dopustov koordinator nujno odstopa od strogega kalupa, ker razporeda
+// glede na oddane želje ni mogoče sestaviti drugače (glej analiza-razporedov.md
+// §1). Kalup → gumb "LD" po tednu je pravi mehanizem za dopust pri
+// generiranju; te črke so samo privzeto stanje za tedne brez dopusta.
 const WARDS_META = {
   B:  { naziv:"B - ODDELEK",  hsuffix:false, staff:[["ROZMAN A.","E"],["SVETINA S.","A"],["REJC J.","D"],["DOLAR T.","C"],["VOVK U.","B"]] },
   C:  { naziv:"C - ODDELEK",  hsuffix:false, staff:[["ŠABIĆ S.","A"],["KODRAS N.","B"],["ROZMAN K.","C"],["MOČNIK S.","D"],["SMOLEJ N.","E"]] }, // MOČNIK S.: D — ujemanje 65%, preveri

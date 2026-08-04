@@ -15,6 +15,19 @@ niso povsem pravilne, bodisi (b) je prišlo do dejanskih sprememb kalupa med
 junijem in septembrom 2026, bodisi (c) je moja metoda premalo natančna (ne loči
 zanesljivo dopusta/KPU od pravih neujemanj).
 
+**Pomembna dodatna razlaga (na tvoje opozorilo):** v času dopustov koordinator
+nujno odstopa od strogega 5-tedenskega kalupa, ker razporeda ni mogoče
+sestaviti drugače glede na oddane želje/dopuste (`zelje.html`) — to je
+pričakovano in pravilno ravnanje, ne napaka. Del neujemanja v zgornjih
+odstotkih zato ni znak napačno določene kalup-črke, temveč posledica takih
+legitimnih ročnih odstopanj okoli dopustov, ki jih moja primerjava (ki
+tolerira samo LD/KPU kot nedoločena mesta) ne zazna vedno v celoti. Zato nizko
+ujemanje NI sam po sebi dokaz, da je treba osnovno kalup-črko spremeniti —
+gre ga jemati kot grob namig, ne kot trdno diagnozo. `admin.html` → Kalup že
+podpira ročni preklop "LD" po tednu za posameznika (gumb ob vsakem tednu),
+kar je pravi mehanizem za obravnavo dopusta pri generiranju — kalup-črka v
+`WARDS_META` ostaja samo privzeto (osnovno) stanje za tedne BREZ dopusta.
+
 Za štiri osebe, ki so bile premaknjene/dodane v `WARDS_META` (glej §2), sem
 uporabil najboljše ujemanje kot izhodiščno črko (Pogačnik M. 88 %, Mravlje U.
 59 %, Močnik S. 65 %, Balek M. 63 %) — to je zdaj v kodi, a jasno komentirano

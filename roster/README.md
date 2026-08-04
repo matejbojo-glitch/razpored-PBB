@@ -62,6 +62,14 @@ zahtevo — glej `analiza-razporedov.md` §2 za dokaze):
 hitro ročno preverbo teh štirih oseb (Pogačnik M., Mravlje U., Močnik S.,
 Balek M.), preden generiran razpored zanje zaupno uporabiš.
 
+Pri tem upoštevaj: nižje ujemanje ni nujno znak napačne kalup-črke. V času
+dopustov koordinator nujno odstopa od strogega kalupa, ker razporeda glede na
+oddane želje/dopuste ni mogoče sestaviti drugače — del neujemanja v analizi
+gre pripisati temu, ne napaki pri izbiri črke. `admin.html` → Kalup že ima
+gumb za ročni preklop "LD" po tednu za vsakega zaposlenega — to je pravi
+mehanizem za dopust pri generiranju; `WARDS_META` določa samo privzeto črko
+za tedne brez dopusta.
+
 **Še vedno niso v `WARDS_META`** (obstajajo v uradnem seznamu, a jih fiksni
 5-osebni kalup model ne podpira dobro): Huseinbašić A., Vozel N. (Neja), Gashi
 G., Kogoj E., Kvržić M., Jereb S., Vrevc M., Zaplotnik A. — po dejanskem
