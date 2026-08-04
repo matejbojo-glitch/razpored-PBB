@@ -38,29 +38,45 @@ odobritvi menjav). Če je `WARDS_META` sestavljen po fizičnem oddelku, ne po
 formalni HR kodi "Strm", so spodnje razlike lahko pričakovane in nepomembne —
 to lahko presodiš samo ti.
 
-**Posodobljeno po analizi dejanskega razporeda 2026 (`analiza-razporedov.md`):**
-- **Svetina S.** je **potrjena v oddelku B** (ne C, kot je nakazovala Strm
-  koda) — dejanski razpored za junij 2026 jo prikazuje neposredno v ward-B
-  tabeli skupaj z Rozman A., Rejc J., Dolar T., Vovk U. Prvotni opomin spodaj
-  je bil torej napačen; `WARDS_META` je pravilen.
-- **Pogačnik M. in Mravlje U. sta zamenjana** — dva neodvisna vira (dejanski
-  razpored IN `ZAPOSLENI_1.8.xlsx`) se strinjata: Pogačnik M. je v resnici v
-  C1, Mravlje U. v D (`WARDS_META` ju ima obratno). To NISEM popravil v kodi
-  (še vedno gre za realno razporejanje ljudi), a gre za precej zanesljivo
-  najdbo — glej `analiza-razporedov.md` §2.
-- "Bečirović N." in "Valjavec A." (obstoječe črkovanje) sta se izkazala za
-  verjetno PRAVILNI (dejanski razpored ju uporablja enako kot obstoječa koda);
-  `ZAPOSLENI_1.8.xlsx` ima drugačno črkovanje, a je verjetno manj ažuren.
+**UVELJAVLJENO v kodi** (potrjeno z realnim razporedom, na tvojo izrecno
+zahtevo — glej `analiza-razporedov.md` §2 za dokaze):
+- **Svetina S.** ostaja v oddelku **B** (potrjeno pravilno, Strm koda je bila
+  zavajajoča).
+- **Pogačnik M.** premaknjen **D → C1**, **Mravlje U.** premaknjen **C1 → D**
+  (dvojno potrjeno: dejanski razpored IN `ZAPOSLENI_1.8.xlsx`).
+- **Močnik S.** premaknjena **D → C** (dejanski razpored jo prikazuje med
+  osnovnimi 5 v oddelku C, ne D).
+- **Balek M.** dodana v oddelek **D** (prej je manjkala povsem).
+- **Vozel D.** (D) in **Gazibara A.** (C1) — na izrecno željo znova dodana,
+  potem ko sta bila v prejšnjem krogu odstranjena. Opozorilo velja naprej:
+  dejanski razpored ju v juniju 2026 ni prikazoval kot del fiksne rotacije
+  teh oddelkov, in oba imena se pojavita tudi na seznamu "Nedežurni kader" v
+  `zelje.html` ("VOZEL DEJAN", "GAZIBARA ALDIN") — če gre za isto osebo, je
+  zdaj vpisana dvakrat; preveri pri koordinatorju.
+- "Bečirović N." in "Valjavec A." (obstoječe črkovanje) so ostali nespremenjeni
+  — dejanski razpored potrjuje, da je to pravilno črkovanje.
 
-**Še vedno manjkajo v `WARDS_META`** (obstajajo v uradnem seznamu, a niso v
-NOBENEM oddelku v aplikaciji): Huseinbašić A., Vozel N. (Neja — ni ista oseba
-kot "Vozel D." v oddelku D), Gashi G., Kogoj E., Kvržić M., Balek M., Jereb
-S., Vrevc M., Zaplotnik A. — večina od njih je po dejanskem razporedu del
-**FLEXI kadra** (dela v več oddelkih, ne v enem fiksnem) — glej
-`analiza-razporedov.md` §4 za arhitekturno omejitev, zakaj jih ne morem
-preprosto dodati.
+**Kalup-črke pri premaknjenih/dodanih osebah so ocenjene**, ne 100 % zanesljive
+(ujemanje 59–88 % z dejanskimi junijskimi izmenami — glej komentarje v
+`admin.html` pri `WARDS_META` in `roster/kalup-ujemanje-raw.txt`). Priporočamo
+hitro ročno preverbo teh štirih oseb (Pogačnik M., Mravlje U., Močnik S.,
+Balek M.), preden generiran razpored zanje zaupno uporabiš.
 
-Dokler mi ne poveš, katera razporeditev drži, `WARDS_META` in `zelje.html`
-seznam SMS/ZZT oddelkov (razen zgoraj navedenih potrjenih popravkov, ki še
-niso uveljavljeni v kodi) **nisem spremenil** — to bi sicer lahko napačno
-razporedilo prave zaposlene v napačen oddelek/pod napačnega vodjo.
+Pri tem upoštevaj: nižje ujemanje ni nujno znak napačne kalup-črke. V času
+dopustov koordinator nujno odstopa od strogega kalupa, ker razporeda glede na
+oddane želje/dopuste ni mogoče sestaviti drugače — del neujemanja v analizi
+gre pripisati temu, ne napaki pri izbiri črke. `admin.html` → Kalup že ima
+gumb za ročni preklop "LD" po tednu za vsakega zaposlenega — to je pravi
+mehanizem za dopust pri generiranju; `WARDS_META` določa samo privzeto črko
+za tedne brez dopusta. Analizirani mesec (junij) je poleg tega vrh poletnih
+dopustov in oddanih želja — v takih obdobjih se razpored prilagaja dopustom
+in omejitvam bolj kot preostanek leta, zato je nižje ujemanje v poletnih
+mesecih pričakovano za VSE zaposlene, ne samo za teh štiri.
+
+**Še vedno niso v `WARDS_META`** (obstajajo v uradnem seznamu, a jih fiksni
+5-osebni kalup model ne podpira dobro): Huseinbašić A., Vozel N. (Neja), Gashi
+G., Kogoj E., Kvržić M., Jereb S., Vrevc M., Zaplotnik A. — po dejanskem
+razporedu del **FLEXI kadra** (delajo v več oddelkih, ne v enem fiksnem) — glej
+`analiza-razporedov.md` §4. Te osebe lahko po registraciji dodeliš oddelku
+prek `admin.html` → Uporabniki (deluje za Supabase vloge/odobritve menjav), a
+jih generator kalupa (WARDS_META) še ne vključuje v samodejno razporejanje.

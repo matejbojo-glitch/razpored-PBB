@@ -229,6 +229,7 @@ const DELOVNI_ČAS = {
 
 function classify(sifra){
   const t = (sifra || "").toLowerCase();
+  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
   if (t.startsWith("ld")) return "off";
   if (t.startsWith("kpu")) return "off";
   if (t.includes("nočna12")) return "h12";
@@ -238,7 +239,7 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672" };
+const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", dez:"#B3402A" };
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";

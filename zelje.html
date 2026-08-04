@@ -84,6 +84,11 @@
 
   footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+
+  @media print{
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+  }
 </style>
 </head>
 <body>
@@ -105,9 +110,9 @@ const { useState, useEffect, useMemo, useRef } = React;
 // ---------------------------------------------------------------------
 const SKUPINE = [
   { naziv: "B - oddelek (SMS/TZN)", ljudje: ["ROZMAN A.","SVETINA S.","REJC J.","DOLAR T.","VOVK U."] },
-  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","DJEDOVIĆ M.","SMOLEJ N."] },
-  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC A.","BEČIROVIĆ N.","SUŠNIK J.","GAZIBARA A.","MRAVLJE U."] },
-  { naziv: "D - oddelek (SMS/TZN)", ljudje: ["MURIĆ A.","RANT L.","REKIĆ E.","VOZEL D.","MOČNIK S.","MEGLIČ J.","NUHANOVIĆ M.","STARE L.","TOMAŠIĆ N.","POGAČNIK M."] },
+  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","MOČNIK S.","SMOLEJ N."] },
+  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC A.","BEČIROVIĆ N.","SUŠNIK J.","POGAČNIK M.","GAZIBARA A."] },
+  { naziv: "D - oddelek (SMS/TZN)", ljudje: ["MURIĆ A.","RANT L.","REKIĆ E.","BALEK M.","MEGLIČ J.","NUHANOVIĆ M.","STARE L.","TOMAŠIĆ N.","MRAVLJE U.","VOZEL D."] },
   { naziv: "E1 - oddelek (SMS/TZN)", ljudje: ["BRATUŠA M.","SVETINA R.","URANKER M.","PETERMAN R.","MALER A."] },
   { naziv: "E2 - oddelek (SMS/TZN)", ljudje: ["MUŠIĆ A.","BAJT A.","VOLARIČ N.","SODJA B.","TALIĆ A."] },
   { naziv: "Dežurni kader (DMS/DZN)", ljudje: ["ALUKIĆ DINO","ARNEŽ GREGA","BOJIĆ MATEJ","DŽAMASTAGIĆ DENIS","PERVIZ AMAL","TOMAŽEVIČ SIMONA","TORKAR TANJA","HROVAT NINA","ŠUBIC PETRA","LUNAR MATEJA","MAVRI TRATNIK MAGDALENA","VELUŠČEK METKA","SALKIĆ MARUŠA","TRPIN SAŠA"] },
@@ -319,16 +324,19 @@ function App({ role }){
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
       </header>
 
-      <h2 className="section">Nov vnos</h2>
-      <VnosForma onAdded={reload} />
+      <div className="no-print">
+        <h2 className="section">Nov vnos</h2>
+        <VnosForma onAdded={reload} />
+      </div>
 
-      <div className="toolRow">
+      <div className="toolRow no-print">
         <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
           onChange={e => setFilter(e.target.value)}
           style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
             padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
         <button className="toolBtn" onClick={izvozi}>⬇ Izvozi vse ({entries.length})</button>
         <label className="toolBtn">⬆ Uvozi<input ref={importRef} type="file" accept="application/json" onChange={uvozi} /></label>
+        <button className="toolBtn" onClick={() => window.print()}>📄 Izvozi v PDF</button>
       </div>
 
       <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
@@ -348,7 +356,7 @@ function App({ role }){
                   {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
                   <div className="datum">{new Date(e.datumVnosa).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
                 </div>
-                <button className="delBtn" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
+                <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
               </div>
               {e.opis && <div className="opis">{e.opis}</div>}
               {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
@@ -359,7 +367,7 @@ function App({ role }){
 
       <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
 
-      <footer className="foot">
+      <footer className="foot no-print">
         <p><b>Modul: želje zaposlenih.</b> Shranjeno lokalno v tem brskalniku (IndexedDB), ne na strežniku — velja samo na tej napravi. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
         <p>Vnesene želje se ne prenesejo samodejno v generator (admin.html) — coordinator jih ročno upošteva pri kliku na tedne dopusta ali pri urejanju dežurstev.</p>
       </footer>

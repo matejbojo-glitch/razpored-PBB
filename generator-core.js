@@ -104,11 +104,23 @@
    * opts.minRazmikDni — najmanjši razmik med dvema dežurstvoma iste osebe (privzeto 3)
    * opts.prostDanPoDezurstvu — ali dan takoj po dežurstvu velja kot blokiran za redno delo (privzeto true)
    * opts.maxVikendMesecno — ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
-   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje)
+   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje —
+   *   ta vikend dan se šteje kot eno od njenih mesečnih dežurstev, ne dodatno zraven)
    * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
-   *                 prostDanVTednu: "PO".."NE"|null }]
+   *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...],
+   *                 minMesecno: število|null, maxMesecno: število|null }]
    *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
    *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
+   *   dopust — dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
+   *   SAMI PO SEBI, poleg tega se samodejno blokira dan pred ZAČETKOM vsakega strnjenega dopustnega
+   *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim — sobota vmes ostane prosta),
+   *   po pravilu iz analize "Dežurstva 2026"
+   *   omejitve — dnevi "rumene" omejitve: blokirani samo ti dnevi, brez pravila o dnevu prej
+   *   maxMesecno — trda zgornja meja števila dežurstev osebe na koledarski mesec ZNOTRAJ tega
+   *   generiranja (npr. Salkić Maruša in Trpin Saša: 1; ostali privzeto brez trde meje, a glej minMesecno).
+   *   Kandidat, ki bi to mejo presegel, se ta dan ne razporeja.
+   *   minMesecno — mehak (informativen) cilj: če oseba ob koncu meseca ni dosegla tega števila, se doda
+   *   opozorilo (generiranje se zaradi tega NE ustavi, ker bi lahko bilo neizvedljivo).
    */
   function generirajDezurstva(opts) {
     var start = toDate(opts.startISO);
@@ -119,11 +131,25 @@
 
     var stanje = {};
     opts.staff.forEach(function (z) {
+      var dopust = (z.dopust || []).slice().sort();
+      var blokirano = {};
+      (z.odsotnosti || []).forEach(function (iso) { blokirano[iso] = true; });
+      (z.omejitve || []).forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) {
+        var prejIso = fromDate(addDays(toDate(iso), -1));
+        if (dopust.indexOf(prejIso) !== -1) return; // iso ni začetek bloka
+        blokirano[prejIso] = true;
+        if (weekdayMon0(toDate(iso)) === 0) { // blok se začne v ponedeljek -> tudi petek prej
+          blokirano[fromDate(addDays(toDate(iso), -3))] = true;
+        }
+      });
       stanje[z.ime] = {
         stevilo: z.obstojeceStevilo || 0,
         zadnje: z.zadnjeDezurstvo ? toDate(z.zadnjeDezurstvo) : null,
-        odsotnosti: (z.odsotnosti || []).slice(),
+        odsotnosti: Object.keys(blokirano),
         vikendMesec: {}, // "YYYY-MM" -> število sobot/nedelj v tem generiranju
+        mesecStevilo: {}, // "YYYY-MM" -> število dežurstev v tem generiranju (za minMesecno/maxMesecno)
       };
     });
 
@@ -142,6 +168,7 @@
         if (s.zadnje && diffDays(d, s.zadnje) < minRazmik) return false;
         if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) return false;
         if (isVikend && maxVikendMesecno && (s.vikendMesec[mesecKey] || 0) >= 1) return false;
+        if (z.maxMesecno != null && (s.mesecStevilo[mesecKey] || 0) >= z.maxMesecno) return false;
         return true;
       });
 
@@ -153,6 +180,13 @@
 
       kandidati = kandidati.slice().sort(function (a, b) {
         var sa = stanje[a.ime], sb = stanje[b.ime];
+        // Kdor še ni dosegel svojega mesečnega minimuma (minMesecno), ima
+        // prednost pred vsemi, ki so ga že dosegli — ne glede na skupno
+        // (celotno) število dežurstev doslej. To zagotavlja, da mesečni
+        // minimum dejansko velja za vsakogar, ne le kot mehko opozorilo.
+        var moA = a.minMesecno != null && (sa.mesecStevilo[mesecKey] || 0) < a.minMesecno;
+        var moB = b.minMesecno != null && (sb.mesecStevilo[mesecKey] || 0) < b.minMesecno;
+        if (moA !== moB) return moA ? -1 : 1;
         if (sa.stevilo !== sb.stevilo) return sa.stevilo - sb.stevilo;
         var ga = sa.zadnje ? diffDays(d, sa.zadnje) : Infinity;
         var gb = sb.zadnje ? diffDays(d, sb.zadnje) : Infinity;
@@ -163,6 +197,7 @@
       var izbran = kandidati[0];
       stanje[izbran.ime].stevilo += 1;
       stanje[izbran.ime].zadnje = new Date(d.getTime());
+      stanje[izbran.ime].mesecStevilo[mesecKey] = (stanje[izbran.ime].mesecStevilo[mesecKey] || 0) + 1;
       if (isVikend) {
         stanje[izbran.ime].vikendMesec[mesecKey] = (stanje[izbran.ime].vikendMesec[mesecKey] || 0) + 1;
       }
@@ -174,6 +209,24 @@
         prostiDnevi[izbran.ime].push(prostIso);
       }
     }
+
+    var mesecKljuci = [];
+    for (var dm = start; dm.getTime() <= end.getTime(); dm = addDays(dm, 1)) {
+      var mk = fromDate(dm).slice(0, 7);
+      if (mesecKljuci.indexOf(mk) === -1) mesecKljuci.push(mk);
+    }
+    opts.staff.forEach(function (z) {
+      if (z.minMesecno == null) return;
+      mesecKljuci.forEach(function (mk) {
+        var stevMesec = stanje[z.ime].mesecStevilo[mk] || 0;
+        if (stevMesec < z.minMesecno) {
+          opozorila.push({
+            datum: mk,
+            sporocilo: z.ime + " ima v mesecu " + mk + " samo " + stevMesec + " dežurstev (cilj: vsaj " + z.minMesecno + ") — zaradi omejitev/dopusta morda ni bilo mogoče doseči cilja."
+          });
+        }
+      });
+    });
 
     var stanjeOb = opts.staff
       .map(function (z) {
