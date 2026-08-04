@@ -129,6 +129,27 @@ To zahteva **ponoven zagon celotne `supabase/schema.sql`** v SQL Editorju
 glej komentar v shemi) in `contact_imports` (uvoz zaposlenih, ki se še niso
 sami registrirali).
 
+## 5c. Razpredelnica dopusti/omejitve + generator za vodje — spet zahteva ponoven zagon
+
+Iz priloženega barvnega HTML-orodja in Excel predloge "Predloga razporeda
+vodje NZV" sta nastali dve novi funkciji:
+
+- **`zelje.html` → zavihek "Razpredelnica dopusti/omejitve"**: barvni koledar
+  (Omejitev/LD/BS/STI) namesto ročnega vnosa datumov. Piše v novo tabelo
+  `leave_entries` (+ `leave_entries_log` za zgodovino). `admin.html` →
+  Dežurstva to samodejno prebere ob izbiri meseca.
+- **`admin.html` → zavihek "Vodje"**: mesečna zasedenost 22 vodij/nosilcev
+  oddelkov iz nove tabele `lead_departments` (seed podatki že v shemi, iz
+  Excel predloge) — vsak je ob delavnikih privzeto na svojem domačem
+  oddelku, LD/BS/STI vnosi iz zgornje razpredelnice ga premaknejo v ustrezen
+  stolpec. Poenostavitev glede na izvirno predlogo: stolpca "SA DOP"/"SA
+  POP" sta združena v en "SA", "Omejitev" (rumena) nima lastnega stolpca
+  (koordinator te dni presodi ročno) — če je to pomembno, povej in dopolnim.
+
+Spet zahteva **ponoven zagon `supabase/schema.sql`** — doda `leave_entries`,
+`leave_entries_log`, `lead_departments` (s seed podatki) in nove kode enot v
+`departments` (PDZN/SOBO/ŽO/MO/PO/A/B1B2/DB/SA/URGENCA/U2).
+
 **Delovni tok za uvoz seznama zaposlenih:**
 1. Admin v Imeniku naloži CSV (`full_name,email,phone,role,department_code`)
    ali doda osebo ročno — pripravljen primer z vsemi 69 znanimi zaposlenimi

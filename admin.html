@@ -162,6 +162,25 @@ async function publishScheduleRows(deptCode, rows){
   return { objavljeno: vrstice.length, manjkajo };
 }
 
+// Kot publishScheduleRows, a vsaka vrstica nosi SVOJ department_code
+// (vsak vodja ima svojo domačo enoto) — uporablja VodjeTab.
+async function publishLeadScheduleRows(rows){
+  const imena = [...new Set(rows.map(r => r.ime))];
+  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name").in("full_name", imena);
+  if (perr) throw perr;
+  const byIme = {};
+  profili.forEach(p => { byIme[p.full_name] = p; });
+  const manjkajo = imena.filter(i => !byIme[i]);
+  const vrstice = rows.filter(r => byIme[r.ime] && r.department_code).map(r => ({
+    employee_id: byIme[r.ime].id, department_code: r.department_code, work_date: r.datum, shift_code: r.sifra || "",
+  }));
+  if (vrstice.length > 0){
+    const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    if (error) throw error;
+  }
+  return { objavljeno: vrstice.length, manjkajo };
+}
+
 // ---------------------------------------------------------------------
 // Statični podatki o oddelkih (SMS/TZN) — enaki kot pri generiranju
 // oktobra 2026. Črka je stanje kalupa v tednu 28. 9. 2026 (sidro).
@@ -271,6 +290,38 @@ function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
   const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
   return { startISO:start, endISO:end };
+}
+// Pomožne funkcije za VodjeTab (dnevi v mesecu, ISO datum, slovenski prazniki
+// 2026+) — ista logika kot v zelje.html, tu podvojena, ker ni skupnega
+// JS modula med statičnimi stranmi.
+const DNI_KRATKO = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
+function danovVMesecu2(monthStr){ const [y,m] = monthStr.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+function isoZaMesec(monthStr, d){ const [y,m] = monthStr.split("-").map(Number); return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
+function easterSunday2(year){
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4;
+  const l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31);
+  const day=((h+l-7*m+114)%31)+1;
+  return new Date(Date.UTC(year, month-1, day));
+}
+const FIXED_HOLIDAYS2 = [[1,1],[1,2],[2,8],[4,27],[5,1],[5,2],[6,25],[8,15],[10,31],[11,1],[12,25],[12,26]];
+const holidayCache2 = {};
+function jeDanPraznik2(iso){
+  const [y,m,d] = iso.split("-").map(Number);
+  if (!holidayCache2[y]) {
+    const set = new Set(FIXED_HOLIDAYS2.map(([mm,dd]) => mm+"-"+dd));
+    const es = easterSunday2(y);
+    set.add((es.getUTCMonth()+1)+"-"+es.getUTCDate());
+    const em = new Date(es.getTime()); em.setUTCDate(es.getUTCDate()+1);
+    set.add((em.getUTCMonth()+1)+"-"+em.getUTCDate());
+    holidayCache2[y] = set;
+  }
+  return holidayCache2[y].has(m+"-"+d);
 }
 function mondaysInRange(startISO, endISO){
   const { toDate, mondayOfWeek, fromDate, addDays } = Generator.util;
@@ -820,6 +871,159 @@ function DezurstvaTab(){
 }
 
 // ---------------------------------------------------------------------
+// VodjeTab — mesečna zasedenost 22 vodij/nosilcev oddelkov (iz "Predloga
+// razporeda vodje NZV"). Za razliko od Kalupa/Dežurstev to ni rotacijski
+// generator: vsak vodja je vsak delavnik privzeto na svojem domačem
+// oddelku, razen če ima za ta dan LD/BS/STI vnos v razpredelnici "Želje"
+// (leave_entries) — takrat se to prikaže v ustreznem stolpcu namesto
+// oddelka. Stolpec DEŽURSTVO se prekriva z generatorjem dežurstev (če je
+// bil za ta mesec že objavljen v Supabase, se prebere od tam).
+function kratica(imePolno){
+  const prvaBeseda = (imePolno || "").trim().split(/\s+/)[0] || "";
+  return prvaBeseda.slice(0, 3).toUpperCase();
+}
+const LEAVE_KOLONA = { ld: "LD", bs: "BS", sti: "IZOB" }; // "omejitev" nima lastnega stolpca (glej opombo v UI)
+
+function VodjeTab(){
+  const [month, setMonth] = useState("2026-09");
+  const [vodje, setVodje] = useState(null);
+  const [oddelki, setOddelki] = useState([]);
+  const [rezultat, setRezultat] = useState(null);
+  const [nalagam, setNalagam] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
+
+  useEffect(() => {
+    client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+  }, []);
+
+  const imeOddelka = {};
+  oddelki.forEach(o => { imeOddelka[o.code] = o.name; });
+
+  const generiraj = async () => {
+    if (!vodje) return;
+    setNalagam(true);
+    const { startISO, endISO } = monthRange(month);
+    const [{ data: leaveRows }, { data: dezRows }] = await Promise.all([
+      client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
+      client.from("schedule_entries").select("work_date, profiles(full_name)").eq("department_code", "DEZ")
+        .gte("work_date", startISO).lte("work_date", endISO),
+    ]);
+    const leaveMap = {};
+    (leaveRows || []).forEach(r => { leaveMap[r.full_name + "|" + r.work_date] = r.kind; });
+    const dezMap = {};
+    (dezRows || []).forEach(r => { if (r.profiles) dezMap[r.work_date] = r.profiles.full_name; });
+
+    const stolpciOddelkov = [...new Set(vodje.map(v => v.department_code).filter(Boolean))];
+    const nd = danovVMesecu2(month);
+    const dnevi = [];
+    const objavaVrstice = [];
+    for (let d = 1; d <= nd; d++) {
+      const iso = isoZaMesec(month, d);
+      const wd = new Date(iso + "T00:00:00").getDay(); // 0=NED..6=SOB
+      const isVikend = wd === 0 || wd === 6;
+      const isPraznik = jeDanPraznik2(iso);
+      const vrstica = { datum: iso, dan: DNI_KRATKO[wd], celice: {} };
+      vodje.forEach(v => {
+        const dolgaOdsotnost = v.odsotnost_do && iso <= v.odsotnost_do && v.odsotnost_tip;
+        if (dolgaOdsotnost) {
+          vrstica.celice[v.department_code] = ((vrstica.celice[v.department_code] || "") + " " + kratica(v.full_name) + "*").trim();
+          return;
+        }
+        if (isVikend || isPraznik) return; // oddelčni stolpci so ob vikendih/praznikih prazni (kot v izvirni predlogi)
+        const kind = leaveMap[v.full_name + "|" + iso];
+        if (kind && LEAVE_KOLONA[kind]) {
+          const kol = LEAVE_KOLONA[kind];
+          vrstica.celice[kol] = ((vrstica.celice[kol] || "") + " " + kratica(v.full_name)).trim();
+          objavaVrstice.push({ ime: v.full_name, datum: iso, sifra: kol, department_code: v.department_code });
+          return;
+        }
+        if (kind === "omejitev") return; // brez lastnega stolpca — koordinator ročno presodi
+        if (v.department_code) {
+          vrstica.celice[v.department_code] = ((vrstica.celice[v.department_code] || "") + " " + kratica(v.full_name)).trim();
+          objavaVrstice.push({ ime: v.full_name, datum: iso, sifra: "PRISOTEN", department_code: v.department_code });
+        }
+      });
+      const dezOseba = dezMap[iso];
+      if (dezOseba) vrstica.celice["DEZURSTVO"] = kratica(dezOseba);
+      dnevi.push(vrstica);
+    }
+    setRezultat({ mesec: month, stolpci: stolpciOddelkov, dnevi, objavaVrstice });
+    setNalagam(false);
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      const { objavljeno, manjkajo } = await publishLeadScheduleRows(rezultat.objavaVrstice);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  if (vodje === null) return <p className="hint">Nalagam …</p>;
+
+  const stolpciPrikaz = rezultat ? [...rezultat.stolpci, "LD", "IZOB", "BS", "DEZURSTVO"] : [];
+
+  return (
+    <div>
+      <h2 className="section">Vodje / nosilci oddelkov — mesečna zasedenost</h2>
+      <p className="hint">
+        22 vodij/nosilcev oddelkov (iz "Predloga razporeda vodje NZV"). Vsak je ob delavnikih privzeto na svojem
+        domačem oddelku; LD/BS/STI vnosi iz razpredelnice "Želje" ga premaknejo v ustrezen stolpec namesto oddelka
+        (STI je prikazan pod "IZOB"). "Omejitev" (rumena) nima lastnega stolpca v izvirni predlogi — te dni presodi
+        koordinator ročno. Zvezdica (*) ob kratici pomeni daljšo odsotnost (npr. porodniška), ne enodnevno LD/BS.
+        Stolpec DEŽURSTVO se prekriva z dežurnim generatorjem, če je ta mesec že objavljen.
+      </p>
+      <div className="card no-print">
+        <div className="row">
+          <div className="field"><label htmlFor="vmonth">Mesec</label>
+            <input id="vmonth" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+          </div>
+        </div>
+        <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "Izračunaj zasedenost"}</button>
+      </div>
+
+      {rezultat && (
+        <React.Fragment>
+          <div className="wardScroller">
+            <table className="wardTable">
+              <thead>
+                <tr>
+                  <th className="name">Datum</th>
+                  {stolpciPrikaz.map(k => <th key={k}>{imeOddelka[k] ? k : k}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {rezultat.dnevi.map(dn => (
+                  <tr key={dn.datum}>
+                    <td className="name">{new Date(dn.datum+"T00:00:00").getUTCDate()}. {dn.dan}</td>
+                    {stolpciPrikaz.map(k => (
+                      <td key={k}><span className="swatch" style={{background: dn.celice[k] ? "rgba(167,148,72,.18)" : "transparent"}}>{dn.celice[k] || "–"}</span></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+          </button>
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
@@ -911,12 +1115,14 @@ function App(){
         <div className="tabs no-print" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
+          <button role="tab" aria-selected={tab==="vodje"} onClick={() => setTab("vodje")}>Vodje</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
         </div>
       </header>
 
       {tab==="kalup" && <KalupTab/>}
       {tab==="dez" && <DezurstvaTab/>}
+      {tab==="vodje" && <VodjeTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
 
       <footer className="foot no-print">
