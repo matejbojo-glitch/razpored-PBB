@@ -191,18 +191,41 @@ zapisu ne blokirajo dostopa.
 - V Imeniku uvoz prepozna tudi **uraden HR izvoz** (stolpci v poljubnem
   vrstnem redu: "Priimek in ime", "Elektronska pošta", "Datum rojstva",
   "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo", "Letni
-  dopust 2026 (skupaj)" …) — NE stolpca "vloga" iz HR izvoza (to je delovno-
-  mestna klasifikacija, ne aplikacijska vloga admin/vodja/user, ki jo vedno
-  določa admin ročno).
-- Ti dodatni HR podatki se ob "Poveži" prekopirajo v novo tabelo
-  `profile_hr_details` — vidljivost je ožja kot pri telefonu: **samo lastnik
-  in admin**, vodja NIMA dostopa (rojstni datum je občutljivejši od
-  telefonske številke, za razliko od telefona ni bilo izrecno naročeno, da
-  ga vidi tudi vodja).
+  dopust 2026 (skupaj)", "vloga" …).
+- Ti dodatni HR podatki gredo v novo tabelo `profile_hr_details` — vidljivost
+  je ožja kot pri telefonu: **samo lastnik in admin**, vodja NIMA dostopa
+  (rojstni datum je občutljivejši od telefonske številke, za razliko od
+  telefona ni bilo izrecno naročeno, da ga vidi tudi vodja).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda stolpce na
 `contact_imports` (employee_code, birth_date, position_name, manager_name,
 parental_leave, annual_leave_total) in novo tabelo `profile_hr_details`.
+
+## 5e. Stanje dopusta (preostanek dni) + neposreden uvoz na že registrirane osebe
+
+Na izrecno željo, ker admin redno uvaža posodobljeno Excel tabelo za vse
+zaposlene:
+
+- Novo polje **"Stanje dopusta"** (preostanek dni + "na dan", privzeto 1. v
+  tekočem mesecu, če datoteka nima lastnega stolpca z datumom) — ločeno od
+  letne kvote (`annual_leave_total`, fiksna za celo leto), ker se to
+  spreminja med letom.
+- **Sprememba vedenja uvoza**: če se e-pošta v uvoženi vrstici ujema z že
+  registriranim profilom, se vsi podatki (vloga, oddelek, telefon, vsa HR
+  polja vključno s stanjem dopusta) posodobijo NANJ **takoj**, ne le ob
+  prvem "Poveži". Prej je vsak uvoz vedno šel v `contact_imports` in čakal
+  na ročno povezavo — zdaj to velja samo še za osebe, ki se še niso
+  registrirale. To pomeni: admin lahko vsak mesec znova naloži isto Excel
+  tabelo z novim stanjem dopusta in vsi že prijavljeni zaposleni bodo takoj
+  na tekočem, brez ponavljanja ročnega koraka.
+- Popravljen tudi pravi hrošč: "Datum rojstva" v Excelu je pogosto navadno
+  besedilo v obliki DD.MM.LLLL, ne prava datumska celica — če bi šlo
+  nepretvorjeno v Postgres `date` stolpec (privzeto MM.DD.LLLL), bi za dneve
+  nad 12 vrglo napako, za ostale pa tiho zamenjalo dan/mesec
+  (`import-utils.js` → `normalizirajDatum()`).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda `leave_balance_days`
+in `leave_balance_asof` na `contact_imports` in `profile_hr_details`.
 
 ## 6. Znane omejitve te faze
 
