@@ -132,7 +132,7 @@
 <script src="nav.js"></script>
 
 <script type="text/babel" data-presets="react">
-const { useState, useMemo, useCallback, useEffect } = React;
+const { useState, useMemo, useCallback, useEffect, useRef } = React;
 const { client } = RazporedAuth;
 
 // ---------------------------------------------------------------------
@@ -202,22 +202,55 @@ const WARDS_META = {
 // petek), DŽAMASTAGIĆ DENIS (nikoli petek), PERVIZ AMAL (nikoli četrtek) in
 // VELUŠČEK METKA (nikoli četrtek) — NISO uveljavljeni kot pravilo, ker gre
 // lahko za naključje; priporočamo preverbo pri koordinatorju.
+//
+// minMesecno/maxMesecno — na izrecno navodilo: Salkić Maruša in Trpin Saša
+// imata največ 1 dežurstvo na mesec (ujema se z opaženo statistiko jan.–avg.,
+// ~1/mesec), ostali imajo vsaj 2 in največ 3 na mesec. Vikend (sobota/nedelja)
+// šteje kot eno od teh mesečnih dežurstev, ne dodatno (glej maxVikendMesecno).
 const DEZURNI_ZACETNO = [
-  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:21, zadnje:"2026-08-20" },
-  { ime:"ARNEŽ GREGA", enota:"C", stevilo:18, zadnje:"2026-08-03" },
-  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:21, zadnje:"2026-08-26", prostDanVTednu:"PO" },
-  { ime:"DŽAMASTAGIĆ DENIS", enota:"?", stevilo:21, zadnje:"2026-08-29" },
-  { ime:"PERVIZ AMAL", enota:"D", stevilo:21, zadnje:"2026-08-21" },
-  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:18, zadnje:"2026-08-31" },
-  { ime:"TORKAR TANJA", enota:"134", stevilo:19, zadnje:"2026-08-16" },
-  { ime:"HROVAT NINA", enota:"134", stevilo:18, zadnje:"2026-08-23" },
-  { ime:"ŠUBIC PETRA", enota:"130", stevilo:18, zadnje:"2026-08-19" },
-  { ime:"LUNAR MATEJA", enota:"B", stevilo:18, zadnje:"2026-08-28" },
-  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:18, zadnje:"2026-08-30" },
-  { ime:"VELUŠČEK METKA", enota:"?", stevilo:17, zadnje:"2026-08-10" },
-  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:7, zadnje:"2026-08-24" },
-  { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27" },
+  { ime:"ALUKIĆ DINO", enota:"E2", stevilo:21, zadnje:"2026-08-20", minMesecno:2, maxMesecno:3 },
+  { ime:"ARNEŽ GREGA", enota:"C", stevilo:18, zadnje:"2026-08-03", minMesecno:2, maxMesecno:3 },
+  { ime:"BOJIĆ MATEJ", enota:"C", stevilo:21, zadnje:"2026-08-26", prostDanVTednu:"PO", minMesecno:2, maxMesecno:3 },
+  { ime:"DŽAMASTAGIĆ DENIS", enota:"?", stevilo:21, zadnje:"2026-08-29", minMesecno:2, maxMesecno:3 },
+  { ime:"PERVIZ AMAL", enota:"D", stevilo:21, zadnje:"2026-08-21", minMesecno:2, maxMesecno:3 },
+  { ime:"TOMAŽEVIČ SIMONA", enota:"FLEXI", stevilo:18, zadnje:"2026-08-31", minMesecno:2, maxMesecno:3 },
+  { ime:"TORKAR TANJA", enota:"134", stevilo:19, zadnje:"2026-08-16", minMesecno:2, maxMesecno:3 },
+  { ime:"HROVAT NINA", enota:"134", stevilo:18, zadnje:"2026-08-23", minMesecno:2, maxMesecno:3 },
+  { ime:"ŠUBIC PETRA", enota:"130", stevilo:18, zadnje:"2026-08-19", minMesecno:2, maxMesecno:3 },
+  { ime:"LUNAR MATEJA", enota:"B", stevilo:18, zadnje:"2026-08-28", minMesecno:2, maxMesecno:3 },
+  { ime:"MAVRI TRATNIK MAGDALENA", enota:"130", stevilo:18, zadnje:"2026-08-30", minMesecno:2, maxMesecno:3 },
+  { ime:"VELUŠČEK METKA", enota:"?", stevilo:17, zadnje:"2026-08-10", minMesecno:2, maxMesecno:3 },
+  { ime:"SALKIĆ MARUŠA", enota:"C1", stevilo:7, zadnje:"2026-08-24", minMesecno:1, maxMesecno:1 },
+  { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27", minMesecno:1, maxMesecno:1 },
 ];
+
+// Dopust (rdeče) / omejitve (rumeno) za september 2026, izluščeno neposredno
+// iz barvnih pravokotnikov v "Letni dopusti in omejitve za NZV — september
+// 2026.pdf" (geometrijska analiza z Python/PyMuPDF nad vektorskimi objekti
+// PDF-ja — vsak pravokotnik ima natančno RGB barvo in koordinate, kar je
+// zanesljivejše od vizualnega branja). Glej roster/analiza-razporedov.md §1b
+// za podroben postopek in roster/omejitve-september-2026.csv za isto v CSV
+// obliki (za gumb "Uvoz omejitev" spodaj). Uporablja se kot privzeta vrednost
+// za mesec 2026-09 — polja v tabeli ostanejo ročno urejljiva.
+const SEPT_2026_DOPUST_OMEJITVE = {
+  "BOJIĆ MATEJ": { dopust:"2026-09-01", omejitve:"" },
+  "ARNEŽ GREGA": { dopust:"2026-09-28,2026-09-29,2026-09-30", omejitve:"2026-09-01,2026-09-03,2026-09-04,2026-09-05,2026-09-06,2026-09-25,2026-09-26,2026-09-27" },
+  "SALKIĆ MARUŠA": { dopust:"2026-09-21", omejitve:"2026-09-04,2026-09-05,2026-09-06,2026-09-11,2026-09-12,2026-09-13,2026-09-18,2026-09-19,2026-09-20" },
+  "LUNAR MATEJA": { dopust:"2026-09-01,2026-09-02,2026-09-03,2026-09-04", omejitve:"2026-09-05,2026-09-06,2026-09-18,2026-09-26,2026-09-27" },
+  "VELUŠČEK METKA": { dopust:"2026-09-02,2026-09-03,2026-09-04,2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18,2026-09-21,2026-09-22,2026-09-23,2026-09-24,2026-09-25,2026-09-28,2026-09-29,2026-09-30", omejitve:"2026-09-01,2026-09-05,2026-09-06,2026-09-09,2026-09-10,2026-09-11,2026-09-19,2026-09-20,2026-09-26,2026-09-27" },
+  "TOMAŽEVIČ SIMONA": { dopust:"", omejitve:"2026-09-18,2026-09-19,2026-09-20" },
+  "MAVRI TRATNIK MAGDALENA": { dopust:"", omejitve:"2026-09-12,2026-09-13" },
+  "TORKAR TANJA": { dopust:"2026-09-17,2026-09-18", omejitve:"2026-09-15,2026-09-16,2026-09-19,2026-09-20" },
+  "HROVAT NINA": { dopust:"2026-09-01,2026-09-02,2026-09-03,2026-09-04", omejitve:"2026-09-05,2026-09-06,2026-09-11,2026-09-18,2026-09-19,2026-09-20,2026-09-21,2026-09-25,2026-09-26,2026-09-27" },
+  // TRPIN SAŠA: dan 18.9. je v izvirniku označen s temno rdečo barvo, ki NI
+  // v legendi (Omejitev=oranžna, LD=bela, BS=zelena, STI=lila) — namerno
+  // NEUVRŠČENO ne v dopust ne v omejitve, dokler koordinator ne pojasni pomena.
+  "TRPIN SAŠA": { dopust:"", omejitve:"2026-09-10,2026-09-25,2026-09-26" },
+  "ALUKIĆ DINO": { dopust:"", omejitve:"" },
+  "PERVIZ AMAL": { dopust:"", omejitve:"" },
+  "ŠUBIC PETRA": { dopust:"", omejitve:"" },
+  "DŽAMASTAGIĆ DENIS": { dopust:"", omejitve:"" },
+};
 
 function classify(sifra){
   const t=(sifra||"").toLowerCase();
@@ -526,19 +559,52 @@ function KalupTab(){
 
 // ---------------------------------------------------------------------
 function DezurstvaTab(){
-  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({...z, odsotnosti:"", dopust:"", omejitve:"", prostDanVTednu: z.prostDanVTednu || ""})));
-  const [month, setMonth] = useState("2026-10");
+  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => {
+    const sept = SEPT_2026_DOPUST_OMEJITVE[z.ime] || { dopust:"", omejitve:"" };
+    return {
+      ...z, odsotnosti:"", dopust: sept.dopust, omejitve: sept.omejitve,
+      prostDanVTednu: z.prostDanVTednu || "",
+      minMesecno: z.minMesecno != null ? String(z.minMesecno) : "",
+      maxMesecno: z.maxMesecno != null ? String(z.maxMesecno) : "",
+    };
+  }));
+  const [month, setMonth] = useState("2026-09");
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
   const [maxVikend, setMaxVikend] = useState(true);
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const uvozRef = useRef();
 
   const { startISO, endISO } = monthRange(month);
 
   const updateField = (ime, field, value) => {
     setRoster(r => r.map(z => z.ime===ime ? {...z, [field]: value} : z));
+  };
+
+  const uvoziCSV = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const zacni = lines[0] && lines[0].toLowerCase().startsWith("ime") ? 1 : 0;
+      const posodobitve = {};
+      for (let i = zacni; i < lines.length; i++) {
+        const deli = lines[i].split(",");
+        const ime = (deli[0] || "").trim().toUpperCase();
+        if (!ime) continue;
+        const dopust = (deli[1] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+        const omejitve = (deli[2] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+        posodobitve[ime] = { dopust, omejitve };
+      }
+      setRoster(r => r.map(z => posodobitve[z.ime] ? { ...z, dopust: posodobitve[z.ime].dopust, omejitve: posodobitve[z.ime].omejitve } : z));
+      const neujemajoci = Object.keys(posodobitve).filter(ime => !roster.some(z => z.ime === ime));
+      setUvozMsg(`Uvoženo ${Object.keys(posodobitve).length} vrstic iz "${file.name}".` + (neujemajoci.length ? ` Neprepoznana imena (preskočeno): ${neujemajoci.join(", ")}.` : ""));
+    };
+    reader.readAsText(file, "UTF-8");
   };
 
   const generiraj = () => {
@@ -550,6 +616,8 @@ function DezurstvaTab(){
       dopust: z.dopust.split(",").map(s => s.trim()).filter(Boolean),
       omejitve: z.omejitve.split(",").map(s => s.trim()).filter(Boolean),
       prostDanVTednu: z.prostDanVTednu || null,
+      minMesecno: z.minMesecno === "" ? null : Number(z.minMesecno),
+      maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
     }));
     const res = Generator.generirajDezurstva({
       startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
@@ -582,10 +650,22 @@ function DezurstvaTab(){
   return (
     <div>
       <h2 className="section">1 · Dežurni kader — stanje ob začetku meseca</h2>
-      <p className="hint">Prednastavljeno s podatki iz analize "Dežurstva 2026" (januar–september 2026, vključno z objavljenim septembrskim razporedom). Po potrebi popravite število in datum zadnjega dežurstva. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan — preverite in popravite ročno. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Odsotnosti" ostane za druge, splošne razloge brez tega samodejnega pravila.</p>
+      <p className="hint">Prednastavljeno s podatki iz uradnega seznama dežurstev jan.–avg. 2026 (glej roster/analiza-razporedov.md §1a). Dopust/omejitve za september so prednastavljeni iz priloženega dokumenta "Letni dopusti in omejitve za NZV — september 2026" (§1b). Po potrebi popravite število in datum zadnjega dežurstva. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni znan. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" je trda/mehka mesečna kvota dežurstev (Salkić in Trpin: 1, ostali: 2–3, na izrecno navodilo) — vikend dan šteje kot eno od teh dežurstev, ne dodatno.</p>
+      <div className="card no-print" style={{marginBottom:12}}>
+        <input ref={uvozRef} type="file" accept=".csv,text/csv" style={{display:"none"}}
+          onChange={e => { uvoziCSV(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" onClick={() => uvozRef.current && uvozRef.current.click()}>📤 Uvoz omejitev iz datoteke (CSV)</button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Oblika CSV: vsaka vrstica <code>ime,dopust,omejitve</code> (ime kot v tabeli spodaj; več datumov v enem
+          polju ločenih s podpičjem, npr. <code>2026-09-01;2026-09-02</code>). Primer:
+          roster/omejitve-september-2026.csv. Prava barvna PDF/Excel preglednica ni samodejno berljiva v brskalniku
+          (ni ustreznega vgrajenega parserja) — pošlji jo Claude Code seji, ki jo pretvori v tak CSV.
+        </p>
+        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
-          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th></tr></thead>
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th><th>Min/mes</th><th>Maks/mes</th></tr></thead>
           <tbody>
             {roster.map(z => (
               <tr key={z.ime}>
@@ -602,6 +682,8 @@ function DezurstvaTab(){
                     {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </td>
+                <td><input type="number" min="0" style={{width:50}} value={z.minMesecno} onChange={e => updateField(z.ime,"minMesecno",e.target.value)} /></td>
+                <td><input type="number" min="0" style={{width:50}} value={z.maxMesecno} onChange={e => updateField(z.ime,"maxMesecno",e.target.value)} /></td>
               </tr>
             ))}
           </tbody>

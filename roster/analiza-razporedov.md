@@ -89,6 +89,80 @@ tega seznama (verjetnost naključja pri 18–21 vzorcih ni zanemarljiva). Če
 katera od teh oseb dejansko ima tak stalni prosti dan, mi povej ime + dan, pa
 ga dodam v `DEZURNI_ZACETNO` enako kot pri Bojiću.
 
+## 1b. September 2026 dopust/omejitve — UVELJAVLJENO v `SEPT_2026_DOPUST_OMEJITVE`
+
+Iz priloženega "Letni dopusti in omejitve za NZV — september 2026.pdf" sem
+izluščil natančne datume dopusta (rdeče, LD) in omejitev (rumeno/oranžno) za
+vseh 14 oseb dežurnega kadra. Ker gre za PDF z barvnimi pravokotniki (ne
+strukturirano preglednico), sem barve prebral **programsko**, ne vizualno:
+Python + PyMuPDF (`page.get_drawings()`) prebere vsak narisan pravokotnik v
+PDF-ju z natančno RGB barvo in koordinatami, kar sem nato geometrijsko
+uskladil s pozicijami stolpcev (dnevi 1–30) in vrstic (imena) iz besedilnih
+podatkov istega PDF-ja (`page.get_text("dict")`). To je bistveno zanesljivejše
+od branja slike "na oko".
+
+Ugotovljena barvna shema (potrjena z legendo v PDF-ju in barvnimi kodami):
+oranžna `FFC000` = Omejitev, srednje rdeča `E06666` = LD (dopust) — ista barva
+kot pri prejšnji (ne-septembrski) preglednici v §5, kar dodatno potrjuje
+pravilnost sheme. Rezultat (samo dežurni kader, 14/20 imen v PDF-ju — preostalih
+6 je nedežurni kader iz `zelje.html`, ni relevantno za generator dežurstev):
+
+| Oseba | Dopust (LD) | Omejitve |
+|---|---|---|
+| Bojić Matej | 1.9. | — |
+| Arnež Grega | 28.–30.9. | 1.,3.–6.,25.–27.9. |
+| Salkić Maruša | 21.9. | 4.–6.,11.–13.,18.–20.9. |
+| Lunar Mateja | 1.–4.9. | 5.,6.,18.,26.,27.9. |
+| Velušček Metka | 2.–4.,14.–18.,21.–25.,28.–30.9. (16 dni!) | 1.,5.,6.,9.–11.,19.,20.,26.,27.9. |
+| Tomaževič Simona | — | 18.–20.9. |
+| Mavri Tratnik Magdalena | — | 12.,13.9. |
+| Torkar Tanja | 17.,18.9. | 15.,16.,19.,20.9. |
+| Hrovat Nina | 1.–4.9. | 5.,6.,11.,18.–21.,25.–27.9. |
+| Trpin Saša | — | 10.,25.,26.9. |
+| Alukić Dino, Perviz Amal, Šubic Petra, Džamastagić Denis | — | — |
+
+Zanimivo (in pomirjujoče): večina "izpeljanih" dni (dan pred začetkom LD
+bloka, petek pred ponedeljkovim LD) je v PDF-ju **že ročno označena kot
+Omejitev** s strani koordinatorja — se pravi, da je pravilo iz §5 dejansko
+tisto, ki se v praksi že uporablja. Naš generator ga zdaj računa samodejno,
+kar odpravi ročno delo in možnost napake.
+
+**Odprto vprašanje:** v PDF-ju se pri Trpin Saša (dan 18.9.) in pri Humar Saša
+(nedežurni kader, ni relevantno za generator) pojavi tretja, **temno rdeča**
+barva (`CC0000`), ki NI v uradni legendi PDF-ja (Omejitev=oranžna, LD=bela(!),
+BS=zelena, STI=lila — čeprav je "LD" v legendi prikazan kot bel/prazen
+kvadratek, se v podatkih dosledno uporablja srednje rdeča `E06666` zanj, kar
+sem vzel kot verodostojnejše od legende). Ta temno rdeča dan 18.9. pri Trpin
+Saša je **namerno izpuščen** iz dopusta/omejitve, dokler koordinator ne
+pojasni pomena.
+
+Podatki so kot privzete vrednosti vgrajeni v `admin.html` (`SEPT_2026_DOPUST_OMEJITVE`,
+uporabljeno ko je izbran mesec 2026-09) in na voljo tudi kot
+`roster/omejitve-september-2026.csv` za gumb "📤 Uvoz omejitev iz datoteke
+(CSV)" v zavihku Dežurstva.
+
+## 1c. Mesečna kvota dežurstev — UVELJAVLJENO v `generator-core.js`/`admin.html`
+
+Na izrecno navodilo: Salkić Maruša in Trpin Saša imata največ 1 dežurstvo na
+koledarski mesec (ujema se natančno s statistiko jan.–avg.: obe ~1/mesec), vsi
+ostali imajo vsaj 2 in največ 3 na mesec. Vikend dan (sobota/nedelja) šteje
+kot eno od teh mesečnih dežurstev, ne dodatno zraven (obstoječe pravilo "največ
+1 vikend dan/mesec" ostane nespremenjeno).
+
+Implementirano kot nova polja `minMesecno`/`maxMesecno` na osebo v
+`generirajDezurstva()` (`generator-core.js`): `maxMesecno` je **trda** meja
+(kandidat, ki bi jo presegel, se ta dan izloči iz izbire), `minMesecno` je
+**mehak** cilj — če ga oseba ob koncu meseca ne doseže, generator doda
+opozorilo (ne ustavi generiranja, ker bi lahko bilo zaradi dopusta/omejitev
+resnično neizvedljivo). V `admin.html` sta zdaj urejljiva stolpca "Min/mes" in
+"Maks/mes" v tabeli dežurnega kadra.
+
+Testirano na septembru 2026 z zgornjimi podatki (§1b): razpored je bil v
+celoti izvedljiv (brez praznih dni), Salkić in Trpin sta dobila natanko 1
+dežurstvo, večina ostalih 2–3, trije (Bojić, Džamastagić, Perviz — vsi z
+visokim izhodiščnim številom dežurstev iz jan.–avg., zato nizko prioritetni v
+pravičnostnem razvrščanju) so dobili le 1 in so označeni z opozorilom.
+
 ## 2. Popravki oddelkov (SMS/ZZT) — UVELJAVLJENO v `WARDS_META`/`zelje.html`
 
 Primerjava `2026_SMS_RAZPORED.xlsx` (dejanski razpored) IN `ZAPOSLENI_1.8.xlsx`

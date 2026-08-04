@@ -104,9 +104,11 @@
    * opts.minRazmikDni — najmanjši razmik med dvema dežurstvoma iste osebe (privzeto 3)
    * opts.prostDanPoDezurstvu — ali dan takoj po dežurstvu velja kot blokiran za redno delo (privzeto true)
    * opts.maxVikendMesecno — ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
-   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje)
+   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje —
+   *   ta vikend dan se šteje kot eno od njenih mesečnih dežurstev, ne dodatno zraven)
    * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
-   *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...] }]
+   *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...],
+   *                 minMesecno: število|null, maxMesecno: število|null }]
    *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
    *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
    *   dopust — dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
@@ -114,6 +116,11 @@
    *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim — sobota vmes ostane prosta),
    *   po pravilu iz analize "Dežurstva 2026"
    *   omejitve — dnevi "rumene" omejitve: blokirani samo ti dnevi, brez pravila o dnevu prej
+   *   maxMesecno — trda zgornja meja števila dežurstev osebe na koledarski mesec ZNOTRAJ tega
+   *   generiranja (npr. Salkić Maruša in Trpin Saša: 1; ostali privzeto brez trde meje, a glej minMesecno).
+   *   Kandidat, ki bi to mejo presegel, se ta dan ne razporeja.
+   *   minMesecno — mehak (informativen) cilj: če oseba ob koncu meseca ni dosegla tega števila, se doda
+   *   opozorilo (generiranje se zaradi tega NE ustavi, ker bi lahko bilo neizvedljivo).
    */
   function generirajDezurstva(opts) {
     var start = toDate(opts.startISO);
@@ -142,6 +149,7 @@
         zadnje: z.zadnjeDezurstvo ? toDate(z.zadnjeDezurstvo) : null,
         odsotnosti: Object.keys(blokirano),
         vikendMesec: {}, // "YYYY-MM" -> število sobot/nedelj v tem generiranju
+        mesecStevilo: {}, // "YYYY-MM" -> število dežurstev v tem generiranju (za minMesecno/maxMesecno)
       };
     });
 
@@ -160,6 +168,7 @@
         if (s.zadnje && diffDays(d, s.zadnje) < minRazmik) return false;
         if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) return false;
         if (isVikend && maxVikendMesecno && (s.vikendMesec[mesecKey] || 0) >= 1) return false;
+        if (z.maxMesecno != null && (s.mesecStevilo[mesecKey] || 0) >= z.maxMesecno) return false;
         return true;
       });
 
@@ -181,6 +190,7 @@
       var izbran = kandidati[0];
       stanje[izbran.ime].stevilo += 1;
       stanje[izbran.ime].zadnje = new Date(d.getTime());
+      stanje[izbran.ime].mesecStevilo[mesecKey] = (stanje[izbran.ime].mesecStevilo[mesecKey] || 0) + 1;
       if (isVikend) {
         stanje[izbran.ime].vikendMesec[mesecKey] = (stanje[izbran.ime].vikendMesec[mesecKey] || 0) + 1;
       }
@@ -192,6 +202,24 @@
         prostiDnevi[izbran.ime].push(prostIso);
       }
     }
+
+    var mesecKljuci = [];
+    for (var dm = start; dm.getTime() <= end.getTime(); dm = addDays(dm, 1)) {
+      var mk = fromDate(dm).slice(0, 7);
+      if (mesecKljuci.indexOf(mk) === -1) mesecKljuci.push(mk);
+    }
+    opts.staff.forEach(function (z) {
+      if (z.minMesecno == null) return;
+      mesecKljuci.forEach(function (mk) {
+        var stevMesec = stanje[z.ime].mesecStevilo[mk] || 0;
+        if (stevMesec < z.minMesecno) {
+          opozorila.push({
+            datum: mk,
+            sporocilo: z.ime + " ima v mesecu " + mk + " samo " + stevMesec + " dežurstev (cilj: vsaj " + z.minMesecno + ") — zaradi omejitev/dopusta morda ni bilo mogoče doseči cilja."
+          });
+        }
+      });
+    });
 
     var stanjeOb = opts.staff
       .map(function (z) {
