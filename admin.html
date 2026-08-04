@@ -835,7 +835,7 @@ function UporabnikiTab(){
               <tbody>
                 {skupine[k].map(p => (
                   <tr key={p.id}>
-                    <td>{p.full_name}</td>
+                    <td><a href={"imenik.html?id=" + p.id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{p.full_name}</a></td>
                     <td>
                       <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
                         <option value="user">Zaposleni</option>

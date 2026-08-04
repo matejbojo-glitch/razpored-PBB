@@ -397,7 +397,7 @@ function WardView({ deptCode, month, myId }){
           <tbody>
             {employees.map(z => (
               <tr key={z.id}>
-                <td className="name">{z.full_name}</td>
+                <td className="name"><a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a></td>
                 {days.map(dn => {
                   const sifra = byEmpDate[z.id + "|" + dn.datum];
                   const cls = classify(sifra);

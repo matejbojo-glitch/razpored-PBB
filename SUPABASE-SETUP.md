@@ -112,6 +112,33 @@ Od takrat naprej administrator vse ostale vloge/oddelke ureja v
 sem izbral **"vsi vidijo vse oddelke"**, ker si to izrecno potrdil, ko sem
 vprašal. `index.html` zato prikaže izbirnik oddelka vsem, ne le lastnemu.
 
+## 5b. Imenik (kontakti) — nova funkcija, zahteva ponoven zagon `schema.sql`
+
+Nova stran `imenik.html` (gumb "📇 Imenik" v spodnji navigaciji) doda e-pošto
+in telefonsko številko na vsak profil, z vidljivostjo po vlogah:
+
+| Vloga | Vidi telefon | Vidi e-pošto |
+|---|---|---|
+| **admin** | vseh | vseh |
+| **vodja** | vseh | vseh |
+| **user** | samo svojega | vseh |
+
+To zahteva **ponoven zagon celotne `supabase/schema.sql`** v SQL Editorju
+(varno je pognati večkrat) — doda stolpec `profiles.email`, novi tabeli
+`contact_phones` (telefon, ločen od `profiles` zaradi prave vrstične RLS —
+glej komentar v shemi) in `contact_imports` (uvoz zaposlenih, ki se še niso
+sami registrirali).
+
+**Delovni tok za uvoz seznama zaposlenih:**
+1. Admin v Imeniku naloži CSV (`full_name,email,phone,role,department_code`)
+   ali doda osebo ročno — pripravljen primer z vsemi 69 znanimi zaposlenimi
+   (e-pošta + predlagana vloga, brez telefona in oddelka — ju je treba
+   dopolniti) je v [`roster/imenik-uvoz.csv`](roster/imenik-uvoz.csv).
+2. Te osebe se pojavijo v Imeniku kot "še ni registriran".
+3. Ko se oseba dejansko registrira v `login.html` s to e-pošto, admin v
+   Imeniku pri njej klikne "Poveži" (samodejno predlagano, če se e-pošti
+   ujemata) — s tem se telefon/vloga/oddelek prekopirajo v njen pravi profil.
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov

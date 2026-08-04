@@ -108,13 +108,14 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  insert into public.profiles (id, full_name, role)
+  insert into public.profiles (id, full_name, role, email)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', new.email, 'Neznano ime'),
-    'user'
+    'user',
+    new.email
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update set email = excluded.email where profiles.email is null;
   return new;
 exception
   when others then
@@ -243,6 +244,80 @@ set search_path = public
 as $$
   select department_code from public.profiles where id = auth.uid();
 $$;
+
+-- ---------------------------------------------------------------------
+-- 6b) Imenik (kontakti) — e-pošta na profiles, telefon v LOČENI tabeli
+--     (contact_phones), da nivojsko vidljivost zagotavlja navadna
+--     vrstična RLS, ne krhko stolpčno omejevanje na že široko
+--     poizvedovani tabeli "profiles" (ki ima "select using (true)").
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists email text;
+
+-- Enkraten popravek za profile, ustvarjene PRED to spremembo (sprožilec
+-- spodaj odslej sam vpiše e-pošto ob registraciji; za obstoječe jo je
+-- treba prekopirati iz auth.users, ki ni neposredno vidna odjemalcem).
+update public.profiles p
+set email = u.email
+from auth.users u
+where p.id = u.id and p.email is null;
+
+create table if not exists public.contact_phones (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  phone text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.contact_phones enable row level security;
+
+-- Telefon vidijo: lastnik (svoj), admin (vsi) in vodja (vsi) — navaden
+-- uporabnik tuje telefonske številke NE vidi (samo e-pošto, ki je na
+-- profiles in torej vidna vsem). To je prava vrstična RLS: če vrstica ni
+-- vidna klicatelju, PostgREST pri vgnezdenem povpraševanju
+-- profiles→contact_phones vrne phone: null, ne napake.
+drop policy if exists contact_phones_select on public.contact_phones;
+create policy contact_phones_select on public.contact_phones
+  for select to authenticated using (
+    profile_id = auth.uid()
+    or public.current_role_is('admin')
+    or public.current_role_is('vodja')
+  );
+
+drop policy if exists contact_phones_upsert_own on public.contact_phones;
+create policy contact_phones_upsert_own on public.contact_phones
+  for insert to authenticated with check (profile_id = auth.uid());
+drop policy if exists contact_phones_update_own on public.contact_phones;
+create policy contact_phones_update_own on public.contact_phones
+  for update to authenticated using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+
+drop policy if exists contact_phones_admin_all on public.contact_phones;
+create policy contact_phones_admin_all on public.contact_phones
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+-- contact_imports: admin vnaprej naloži seznam vseh zaposlenih (ime,
+-- e-pošta, telefon, predlagana vloga/oddelek), preden se ti sami
+-- registrirajo (ni service_role ključa za neposredno ustvarjanje Auth
+-- računov — glej SUPABASE-SETUP.md). Ko se oseba dejansko registrira s to
+-- e-pošto, admin v Imeniku njen nov profil ročno "poveže" s to vrstico
+-- (linked_profile_id) — s tem se telefon/vloga/oddelek prekopirajo vanj.
+create table if not exists public.contact_imports (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  email text not null,
+  phone text,
+  role text check (role in ('admin', 'vodja', 'user')),
+  department_code text references public.departments (code) on update cascade,
+  linked_profile_id uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.contact_imports enable row level security;
+drop policy if exists contact_imports_admin on public.contact_imports;
+create policy contact_imports_admin on public.contact_imports
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
 
 -- ---------------------------------------------------------------------
 -- 7) RLS
