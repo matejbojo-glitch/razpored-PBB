@@ -180,6 +180,13 @@
 
       kandidati = kandidati.slice().sort(function (a, b) {
         var sa = stanje[a.ime], sb = stanje[b.ime];
+        // Kdor še ni dosegel svojega mesečnega minimuma (minMesecno), ima
+        // prednost pred vsemi, ki so ga že dosegli — ne glede na skupno
+        // (celotno) število dežurstev doslej. To zagotavlja, da mesečni
+        // minimum dejansko velja za vsakogar, ne le kot mehko opozorilo.
+        var moA = a.minMesecno != null && (sa.mesecStevilo[mesecKey] || 0) < a.minMesecno;
+        var moB = b.minMesecno != null && (sb.mesecStevilo[mesecKey] || 0) < b.minMesecno;
+        if (moA !== moB) return moA ? -1 : 1;
         if (sa.stevilo !== sb.stevilo) return sa.stevilo - sb.stevilo;
         var ga = sa.zadnje ? diffDays(d, sa.zadnje) : Infinity;
         var gb = sb.zadnje ? diffDays(d, sb.zadnje) : Infinity;

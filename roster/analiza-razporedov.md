@@ -151,17 +151,23 @@ kot eno od teh mesečnih dežurstev, ne dodatno zraven (obstoječe pravilo "najv
 
 Implementirano kot nova polja `minMesecno`/`maxMesecno` na osebo v
 `generirajDezurstva()` (`generator-core.js`): `maxMesecno` je **trda** meja
-(kandidat, ki bi jo presegel, se ta dan izloči iz izbire), `minMesecno` je
-**mehak** cilj — če ga oseba ob koncu meseca ne doseže, generator doda
-opozorilo (ne ustavi generiranja, ker bi lahko bilo zaradi dopusta/omejitev
-resnično neizvedljivo). V `admin.html` sta zdaj urejljiva stolpca "Min/mes" in
-"Maks/mes" v tabeli dežurnega kadra.
+(kandidat, ki bi jo presegel, se ta dan izloči iz izbire). `minMesecno` je bil
+sprva mehak cilj (samo opozorilo), a je bil na izrecno, trajno navodilo
+("velja do preklica") **spremenjen v prednostno pravilo**: kdor še ni dosegel
+svojega mesečnega minimuma, ima pri izbiri prednost pred vsemi, ki so ga že
+dosegli — ne glede na njihovo skupno (celotno, večmesečno) število dežurstev.
+Šele med kandidati z enakim statusom (oba pod minimumom ali oba nad njim) se
+uporabi običajna pravičnost (najmanj dežurstev doslej, nato najdaljši
+počitek). Generator to mejo še vedno ne more zagotoviti, če je fizično
+neizvedljivo (npr. zaradi dopusta/omejitev/razmika) — v tem primeru ostane
+opozorilo. V `admin.html` sta urejljiva stolpca "Min/mes" in "Maks/mes" v
+tabeli dežurnega kadra.
 
-Testirano na septembru 2026 z zgornjimi podatki (§1b): razpored je bil v
-celoti izvedljiv (brez praznih dni), Salkić in Trpin sta dobila natanko 1
-dežurstvo, večina ostalih 2–3, trije (Bojić, Džamastagić, Perviz — vsi z
-visokim izhodiščnim številom dežurstev iz jan.–avg., zato nizko prioritetni v
-pravičnostnem razvrščanju) so dobili le 1 in so označeni z opozorilom.
+Testirano na septembru 2026 z zgornjimi podatki (§1b): razpored je v celoti
+izvedljiv (brez praznih dni), **brez opozoril** — Salkić in Trpin sta dobila
+natanko 1 dežurstvo, prav vsi ostali 2 ali 3 (Tomaževič, Hrovat, Šubic, Mavri
+Tratnik po 3; Alukić, Arnež, Bojić, Džamastagić, Perviz, Torkar, Lunar,
+Velušček po 2).
 
 ## 2. Popravki oddelkov (SMS/ZZT) — UVELJAVLJENO v `WARDS_META`/`zelje.html`
 
