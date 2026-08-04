@@ -294,7 +294,18 @@ function jeVikend(y,m,d){ const l = dowZa(y,m,d); return l==="SOB"||l==="NED"; }
 function pad2(n){ return String(n).padStart(2,"0"); }
 function isoZa(y,m,d){ return y+"-"+pad2(m+1)+"-"+pad2(d); }
 
-function Razpredelnica({ myId }){
+function normalizirajIme(s){ return (s||"").trim().toUpperCase().replace(/\s+/g," "); }
+function imenaSeUjemata(a, b){
+  // Primerja kot "vrečo besed" (ne glede na vrstni red) — roster uporablja
+  // "PRIIMEK IME" (npr. "MAVRI TRATNIK MAGDALENA"), profiles.full_name pa
+  // karkoli je oseba vpisala ob registraciji (npr. "Magdalena Mavri Tratnik").
+  const na = normalizirajIme(a), nb = normalizirajIme(b);
+  if (!na || !nb) return false;
+  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
+}
+
+function Razpredelnica({ role, myId, myFullName }){
+  const jeKoordinator = role === "admin" || role === "vodja";
   const [view, setView] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -307,6 +318,15 @@ function Razpredelnica({ myId }){
   const isDragging = useRef(false);
   const dragValue = useRef(null);
   const skipClick = useRef(false);
+
+  const rokPretekel = useMemo(() => {
+    let dm = view.month - 1, dy = view.year;
+    if (dm < 0) { dm = 11; dy -= 1; }
+    const rok = new Date(dy, dm, 10, 23, 59, 59);
+    return new Date() > rok;
+  }, [view.year, view.month]);
+
+  const smemUrejati = (ime) => jeKoordinator || (imenaSeUjemata(ime, myFullName) && !rokPretekel);
 
   const nd = danovVMesecu(view.year, view.month);
   const dnevi = useMemo(() => Array.from({length: nd}, (_, i) => i+1), [nd]);
@@ -355,12 +375,22 @@ function Razpredelnica({ myId }){
 
   const izracunajNovo = (trenutna) => (pen === "erase" ? null : (trenutna === pen ? null : pen));
 
+  const zavrniUrejanje = (ime) => {
+    setStatus(
+      !jeKoordinator && !imenaSeUjemata(ime, myFullName)
+        ? "Ni dovoljeno — lahko urejaš samo svojo vrstico."
+        : "Rok za vnos za ta mesec je potekel (10. v prejšnjem mesecu)."
+    );
+  };
+
   const onCellClick = (ime, iso) => {
     if (skipClick.current) { skipClick.current = false; return; }
+    if (!smemUrejati(ime)) { zavrniUrejanje(ime); return; }
     nastaviCelico(ime, iso, izracunajNovo(trenutnaVrednost(ime, iso)));
   };
   const onCellPointerDown = (e, ime, iso) => {
     if (e.pointerType !== "mouse") return;
+    if (!smemUrejati(ime)) { zavrniUrejanje(ime); return; }
     skipClick.current = true;
     isDragging.current = true;
     dragValue.current = izracunajNovo(trenutnaVrednost(ime, iso));
@@ -371,7 +401,7 @@ function Razpredelnica({ myId }){
       if (!isDragging.current) return;
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const cell = el && el.closest && el.closest("[data-cell]");
-      if (!cell) return;
+      if (!cell || !smemUrejati(cell.dataset.ime)) return;
       nastaviCelico(cell.dataset.ime, cell.dataset.iso, dragValue.current);
     };
     const onUp = () => { isDragging.current = false; };
@@ -390,6 +420,9 @@ function Razpredelnica({ myId }){
         Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
         samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" — LD (dopust) samodejno blokira tudi dan pred
         začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan.
+        {jeKoordinator
+          ? " Kot administrator/vodja lahko urejaš vrstico kogar koli, kadar koli."
+          : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
       </p>
       <div className="penRow no-print">
         <span className="penHint">Barva:</span>
@@ -433,43 +466,55 @@ function Razpredelnica({ myId }){
             </tr>
           </thead>
           <tbody>
-            {VSI_LJUDJE.map(({ ime }) => (
-              <tr key={ime}>
-                <th className="nm">{ime}</th>
-                {dnevi.map(d => {
-                  const iso = isoZa(view.year, view.month, d);
-                  const val = trenutnaVrednost(ime, iso);
-                  const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
-                  return (
-                    <td key={d} className={"cell " + cls} data-cell data-ime={ime} data-iso={iso}
-                      style={val ? {backgroundColor: PEN_META[val].barva} : null}
-                      title={ime + " — " + d + ". " + MESECI_SL[view.month] + ": " + (val ? PEN_META[val].label : "brez vnosa")}
-                      onClick={() => onCellClick(ime, iso)}
-                      onPointerDown={(e) => onCellPointerDown(e, ime, iso)}
-                    />
-                  );
-                })}
-                <td className="tot">{ldStevilo(ime)}</td>
-              </tr>
-            ))}
+            {VSI_LJUDJE.map(({ ime }) => {
+              const jeMoja = imenaSeUjemata(ime, myFullName);
+              return (
+                <tr key={ime} style={!jeKoordinator && !jeMoja ? {opacity:.6} : null}>
+                  <th className="nm">{ime}{jeMoja && !jeKoordinator ? " (jaz)" : ""}</th>
+                  {dnevi.map(d => {
+                    const iso = isoZa(view.year, view.month, d);
+                    const val = trenutnaVrednost(ime, iso);
+                    const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
+                    const urejeno = smemUrejati(ime);
+                    return (
+                      <td key={d} className={"cell " + cls} data-cell data-ime={ime} data-iso={iso}
+                        style={{
+                          backgroundColor: val ? PEN_META[val].barva : undefined,
+                          cursor: urejeno ? "pointer" : "not-allowed",
+                        }}
+                        title={ime + " — " + d + ". " + MESECI_SL[view.month] + ": " + (val ? PEN_META[val].label : "brez vnosa") + (urejeno ? "" : " (ni urejljivo)")}
+                        onClick={() => onCellClick(ime, iso)}
+                        onPointerDown={(e) => onCellPointerDown(e, ime, iso)}
+                      />
+                    );
+                  })}
+                  <td className="tot">{ldStevilo(ime)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      <h2 className="section no-print">Zgodovina sprememb</h2>
-      <ul className="logList no-print">
-        {log.length === 0 && <li className="log-empty">Ni še zabeleženih sprememb.</li>}
-        {log.map(entry => {
-          const dt = new Date(entry.created_at);
-          return (
-            <li key={entry.id}>
-              <span className="t">{dt.toLocaleDateString("sl-SI")} {dt.toLocaleTimeString("sl-SI",{hour:"2-digit",minute:"2-digit"})}</span>
-              <span className="who">{entry.editor_name || "Neznano"}</span>: {entry.full_name}, {new Date(entry.work_date+"T00:00:00").getDate()}. {MESECI_SL[new Date(entry.work_date+"T00:00:00").getMonth()]}:{" "}
-              {entry.from_kind ? PEN_META[entry.from_kind].label : "brez"} → {entry.to_kind ? PEN_META[entry.to_kind].label : "brez"}
-            </li>
-          );
-        })}
-      </ul>
+      {role === "admin" && (
+        <React.Fragment>
+          <h2 className="section no-print">Zgodovina sprememb</h2>
+          <p className="hint no-print">Vidno samo administratorjem — vsak vnos/sprememba se beleži ne glede na to, kdo jo naredi.</p>
+          <ul className="logList no-print">
+            {log.length === 0 && <li className="log-empty">Ni še zabeleženih sprememb.</li>}
+            {log.map(entry => {
+              const dt = new Date(entry.created_at);
+              return (
+                <li key={entry.id}>
+                  <span className="t">{dt.toLocaleDateString("sl-SI")} {dt.toLocaleTimeString("sl-SI",{hour:"2-digit",minute:"2-digit"})}</span>
+                  <span className="who">{entry.editor_name || "Neznano"}</span>: {entry.full_name}, {new Date(entry.work_date+"T00:00:00").getDate()}. {MESECI_SL[new Date(entry.work_date+"T00:00:00").getMonth()]}:{" "}
+                  {entry.from_kind ? PEN_META[entry.from_kind].label : "brez"} → {entry.to_kind ? PEN_META[entry.to_kind].label : "brez"}
+                </li>
+              );
+            })}
+          </ul>
+        </React.Fragment>
+      )}
     </div>
   );
 }
@@ -550,7 +595,8 @@ function Lightbox({ src, onClose }){
   );
 }
 
-function App({ role, myId }){
+function App({ role, myId, myFullName }){
+  const jeKoordinator = role === "admin" || role === "vodja";
   const [tab, setTab] = useState("razpredelnica");
   const [entries, setEntries] = useState([]);
   const [filter, setFilter] = useState("");
@@ -600,14 +646,16 @@ function App({ role, myId }){
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
       </header>
 
-      <div className="tabs no-print" role="tablist">
-        <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
-        <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
-      </div>
+      {jeKoordinator && (
+        <div className="tabs no-print" role="tablist">
+          <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
+          <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
+        </div>
+      )}
 
-      {tab === "razpredelnica" && <Razpredelnica myId={myId} />}
+      {(tab === "razpredelnica" || !jeKoordinator) && <Razpredelnica role={role} myId={myId} myFullName={myFullName} />}
 
-      {tab === "zelje" && (
+      {tab === "zelje" && jeKoordinator && (
         <React.Fragment>
           <div className="no-print">
             <h2 className="section">Nov vnos</h2>
@@ -665,10 +713,19 @@ function App({ role, myId }){
 }
 function Gate(){
   const [ok, setOk] = useState(false);
-  const [role, setRole] = useState("vodja");
+  const [role, setRole] = useState("user");
   const [myId, setMyId] = useState(null);
-  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setMyId(res.session.user.id); setOk(true); } }); }, []);
-  return ok ? <App role={role} myId={myId}/> : null;
+  const [myFullName, setMyFullName] = useState("");
+  useEffect(() => {
+    RazporedAuth.requireAuth().then(res => {
+      if (!res) return;
+      setRole(res.profile ? res.profile.role : "user");
+      setMyId(res.session.user.id);
+      setMyFullName(res.profile ? res.profile.full_name : "");
+      setOk(true);
+    });
+  }, []);
+  return ok ? <App role={role} myId={myId} myFullName={myFullName}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

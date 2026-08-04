@@ -565,15 +565,69 @@ drop policy if exists leave_entries_select on public.leave_entries;
 create policy leave_entries_select on public.leave_entries
   for select to authenticated using (true);
 
+-- Ime v leave_entries.full_name je prosto besedilo iz statičnega
+-- roster-seznama (npr. "BOJIĆ MATEJ"), profiles.full_name pa karkoli je
+-- oseba vpisala ob samoregistraciji (npr. "Matej Bojić") — zato primerjava
+-- ni nujno enaka niz, primerjamo brez oziru na velikost črk/presledke in
+-- dovolimo obrnjen vrstni red "ime priimek" <-> "priimek ime".
+create or replace function public.current_full_name()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select full_name from public.profiles where id = auth.uid();
+$$;
+
+-- Primerja kot "vrečo besed" (ne glede na vrstni red), da "PRIIMEK IME"
+-- (roster) ujema "Ime Priimek" (kakor koli je oseba vpisala ob
+-- registraciji) — deluje za poljubno število besed, ne samo za dve.
+create or replace function public.imena_se_ujemata(a text, b text)
+returns boolean
+language sql
+stable
+as $$
+  select a is not null and b is not null and (
+    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(a)), '\s+')) w
+  ) = (
+    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(b)), '\s+')) w
+  );
+$$;
+
+-- Rok za vnos: 10. v mesecu PRED mesecem "work_date", do 23:59:59.
+create or replace function public.leave_entry_rok_odprt(p_work_date date)
+returns boolean
+language sql
+stable
+as $$
+  select now() <= (
+    date_trunc('month', p_work_date) - interval '1 month' + interval '9 days 23 hours 59 minutes 59 seconds'
+  );
+$$;
+
+-- admin/vodja: vedno, za kogar koli. "user": samo svojo vrstico (ujemanje
+-- imena, glej zgoraj) in samo do roka (10. v prejšnjem mesecu) — po tem je
+-- zaklenjeno tudi zanje. Uveljavljeno tu (RLS), ne samo v vmesniku, ker bi
+-- sicer kdorkoli z neposrednim klicem API-ja lahko obšel omejitev v UI.
 drop policy if exists leave_entries_write on public.leave_entries;
 create policy leave_entries_write on public.leave_entries
   for all to authenticated
-  using (public.current_role_is('admin') or public.current_role_is('vodja'))
-  with check (public.current_role_is('admin') or public.current_role_is('vodja'));
+  using (
+    public.current_role_is('admin') or public.current_role_is('vodja')
+    or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
+  )
+  with check (
+    public.current_role_is('admin') or public.current_role_is('vodja')
+    or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
+  );
 
+-- Zgodovina sprememb je vidna samo administratorjem (na izrecno navodilo:
+-- "sledljivo in vidno samo uporabnikom admin") — vodja in user je v UI
+-- sploh ne prikažeta, tu pa je zaklenjeno tudi za neposreden klic API-ja.
 drop policy if exists leave_entries_log_select on public.leave_entries_log;
 create policy leave_entries_log_select on public.leave_entries_log
-  for select to authenticated using (true);
+  for select to authenticated using (public.current_role_is('admin'));
 
 -- Vpisi v dnevnik gredo samo prek sprožilca spodaj (SECURITY DEFINER), ne
 -- neposredno od odjemalca — zato ni potrebe po "insert" politiki za

@@ -150,6 +150,28 @@ Spet zahteva **ponoven zagon `supabase/schema.sql`** — doda `leave_entries`,
 `leave_entries_log`, `lead_departments` (s seed podatki) in nove kode enot v
 `departments` (PDZN/SOBO/ŽO/MO/PO/A/B1B2/DB/SA/URGENCA/U2).
 
+### Pravice v Razpredelnici — vezane na pravo prijavo (ne na PIN/geslo)
+
+Stran je zdaj dostopna vsem trem vlogam (prej samo admin/vodja), z realnimi
+pravicami vezanimi na Supabase prijavo (`profiles.role`/`full_name`), ne na
+izbiro imena v obrazcu ali PIN, kot je bilo predlagano v ločenem, ne-
+avtenticiranem HTML orodju — naša aplikacija ima že pravo prijavo, zato ta
+korak ni bil potreben:
+
+| Vloga | Vidi razpredelnico | Ureja | Vidi zgodovino sprememb |
+|---|---|---|---|
+| **admin** | vseh | vseh, kadar koli | da |
+| **vodja** | vseh | vseh, kadar koli | ne |
+| **user** | vseh | samo svojo vrstico, do 10. v mesecu pred prikazanim mesecem | ne |
+
+Uveljavljeno na obeh koncih: v vmesniku (`zelje.html`) IN v RLS politiki
+`leave_entries_write`/`leave_entries_log_select` v shemi — tako da omejitve
+veljajo tudi, če bi kdo klical Supabase API neposredno, mimo vmesnika.
+Ujemanje imena med `leave_entries.full_name` (roster, npr. "BOJIĆ MATEJ") in
+`profiles.full_name` (kar je oseba vpisala ob registraciji) je narejeno kot
+primerjava "vreče besed" (ne glede na vrstni red besed), da manjše razlike v
+zapisu ne blokirajo dostopa.
+
 **Delovni tok za uvoz seznama zaposlenih:**
 1. Admin v Imeniku naloži CSV (`full_name,email,phone,role,department_code`)
    ali doda osebo ročno — pripravljen primer z vsemi 69 znanimi zaposlenimi
