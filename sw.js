@@ -4,8 +4,9 @@
 // med objavami). Prazna delovanje brez signala ostaja kot rezerva iz cacha.
 // v3: nov logo/barve bolnišnice — dvignjena verzija, da se slikovne datoteke
 // (ikone, logo-pbb.png), ki so cache-first, ponovno prenesejo.
+// v4: dodana stran imenik.html (kontakti/imenik zaposlenih).
 
-const CACHE = 'razpored-pbb-v3';
+const CACHE = 'razpored-pbb-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +15,7 @@ const ASSETS = [
   './admin.html',
   './dashboard.html',
   './zelje.html',
+  './imenik.html',
   './manifest.json',
   './generator-core.js',
   './dashboard-core.js',

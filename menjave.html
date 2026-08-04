@@ -186,7 +186,11 @@ function MojeMenjave({ rows }){
       {rows.map(r => (
         <div className="entry" key={r.id}>
           <div>
-            <div className="who">{r.requester.full_name} ↔ {r.target.full_name}</div>
+            <div className="who">
+              <a href={"imenik.html?id=" + r.requester_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.requester.full_name}</a>
+              {" ↔ "}
+              <a href={"imenik.html?id=" + r.target_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.target.full_name}</a>
+            </div>
             <div className="meta">{fmtDate(r.requester_date)} ⇄ {fmtDate(r.target_date)}</div>
             {r.note && <div className="note">{r.note}</div>}
           </div>
@@ -214,7 +218,11 @@ function OdobritevVodja({ rows, onDecide }){
       {rows.map(r => (
         <div className="entry" key={r.id}>
           <div>
-            <div className="who">{r.requester.full_name} ↔ {r.target.full_name}</div>
+            <div className="who">
+              <a href={"imenik.html?id=" + r.requester_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.requester.full_name}</a>
+              {" ↔ "}
+              <a href={"imenik.html?id=" + r.target_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.target.full_name}</a>
+            </div>
             <div className="meta">{fmtDate(r.requester_date)} ⇄ {fmtDate(r.target_date)}</div>
             {r.note && <div className="note">{r.note}</div>}
           </div>
@@ -245,7 +253,11 @@ function OdobritevAdmin({ rows, onDecide }){
       {rows.map(r => (
         <div className="entry" key={r.id}>
           <div>
-            <div className="who">{r.requester.full_name} ↔ {r.target.full_name}</div>
+            <div className="who">
+              <a href={"imenik.html?id=" + r.requester_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.requester.full_name}</a>
+              {" ↔ "}
+              <a href={"imenik.html?id=" + r.target_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.target.full_name}</a>
+            </div>
             <div className="meta">{fmtDate(r.requester_date)} ⇄ {fmtDate(r.target_date)} · odobril vodja</div>
             {r.note && <div className="note">{r.note}</div>}
           </div>

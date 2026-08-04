@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Imenik · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+
+<style>
+  :root{
+    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
+    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
+    --danger: #B3402A; --danger-bg: #FBEAE6; --ok: #4C8C63; --ok-bg: #EAF3EC;
+    --radius: 16px; --radius-sm: 10px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width: 640px; margin:0 auto; padding: 0 16px 60px; }
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
+
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 78%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .wordmark .logoSmall{ height:28px; width:auto; }
+  .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
+  .sub{ margin:2px 0 0; font-size:13px; color:var(--muted); }
+  .backlink{ display:inline-block; margin: 8px 14px 0 0; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0; font-family:inherit; }
+
+  h2.section{ font-size:15px; font-weight:800; margin: 24px 0 4px; letter-spacing:-0.01em; }
+  p.hint{ color:var(--muted); font-size:13px; margin: 4px 0 14px; line-height:1.5; }
+
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:10px; }
+  .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  input[type=text], input[type=search], input[type=tel], input[type=email], select{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; width:100%; font-family:inherit;
+  }
+  .searchWrap{ position:relative; margin-bottom:14px; }
+  .searchWrap input{ padding-left:34px; }
+  .searchWrap .ic{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px; }
+
+  .pill{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+  .pill.admin{ background: var(--danger-bg); color: var(--danger); }
+  .pill.vodja{ background: rgba(167,148,72,.18); color: var(--accent-2); }
+  .pill.user{ background: var(--ok-bg); color: var(--ok); }
+  .pill.pending{ background: var(--surface-2); color: var(--muted); }
+
+  .person{ display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .person:last-child{ border-bottom:0; }
+  .person .av{ width:36px; height:36px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--accent-2); flex:0 0 auto; }
+  .person .info{ flex:1; min-width:0; text-align:left; background:none; border:0; padding:0; font-family:inherit; cursor:pointer; }
+  .person .name{ font-weight:700; font-size:14px; color:var(--text); }
+  .person .meta{ font-size:12px; color:var(--muted); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .person .chev{ color:var(--muted); font-size:14px; flex:0 0 auto; }
+
+  .rowline{ display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .rowline:last-child{ border-bottom:0; }
+  .rowline .lbl{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; width:70px; flex:0 0 auto; }
+  .rowline .val{ flex:1; min-width:0; font-size:14.5px; word-break:break-word; }
+  .rowline a.tel, .rowline a.mail{ color:var(--accent-2); text-decoration:none; font-weight:700; }
+  .iconBtn{ border:1px solid var(--line); background:var(--surface-2); color:var(--accent-2); border-radius:8px;
+    padding:6px 9px; font-size:12px; font-weight:700; cursor:pointer; flex:0 0 auto; }
+  .iconBtn:active{ transform:scale(.96); }
+
+  .avatarBig{ width:56px; height:56px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; color:var(--accent-2); margin-bottom:10px; }
+
+  .submitBtn{ margin-top:6px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .submitBtn:disabled{ opacity:.5; cursor:default; }
+  .dangerBtn{ margin-top:6px; width:100%; background: var(--danger-bg); color: var(--danger); border:1px solid var(--danger);
+    padding:11px; border-radius: var(--radius-sm); font-weight:800; font-size:13.5px; cursor:pointer; }
+
+  .empty{ color:var(--muted); font-size:13px; padding:8px 0; }
+  .err{ color:var(--danger); font-size:13px; margin-top:8px; }
+  .okMsg{ color:var(--ok); font-size:13px; margin-top:8px; }
+
+  footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
+
+  @media print{
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+const { client } = RazporedAuth;
+
+function initials(ime){
+  return (ime || "?").trim().split(/\s+/).slice(0,2).map(s => s[0]).join("").toUpperCase();
+}
+
+function copyBesedilo(txt, onDone){
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => onDone(true)).catch(() => onDone(false));
+  } else {
+    onDone(false);
+  }
+}
+
+function EmailRow({ email }){
+  const [msg, setMsg] = useState(null);
+  if (!email) return null;
+  return (
+    <div className="rowline">
+      <div className="lbl">E-pošta</div>
+      <div className="val"><a className="mail" href={"mailto:" + email}>{email}</a></div>
+      <button className="iconBtn" onClick={() => copyBesedilo(email, ok => { setMsg(ok ? "Kopirano" : "Napaka"); setTimeout(() => setMsg(null), 1500); })}>
+        {msg || "⧉ Kopiraj"}
+      </button>
+    </div>
+  );
+}
+
+function PhoneRow({ phone }){
+  if (!phone) return null;
+  return (
+    <div className="rowline">
+      <div className="lbl">Telefon</div>
+      <div className="val"><a className="tel" href={"tel:" + phone.replace(/\s+/g, "")}>{phone}</a></div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Iskalno polje + seznam oseb — uporabno tudi kot vgradljiva komponenta
+// na drugih straneh, če jo bomo kdaj želeli ponovno uporabiti.
+// ---------------------------------------------------------------------
+function Seznam({ osebe, oddelki, onOdpri }){
+  const [q, setQ] = useState("");
+  const imeOddelka = useMemo(() => {
+    const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
+  }, [oddelki]);
+  const filtrirano = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return osebe;
+    return osebe.filter(o =>
+      (o.full_name || "").toLowerCase().includes(s) ||
+      (o.email || "").toLowerCase().includes(s) ||
+      (imeOddelka[o.department_code] || "").toLowerCase().includes(s)
+    );
+  }, [osebe, q, imeOddelka]);
+
+  return (
+    <React.Fragment>
+      <div className="searchWrap no-print">
+        <span className="ic">🔍</span>
+        <input type="search" placeholder="Išči po imenu, e-pošti ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
+      </div>
+      <div className="card">
+        {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
+        {filtrirano.map(o => (
+          <button key={o.id} className="person" onClick={() => onOdpri(o.id)}>
+            <div className="av">{initials(o.full_name)}</div>
+            <div className="info">
+              <div className="name">{o.full_name}</div>
+              <div className="meta">
+                <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>
+                {o.department_code && <span>{imeOddelka[o.department_code] || o.department_code}</span>}
+              </div>
+            </div>
+            <span className="chev">›</span>
+          </button>
+        ))}
+      </div>
+    </React.Fragment>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Profil ene osebe.
+// ---------------------------------------------------------------------
+function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
+  const jeMoj = oseba.id === myId;
+  const [telefon, setTelefon] = useState(oseba.phone || "");
+  const [vloga, setVloga] = useState(oseba.role);
+  const [oddelek, setOddelek] = useState(oseba.department_code || "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const shraniTelefonOsebno = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { error } = await client.from("contact_phones").upsert({ profile_id: myId, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      setMsg({ ok:true, text:"Telefon shranjen." });
+      onSpremenjeno();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  const shraniAdmin = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { error: e1 } = await client.from("profiles").update({ role: vloga, department_code: oddelek || null }).eq("id", oseba.id);
+      if (e1) throw e1;
+      const { error: e2 } = await client.from("contact_phones").upsert({ profile_id: oseba.id, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
+      if (e2) throw e2;
+      setMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  const odstraniUporabnika = async () => {
+    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na \"Zaposleni\", oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE (ni ga mogoče izbrisati brez service_role ključa) — samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Nadaljuj?")) return;
+    setBusy(true); setMsg(null);
+    try {
+      await client.from("contact_phones").delete().eq("profile_id", oseba.id);
+      const { error } = await client.from("profiles").update({ role: "user", department_code: null }).eq("id", oseba.id);
+      if (error) throw error;
+      setMsg({ ok:true, text:"Odstranjeno." });
+      onSpremenjeno();
+      onNazaj();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div>
+      <button className="backlink no-print" onClick={onNazaj}>‹ Nazaj na imenik</button>
+      <div className="card" style={{marginTop:10, textAlign:"center"}}>
+        <div className="avatarBig" style={{margin:"0 auto 10px"}}>{initials(oseba.full_name)}</div>
+        <div className="name" style={{fontSize:18, fontWeight:800}}>{oseba.full_name}</div>
+        <div style={{marginTop:6}}><span className={"pill " + oseba.role}>{RazporedAuth.ROLE_LABEL[oseba.role] || oseba.role}</span></div>
+      </div>
+
+      <div className="card">
+        <EmailRow email={oseba.email} />
+        <PhoneRow phone={oseba.phone} />
+        {oseba.department_code && (
+          <div className="rowline">
+            <div className="lbl">Oddelek</div>
+            <div className="val">{(oddelki.find(o => o.code === oseba.department_code) || {}).name || oseba.department_code}</div>
+          </div>
+        )}
+        {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
+      </div>
+
+      {jeMoj && (
+        <React.Fragment>
+          <h2 className="section no-print">Moja telefonska številka</h2>
+          <div className="card no-print">
+            <div className="field">
+              <label htmlFor="mytel">Telefon (viden adminu, vodjem in tebi)</label>
+              <input id="mytel" type="tel" value={telefon} onChange={e => setTelefon(e.target.value)} placeholder="npr. 041 234 567" />
+            </div>
+            <button className="submitBtn" onClick={shraniTelefonOsebno} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
+            {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+        </React.Fragment>
+      )}
+
+      {!jeMoj && myRole === "admin" && (
+        <React.Fragment>
+          <h2 className="section no-print">Uredi (admin)</h2>
+          <div className="card no-print">
+            <div className="field">
+              <label htmlFor="ptel">Telefon</label>
+              <input id="ptel" type="tel" value={telefon} onChange={e => setTelefon(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="prole">Vloga</label>
+              <select id="prole" value={vloga} onChange={e => setVloga(e.target.value)}>
+                <option value="user">Zaposleni</option>
+                <option value="vodja">Vodja ekipe</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="pdept">Oddelek</label>
+              <select id="pdept" value={oddelek} onChange={e => setOddelek(e.target.value)}>
+                <option value="">— brez —</option>
+                {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+              </select>
+            </div>
+            <button className="submitBtn" onClick={shraniAdmin} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
+            <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
+            {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Admin: uvoz seznama zaposlenih (še neregistriranih) + povezovanje z
+// dejanskimi profili, ko se oseba sama registrira.
+// ---------------------------------------------------------------------
+function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
+  const [uvozi, setUvozi] = useState(null);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [novo, setNovo] = useState({ full_name:"", email:"", phone:"", role:"user", department_code:"" });
+  const [dodajBusy, setDodajBusy] = useState(false);
+  const fileRef = useRef();
+
+  const nalozi = () => {
+    client.from("contact_imports").select("*").order("created_at", { ascending:false }).then(({ data }) => setUvozi(data || []));
+  };
+  useEffect(() => { nalozi(); }, []);
+
+  const dodajVrstico = async (vrstica) => {
+    const { error } = await client.from("contact_imports").insert(vrstica);
+    return error;
+  };
+
+  const uvoziCSV = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const text = String(reader.result || "");
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const zacni = lines[0] && lines[0].toLowerCase().startsWith("full_name") || lines[0].toLowerCase().startsWith("ime") ? 1 : 0;
+      let ok = 0, napak = 0;
+      for (let i = zacni; i < lines.length; i++) {
+        const deli = lines[i].split(",").map(s => s.trim());
+        const [full_name, email, phone, role, department_code] = deli;
+        if (!full_name || !email) { napak++; continue; }
+        const err = await dodajVrstico({
+          full_name, email, phone: phone || null,
+          role: ["admin","vodja","user"].includes(role) ? role : "user",
+          department_code: department_code || null,
+        });
+        if (err) napak++; else ok++;
+      }
+      setUvozMsg(`Uvoženo ${ok} vrstic` + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
+      nalozi();
+    };
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const dodajRocno = async () => {
+    if (!novo.full_name.trim() || !novo.email.trim()) return;
+    setDodajBusy(true);
+    const err = await dodajVrstico({
+      full_name: novo.full_name.trim(), email: novo.email.trim(),
+      phone: novo.phone.trim() || null, role: novo.role, department_code: novo.department_code || null,
+    });
+    setDodajBusy(false);
+    if (!err) { setNovo({ full_name:"", email:"", phone:"", role:"user", department_code:"" }); nalozi(); }
+    else alert(err.message || String(err));
+  };
+
+  const odstraniUvoz = async (id) => {
+    if (!confirm("Odstranim to vrstico iz seznama za uvoz?")) return;
+    await client.from("contact_imports").delete().eq("id", id);
+    nalozi();
+  };
+
+  const poveziZProfilom = async (uvoz, profileId) => {
+    if (!profileId) return;
+    const { error: e1 } = await client.from("profiles").update({
+      role: uvoz.role || "user", department_code: uvoz.department_code || null,
+    }).eq("id", profileId);
+    if (e1) { alert(e1.message); return; }
+    if (uvoz.phone) {
+      await client.from("contact_phones").upsert({ profile_id: profileId, phone: uvoz.phone, updated_at: new Date().toISOString() });
+    }
+    await client.from("contact_imports").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
+    nalozi();
+    onSpremenjeno();
+  };
+
+  if (uvozi === null) return <p className="hint">Nalagam …</p>;
+  const nepovezani = uvozi.filter(u => !u.linked_profile_id);
+
+  return (
+    <div className="no-print">
+      <h2 className="section">Uvoz zaposlenih (admin)</h2>
+      <p className="hint">
+        Naloži seznam vseh zaposlenih (ime, e-pošta, telefon, predlagana vloga, oddelek) — ni jih treba, da so
+        se že prijavili v aplikacijo. Ko se oseba pozneje sama registrira s to e-pošto v login.html, jo tukaj
+        spodaj povežeš z njenim novim profilom — s tem se telefon/vloga/oddelek prekopirajo vanj.
+      </p>
+      <div className="card">
+        <input ref={fileRef} type="file" accept=".csv,text/csv" style={{display:"none"}}
+          onChange={e => { uvoziCSV(e.target.files[0]); e.target.value = ""; }} />
+        <button className="submitBtn" onClick={() => fileRef.current && fileRef.current.click()}>📤 Uvoz iz CSV</button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Oblika: <code>full_name,email,phone,role,department_code</code> (role: admin/vodja/user; department_code
+          prazen, če ni znan). Prva vrstica je lahko glava (samodejno preskočena).
+        </p>
+        {uvozMsg && <p className="okMsg">{uvozMsg}</p>}
+      </div>
+
+      <div className="card">
+        <p className="hint" style={{marginTop:0}}>Ali dodaj eno osebo ročno:</p>
+        <div className="field"><label>Ime in priimek</label><input type="text" value={novo.full_name} onChange={e => setNovo(n => ({...n, full_name:e.target.value}))} /></div>
+        <div className="field"><label>E-pošta</label><input type="email" value={novo.email} onChange={e => setNovo(n => ({...n, email:e.target.value}))} /></div>
+        <div className="field"><label>Telefon</label><input type="tel" value={novo.phone} onChange={e => setNovo(n => ({...n, phone:e.target.value}))} /></div>
+        <div className="field"><label>Vloga</label>
+          <select value={novo.role} onChange={e => setNovo(n => ({...n, role:e.target.value}))}>
+            <option value="user">Zaposleni</option><option value="vodja">Vodja ekipe</option><option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div className="field"><label>Oddelek</label>
+          <select value={novo.department_code} onChange={e => setNovo(n => ({...n, department_code:e.target.value}))}>
+            <option value="">— brez —</option>
+            {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+          </select>
+        </div>
+        <button className="submitBtn" onClick={dodajRocno} disabled={dodajBusy}>{dodajBusy ? "Dodajam …" : "+ Dodaj v seznam za uvoz"}</button>
+      </div>
+
+      <h2 className="section">Še ne povezani ({nepovezani.length})</h2>
+      {nepovezani.length === 0 && <p className="empty">Vsi uvoženi zapisi so povezani z registriranimi profili.</p>}
+      {nepovezani.map(u => {
+        const ujemanje = osebe.find(o => (o.email || "").toLowerCase() === (u.email || "").toLowerCase());
+        return (
+          <div className="card" key={u.id}>
+            <div className="person" style={{cursor:"default"}}>
+              <div className="av">{initials(u.full_name)}</div>
+              <div className="info" style={{cursor:"default"}}>
+                <div className="name">{u.full_name}</div>
+                <div className="meta"><span className="pill pending">še ni registriran</span><span>{u.email}</span></div>
+              </div>
+            </div>
+            {ujemanje ? (
+              <p className="hint" style={{margin:"8px 0"}}>
+                Ujema se z že registriranim profilom <b>{ujemanje.full_name}</b> (ista e-pošta).
+                <button className="iconBtn" style={{marginLeft:8}} onClick={() => poveziZProfilom(u, ujemanje.id)}>Poveži</button>
+              </p>
+            ) : (
+              <div className="field" style={{marginTop:8}}>
+                <label>Ali ročno poveži z obstoječim profilom (če se e-pošta ne ujema natančno)</label>
+                <select defaultValue="" onChange={e => e.target.value && poveziZProfilom(u, e.target.value)}>
+                  <option value="">Izberi profil …</option>
+                  {osebe.map(o => <option key={o.id} value={o.id}>{o.full_name} ({o.email})</option>)}
+                </select>
+              </div>
+            )}
+            <button className="dangerBtn" onClick={() => odstraniUvoz(u.id)}>Odstrani iz seznama za uvoz</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function App(){
+  const [auth, setAuth] = useState(null);
+  const [osebe, setOsebe] = useState([]);
+  const [oddelki, setOddelki] = useState([]);
+  const [odprtId, setOdprtId] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    RazporedAuth.requireAuth().then(res => {
+      if (!res) return;
+      setAuth(res);
+      const params = new URLSearchParams(location.search);
+      if (params.get("id")) setOdprtId(params.get("id"));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!auth) return;
+    client.from("profiles").select("id, full_name, role, department_code, email, contact_phones(phone)").order("full_name")
+      .then(({ data }) => {
+        setOsebe((data || []).map(o => ({
+          ...o,
+          phone: Array.isArray(o.contact_phones) ? (o.contact_phones[0] && o.contact_phones[0].phone) : (o.contact_phones ? o.contact_phones.phone : null),
+        })));
+      });
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+  }, [auth, reloadKey]);
+
+  const odpri = (id) => {
+    setOdprtId(id);
+    const url = new URL(location.href);
+    url.searchParams.set("id", id);
+    history.pushState(null, "", url);
+  };
+  const zapri = () => {
+    setOdprtId(null);
+    const url = new URL(location.href);
+    url.searchParams.delete("id");
+    history.pushState(null, "", url);
+  };
+
+  if (!auth) return null;
+  const { profile } = auth;
+  const myId = auth.session.user.id;
+  const myRole = profile ? profile.role : "user";
+  const oseba = odprtId ? osebe.find(o => o.id === odprtId) : null;
+
+  return (
+    <div className="wrap">
+      <RazporedLogout/>
+      <header className="top">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Imenik</span></div>
+        <p className="sub">{profile ? profile.full_name : ""} · {RazporedAuth.ROLE_LABEL[myRole]}</p>
+      </header>
+
+      <p className="hint no-print">
+        {myRole === "admin" && "Vidiš vse podatke vseh zaposlenih, vključno s telefonskimi številkami."}
+        {myRole === "vodja" && "Vidiš e-pošto in telefonsko številko vseh zaposlenih."}
+        {myRole === "user" && "Vidiš e-pošto vseh sodelavcev; telefonske številke vidita samo admin in vodja (razen tvoje lastne)."}
+      </p>
+
+      {odprtId && oseba && (
+        <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
+      )}
+      {odprtId && !oseba && osebe.length > 0 && (
+        <div><button className="backlink no-print" onClick={zapri}>‹ Nazaj na imenik</button><p className="empty">Osebe ni bilo mogoče najti.</p></div>
+      )}
+
+      {!odprtId && (
+        <React.Fragment>
+          <Seznam osebe={osebe} oddelki={oddelki} onOdpri={odpri} />
+          {myRole === "admin" && <AdminUvoz osebe={osebe} oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
+        </React.Fragment>
+      )}
+
+      <footer className="foot no-print">
+        <p><b>Imenik.</b> Klik na osebo kjerkoli v aplikaciji te pripelje sem, na njen profil. E-pošto lahko kopiraš z gumbom, na telefonsko številko pa klikneš za klic.</p>
+      </footer>
+
+      <RazporedNav active="imenik" role={myRole} unread={0} />
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
