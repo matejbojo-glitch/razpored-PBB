@@ -10,8 +10,11 @@
 // pdf.min.mjs/pdf.worker.min.mjs se NISTA dodala v precache, ker se naložita
 // šele ob prvi uporabi uvoza PDF (dynamic import), splošni fetch-handler spodaj
 // pa ju po prvem nalaganju vseeno predpomni (cache-first veja za ne-HTML/JSON).
+// v7: import-utils.js razširjen (glava-po-imenu mapiranje stolpcev, datumi iz
+// Excela) — dvignjena verzija, da se cache-first predpomnjena stara različica
+// datoteke povsod zamenja s to novo.
 
-const CACHE = 'razpored-pbb-v6';
+const CACHE = 'razpored-pbb-v7';
 const ASSETS = [
   './',
   './index.html',
