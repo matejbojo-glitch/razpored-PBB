@@ -606,19 +606,20 @@ as $$
   );
 $$;
 
--- admin/vodja: vedno, za kogar koli. "user": samo svojo vrstico (ujemanje
--- imena, glej zgoraj) in samo do roka (10. v prejšnjem mesecu) — po tem je
--- zaklenjeno tudi zanje. Uveljavljeno tu (RLS), ne samo v vmesniku, ker bi
--- sicer kdorkoli z neposrednim klicem API-ja lahko obšel omejitev v UI.
+-- Samo admin ureja katero koli vrstico, kadar koli. "vodja" IN "user" oba
+-- urejata SAMO svojo vrstico (ujemanje imena, glej zgoraj) in samo do roka
+-- (10. v prejšnjem mesecu) — po tem je zaklenjeno tudi zanju. Uveljavljeno
+-- tu (RLS), ne samo v vmesniku, ker bi sicer kdorkoli z neposrednim klicem
+-- API-ja lahko obšel omejitev v UI.
 drop policy if exists leave_entries_write on public.leave_entries;
 create policy leave_entries_write on public.leave_entries
   for all to authenticated
   using (
-    public.current_role_is('admin') or public.current_role_is('vodja')
+    public.current_role_is('admin')
     or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
   )
   with check (
-    public.current_role_is('admin') or public.current_role_is('vodja')
+    public.current_role_is('admin')
     or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
   );
 
