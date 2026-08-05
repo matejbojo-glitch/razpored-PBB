@@ -298,6 +298,37 @@ za vsak klic posebej glede na `current_role_is()`).
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda pogled
 `contact_imports_public` + `grant select ... to authenticated`.
 
+## 5i. Mesečna zgodovina stanja dopusta (Kadris) + trend — zavihek Dopust
+
+Nov zavihek **Dopust** v Uvozi/admin.html: admin vsak mesec naloži izvoz iz
+Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec,
+DOPUST). Glava se sama poišče med prvimi 15 vrsticami (`najdiGlavo` v
+`import-utils.js`), tako da morebitni naslovi nad tabelo ne motijo.
+
+Šifra zaposlenega (`employee_code`) je edini stabilen ključ med meseci —
+ista, kot jo že uporablja `profile_hr_details.employee_code` — zato se
+uvožena oseba samodejno poveže s pravim profilom, če je znana; sicer se
+poskusi ujemanje po imenu (vreča besed, diakritike neobčutljivo, ista
+logika kot `imenaSeUjemataAdmin`). Predogled pred potrditvijo loči
+nove/spremenjene/nespremenjene vrstice in opozori, katere osebe iz
+prejšnjih uvozov v novem izvozu ni bilo (njihovi podatki ostanejo,
+samo se v tem mesecu ne posodobijo). Ponoven uvoz istega meseca obstoječo
+vrstico posodobi (upsert po `employee_code, leto, mesec`), ne podvoji.
+
+Nova tabela `public.leave_balance_history` hrani en zapis na osebo na
+mesec (RLS: admin vidi vse, uporabnik samo vrstico s svojim `profile_id`).
+Pogled `public.leave_balance_pregled` doda trend — razliko glede na
+prejšnji mesec te osebe (`lag` po `employee_code`, urejeno po
+leto/mesec). Sprožilec `trg_sync_leave_balance` po vsakem uvozu preveri,
+ali je pravkar zapisan mesec NAJNOVEJŠI za to osebo, in če je, samodejno
+uskladi `profile_hr_details.leave_balance_days/leave_balance_asof` — tako
+Imenik (trenutno stanje pri osebi) in zavihek Dopust (zgodovina/trend)
+nikoli ne razideta, ne glede na vrstni red uvoza mesecev.
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 8)
+(`leave_balance_history`, pogleda `leave_balance_pregled`/
+`leave_balance_obdobja`, sprožilec).
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov
