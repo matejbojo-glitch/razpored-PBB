@@ -112,11 +112,22 @@
 
   @media print{
     :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
-    body{ background:#fff !important; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; background:#fff !important; }
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
     table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
     table.wardTable thead th, table.roster th{ background:#f2f2f2 !important; }
+    /* Izvoz v PDF (Kalup/Vodje) mora iti na 1 A4 stran ne glede na število
+       zaposlenih/dni v mesecu — PrintFit.natisni() izračuna --print-scale in
+       pokliče window.print(); "zoom" (ne transform) dejansko zmanjša zaseden
+       prostor, kar brskalnik potrebuje za pravilen izračun 1 strani. Sticky
+       stolpci/vrstice na 1 strani niso potrebni in bi lahko motili tisk. */
+    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
+      zoom: var(--print-scale, 1); }
+    table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
+    table.wardTable tr, table.dutyTable tr{ break-inside:avoid; page-break-inside:avoid; }
+    .printBlok{ zoom: var(--print-scale, 1); }
   }
 </style>
 </head>
@@ -132,6 +143,7 @@
 <script src="nav.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
+<script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
@@ -468,6 +480,7 @@ function KalupTab(){
   const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
+  const wardRef = useRef();
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -597,7 +610,7 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
-          <div className="wardScroller">
+          <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -629,7 +642,7 @@ function KalupTab(){
             </table>
           </div>
           <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
-          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" onClick={() => PrintFit.natisni(wardRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
@@ -663,6 +676,7 @@ function DezurstvaTab(){
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [pdfBesedilo, setPdfBesedilo] = useState(null);
   const uvozRef = useRef();
+  const printRef = useRef();
 
   const { startISO, endISO } = monthRange(month);
 
@@ -914,21 +928,23 @@ function DezurstvaTab(){
             </div>
           )}
 
-          <h2 className="section">3 · Predlagan razpored — {rezultat.mesec}</h2>
-          <table className="dutyTable">
-            <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
-            <tbody>
-              {rezultat.razpored.map(r => (
-                <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
-                  <td>{r.datum}</td><td>{r.dan}</td>
-                  <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="printBlok" ref={printRef}>
+            <h2 className="section">3 · Predlagan razpored — {rezultat.mesec}</h2>
+            <table className="dutyTable">
+              <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
+              <tbody>
+                {rezultat.razpored.map(r => (
+                  <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
+                    <td>{r.datum}</td><td>{r.dan}</td>
+                    <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <h2 className="section">4 · Pravičnost — novo stanje</h2>
-          <table className="fairTable">
+          <h2 className="section no-print">4 · Pravičnost — novo stanje</h2>
+          <table className="fairTable no-print">
             <thead><tr><th>Zaposleni</th><th>Prej</th><th>Novih</th><th>Skupaj</th></tr></thead>
             <tbody>
               {rezultat.stanje.map(s => (
@@ -942,7 +958,7 @@ function DezurstvaTab(){
           </table>
 
           <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON</button>
-          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" onClick={() => PrintFit.natisni(printRef.current, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno, 1 stran)</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
@@ -981,6 +997,7 @@ function VodjeTab(){
   const [popravki, setPopravki] = useState({});
   // Prosto besedilo "Izjeme in opombe" na dan (ne na osebo/stolpec).
   const [izjeme, setIzjeme] = useState({});
+  const wardRef = useRef();
 
   useEffect(() => {
     client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
@@ -1111,7 +1128,7 @@ function VodjeTab(){
 
       {rezultat && (
         <React.Fragment>
-          <div className="wardScroller">
+          <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -1140,7 +1157,7 @@ function VodjeTab(){
             </table>
           </div>
 
-          <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => PrintFit.natisni(wardRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
           <button className="dlBtn no-print" style={{marginTop:8}} onClick={izvoziCSV}>⬇ Izvozi CSV</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (izračunano, brez ročnih popravkov)"}

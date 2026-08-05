@@ -365,6 +365,37 @@ uvozu istega meseca) — ista tabela, ki jo generator dežurstev (admin.html)
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 12)
 (`absence_color_map`).
 
+## 5k. Izvoz v PDF na 1 A4 stran + pogled "Po dnevih" za telefon
+
+Vsi gumbi "Izvozi v PDF" (admin.html, index.html, zelje.html, dashboard.html,
+menjave.html) zdaj uporabljajo skupno `print-fit.js`
+(`PrintFit.natisni(element, {orientacija})`). Ker aplikacija tiska samo prek
+brskalnikovega "Natisni" (`window.print`, brez jsPDF/html2pdf/CDN), pred
+tiskanjem sami preračunamo, koliko je treba vsebino pomanjšati (CSS `zoom`,
+ne `transform` — samo zoom dejansko zmanjša zaseden prostor, kar brskalnik
+potrebuje za pravilen izračun 1 strani), in nastavimo `@page` (velikost/
+usmerjenost/rob) tik pred klicem `window.print()`:
+
+- **Mesečni razporedi** (Kalup/Vodje v admin.html, "Po oddelkih" v index.html,
+  Razpredelnica v zelje.html) — A4 **ležeče**, 5 mm rob, prisiljeno na
+  **točno 1 stran** ne glede na število zaposlenih/dni v mesecu.
+- **Posamezni obrazci/seznami** (Dežurstva v admin.html, "Moj razpored" v
+  index.html, Pravičnost v dashboard.html, Menjave, Seznam želja v
+  zelje.html) — A4 **pokončno**, 10 mm rob; več strani ni težava, ker gre za
+  sezname spremenljive dolžine, ne za razpored.
+
+Dodano je tudi `-webkit-print-color-adjust: exact` (barve izmen/vikendov se
+natisnejo take, kot so na zaslonu) in `page-break-inside: avoid` na vrsticah
+tabel (varovalka, če bi se preračun kdaj rahlo zmotil).
+
+V **Razpredelnici** (zelje.html) je nov preklop **Mreža / Po dnevih** — "Po
+dnevih" prikaže en dan naenkrat s kartico na osebo (namesto ozkih stolpcev),
+primerno za telefon ("hitro preverjanje na poti"). Urejanje v tem pogledu
+gre prek spodnjega drsnega menija (bottom sheet) z večjimi gumbi za izbiro
+vrste odsotnosti, namesto tapkanja po majhnih celicah mreže. Zamrznjeni
+(sticky) prvi stolpec/vrstica v mreži in v Kalup/Vodje tabelah so obstajali
+že prej.
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov
