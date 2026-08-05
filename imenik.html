@@ -940,11 +940,17 @@ function App(){
     history.pushState(null, "", url);
   };
 
+  // POZOR: useMemo mora biti PRED "if (!auth) return null" spodaj — vse
+  // kljuke (Hooks) se morajo klicati v enakem vrstnem redu na vsakem izrisu,
+  // sicer React neha izrisovati sploh karkoli (bela stran) takoj, ko auth
+  // preide iz null v nastavljeno (prej-in-po različno število klicanih
+  // kljuk). To je bil pravi vzrok "Imenik sploh ne deluje, vse je belo".
+  const vsi = useMemo(() => osebe.concat(cakajoce), [osebe, cakajoce]);
+
   if (!auth) return null;
   const { profile } = auth;
   const myId = auth.session.user.id;
   const myRole = profile ? profile.role : "user";
-  const vsi = useMemo(() => osebe.concat(cakajoce), [osebe, cakajoce]);
   const oseba = odprtId ? osebe.find(o => o.id === odprtId) : null;
   const cakajocaOseba = !oseba && odprtId ? cakajoce.find(o => o.id === odprtId) : null;
 
