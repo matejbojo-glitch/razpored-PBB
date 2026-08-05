@@ -396,6 +396,40 @@ vrste odsotnosti, namesto tapkanja po majhnih celicah mreže. Zamrznjeni
 (sticky) prvi stolpec/vrstica v mreži in v Kalup/Vodje tabelah so obstajali
 že prej.
 
+## 5l. "Prijavi se kot" — administrator vidi aplikacijo kot izbran uporabnik
+
+V Imeniku ima admin pri vsaki drugi osebi novo kartico "Ogled kot ta
+uporabnik" z gumbom **👁 Prijavi se kot [Ime]**. Med ogledom se na vrhu
+vsake strani prikaže opozorilni trak "⚠️ Pogled aplikacije kot uporabnik:
+Ime (Oddelek)" z gumbom "Prekini ogled / Nazaj v Admin" (en klik nazaj, ni
+potrebna ponovna prijava).
+
+Pomembno — kaj to JE in kaj NI: to ni prava zamenjava Supabase seje. Za
+resnično prijavo "kot druga oseba" (drug JWT/auth.uid()) bi bil potreben
+`service_role` ključ na strežniku, ki ga to brez-strežniško postavljanje
+nima (enako pojasnjeno že v razdelku 6 spodaj glede administratorskega
+ustvarjanja računov) — takega ključa se v odjemalcu ne sme varno hraniti.
+Namesto tega `supabase-client.js` (`getSessionAndProfile`) med ogledom
+lokalno preslika "moj profil" na ciljno osebo (shranjeno v
+`sessionStorage`, izgine ob zaprtju zavihka) — prava Supabase avtentikacija
+ostane skozi ves čas administratorjeva. Ker admin že prej lahko bere/ureja
+podatke vseh (RLS to dovoljuje), ogled pravilno prikaže resnične podatke
+ciljne osebe (razpored, dopust, vloga, dostopne strani), po drugi strani pa
+`requireRole` na admin.html/dashboard.html med ogledom nadaljnjega
+ne-admina/ne-vodje pravilno zavrne — natanko to, kar bi videl ta uporabnik.
+
+Varnost: preslikava se zgodi SAMO, če je sveže preverjen profil (vedno iz
+baze, nikoli iz predpomnilnika) resnično `role = 'admin'` — nekdo, ki bi
+ročno podtaknil `sessionStorage` ključ brez resnične admin vloge, ne dobi
+učinka. Vsak začetek/konec ogleda je zabeležen v novo tabelo
+`admin_view_as_log` (admin_id, ciljna oseba, časa začetka/konca) — vidno
+vsem administratorjem (revizijska sled), pisanje pa sme samo administrator
+o svojem lastnem ogledu (`admin_id = auth.uid()`, se ne da ponarejati v
+imenu drugega admina).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 13)
+(`admin_view_as_log`).
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov

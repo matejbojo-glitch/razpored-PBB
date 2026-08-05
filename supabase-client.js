@@ -14,6 +14,25 @@
 
   var ROLE_LABEL = { admin: "Administrator", vodja: "Vodja ekipe", user: "Zaposleni" };
 
+  // ------------------------------------------------------------------
+  // "Prijavi se kot" (ogled kot izbran uporabnik) — SAMO za administratorje.
+  // To NI prava zamenjava Supabase seje (za to bi potreboval service_role
+  // ključ na strežniku, ki ga to brez-strežniško postavljanje varno nima) —
+  // prava avtentikacija ostane administratorjeva, samo profil/"jaz" se
+  // med ogledom lokalno preslika na ciljno osebo, zato vsaka stran (ki
+  // kliče requireAuth/requireRole) samodejno prikaže pogled/vloge/pravice
+  // te osebe. Stanje živi v sessionStorage (izbriše se ob zaprtju zavihka),
+  // vsak začetek/konec pa se zabeleži v admin_view_as_log.
+  // ------------------------------------------------------------------
+  var OGLED_KLJUC = "razpored-view-as";
+
+  function trenutniOgled() {
+    try {
+      var raw = sessionStorage.getItem(OGLED_KLJUC);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
   async function getSessionAndProfile() {
     var { data: { session } } = await client.auth.getSession();
     if (!session) return { session: null, profile: null };
@@ -23,7 +42,53 @@
       .eq("id", session.user.id)
       .single();
     if (error) return { session: session, profile: null };
-    return { session: session, profile: profile };
+
+    var ogled = trenutniOgled();
+    if (ogled && profile && profile.role === "admin" && ogled.targetId !== profile.id) {
+      var { data: ciljniProfil } = await client.from("profiles").select("*").eq("id", ogled.targetId).single();
+      if (ciljniProfil) {
+        return {
+          session: { ...session, user: { ...session.user, id: ciljniProfil.id, email: ciljniProfil.email } },
+          profile: ciljniProfil,
+          pravaOseba: profile,
+          ogled: true,
+        };
+      }
+    }
+    return { session: session, profile: profile, ogled: false };
+  }
+
+  // target: { id, full_name, email }. Klicatelj mora biti admin — preveri
+  // se tu (sveži profil iz baze), ne samo v UI, ker gre za varnostno
+  // občutljivo funkcijo.
+  async function zacniOgled(target) {
+    var { data: { user } } = await client.auth.getUser();
+    if (!user) return { error: "Nisi prijavljen." };
+    var { data: mojProfil } = await client.from("profiles").select("role").eq("id", user.id).single();
+    if (!mojProfil || mojProfil.role !== "admin") return { error: "Samo administrator lahko uporabi ogled kot uporabnik." };
+    if (target.id === user.id) return { error: "Ne moreš gledati kot sam sebe." };
+    var { data: vrstica, error } = await client
+      .from("admin_view_as_log")
+      .insert({
+        admin_id: user.id, admin_email: user.email,
+        target_profile_id: target.id, target_full_name: target.full_name, target_email: target.email,
+      })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+    sessionStorage.setItem(OGLED_KLJUC, JSON.stringify({ targetId: target.id, logId: vrstica.id }));
+    return { error: null };
+  }
+
+  async function koncajOgled() {
+    var ogled = trenutniOgled();
+    sessionStorage.removeItem(OGLED_KLJUC);
+    if (ogled && ogled.logId) {
+      try {
+        await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId);
+      } catch (e) { /* ni usodno — sessionStorage je vseeno počiščen */ }
+    }
+    location.href = "index.html";
   }
 
   // Preusmeri na login.html, če uporabnik ni prijavljen. Vrne { session, profile }.
@@ -75,5 +140,8 @@
     requireRole: requireRole,
     signOut: signOut,
     unreadNotificationCount: unreadNotificationCount,
+    trenutniOgled: trenutniOgled,
+    zacniOgled: zacniOgled,
+    koncajOgled: koncajOgled,
   };
 })(typeof window !== "undefined" ? window : this);

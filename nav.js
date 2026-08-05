@@ -8,6 +8,7 @@
   var e = root.React.createElement;
   var useState = root.React.useState;
   var useEffect = root.React.useEffect;
+  var useRef = root.React.useRef;
 
   var STYLE_ID = "razpored-nav-style";
   function ensureStyle() {
@@ -40,7 +41,13 @@
       ".rpIconBtn:active{ transform:translateY(0) scale(.94); box-shadow:0 1px 4px rgba(43,39,18,0.12); }" +
       ".rpIconBtn.logout:hover{ background:#FBEAE6; color:#B3402A; border-color:#F0C9BE; }" +
       ".rpIconBtn.settings.active{ background:#F2EEDF; color:#2B2712; border-color:#A79448; }" +
-      "@media print{ .rpTopIcons{ display:none !important; } }";
+      "@media print{ .rpTopIcons{ display:none !important; } }" +
+      ".rpOgledTrak{ position:fixed; top:0; left:0; right:0; z-index:100; background:#B3402A; color:#fff;" +
+      " display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;" +
+      " padding: calc(env(safe-area-inset-top) + 8px) 14px 8px; font-size:12.5px; font-weight:700; text-align:center; }" +
+      ".rpOgledExit{ background:#fff; color:#B3402A; border:0; border-radius:999px; padding:6px 14px;" +
+      " font-weight:800; font-size:12px; cursor:pointer; white-space:nowrap; }" +
+      "@media print{ .rpOgledTrak{ display:none !important; } }";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
@@ -141,6 +148,52 @@
     );
   }
 
+  // Opozorilni trak, ko administrator gleda aplikacijo "kot" izbran
+  // uporabnik (glej RazporedAuth.zacniOgled/koncajOgled v supabase-client.js).
+  // Fiksiran na vrhu, zato JS sam izmeri svojo višino in ustrezno prestavi
+  // ostalo vsebino navzdol (besedilo se lahko prelomi v 2 vrstici pri
+  // dolgih imenih/majhnih zaslonih, zato višina ni fiksna vrednost).
+  // props: aktivno (bool), profil (ciljni profil: full_name, department_code)
+  function RazporedOgledTrak(props) {
+    var ref = useRef(null);
+    var aktivno = !!props.aktivno;
+    useEffect(function () {
+      if (!aktivno) { document.body.style.paddingTop = ""; return; }
+      ensureStyle();
+      function posodobi() {
+        if (ref.current) document.body.style.paddingTop = ref.current.offsetHeight + "px";
+      }
+      posodobi();
+      window.addEventListener("resize", posodobi);
+      return function () {
+        window.removeEventListener("resize", posodobi);
+        document.body.style.paddingTop = "";
+      };
+    }, [aktivno, props.profil && props.profil.full_name]);
+
+    if (!aktivno) return null;
+    var profil = props.profil || {};
+    return e(
+      "div",
+      { className: "rpOgledTrak no-print", ref: ref },
+      e(
+        "span",
+        null,
+        "⚠️ Pogled aplikacije kot uporabnik: " + (profil.full_name || "?") +
+          (profil.department_code ? " (" + profil.department_code + ")" : "")
+      ),
+      e(
+        "button",
+        {
+          className: "rpOgledExit",
+          onClick: function () { if (root.RazporedAuth) root.RazporedAuth.koncajOgled(); },
+        },
+        "Prekini ogled / Nazaj v Admin"
+      )
+    );
+  }
+
   root.RazporedNav = RazporedNav;
   root.RazporedLogout = RazporedLogout;
+  root.RazporedOgledTrak = RazporedOgledTrak;
 })(typeof window !== "undefined" ? window : this);
