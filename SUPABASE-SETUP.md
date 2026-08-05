@@ -66,6 +66,13 @@ Dashboard → **Authentication → Providers → Email**:
 - Če e-pošte niso resnične/dostopne vsem zaposlenim, razmisli o tem, da
   administrator namesto tega vsakemu zaposlenemu sporoči začasno geslo
   in e-poštni naslov, ki ga zaposleni uporabi samo za prijavo.
+- **Za "Pozabljeno geslo" (glej §5g):** Supabase ima vgrajeno pošiljanje
+  e-pošte, a je na privzetih (brezplačnih) načrtih strogo omejeno po številu
+  na uro in se sme uporabljati samo za testiranje — za zanesljivo pošiljanje
+  vsem zaposlenim v produkciji je treba nastaviti **lasten SMTP** (Dashboard
+  → Authentication → Settings → SMTP Settings; npr. poslovni e-poštni
+  strežnik bolnišnice ali storitev kot Resend/SendGrid). Brez tega bodo
+  e-pošte za ponastavitev gesla morda prihajale nezanesljivo ali sploh ne.
 
 ## 3. Ustvari prvega administratorja
 
@@ -250,6 +257,25 @@ Na izrecno željo:
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda tabelo
 `profile_departments` + sprožilec (z enkratnim, idempotentnim backfillom za
 obstoječe profile).
+
+## 5g. Pozabljeno geslo + potrditev gesla po registraciji
+
+Na izrecno željo, brez sprememb sheme (samo `login.html` + nova
+`reset-geslo.html`):
+
+- **"Pozabljeno geslo?"** na prijavni strani — vnese e-pošto,
+  `client.auth.resetPasswordForEmail()` pošlje povezavo (Supabase, glej
+  opozorilo o SMTP v §2 zgoraj). Sporočilo je namerno enako, ne glede na to,
+  ali račun s to e-pošto obstaja (ne razkriva, kdo je registriran).
+- Povezava iz e-pošte pripelje na novo `reset-geslo.html`, ki prek
+  `detectSessionInUrl` (privzeto vklopljeno v supabase-js) samodejno
+  vzpostavi sejo iz povezave in prikaže obrazec za novo geslo
+  (`client.auth.updateUser({ password })`).
+- **Takoj po uspešni "Nova registracija"** (če je "Confirm email" izklopljen,
+  glej §2, torej je oseba takoj prijavljena) se pred vstopom v aplikacijo
+  prikaže še en korak "Nastavi geslo" — dvojna potrditev/priprava gesla.
+
+Ne zahteva ponovnega zagona `schema.sql`.
 
 ## 6. Znane omejitve te faze
 

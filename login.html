@@ -35,6 +35,8 @@
   .submitBtn{ margin-top:6px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
     padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
   .submitBtn:disabled{ opacity:.5; cursor:default; }
+  .linkBtn{ display:block; margin:12px auto 0; background:none; border:0; color:var(--accent-2); font-size:12.5px;
+    font-weight:700; cursor:pointer; text-decoration:underline; text-underline-offset:3px; font-family:inherit; }
   .msg{ margin-top:14px; font-size:13px; text-align:center; }
   .msg.err{ color: var(--danger); }
   .msg.ok{ color: var(--ok); }
@@ -59,10 +61,16 @@ function nextPage(){
   return p && /^[a-z0-9_-]+\.html$/i.test(p) ? p : "index.html";
 }
 
+function nastaviGesloPovezava(){
+  // Redirect stran za Supabase "resetPasswordForEmail" - ista mapa kot login.html.
+  return location.origin + location.pathname.replace(/[^/]*$/, "") + "reset-geslo.html";
+}
+
 function App(){
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot" | "set-password"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -83,6 +91,17 @@ function App(){
         const { error } = await client.auth.signInWithPassword({ email, password });
         if (error) throw error;
         location.replace(nextPage());
+      } else if (mode === "forgot"){
+        // Namerno enako sporočilo ne glede na to, ali e-pošta obstaja - da ne
+        // razkrivamo, kateri računi obstajajo (Supabase samo tudi ne javi napake).
+        await client.auth.resetPasswordForEmail(email, { redirectTo: nastaviGesloPovezava() });
+        setMsg({ ok:true, text:"Če račun s to e-pošto obstaja, je bila nanjo poslana povezava za nastavitev novega gesla." });
+      } else if (mode === "set-password"){
+        if (password.length < 6) throw new Error("Geslo mora imeti vsaj 6 znakov.");
+        if (password !== password2) throw new Error("Gesli se ne ujemata.");
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw error;
+        location.replace(nextPage());
       } else {
         if (!fullName.trim()) throw new Error("Vnesi ime in priimek (enako kot v razporedu).");
         const { data, error } = await client.auth.signUp({
@@ -90,7 +109,10 @@ function App(){
         });
         if (error) throw error;
         if (data.session){
-          location.replace(nextPage());
+          // Na izrecno željo: takoj po registraciji uporabnik še enkrat
+          // potrdi/nastavi geslo, preden pride na glavno stran.
+          setPassword(""); setPassword2("");
+          setMode("set-password");
         } else {
           setMsg({ ok:true, text:"Račun je ustvarjen. Preveri e-pošto za potrditev, nato se prijavi. Dostop do koordinatorskih orodij ti mora po prijavi dodeliti administrator." });
           setMode("login");
@@ -111,10 +133,15 @@ function App(){
       <span className="mark">Razpored · Begunje</span>
       <p className="sub">Prijava zaposlenih zdravstvene nege</p>
       <div className="card">
-        <div className="tabs" role="tablist">
-          <button role="tab" aria-selected={mode==="login"} onClick={() => { setMode("login"); setMsg(null); }}>Prijava</button>
-          <button role="tab" aria-selected={mode==="signup"} onClick={() => { setMode("signup"); setMsg(null); }}>Nova registracija</button>
-        </div>
+        {mode !== "set-password" && (
+          <div className="tabs" role="tablist">
+            <button role="tab" aria-selected={mode==="login" || mode==="forgot"} onClick={() => { setMode("login"); setMsg(null); }}>Prijava</button>
+            <button role="tab" aria-selected={mode==="signup"} onClick={() => { setMode("signup"); setMsg(null); }}>Nova registracija</button>
+          </div>
+        )}
+        {mode === "set-password" && (
+          <p className="sub" style={{margin:"0 0 16px"}}>Račun je ustvarjen — pred nadaljevanjem še enkrat nastavi geslo.</p>
+        )}
         <form onSubmit={submit}>
           {mode==="signup" && (
             <div className="field">
@@ -122,26 +149,47 @@ function App(){
               <input id="fn" type="text" required placeholder="npr. ROZMAN A." value={fullName} onChange={e => setFullName(e.target.value)} />
             </div>
           )}
-          <div className="field">
-            <label htmlFor="em">E-pošta</label>
-            <input id="em" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="pw">Geslo</label>
-            <input id="pw" type="password" required minLength={6} autoComplete={mode==="login" ? "current-password" : "new-password"}
-              value={password} onChange={e => setPassword(e.target.value)} />
-          </div>
+          {mode !== "set-password" && (
+            <div className="field">
+              <label htmlFor="em">E-pošta</label>
+              <input id="em" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+          )}
+          {mode !== "forgot" && (
+            <div className="field">
+              <label htmlFor="pw">{mode==="set-password" ? "Novo geslo" : "Geslo"}</label>
+              <input id="pw" type="password" required minLength={6} autoComplete={mode==="login" ? "current-password" : "new-password"}
+                value={password} onChange={e => setPassword(e.target.value)} />
+            </div>
+          )}
+          {mode === "set-password" && (
+            <div className="field">
+              <label htmlFor="pw2">Ponovi novo geslo</label>
+              <input id="pw2" type="password" required minLength={6} autoComplete="new-password"
+                value={password2} onChange={e => setPassword2(e.target.value)} />
+            </div>
+          )}
           <button className="submitBtn" type="submit" disabled={busy}>
-            {busy ? "Trenutek …" : (mode==="login" ? "Prijava" : "Ustvari račun")}
+            {busy ? "Trenutek …" : (
+              mode==="login" ? "Prijava" : mode==="signup" ? "Ustvari račun" : mode==="forgot" ? "Pošlji povezavo" : "Nastavi geslo"
+            )}
           </button>
         </form>
+        {mode === "login" && (
+          <button type="button" className="linkBtn" onClick={() => { setMode("forgot"); setMsg(null); }}>Pozabljeno geslo?</button>
+        )}
+        {mode === "forgot" && (
+          <button type="button" className="linkBtn" onClick={() => { setMode("login"); setMsg(null); }}>‹ Nazaj na prijavo</button>
+        )}
         {msg && <p className={"msg" + (msg.ok ? " ok" : " err")}>{msg.text}</p>}
       </div>
-      <p className="hint">
-        Nov račun ima privzeto vlogo "zaposleni" (vidiš samo razporede in lahko predlagaš menjave).
-        Za dostop do koordinatorskih orodij (generator, nadzorna plošča, odobritve) te mora
-        po prijavi ročno potrditi administrator.
-      </p>
+      {mode !== "set-password" && (
+        <p className="hint">
+          Nov račun ima privzeto vlogo "zaposleni" (vidiš samo razporede in lahko predlagaš menjave).
+          Za dostop do koordinatorskih orodij (generator, nadzorna plošča, odobritve) te mora
+          po prijavi ročno potrditi administrator.
+        </p>
+      )}
     </div>
   );
 }

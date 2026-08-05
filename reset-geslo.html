@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Nastavi novo geslo · Razpored Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<style>
+  :root{
+    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
+    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
+    --danger: #B3402A; --ok: #4C8C63; --radius: 16px; --radius-sm: 10px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width:400px; margin:0 auto; padding: 60px 16px 40px; }
+  .logo{ display:block; margin:0 auto 10px; height:64px; width:auto; }
+  .mark{ font-weight:800; font-size:22px; letter-spacing:-0.02em; text-align:center; display:block; }
+  .sub{ text-align:center; color:var(--muted); font-size:13px; margin: 4px 0 28px; }
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
+  .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  input{ background: var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 12px;
+    border-radius: var(--radius-sm); font-size:15px; width:100%; font-family:inherit; }
+  .submitBtn{ margin-top:6px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .submitBtn:disabled{ opacity:.5; cursor:default; }
+  .msg{ margin-top:14px; font-size:13px; text-align:center; }
+  .msg.err{ color: var(--danger); }
+  .msg.ok{ color: var(--ok); }
+  .hint{ color:var(--muted); font-size:12px; text-align:center; margin-top:16px; line-height:1.5; }
+  a.linkBtn{ display:block; margin-top:14px; text-align:center; color:var(--accent-2); font-size:13px; font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const { client } = RazporedAuth;
+
+// Supabase pri klikom na povezavo iz e-pošte samodejno (detectSessionInUrl)
+// iz URL zgostitve (#access_token=...&type=recovery) vzpostavi sejo, preden
+// se ta komponenta sploh naloži - zato tu samo počakamo na getSession().
+function App(){
+  const [stanje, setStanje] = useState("preverjam"); // preverjam | pripravljeno | ni-veljavno | uspesno
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    client.auth.getSession().then(({ data: { session } }) => {
+      setStanje(session ? "pripravljeno" : "ni-veljavno");
+    });
+    const { data: sub } = client.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setStanje("pripravljeno");
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    try {
+      if (password.length < 6) throw new Error("Geslo mora imeti vsaj 6 znakov.");
+      if (password !== password2) throw new Error("Gesli se ne ujemata.");
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw error;
+      setStanje("uspesno");
+    } catch (err) {
+      setMsg({ ok:false, text: err.message || String(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="wrap">
+      <img className="logo" src="logo-pbb.png" alt="Psihiatrična bolnišnica Begunje" />
+      <span className="mark">Razpored · Begunje</span>
+      <p className="sub">Nastavi novo geslo</p>
+      <div className="card">
+        {stanje === "preverjam" && <p className="msg">Preverjam povezavo …</p>}
+        {stanje === "ni-veljavno" && (
+          <React.Fragment>
+            <p className="msg err">Povezava ni veljavna ali je potekla.</p>
+            <a className="linkBtn" href="login.html">‹ Nazaj na prijavo (zaprosi za novo povezavo)</a>
+          </React.Fragment>
+        )}
+        {stanje === "pripravljeno" && (
+          <form onSubmit={submit}>
+            <div className="field">
+              <label htmlFor="pw">Novo geslo</label>
+              <input id="pw" type="password" required minLength={6} autoComplete="new-password"
+                value={password} onChange={e => setPassword(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="pw2">Ponovi novo geslo</label>
+              <input id="pw2" type="password" required minLength={6} autoComplete="new-password"
+                value={password2} onChange={e => setPassword2(e.target.value)} />
+            </div>
+            <button className="submitBtn" type="submit" disabled={busy}>{busy ? "Trenutek …" : "Nastavi geslo"}</button>
+            {msg && <p className={"msg" + (msg.ok ? " ok" : " err")}>{msg.text}</p>}
+          </form>
+        )}
+        {stanje === "uspesno" && (
+          <React.Fragment>
+            <p className="msg ok">Geslo je nastavljeno.</p>
+            <a className="linkBtn" href="index.html">Nadaljuj v aplikacijo ›</a>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

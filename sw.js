@@ -17,12 +17,15 @@
 // prava Excel datumska celica) se je pošiljalo v Postgres "date" stolpec
 // nepretvorjeno, kar je za dneve >12 vrglo napako, za ostale pa tiho
 // zamenjalo dan/mesec (import-utils.js normalizirajDatum()).
+// v9: dodana stran reset-geslo.html (pozabljeno geslo) + korak "nastavi
+// geslo" takoj po registraciji v login.html.
 
-const CACHE = 'razpored-pbb-v8';
+const CACHE = 'razpored-pbb-v9';
 const ASSETS = [
   './',
   './index.html',
   './login.html',
+  './reset-geslo.html',
   './menjave.html',
   './admin.html',
   './dashboard.html',
