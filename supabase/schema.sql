@@ -323,24 +323,24 @@ create table if not exists public.contact_imports (
   role text check (role in ('admin', 'vodja', 'user')),
   department_code text references public.departments (code) on update cascade,
   linked_profile_id uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now(),
-  -- Dodatna HR polja iz uradnega seznama zaposlenih (šifra zaposlenega, datum
-  -- rojstva, naziv delovnega mesta, vodja, starševsko varstvo, letni dopust) —
-  -- na izrecno željo, da se ti podatki ob povezavi prenesejo na uporabnika.
-  employee_code text,
-  birth_date date,
-  position_name text,
-  manager_name text,
-  parental_leave text,
-  annual_leave_total integer,
-  -- Tekoče stanje dopusta (preostanek dni), ki ga admin redno posodablja z
-  -- uvozom nove Excel tabele (na izrecno željo) — ločeno od letne kvote
-  -- (annual_leave_total, fiksna za celo leto), ker se to spreminja med letom.
-  -- leave_balance_asof je privzeto 1. v tekočem mesecu, če datoteka nima
-  -- lastnega stolpca z datumom.
-  leave_balance_days integer,
-  leave_balance_asof date
+  created_at timestamptz not null default now()
 );
+
+-- POZOR: ker je zgornji "create table IF NOT EXISTS" na obstoječi (že prej
+-- ustvarjeni) tabeli no-op, stolpcev, dodanih pozneje, NI SMELO biti znotraj
+-- tega bloka (bili so v prejšnji različici te datoteke - napaka, ki je
+-- povzročila "column employee_code does not exist" pri poganjanju pogleda
+-- spodaj na bazi, kjer je contact_imports že obstajala pred to spremembo).
+-- "alter table add column if not exists" deluje pravilno v obeh primerih
+-- (nova IN že obstoječa tabela), zato se od tu naprej dosledno uporablja to.
+alter table public.contact_imports add column if not exists employee_code text;
+alter table public.contact_imports add column if not exists birth_date date;
+alter table public.contact_imports add column if not exists position_name text;
+alter table public.contact_imports add column if not exists manager_name text;
+alter table public.contact_imports add column if not exists parental_leave text;
+alter table public.contact_imports add column if not exists annual_leave_total integer;
+alter table public.contact_imports add column if not exists leave_balance_days integer;
+alter table public.contact_imports add column if not exists leave_balance_asof date;
 
 alter table public.contact_imports enable row level security;
 drop policy if exists contact_imports_admin on public.contact_imports;
@@ -390,10 +390,14 @@ create table if not exists public.profile_hr_details (
   manager_name text,
   parental_leave text,
   annual_leave_total integer,
-  leave_balance_days integer,
-  leave_balance_asof date,
   updated_at timestamptz not null default now()
 );
+
+-- Ista past kot pri contact_imports zgoraj (glej opombo tam) - leave_balance_*
+-- je bil prej pomotoma znotraj "create table if not exists", kar na že
+-- obstoječi tabeli ne naredi ničesar.
+alter table public.profile_hr_details add column if not exists leave_balance_days integer;
+alter table public.profile_hr_details add column if not exists leave_balance_asof date;
 
 alter table public.profile_hr_details enable row level security;
 drop policy if exists profile_hr_details_select on public.profile_hr_details;
