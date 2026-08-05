@@ -146,6 +146,7 @@
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="xlsx.core.min.js"></script>
+<script src="exceljs.min.js"></script>
 <script src="import-utils.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -307,6 +308,98 @@ function imenaSeUjemata(a, b){
   return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
 }
 
+// ---------------------------------------------------------------------
+// Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.
+// Nekateri oddelki v SKUPINE uporabljajo okrajšano ime ("VREVC M."), Kadris
+// pa vedno polno ("VREVC MARJETA"), zato navadno imenaSeUjemata (vreča
+// besed, cele besede) tu ne zadošča — beseda z "." na koncu šteje kot
+// ujemanje po prvih črkah (okrajšava), ne kot cela beseda.
+function osnovaBesede(s){
+  return (s||"").toString().toUpperCase()
+    .replace(/Č/g,"C").replace(/Ć/g,"C").replace(/Š/g,"S").replace(/Ž/g,"Z").replace(/Đ/g,"D")
+    .trim();
+}
+function besedeImena(s){ return osnovaBesede(s).split(/\s+/).filter(Boolean); }
+function imeSeUjemaZRosterjem(rosterIme, uvozenoIme){
+  const r = besedeImena(rosterIme), u = besedeImena(uvozenoIme);
+  if (!r.length || !u.length) return false;
+  const zasedeno = new Array(u.length).fill(false);
+  return r.every(rw => {
+    const okrajsava = rw.endsWith(".");
+    const osnova = okrajsava ? rw.slice(0, -1) : rw;
+    const idx = u.findIndex((uw, i) => !zasedeno[i] && (okrajsava ? uw.startsWith(osnova) : uw === osnova));
+    if (idx === -1) return false;
+    zasedeno[idx] = true;
+    return true;
+  });
+}
+function najdiOsebo(uvozenoIme){
+  return VSI_LJUDJE.find(o => imeSeUjemaZRosterjem(o.ime, uvozenoIme));
+}
+
+// Barva celice -> stabilen ključ za preslikavo (ARGB hex; bela/brez polnila
+// se šteje kot "brez odsotnosti ta dan", ne kot barva za preslikavo).
+function barvaKljuc(fill){
+  if (!fill || fill.type !== "pattern" || fill.pattern === "none") return null;
+  const c = fill.fgColor;
+  if (!c) return null;
+  if (c.argb) return (c.argb === "FFFFFFFF" || c.argb === "00000000") ? null : c.argb;
+  if (c.theme != null) return "theme:" + c.theme + ":" + (c.tint || 0);
+  return null;
+}
+function barvaCSS(barva){
+  if (barva.indexOf("theme:") === 0) return "#CCCCCC";
+  const hex = barva.length === 8 ? barva.slice(2) : barva;
+  return "#" + hex;
+}
+
+// Prebere Kadris-slog barvni koledar: vrstica glave se poišče sama med
+// prvimi 15 vrsticami (tista z največ celoštevilskimi dnevi 1–31 v
+// stolpcih), prvi stolpec vsake naslednje vrstice je ime osebe, barva
+// vsake dnevne celice pa določa vrsto odsotnosti (preslikava se določi
+// pozneje, glede na absence_color_map).
+async function parsirajBarvniExcel(file){
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) throw new Error("Datoteka ne vsebuje delovnega lista.");
+  const meja = Math.min(ws.rowCount, 15);
+  let glavaR = null, stolpciDni = {}, najboljsi = 0;
+  for (let r = 1; r <= meja; r++) {
+    const row = ws.getRow(r);
+    const dnevi = {};
+    row.eachCell({ includeEmpty:false }, (cell, col) => {
+      const v = cell.value;
+      let n = null;
+      if (typeof v === "number") n = v;
+      else if (v instanceof Date) n = v.getDate();
+      else if (typeof v === "string") { const m = v.trim().match(/^(\d{1,2})\.?$/); if (m) n = Number(m[1]); }
+      if (n != null && n >= 1 && n <= 31) dnevi[col] = n;
+    });
+    const stevilo = Object.keys(dnevi).length;
+    if (stevilo > najboljsi) { najboljsi = stevilo; glavaR = r; stolpciDni = dnevi; }
+  }
+  if (!glavaR || najboljsi < 5) {
+    throw new Error("V datoteki ni bilo mogoče najti vrstice z dnevi v mesecu (1–31) — pričakovan je koledarski izpis z dnevi v stolpcih glave.");
+  }
+  const vrstice = [];
+  for (let r = glavaR + 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const imeRaw = (row.getCell(1).value || "").toString().trim();
+    if (!imeRaw) continue;
+    const zaznamki = [];
+    Object.keys(stolpciDni).forEach(colStr => {
+      const col = Number(colStr);
+      const dan = stolpciDni[col];
+      const barva = barvaKljuc(row.getCell(col).fill);
+      if (barva) zaznamki.push({ dan, barva });
+    });
+    if (zaznamki.length) vrstice.push({ imeRaw, zaznamki });
+  }
+  return vrstice;
+}
+
 function Razpredelnica({ role, myId, myFullName }){
   const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
   const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
@@ -325,6 +418,14 @@ function Razpredelnica({ role, myId, myFullName }){
   const uvozRef = useRef();
   const [uvozMsg, setUvozMsg] = useState(null);
   const [uvozBusy, setUvozBusy] = useState(false);
+
+  // Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.
+  const barvniRef = useRef();
+  const [barvnaMapa, setBarvnaMapa] = useState(null); // { [barva]: {kind, prezri} }
+  const [barvniBusy, setBarvniBusy] = useState(false);
+  const [barvniMsg, setBarvniMsg] = useState(null);
+  const [barvniPredogled, setBarvniPredogled] = useState(null);
+  const [izbireBarv, setIzbireBarv] = useState({});
 
   const rokPretekel = useMemo(() => {
     let dm = view.month - 1, dy = view.year;
@@ -414,6 +515,101 @@ function Razpredelnica({ role, myId, myFullName }){
     }
   };
 
+  useEffect(() => {
+    if (!jeAdmin) return;
+    RazporedAuth.client.from("absence_color_map").select("*").then(({ data }) => {
+      const m = {};
+      (data || []).forEach(r => { m[r.barva] = { kind: r.kind, prezri: r.prezri }; });
+      setBarvnaMapa(m);
+    });
+  }, [jeAdmin]);
+
+  // Uvoz barvnega koledarja (Kadris): prebere datoteko, poišče znane barve
+  // (absence_color_map) in prikaže predogled + nove, še ne preslikane barve
+  // za potrditev spodaj — glej potrdiBarvniUvoz.
+  const uvoziBarvniExcel = async (file) => {
+    if (!file || !barvnaMapa) return;
+    setBarvniBusy(true); setBarvniMsg(null); setBarvniPredogled(null);
+    try {
+      const vrstice = await parsirajBarvniExcel(file);
+      if (!vrstice.length) { setBarvniMsg("Datoteka ne vsebuje uporabnih vrstic z obarvanimi celicami."); return; }
+      const barveVDatoteki = new Set();
+      vrstice.forEach(v => v.zaznamki.forEach(z => barveVDatoteki.add(z.barva)));
+      const barveNove = [...barveVDatoteki].filter(b => !barvnaMapa[b]);
+      const neujemanja = [];
+      let steviloUjemanj = 0;
+      vrstice.forEach(v => { if (najdiOsebo(v.imeRaw)) steviloUjemanj++; else neujemanja.push(v.imeRaw); });
+      setBarvniPredogled({
+        vrstice, leto: view.year, mesec: view.month,
+        barveNove, neujemanja, steviloOseb: vrstice.length, steviloUjemanj,
+      });
+      setIzbireBarv({});
+      setBarvniMsg(`Prebranih ${vrstice.length} vrstic (osebe) iz "${file.name}" — preveri predogled spodaj pred potrditvijo.`);
+    } catch (e) {
+      setBarvniMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setBarvniBusy(false);
+    }
+  };
+
+  const potrdiBarvniUvoz = async () => {
+    if (!barvniPredogled) return;
+    const { vrstice, leto, mesec, barveNove, neujemanja } = barvniPredogled;
+    if (barveNove.some(b => !izbireBarv[b])) {
+      setBarvniMsg('Za vse nove barve spodaj izberi vrsto odsotnosti (ali "Ignoriraj").');
+      return;
+    }
+    setBarvniBusy(true);
+    try {
+      const noveMape = barveNove.map(b => ({
+        barva: b,
+        kind: izbireBarv[b] === "prezri" ? null : izbireBarv[b],
+        prezri: izbireBarv[b] === "prezri",
+        posodobil: myId,
+      }));
+      if (noveMape.length) {
+        const { error } = await RazporedAuth.client.from("absence_color_map").upsert(noveMape, { onConflict: "barva" });
+        if (error) throw error;
+      }
+      const polnaMapa = { ...barvnaMapa };
+      noveMape.forEach(m => { polnaMapa[m.barva] = { kind: m.kind, prezri: m.prezri }; });
+
+      const dniVMesecu = danovVMesecu(leto, mesec);
+      const zapisi = [];
+      vrstice.forEach(v => {
+        const oseba = najdiOsebo(v.imeRaw);
+        if (!oseba) return;
+        v.zaznamki.forEach(z => {
+          if (z.dan > dniVMesecu) return; // npr. 31. stolpec v mesecu s 30 dnevi
+          const vnos = polnaMapa[z.barva];
+          if (!vnos || vnos.prezri || !vnos.kind) return;
+          zapisi.push({ full_name: oseba.ime, work_date: isoZa(leto, mesec, z.dan), kind: vnos.kind, created_by: myId });
+        });
+      });
+      if (!zapisi.length) {
+        setBarvniMsg("Ni bilo vnosov za uvoz (vse barve so ignorirane ali ni ujemanja imen s seznamom osebja).");
+        setBarvnaMapa(polnaMapa);
+        setBarvniPredogled(null);
+        return;
+      }
+      for (let i = 0; i < zapisi.length; i += 200) {
+        const { error } = await RazporedAuth.client.from("leave_entries").upsert(zapisi.slice(i, i + 200), { onConflict: "full_name,work_date" });
+        if (error) throw error;
+      }
+      setBarvnaMapa(polnaMapa);
+      setBarvniMsg(
+        `Uvoženih ${zapisi.length} vnosov za ${MESECI_SL[mesec]} ${leto}.` +
+        (neujemanja.length ? ` Brez ujemanja v seznamu osebja (preveri črkovanje v datoteki): ${neujemanja.join(", ")}.` : "")
+      );
+      setBarvniPredogled(null);
+      nalozi();
+    } catch (e) {
+      setBarvniMsg("Uvoz ni uspel: " + (e.message || String(e)));
+    } finally {
+      setBarvniBusy(false);
+    }
+  };
+
   const izracunajNovo = (trenutna) => (pen === "erase" ? null : (trenutna === pen ? null : pen));
 
   const zavrniUrejanje = (ime) => {
@@ -477,6 +673,49 @@ function Razpredelnica({ role, myId, myFullName }){
             Piše neposredno v razpredelnico (Supabase) — takoj vidno vsem.
           </p>
           {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+        </div>
+      )}
+      {jeAdmin && (
+        <div className="card no-print" style={{marginBottom:10}}>
+          <input ref={barvniRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+            onChange={e => { uvoziBarvniExcel(e.target.files[0]); e.target.value = ""; }} />
+          <button className="submitBtn" disabled={barvniBusy || !barvnaMapa} onClick={() => barvniRef.current && barvniRef.current.click()}>
+            {barvniBusy ? "Nalagam …" : `📅 Uvoz barvnega koledarja (Kadris) — v ${MESECI_SL[view.month]} ${view.year}`}
+          </button>
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>
+            Vrstica z dnevi 1–31 se poišče sama, prvi stolpec je ime osebe (Priimek Ime). Barva celice določa vrsto
+            odsotnosti — nove barve admin ob prvem uvozu enkrat določi spodaj, potem si jih aplikacija zapomni.
+            Uvozi se v TRENUTNO prikazani mesec — po potrebi najprej preklopi mesec zgoraj/spodaj.
+          </p>
+          {barvniMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{barvniMsg}</p>}
+
+          {barvniPredogled && (
+            <div style={{marginTop:12, borderTop:"1px solid var(--line)", paddingTop:12}}>
+              <p className="hint" style={{margin:"0 0 8px"}}>
+                {barvniPredogled.steviloUjemanj} od {barvniPredogled.steviloOseb} oseb najdenih v seznamu osebja.
+                {barvniPredogled.neujemanja.length > 0 && ` Brez ujemanja: ${barvniPredogled.neujemanja.join(", ")}.`}
+              </p>
+              {barvniPredogled.barveNove.length > 0 && (
+                <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:10}}>
+                  <p className="hint" style={{margin:0, fontWeight:700}}>Nove barve — določi vrsto odsotnosti:</p>
+                  {barvniPredogled.barveNove.map(b => (
+                    <div key={b} style={{display:"flex", alignItems:"center", gap:8}}>
+                      <span style={{width:22, height:22, borderRadius:6, border:"1px solid var(--line)", background:barvaCSS(b), display:"inline-block", flex:"0 0 auto"}}></span>
+                      <select value={izbireBarv[b] || ""} onChange={e => setIzbireBarv(s => ({...s, [b]: e.target.value}))}>
+                        <option value="">— izberi —</option>
+                        {Object.keys(PEN_META).map(k => <option key={k} value={k}>{PEN_META[k].label}</option>)}
+                        <option value="prezri">Ignoriraj (ni odsotnost)</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button className="submitBtn" disabled={barvniBusy} onClick={potrdiBarvniUvoz}>
+                {barvniBusy ? "Uvažam …" : "Potrdi uvoz"}
+              </button>
+              <button className="fileBtn" style={{marginLeft:8}} onClick={() => setBarvniPredogled(null)}>Prekliči</button>
+            </div>
+          )}
         </div>
       )}
       <div className="penRow no-print">

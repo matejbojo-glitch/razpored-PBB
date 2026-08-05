@@ -970,3 +970,29 @@ drop trigger if exists trg_sync_leave_balance on public.leave_balance_history;
 create trigger trg_sync_leave_balance
   after insert or update of dnevi, profile_id on public.leave_balance_history
   for each row execute function public.sync_leave_balance_to_hr_details();
+
+-- ---------------------------------------------------------------------
+-- 12) absence_color_map — pomni, katera barva celice v uvoženem barvnem
+--     koledarju odsotnosti (Kadris) pomeni katero vrsto (leave_entries.kind),
+--     da administratorju vsak mesec ni treba znova ročno določati istih
+--     barv. Sam uvoz piše neposredno v obstoječ leave_entries (upsert, brez
+--     brisanja), zato ta tabela hrani SAMO preslikavo barva->vrsta, ne
+--     podatkov o odsotnostih samih.
+-- ---------------------------------------------------------------------
+create table if not exists public.absence_color_map (
+  barva text primary key,
+  kind text check (kind in ('omejitev', 'ld', 'bs', 'sti')),
+  prezri boolean not null default false,
+  posodobil uuid references auth.users (id) on delete set null,
+  posodobljeno timestamptz not null default now(),
+  check ((prezri and kind is null) or (not prezri and kind is not null))
+);
+
+comment on table public.absence_color_map is 'ARGB barva celice iz uvoženega Excela -> vrsta odsotnosti (leave_entries.kind); prezri=true pomeni "ni odsotnost, ne uvažaj"';
+
+alter table public.absence_color_map enable row level security;
+drop policy if exists absence_color_map_admin on public.absence_color_map;
+create policy absence_color_map_admin on public.absence_color_map
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));

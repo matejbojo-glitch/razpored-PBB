@@ -329,6 +329,42 @@ Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 8)
 (`leave_balance_history`, pogleda `leave_balance_pregled`/
 `leave_balance_obdobja`, sprožilec).
 
+## 5j. Uvoz barvnega koledarja odsotnosti (Kadris) — zavihek Želje
+
+V **Želje** (zelje.html), pod razpredelnico dopusti/omejitve, je nov
+admin-only gumb za uvoz CELEGA koledarja hkrati iz obarvane Excel datoteke
+(npr. izvoz iz Kadrisa, kjer je vsak dan pobarvan glede na vrsto
+odsotnosti — LD/BS/študijski dopust/omejitev). Ker vgrajena knjižnica za
+branje Excela (SheetJS) ne bere barv celic, je za to dodana knjižnica
+**ExcelJS** (`exceljs.min.js`, vendorirano, brez CDN — enak vzorec kot
+`xlsx.core.min.js`/`pdf.min.mjs`).
+
+Vrstica z dnevi 1–31 se poišče sama med prvimi 15 vrsticami (podobno kot
+`najdiGlavo` v razdelku 5i, a tu iščemo števila, ne besedilne glave), prvi
+stolpec vsake naslednje vrstice je ime osebe. Ker nekateri oddelki v
+seznamu osebja uporabljajo okrajšano ime ("VREVC M.", samo prva črka
+imena), Kadris pa vedno polno ("VREVC MARJETA"), je dodano posebno
+ujemanje imen (`imeSeUjemaZRosterjem` v zelje.html) — beseda z "." na
+koncu na seznamu osebja šteje kot ujemanje po prvih črkah, ne kot cela
+beseda; primerjava je tudi neobčutljiva na vrstni red in šumnike. Osebe
+brez ujemanja se v predogledu izpišejo posebej (uvoz jih preskoči, ne
+prekine celote) — admin lahko popravi črkovanje v datoteki in uvozi znova.
+
+Nova tabela `public.absence_color_map` hrani preslikavo barva → vrsta
+odsotnosti (`admin`-only), da je admin ob prvem uvozu ne določa vsak
+mesec znova — samo NOVE barve (ki jih tabela še ne pozna) se v predogledu
+izpišejo z izbirnikom vrste (ali "Ignoriraj", če barva ne pomeni
+odsotnosti). Sam uvoz piše neposredno v že obstoječ `leave_entries`
+(upsert po `full_name, work_date`, torej brez podvajanja ob ponovnem
+uvozu istega meseca) — ista tabela, ki jo generator dežurstev (admin.html)
+že bere. Uvoz zapiše SAMO dejanske obarvane dni iz datoteke; pravilo
+"generator samodejno blokira tudi dan pred začetkom strnjenega LD bloka"
+(glej razdelek "Kalup"/`generator-core.js`) se izvede kasneje, ob branju
+— uvoz ga NE podvoji, sicer bi generator blokiral preveč dni.
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 12)
+(`absence_color_map`).
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov
