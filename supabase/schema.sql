@@ -411,6 +411,68 @@ create policy profiles_update_admin on public.profiles
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
 
+-- profile_departments: en zaposleni lahko pokriva VEČ oddelkov (na izrecno
+-- željo, prikazano/urejano v Imeniku) - "primaren" (sort_order najnižji) je
+-- tisti, ki šteje za generator urnika. Namenoma NE spreminja WARDS_META /
+-- lead_departments / obstoječega generatorja (admin.html) - ta še naprej
+-- uporablja izključno profiles.department_code (=primarni oddelek), da se
+-- ne tvega regresij v že delujočem generiranju razporeda. Sprožilec spodaj
+-- profiles.department_code drži usklajen s "primarnim" vnosom tukaj, ne
+-- glede na to, kateri del aplikacije department_code spremeni.
+create table if not exists public.profile_departments (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  department_code text not null references public.departments (code) on update cascade,
+  sort_order integer not null default 0,
+  unique (profile_id, department_code)
+);
+
+alter table public.profile_departments enable row level security;
+drop policy if exists profile_departments_select on public.profile_departments;
+create policy profile_departments_select on public.profile_departments
+  for select to authenticated using (true);
+drop policy if exists profile_departments_admin_write on public.profile_departments;
+create policy profile_departments_admin_write on public.profile_departments
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+create or replace function public.sync_primary_department()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_code is null then
+    return new;
+  end if;
+  -- Vse ostale oddelke te osebe premakni za enega nazaj, nato nov primarni
+  -- oddelek postavi na sort_order 0 (upsert, če ga na seznamu še ni bilo).
+  update public.profile_departments
+  set sort_order = sort_order + 1
+  where profile_id = new.id and department_code <> new.department_code;
+
+  insert into public.profile_departments (profile_id, department_code, sort_order)
+  values (new.id, new.department_code, 0)
+  on conflict (profile_id, department_code) do update set sort_order = 0;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_primary_department on public.profiles;
+create trigger trg_sync_primary_department
+  after insert or update of department_code on public.profiles
+  for each row execute function public.sync_primary_department();
+
+-- Enkraten (idempotenten) zagon za profile, ki so department_code dobili
+-- PREDEN je ta sprožilec obstajal - sprožilec sam se namreč ne požene za
+-- pretekle vrstice, samo za bodoče insert/update.
+insert into public.profile_departments (profile_id, department_code, sort_order)
+select id, department_code, 0 from public.profiles
+where department_code is not null
+on conflict (profile_id, department_code) do nothing;
+
 -- schedule_entries: berejo vsi prijavljeni, za VSE oddelke (dogovorjeno);
 -- pišejo (kalup/dežurstva) samo admin.
 drop policy if exists schedule_select on public.schedule_entries;

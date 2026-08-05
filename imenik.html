@@ -158,7 +158,7 @@ function Seznam({ osebe, oddelki, onOdpri }){
     return osebe.filter(o =>
       (o.full_name || "").toLowerCase().includes(s) ||
       (o.email || "").toLowerCase().includes(s) ||
-      (imeOddelka[o.department_code] || "").toLowerCase().includes(s)
+      (o.dept_codes || []).some(k => (imeOddelka[k] || "").toLowerCase().includes(s))
     );
   }, [osebe, q, imeOddelka]);
 
@@ -177,7 +177,9 @@ function Seznam({ osebe, oddelki, onOdpri }){
               <div className="name">{o.full_name}</div>
               <div className="meta">
                 <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>
-                {o.department_code && <span>{imeOddelka[o.department_code] || o.department_code}</span>}
+                {(o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : [])).map((k, i) => (
+                  <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
+                ))}
               </div>
             </div>
             <span className="chev">›</span>
@@ -198,9 +200,66 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
   const smemVidetiHr = jeMoj || myRole === "admin";
   const [telefon, setTelefon] = useState(oseba.phone || "");
   const [vloga, setVloga] = useState(oseba.role);
-  const [oddelek, setOddelek] = useState(oseba.department_code || "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  // Več oddelkov na osebo (profile_departments) — prvi (primarni) je tisti,
+  // ki šteje za generator urnika (profiles.department_code, sprožilec v
+  // schema.sql ju drži usklajena). Ostali so tu samo informativni/urejljivi.
+  const [primarni, setPrimarni] = useState(oseba.department_code || null);
+  const [oddelkiOsebe, setOddelkiOsebe] = useState(oseba.dept_codes && oseba.dept_codes.length ? oseba.dept_codes : (oseba.department_code ? [oseba.department_code] : []));
+  const [novOddelek, setNovOddelek] = useState("");
+  const [oddBusy, setOddBusy] = useState(false);
+  const [oddMsg, setOddMsg] = useState(null);
+
+  const dodajOddelek = async () => {
+    if (!novOddelek || oddelkiOsebe.includes(novOddelek)) return;
+    setOddBusy(true); setOddMsg(null);
+    try {
+      if (!primarni) {
+        const { error } = await client.from("profiles").update({ department_code: novOddelek }).eq("id", oseba.id);
+        if (error) throw error;
+        setPrimarni(novOddelek);
+      } else {
+        const { error } = await client.from("profile_departments").insert({ profile_id: oseba.id, department_code: novOddelek, sort_order: oddelkiOsebe.length });
+        if (error) throw error;
+      }
+      setOddelkiOsebe(o => [...o, novOddelek]);
+      setNovOddelek("");
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
+
+  const naredniPrimaren = async (code) => {
+    setOddBusy(true); setOddMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ department_code: code }).eq("id", oseba.id);
+      if (error) throw error;
+      setPrimarni(code);
+      setOddelkiOsebe(o => [code, ...o.filter(k => k !== code)]);
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
+
+  const odstraniOddelek = async (code) => {
+    setOddBusy(true); setOddMsg(null);
+    try {
+      const { error: e1 } = await client.from("profile_departments").delete().eq("profile_id", oseba.id).eq("department_code", code);
+      if (e1) throw e1;
+      const preostali = oddelkiOsebe.filter(k => k !== code);
+      if (primarni === code) {
+        const nov = preostali[0] || null;
+        const { error: e2 } = await client.from("profiles").update({ department_code: nov }).eq("id", oseba.id);
+        if (e2) throw e2;
+        setPrimarni(nov);
+      }
+      setOddelkiOsebe(preostali);
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -249,7 +308,10 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
   const shraniAdmin = async () => {
     setBusy(true); setMsg(null);
     try {
-      const { error: e1 } = await client.from("profiles").update({ role: vloga, department_code: oddelek || null }).eq("id", oseba.id);
+      // department_code ureja spodnji ločen urejevalnik oddelkov (več
+      // oddelkov na osebo) — tu se posodobi samo vloga, da ne prihaja do
+      // nasprotujočih si zapisov med tem in "primarni"/"dodaj oddelek".
+      const { error: e1 } = await client.from("profiles").update({ role: vloga }).eq("id", oseba.id);
       if (e1) throw e1;
       const { error: e2 } = await client.from("contact_phones").upsert({ profile_id: oseba.id, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
       if (e2) throw e2;
@@ -264,6 +326,7 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
     setBusy(true); setMsg(null);
     try {
       await client.from("contact_phones").delete().eq("profile_id", oseba.id);
+      await client.from("profile_departments").delete().eq("profile_id", oseba.id);
       const { error } = await client.from("profiles").update({ role: "user", department_code: null }).eq("id", oseba.id);
       if (error) throw error;
       setMsg({ ok:true, text:"Odstranjeno." });
@@ -285,10 +348,13 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
       <div className="card">
         <EmailRow email={oseba.email} />
         <PhoneRow phone={oseba.phone} />
-        {oseba.department_code && (
+        {oddelkiOsebe.length > 0 && (
           <div className="rowline">
-            <div className="lbl">Oddelek</div>
-            <div className="val">{(oddelki.find(o => o.code === oseba.department_code) || {}).name || oseba.department_code}</div>
+            <div className="lbl">Oddelek{oddelkiOsebe.length > 1 ? "i" : ""}</div>
+            <div className="val">
+              {oddelkiOsebe.map((k, i) => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}
+              {oddelkiOsebe.length > 1 && <span className="hint" style={{display:"block", marginTop:2}}>Prvi ({(oddelki.find(o => o.code === oddelkiOsebe[0]) || {}).name || oddelkiOsebe[0]}) šteje za generator urnika.</span>}
+            </div>
           </div>
         )}
         {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
@@ -342,16 +408,32 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
                 <option value="admin">Administrator</option>
               </select>
             </div>
-            <div className="field">
-              <label htmlFor="pdept">Oddelek</label>
-              <select id="pdept" value={oddelek} onChange={e => setOddelek(e.target.value)}>
-                <option value="">— brez —</option>
-                {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
-              </select>
-            </div>
             <button className="submitBtn" onClick={shraniAdmin} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
             <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
             {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+
+          <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator urnika</h2>
+          <div className="card no-print">
+            {oddelkiOsebe.length === 0 && <p className="empty">Ni dodanih oddelkov.</p>}
+            {oddelkiOsebe.map((k, i) => (
+              <div className="rowline" key={k}>
+                <div className="val">{i === 0 && "★ "}{(oddelki.find(o => o.code === k) || {}).name || k}</div>
+                {i > 0 && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
+                <button className="iconBtn" disabled={oddBusy} onClick={() => odstraniOddelek(k)}>Odstrani</button>
+              </div>
+            ))}
+            <div className="field" style={{marginTop:10}}>
+              <label>Dodaj oddelek</label>
+              <div style={{display:"flex", gap:8}}>
+                <select value={novOddelek} onChange={e => setNovOddelek(e.target.value)} style={{flex:1}}>
+                  <option value="">Izberi …</option>
+                  {oddelki.filter(o => !oddelkiOsebe.includes(o.code)).map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+                </select>
+                <button className="iconBtn" disabled={oddBusy || !novOddelek} onClick={dodajOddelek}>+ Dodaj</button>
+              </div>
+            </div>
+            {oddMsg && <p className={oddMsg.ok === false ? "err" : "okMsg"}>{oddMsg.text}</p>}
           </div>
 
           <h2 className="section no-print">HR podatki (admin, vidno samo tebi in tej osebi)</h2>
@@ -438,6 +520,19 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     return error;
   };
 
+  // Če je oseba (po e-pošti) že v seznamu "še ne povezani", POSODOBI to
+  // vrstico namesto da doda podvojeno — na izrecno željo, ker se ista, še
+  // neregistrirana oseba lahko pojavi v več zaporednih uvozih (posodobljeni
+  // podatki čez čas), prej je vsak tak uvoz ustvaril nov, podvojen zapis.
+  const dodajAliPosodobiVrstico = async (vrstica) => {
+    const obstojeci = uvozi.find(u => !u.linked_profile_id && (u.email || "").toLowerCase() === vrstica.email.toLowerCase());
+    if (obstojeci) {
+      const { error } = await client.from("contact_imports").update(vrstica).eq("id", obstojeci.id);
+      return error;
+    }
+    return dodajVrstico(vrstica);
+  };
+
   const vrsticaVZapis = (v) => {
     const full_name = (v.full_name || "").trim();
     const email = (v.email || "").trim();
@@ -512,11 +607,11 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         const err = await prenesiPodatkeNaProfil(zapis, obstojeci.id);
         if (err) napak++; else posodobljenih++;
       } else {
-        const err = await dodajVrstico(zapis);
+        const err = await dodajAliPosodobiVrstico(zapis);
         if (err) napak++; else dodanih++;
       }
     }
-    setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno, ${dodanih} novih dodanih v seznam za uvoz`
+    setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno, ${dodanih} novih dodanih/posodobljenih v seznamu za uvoz`
       + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
     nalozi();
     onSpremenjeno();
@@ -588,7 +683,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     if (!zapis) return;
     setDodajBusy(true);
     const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
-    const err = obstojeci ? await prenesiPodatkeNaProfil(zapis, obstojeci.id) : await dodajVrstico(zapis);
+    const err = obstojeci ? await prenesiPodatkeNaProfil(zapis, obstojeci.id) : await dodajAliPosodobiVrstico(zapis);
     setDodajBusy(false);
     if (!err) {
       setNovo(PRAZEN_NOV); nalozi();
@@ -746,11 +841,14 @@ function App(){
 
   useEffect(() => {
     if (!auth) return;
-    client.from("profiles").select("id, full_name, role, department_code, email, contact_phones(phone)").order("full_name")
+    client.from("profiles")
+      .select("id, full_name, role, department_code, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .order("full_name")
       .then(({ data }) => {
         setOsebe((data || []).map(o => ({
           ...o,
           phone: Array.isArray(o.contact_phones) ? (o.contact_phones[0] && o.contact_phones[0].phone) : (o.contact_phones ? o.contact_phones.phone : null),
+          dept_codes: (o.profile_departments || []).slice().sort((a, b) => a.sort_order - b.sort_order).map(d => d.department_code),
         })));
       });
     client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));

@@ -227,6 +227,30 @@ zaposlene:
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda `leave_balance_days`
 in `leave_balance_asof` na `contact_imports` in `profile_hr_details`.
 
+## 5f. Več oddelkov na zaposlenega + brez podvajanja pri ponovnem uvozu
+
+Na izrecno željo:
+
+- V Imeniku ima lahko en zaposleni **več oddelkov** (npr. pokriva C in C1) —
+  nova tabela `profile_departments` (profile_id, department_code,
+  sort_order). **Prvi** (najnižji `sort_order`) je "primarni" in ostaja
+  edini, ki šteje za obstoječi generator urnika (`profiles.department_code`
+  — WARDS_META/lead_departments v `admin.html` sta **namenoma
+  nespremenjena**, da se ne tvega regresij). Sprožilec
+  `sync_primary_department` v shemi drži `profiles.department_code` in
+  `profile_departments` usklajena, ne glede na to, kateri del aplikacije
+  (Imenik, Uporabniki, uvoz, gumb za ponastavitev) oddelek spremeni.
+  V Imeniku → profil osebe (admin) je nov urejevalnik: dodajanje/odstranitev
+  oddelka in gumb "Naredi primaren" za spremembo vrstnega reda.
+- **Uvoz ne podvaja več** "še ne povezanih" oseb: če ista (še neregistrirana)
+  oseba po e-pošti že obstaja v seznamu za uvoz, ponoven uvoz njeno vrstico
+  **posodobi**, namesto da ustvari podvojen zapis (velja tudi za
+  "posodobljeno stanje dopusta" iz §5e, ko oseba še ni registrirana).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda tabelo
+`profile_departments` + sprožilec (z enkratnim, idempotentnim backfillom za
+obstoječe profile).
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov
