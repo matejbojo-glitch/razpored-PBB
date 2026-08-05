@@ -1086,11 +1086,24 @@ create policy employee_wishes_insert on public.employee_wishes
     or (profile_id = auth.uid() and department_code = public.current_department())
   );
 
+-- Admin/vodja lahko urejata svoje vnose brez dodatnih omejitev (enako kot pri
+-- insertu - vodja vnaša/ureja tudi za druge osebe/oddelke). Navaden uporabnik
+-- pa mora tudi po popravku ostati znotraj istih omejitev kot pri insertu
+-- (svoj oddelek, svoje ime) - drugače bi lahko z update-om (mimo insert
+-- pravila) "premaknil" svojo željo v tuj oddelek ali jo pripisal drugemu imenu.
 drop policy if exists employee_wishes_update on public.employee_wishes;
 create policy employee_wishes_update on public.employee_wishes
   for update to authenticated
   using (public.current_role_is('admin') or created_by = auth.uid())
-  with check (public.current_role_is('admin') or created_by = auth.uid());
+  with check (
+    public.current_role_is('admin')
+    or (created_by = auth.uid() and public.current_role_is('vodja'))
+    or (
+      created_by = auth.uid()
+      and department_code = public.current_department()
+      and full_name = (select full_name from public.profiles where id = auth.uid())
+    )
+  );
 
 drop policy if exists employee_wishes_delete on public.employee_wishes;
 create policy employee_wishes_delete on public.employee_wishes
