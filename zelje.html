@@ -77,6 +77,7 @@
   .delBtn:hover{ color: var(--danger); }
 
   .empty{ color:var(--muted); font-size:13.5px; padding: 20px 0; text-align:center; }
+  .err{ color:var(--danger); font-size:13px; margin-top:8px; }
 
   .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:50; display:flex;
     align-items:center; justify-content:center; padding:20px; }
@@ -207,51 +208,6 @@ const SKUPINE = [
   { naziv: "Nedežurni kader (DMS/DZN)", ljudje: ["BIZJAK TEA","GAZIBARA ALDIN","HUMAR SAŠA","LELIČ DIJANA","MAGLIĆ ALEKSANDER","MISOTIČ REBEKA","MUŠIČ INES","POGAČNIK TEJA","SEJDINOVIĆ MUSTAFA","SOFRIĆ NIKOLINA","VOZEL DEJAN"] },
 ];
 
-// ---------------------------------------------------------------------
-// IndexedDB — želje shranjujemo tu, ne v localStorage, ker slike hitro
-// presežejo njegovo omejitev (~5–10 MB na izvor). IndexedDB nima take meje.
-// ---------------------------------------------------------------------
-const DB_NAME = "razpored-zelje";
-const STORE = "zelje";
-function openDB(){
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function dbPut(entry){
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(entry);
-    tx.oncomplete = () => res(entry);
-    tx.onerror = () => rej(tx.error);
-  });
-}
-async function dbGetAll(){
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
-async function dbDelete(id){
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
-  });
-}
-
 // Pomanjša sliko na največ 1600 px in jo pretvori v JPEG — telefonske
 // fotografije so sicer lahko več MB, kar bi bazo po nekaj vnosih napihnilo.
 function compressImage(file){
@@ -277,14 +233,6 @@ function compressImage(file){
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-function download(filename, obj){
-  const blob = new Blob([JSON.stringify(obj)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------
@@ -975,12 +923,41 @@ function Razpredelnica({ role, myId, myFullName }){
   );
 }
 
-function VnosForma({ onAdded }){
-  const [ime, setIme] = useState(SKUPINE[0].ljudje[0]);
+// Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) —
+// samo 6 SMS/TZN oddelkov + "VODJE", na izrecno navodilo. Imena oseb za
+// izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
+// pridobimo iz že obstoječega SKUPINE seznama za 6 oddelkov, za VODJE pa
+// neposredno iz lead_departments (edini pravi vir 22 nosilcev oddelkov —
+// tu se ne podvaja/ne tvega neujemanja s tistim, kar ureja admin.html).
+const ODDELEK_SKUPINA = {
+  B: "B - oddelek (SMS/TZN)", C: "C - oddelek (SMS/TZN)", C1: "C1 - oddelek (SMS/TZN)",
+  D: "D - oddelek (SMS/TZN)", E1: "E1 - oddelek (SMS/TZN)", E2: "E2 - oddelek (SMS/TZN)",
+};
+
+function VnosForma({ oddelek, myId, myFullName, jeKoordinator, onAdded }){
+  const [imena, setImena] = useState(null); // null dokler se ne naloži (pomembno za VODJE, ki gre prek Supabase)
+  useEffect(() => {
+    if (oddelek === "VODJE") {
+      RazporedAuth.client.from("lead_departments").select("full_name").order("full_name")
+        .then(({ data }) => setImena([...new Set((data || []).map(v => v.full_name))]));
+    } else {
+      const skupina = SKUPINE.find(g => g.naziv === ODDELEK_SKUPINA[oddelek]);
+      setImena(skupina ? skupina.ljudje : []);
+    }
+  }, [oddelek]);
+
+  const [ime, setIme] = useState(myFullName || "");
+  useEffect(() => {
+    if (jeKoordinator) setIme(imena && imena.length ? imena[0] : "");
+    else setIme(myFullName || "");
+  }, [imena, jeKoordinator, myFullName]);
+
   const [obdobje, setObdobje] = useState("");
   const [opis, setOpis] = useState("");
   const [slika, setSlika] = useState(null); // data URL
   const [nalaga, setNalaga] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
   const fileRef = useRef();
 
   const onFile = async (e) => {
@@ -994,28 +971,37 @@ function VnosForma({ onAdded }){
 
   const shrani = async () => {
     if (!obdobje.trim() && !opis.trim() && !slika) return;
-    const entry = {
-      id: "z" + Date.now() + Math.random().toString(36).slice(2,7),
-      ime, obdobje: obdobje.trim(), opis: opis.trim(), slika,
-      datumVnosa: new Date().toISOString(),
-    };
-    await dbPut(entry);
-    setObdobje(""); setOpis(""); setSlika(null);
-    onAdded();
+    setBusy(true); setMsg(null);
+    try {
+      const { error } = await RazporedAuth.client.from("employee_wishes").insert({
+        profile_id: jeKoordinator ? null : myId,
+        full_name: (ime || myFullName || "").trim(),
+        department_code: oddelek,
+        obdobje: obdobje.trim() || null, opis: opis.trim() || null, slika,
+        created_by: myId,
+      });
+      if (error) throw error;
+      setObdobje(""); setOpis(""); setSlika(null);
+      onAdded();
+    } catch (e) {
+      setMsg(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="card">
-      <div className="field">
-        <label htmlFor="ime">Zaposleni</label>
-        <select id="ime" value={ime} onChange={e => setIme(e.target.value)}>
-          {SKUPINE.map(g => (
-            <optgroup key={g.naziv} label={g.naziv}>
-              {g.ljudje.map(l => <option key={l} value={l}>{l}</option>)}
-            </optgroup>
-          ))}
-        </select>
-      </div>
+      {jeKoordinator ? (
+        <div className="field">
+          <label htmlFor="ime">Zaposleni</label>
+          <select id="ime" value={ime} onChange={e => setIme(e.target.value)} disabled={!imena}>
+            {(imena || []).map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </div>
+      ) : (
+        <p className="hint" style={{marginTop:0}}>Vnašaš željo zase: <b>{myFullName}</b></p>
+      )}
       <div className="field">
         <label htmlFor="obd">Obdobje</label>
         <input id="obd" type="text" placeholder="npr. 9.–15. november, ali cel december"
@@ -1037,7 +1023,107 @@ function VnosForma({ onAdded }){
           {slika && <button className="clearImg" onClick={() => setSlika(null)}>odstrani sliko</button>}
         </div>
       </div>
-      <button className="submitBtn" onClick={shrani} disabled={nalaga}>Shrani željo</button>
+      <button className="submitBtn" onClick={shrani} disabled={nalaga || busy}>{busy ? "Shranjujem …" : "Shrani željo"}</button>
+      {msg && <p className="err">{msg}</p>}
+    </div>
+  );
+}
+
+const ZELJE_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "VODJE"];
+
+function SeznamZeljTab({ role, myId, myFullName, myDept }){
+  const jeKoordinator = role === "admin" || role === "vodja";
+  const [oddelek, setOddelek] = useState(() => (
+    jeKoordinator ? ZELJE_ODDELKI[0] : (ZELJE_ODDELKI.includes(myDept) ? myDept : null)
+  ));
+  const [zapisi, setZapisi] = useState([]);
+  const [nalagam, setNalagam] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [lightbox, setLightbox] = useState(null);
+
+  const nalozi = () => {
+    if (!oddelek) { setZapisi([]); setNalagam(false); return; }
+    setNalagam(true);
+    RazporedAuth.client.from("employee_wishes").select("*").eq("department_code", oddelek)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => { setZapisi(data || []); setNalagam(false); });
+  };
+  useEffect(() => { nalozi(); }, [oddelek]);
+
+  const obrisi = async (id) => {
+    await RazporedAuth.client.from("employee_wishes").delete().eq("id", id);
+    nalozi();
+  };
+
+  const grouped = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    const filtered = zapisi.filter(e =>
+      !f || e.full_name.toLowerCase().includes(f) || (e.obdobje||"").toLowerCase().includes(f) || (e.opis||"").toLowerCase().includes(f)
+    );
+    const byIme = {};
+    filtered.forEach(e => { (byIme[e.full_name] = byIme[e.full_name] || []).push(e); });
+    return Object.keys(byIme).sort().map(ime => ({ ime, list: byIme[ime] }));
+  }, [zapisi, filter]);
+
+  const skupajSlik = zapisi.filter(e => e.slika).length;
+
+  if (!oddelek) {
+    return <p className="hint">Seznam želja ni na voljo za tvoj oddelek.</p>;
+  }
+
+  return (
+    <div>
+      {jeKoordinator && (
+        <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
+          {ZELJE_ODDELKI.map(k => (
+            <button key={k} role="tab" aria-selected={oddelek===k} onClick={() => setOddelek(k)}>{k === "VODJE" ? "Vodje" : k}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="no-print">
+        <h2 className="section">Nov vnos — {oddelek === "VODJE" ? "vodje" : "oddelek " + oddelek}</h2>
+        <VnosForma oddelek={oddelek} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
+      </div>
+
+      <div className="toolRow no-print">
+        <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
+          onChange={e => setFilter(e.target.value)}
+          style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
+            padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
+        <button className="toolBtn" onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
+      </div>
+
+      <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
+
+      {nalagam && <p className="hint">Nalagam …</p>}
+      {!nalagam && grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
+
+      {grouped.map(g => (
+        <div key={g.ime}>
+          <div className="groupHead">
+            <span className="n">{g.ime}</span>
+            <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
+          </div>
+          {g.list.map(e => (
+            <div className="entry" key={e.id}>
+              <div className="top2">
+                <div>
+                  {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
+                  <div className="datum">{new Date(e.created_at).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
+                </div>
+                {(jeKoordinator || e.profile_id === myId) && (
+                  <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
+                )}
+              </div>
+              {e.opis && <div className="opis">{e.opis}</div>}
+              {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
     </div>
   );
 }
@@ -1051,48 +1137,8 @@ function Lightbox({ src, onClose }){
   );
 }
 
-function App({ role, myId, myFullName, ogled, profil }){
-  const jeKoordinator = role === "admin" || role === "vodja";
+function App({ role, myId, myFullName, myDept, ogled, profil }){
   const [tab, setTab] = useState("razpredelnica");
-  const [entries, setEntries] = useState([]);
-  const [filter, setFilter] = useState("");
-  const [lightbox, setLightbox] = useState(null);
-  const importRef = useRef();
-
-  const reload = () => { dbGetAll().then(setEntries).catch(() => setEntries([])); };
-  useEffect(() => { reload(); }, []);
-
-  const grouped = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    const filtered = entries.filter(e =>
-      !f || e.ime.toLowerCase().includes(f) || (e.obdobje||"").toLowerCase().includes(f) || (e.opis||"").toLowerCase().includes(f)
-    );
-    const byIme = {};
-    filtered.forEach(e => { (byIme[e.ime] = byIme[e.ime] || []).push(e); });
-    Object.keys(byIme).forEach(k => byIme[k].sort((a,b) => b.datumVnosa.localeCompare(a.datumVnosa)));
-    return Object.keys(byIme).sort().map(ime => ({ ime, list: byIme[ime] }));
-  }, [entries, filter]);
-
-  const obrisi = async (id) => { await dbDelete(id); reload(); };
-
-  const izvozi = () => download("zelje-izvoz-" + new Date().toISOString().slice(0,10) + ".json", entries);
-
-  const uvozi = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const arr = JSON.parse(reader.result);
-        for (const entry of arr) await dbPut(entry);
-        reload();
-      } catch (err) { alert("Neveljavna datoteka: " + err.message); }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
-  const skupajSlik = entries.filter(e => e.slika).length;
 
   return (
     <div className="wrap">
@@ -1103,65 +1149,20 @@ function App({ role, myId, myFullName, ogled, profil }){
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
       </header>
 
-      {jeKoordinator && (
-        <div className="tabs no-print" role="tablist">
-          <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
-          <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
-        </div>
-      )}
+      <div className="tabs no-print" role="tablist">
+        <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
+        <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
+      </div>
 
-      {(tab === "razpredelnica" || !jeKoordinator) && <Razpredelnica role={role} myId={myId} myFullName={myFullName} />}
+      {tab === "razpredelnica" && <Razpredelnica role={role} myId={myId} myFullName={myFullName} />}
 
-      {tab === "zelje" && jeKoordinator && (
-        <React.Fragment>
-          <div className="no-print">
-            <h2 className="section">Nov vnos</h2>
-            <VnosForma onAdded={reload} />
-          </div>
-
-          <div className="toolRow no-print">
-            <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
-              onChange={e => setFilter(e.target.value)}
-              style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
-                padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
-            <button className="toolBtn" onClick={izvozi}>⬇ Izvozi vse ({entries.length})</button>
-            <label className="toolBtn">⬆ Uvozi<input ref={importRef} type="file" accept="application/json" onChange={uvozi} /></label>
-            <button className="toolBtn" onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
-          </div>
-
-          <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
-
-          {grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
-
-          {grouped.map(g => (
-            <div key={g.ime}>
-              <div className="groupHead">
-                <span className="n">{g.ime}</span>
-                <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
-              </div>
-              {g.list.map(e => (
-                <div className="entry" key={e.id}>
-                  <div className="top2">
-                    <div>
-                      {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
-                      <div className="datum">{new Date(e.datumVnosa).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
-                    </div>
-                    <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
-                  </div>
-                  {e.opis && <div className="opis">{e.opis}</div>}
-                  {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
-                </div>
-              ))}
-            </div>
-          ))}
-
-          <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
-        </React.Fragment>
+      {tab === "zelje" && (
+        <SeznamZeljTab role={role} myId={myId} myFullName={myFullName} myDept={myDept} />
       )}
 
       <footer className="foot no-print">
         <p><b>Razpredelnica dopusti/omejitve</b> je shranjena v Supabase (leave_entries) in jo generator dežurstev (admin.html) prebere samodejno.</p>
-        <p><b>Seznam želja</b> (besedilo/fotografija) ostaja shranjen lokalno v tem brskalniku (IndexedDB) — velja samo na tej napravi; koordinator ga ročno upošteva. Za prenos na drugo napravo uporabite "Izvozi" / "Uvozi".</p>
+        <p><b>Seznam želja</b> je razdeljen po oddelkih (B, C, C1, D, E1, E2, Vodje) — zaposleni vidi in vnaša samo v svoj oddelek, administrator in vodja pa vse.</p>
       </footer>
 
       <RazporedNav active="zelje" role={role} unread={0} />
@@ -1173,6 +1174,7 @@ function Gate(){
   const [role, setRole] = useState("user");
   const [myId, setMyId] = useState(null);
   const [myFullName, setMyFullName] = useState("");
+  const [myDept, setMyDept] = useState(null);
   const [ogled, setOgled] = useState(false);
   const [profil, setProfil] = useState(null);
   useEffect(() => {
@@ -1181,12 +1183,13 @@ function Gate(){
       setRole(res.profile ? res.profile.role : "user");
       setMyId(res.session.user.id);
       setMyFullName(res.profile ? res.profile.full_name : "");
+      setMyDept(res.profile ? res.profile.department_code : null);
       setOgled(!!res.ogled);
       setProfil(res.profile);
       setOk(true);
     });
   }, []);
-  return ok ? <App role={role} myId={myId} myFullName={myFullName} ogled={ogled} profil={profil}/> : null;
+  return ok ? <App role={role} myId={myId} myFullName={myFullName} myDept={myDept} ogled={ogled} profil={profil}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

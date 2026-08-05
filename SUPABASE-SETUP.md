@@ -430,6 +430,55 @@ imenu drugega admina).
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 13)
 (`admin_view_as_log`).
 
+## 5m. Želje in razpored — razdeljeno po oddelkih (B/C/C1/D/E1/E2 + Vodje)
+
+Na izrecno navodilo je "Seznam želja" (zelje.html) in pogled "Po oddelkih"
+(index.html) omejen na SAMO 6 SMS/TZN oddelkov (B, C, C1, D, E1, E2) plus en
+virtualen 7. vnos "Vodje" (nosilci oddelkov, dežurstva vključena) — ostali
+oddelčni kod (DEZ, NEDEZ, PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA,
+U2 ...) v teh dveh pogledih niso na voljo. To NE briše/spreminja obstoječih
+generatorjev (Kalup/Dežurstva/Vodje v admin.html) ali podatkov teh drugih
+oddelkov — samo ta dva pogleda sta zdaj namenoma ožja.
+
+**Seznam želja** je bil prej shranjen samo lokalno (IndexedDB v brskalniku,
+brez deljenja med napravami/uporabniki). Zdaj je v novi tabeli
+`public.employee_wishes` (RLS: admin/vodja vidita in urejata vse; navaden
+zaposleni vidi in vnaša SAMO v svoj lasten oddelek — primerjava z
+`profiles.department_code` prek `current_department()`, ne z izbiro v
+vmesniku, ker RLS to uveljavi tudi ob neposrednem klicu API-ja). Admin/vodja
+lahko vnese željo za katero koli osebo v katerem koli od 7 "oddelkov"
+(sporočeno po telefonu ipd.) — ime za izbirnik pride iz že obstoječega
+seznama osebja (6 oddelkov) oz. neposredno iz `lead_departments` (za
+"Vodje" — edini pravi vir 22 nosilcev oddelkov, brez podvajanja).
+
+**"Po oddelkih"** (index.html) dropdown zdaj ponuja samo teh 7 vnosov.
+Navaden zaposleni je zaklenjen na svoj lasten oddelek (če ta sploh spada
+med 6 — če ne, zavihek "Po oddelkih" zanj sploh ni prikazan); administrator
+in vodja lahko brskata po vseh, tudi po "Vodje". Ker nosilci oddelkov v
+`profiles.department_code` obdržijo svoj lasten negovalni oddelek (vodstvena
+zadolžitev ni "pravi" oddelek), pogled "Vodje" seznam enot pridobi iz
+`lead_departments`, osebe/vnose pa iz `schedule_entries` za te enote (to
+objavi zavihek "Vodje" v admin.html) — enaka tabela in RLS kot za vse
+ostale oddelke, brez posebnih dovoljenj.
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 14)
+(`employee_wishes`).
+
+## 5n. Kalup — urejanje predloga + izvoz CSV (za Google Sheets)
+
+V zavihku **Kalup** (admin.html) je rezultat po generiranju zdaj urejljiv —
+vsako celico lahko ročno prepišeš (npr. za nadomeščanje), enako kot je že
+prej veljalo za zavihek Vodje. To spremeni samo prikaz/izvoz (PDF/CSV), NE
+pa "Objavi neposredno v Supabase" (ta ostane vezana na izračunano vrednost
+generatorja, ker prostega besedila ni mogoče zanesljivo preslikati nazaj na
+eno izmeno).
+
+Nov gumb **⬇ Izvozi CSV** izvozi (upoštevaje ročne popravke) razpredelnico
+v .csv, ki ga lahko neposredno uvoziš v Google Sheets (Datoteka → Uvoz) ali
+Excel — brez potrebe po Google Cloud OAuth Client ID. Neposredna povezava
+"Izvozi naravnost v Google Sheets" (prek Google API) je mogoča kot
+naslednji korak, ko bo na voljo tak Client ID (glej opombo v PR-ju).
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov

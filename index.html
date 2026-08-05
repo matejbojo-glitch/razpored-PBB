@@ -242,6 +242,7 @@ function classify(sifra){
   if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
   if (t.startsWith("ld")) return "off";
   if (t.startsWith("kpu")) return "off";
+  if (t.startsWith("prisoten")) return "dop"; // pogled "Vodje" - na svojem oddelku (ni odsoten)
   if (t.includes("nočna12")) return "h12";
   if (t.includes("dnevna12")) return "h12";
   if (t.startsWith("nočna")) return "noc";
@@ -369,10 +370,36 @@ function WardView({ deptCode, month, myId }){
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
+  const jeVodje = deptCode === "VODJE";
 
   useEffect(() => {
     let cancelled = false;
     setEmployees(null); setEntries(null);
+
+    // "Vodje" ni pravi oddelek v profiles.department_code (nosilci
+    // oddelkov obdržijo svoj lasten negovalni oddelek kot profil) - seznam
+    // enot, ki jih pokrivajo, pride iz lead_departments, osebe/vnosi pa iz
+    // schedule_entries za te enote (objavi jih Vodje zavihek v admin.html).
+    if (jeVodje) {
+      client.from("lead_departments").select("department_code").then(({ data }) => {
+        const kode = [...new Set((data || []).map(d => d.department_code).filter(Boolean))];
+        if (!kode.length) { if (!cancelled) { setEmployees([]); setEntries([]); } return; }
+        client.from("schedule_entries").select("employee_id, work_date, shift_code, profiles(full_name)")
+          .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
+          .then(({ data }) => {
+            if (cancelled) return;
+            const byEmp = new Map();
+            (data || []).forEach(r => { if (r.profiles && !byEmp.has(r.employee_id)) byEmp.set(r.employee_id, r.profiles.full_name); });
+            const zaposleni = [...byEmp.entries()]
+              .map(([id, full_name]) => ({ id, full_name }))
+              .sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
+            setEmployees(zaposleni);
+            setEntries((data || []).map(r => ({ employee_id: r.employee_id, work_date: r.work_date, shift_code: r.shift_code })));
+          });
+      });
+      return () => { cancelled = true; };
+    }
+
     client.from("profiles").select("id, full_name").eq("department_code", deptCode).order("full_name")
       .then(({ data }) => { if (!cancelled) setEmployees(data || []); });
     client.from("schedule_entries").select("employee_id, work_date, shift_code")
@@ -436,6 +463,11 @@ function WardView({ deptCode, month, myId }){
   );
 }
 
+// "Po oddelkih" je na izrecno navodilo omejen na 6 SMS/TZN oddelkov + en
+// virtualen "VODJE" (nosilci oddelkov, dežurstva vključena) - ostali oddelki
+// (DEZ, NEDEZ, PDZN, SOBO ...) tu niso na voljo, ne glede na vlogo.
+const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2"];
+
 function App(){
   const [auth, setAuth] = useState(null); // { session, profile }
   const [depts, setDepts] = useState([]);
@@ -450,13 +482,23 @@ function App(){
     RazporedAuth.requireAuth().then(res => {
       if (!res) return;
       setAuth(res);
-      setWardCode(res.profile ? res.profile.department_code : null);
+      const dept = res.profile ? res.profile.department_code : null;
+      const jeKoordinator = res.profile && (res.profile.role === "admin" || res.profile.role === "vodja");
+      // Navaden zaposleni je zaklenjen na svoj oddelek (če ta sploh spada med
+      // teh 6) - admin/vodja lahko brskata po vseh, tudi po Vodje.
+      setWardCode(jeKoordinator ? dept : (PO_ODDELKIH_KODE.includes(dept) ? dept : null));
       RazporedAuth.unreadNotificationCount(res.session.user.id).then(setUnread);
     });
   }, []);
 
   useEffect(() => {
-    client.from("departments").select("code, name").order("code").then(({ data }) => setDepts(data || []));
+    client.from("departments").select("code, name").order("code").then(({ data }) => {
+      const imenaPoKodi = {};
+      (data || []).forEach(d => { imenaPoKodi[d.code] = d.name; });
+      const seznam = PO_ODDELKIH_KODE.map(k => ({ code: k, name: imenaPoKodi[k] || k }));
+      seznam.push({ code: "VODJE", name: "Vodje (nosilci oddelkov + dežurstva)" });
+      setDepts(seznam);
+    });
   }, []);
 
   useEffect(() => {
@@ -479,6 +521,11 @@ function App(){
   if (!auth) return null; // requireAuth preusmeri, če ni prijave
 
   const { session, profile } = auth;
+  const jeKoordinator = profile && (profile.role === "admin" || profile.role === "vodja");
+  // Navaden zaposleni sme "Po oddelkih" videti SAMO, če njegov lasten oddelek
+  // sploh spada med teh 6 (ostali oddelki tu niso na voljo) - admin/vodja
+  // vidita zavihek vedno, saj lahko brskata po vseh (tudi po Vodje).
+  const smePoOddelkih = jeKoordinator || PO_ODDELKIH_KODE.includes(profile ? profile.department_code : null);
 
   return (
     <div className="wrap">
@@ -496,16 +543,24 @@ function App(){
 
         <div className="segmented no-print" role="tablist">
           <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
-          <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
+          {smePoOddelkih && (
+            <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
+          )}
         </div>
 
-        {view==="ward" && (
+        {view==="ward" && smePoOddelkih && (
           <div className="field no-print">
             <label htmlFor="wd">Oddelek</label>
-            <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
-              <option value="" disabled>Izberi oddelek …</option>
-              {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-            </select>
+            {jeKoordinator ? (
+              <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
+                <option value="" disabled>Izberi oddelek …</option>
+                {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+              </select>
+            ) : (
+              <select id="wd" value={wardCode || ""} disabled>
+                <option value={wardCode || ""}>{(depts.find(d => d.code === wardCode) || {}).name || wardCode}</option>
+              </select>
+            )}
           </div>
         )}
         <div className="field no-print">

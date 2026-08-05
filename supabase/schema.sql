@@ -1041,3 +1041,57 @@ drop policy if exists admin_view_as_log_update on public.admin_view_as_log;
 create policy admin_view_as_log_update on public.admin_view_as_log
   for update to authenticated using (public.current_role_is('admin') and admin_id = auth.uid())
   with check (public.current_role_is('admin') and admin_id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 14) employee_wishes — "Seznam želja" (zelje.html), razdeljen po
+--     oddelkih. Na izrecno navodilo: samo 6 SMS/TZN oddelkov (B/C/C1/D/
+--     E1/E2) + "VODJE" (nosilci oddelkov) - ostali oddelčni kod (DEZ,
+--     NEDEZ, PDZN, SOBO ...) NISO del te funkcije, zato "department_code"
+--     tu NI vezan na splošno tabelo departments (ki jih vse vsebuje),
+--     ampak ima svojo, namenoma ožjo omejitev. Prej je bil ta seznam
+--     samo lokalen (IndexedDB v brskalniku, brez deljenja med napravami/
+--     uporabniki) - zdaj je v Supabase, da "uporabnik vidi samo svoj
+--     oddelek, admin/vodja vse" sploh lahko drži (RLS spodaj).
+-- ---------------------------------------------------------------------
+create table if not exists public.employee_wishes (
+  id bigint generated always as identity primary key,
+  profile_id uuid references public.profiles (id) on delete set null,
+  full_name text not null,
+  department_code text not null check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'VODJE')),
+  obdobje text,
+  opis text,
+  slika text,
+  created_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_employee_wishes_dept on public.employee_wishes (department_code);
+
+alter table public.employee_wishes enable row level security;
+
+drop policy if exists employee_wishes_select on public.employee_wishes;
+create policy employee_wishes_select on public.employee_wishes
+  for select to authenticated using (
+    public.current_role_is('admin') or public.current_role_is('vodja')
+    or department_code = public.current_department()
+  );
+
+-- Admin/vodja lahko vnese željo za katero koli osebo/oddelek (npr. sporočeno
+-- po telefonu); navaden uporabnik samo zase, v svoj lasten oddelek - da si
+-- ne bi mogel "podtakniti" želje v tuj oddelek.
+drop policy if exists employee_wishes_insert on public.employee_wishes;
+create policy employee_wishes_insert on public.employee_wishes
+  for insert to authenticated with check (
+    public.current_role_is('admin') or public.current_role_is('vodja')
+    or (profile_id = auth.uid() and department_code = public.current_department())
+  );
+
+drop policy if exists employee_wishes_update on public.employee_wishes;
+create policy employee_wishes_update on public.employee_wishes
+  for update to authenticated
+  using (public.current_role_is('admin') or created_by = auth.uid())
+  with check (public.current_role_is('admin') or created_by = auth.uid());
+
+drop policy if exists employee_wishes_delete on public.employee_wishes;
+create policy employee_wishes_delete on public.employee_wishes
+  for delete to authenticated using (public.current_role_is('admin') or created_by = auth.uid());
