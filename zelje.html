@@ -1051,7 +1051,7 @@ function Lightbox({ src, onClose }){
   );
 }
 
-function App({ role, myId, myFullName }){
+function App({ role, myId, myFullName, ogled, profil }){
   const jeKoordinator = role === "admin" || role === "vodja";
   const [tab, setTab] = useState("razpredelnica");
   const [entries, setEntries] = useState([]);
@@ -1096,6 +1096,7 @@ function App({ role, myId, myFullName }){
 
   return (
     <div className="wrap">
+      <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
@@ -1172,16 +1173,20 @@ function Gate(){
   const [role, setRole] = useState("user");
   const [myId, setMyId] = useState(null);
   const [myFullName, setMyFullName] = useState("");
+  const [ogled, setOgled] = useState(false);
+  const [profil, setProfil] = useState(null);
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
       if (!res) return;
       setRole(res.profile ? res.profile.role : "user");
       setMyId(res.session.user.id);
       setMyFullName(res.profile ? res.profile.full_name : "");
+      setOgled(!!res.ogled);
+      setProfil(res.profile);
       setOk(true);
     });
   }, []);
-  return ok ? <App role={role} myId={myId} myFullName={myFullName}/> : null;
+  return ok ? <App role={role} myId={myId} myFullName={myFullName} ogled={ogled} profil={profil}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

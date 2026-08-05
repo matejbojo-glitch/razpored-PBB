@@ -996,3 +996,48 @@ create policy absence_color_map_admin on public.absence_color_map
   for all to authenticated
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
+
+-- ---------------------------------------------------------------------
+-- 13) admin_view_as_log — revizijska sled za "Prijavi se kot" (admin vidi
+--     aplikacijo iz perspektive izbranega uporabnika, brez poznavanja/
+--     ponastavljanja njegovega gesla). To NI prava zamenjava seje: prava
+--     Supabase avtentikacija ostane administratorjeva (varno brez
+--     service_role ključa na strežniku, ki ga to brez-strežniško
+--     postavljanje nima), samo odjemalec (supabase-client.js) med ogledom
+--     lokalno preslika profil/"jaz" na ciljno osebo - zato je vsak
+--     začetek/konec ogleda zabeležen tu, admin_id pa je vedno resnični
+--     prijavljeni administrator (auth.uid()), ne more se ponarejati.
+-- ---------------------------------------------------------------------
+create table if not exists public.admin_view_as_log (
+  id bigint generated always as identity primary key,
+  admin_id uuid not null references auth.users (id) on delete cascade,
+  admin_email text,
+  target_profile_id uuid not null references public.profiles (id) on delete cascade,
+  target_full_name text,
+  target_email text,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz
+);
+
+create index if not exists idx_admin_view_as_log_admin on public.admin_view_as_log (admin_id);
+
+alter table public.admin_view_as_log enable row level security;
+
+-- Celotna sled je vidna VSEM administratorjem (ne samo tistemu, ki je
+-- ogled začel) - namenoma, ker je smisel revizijske sledi nadzor, ne
+-- zasebnost pred drugimi administratorji.
+drop policy if exists admin_view_as_log_select on public.admin_view_as_log;
+create policy admin_view_as_log_select on public.admin_view_as_log
+  for select to authenticated using (public.current_role_is('admin'));
+
+-- Vpis/zaključek vrstice pa lahko naredi SAMO administrator o svojem
+-- lastnem ogledu (admin_id mora biti resnični auth.uid()) - da en admin
+-- ne bi mogel beležiti (ali predčasno zaključiti) ogleda v imenu drugega.
+drop policy if exists admin_view_as_log_insert on public.admin_view_as_log;
+create policy admin_view_as_log_insert on public.admin_view_as_log
+  for insert to authenticated with check (public.current_role_is('admin') and admin_id = auth.uid());
+
+drop policy if exists admin_view_as_log_update on public.admin_view_as_log;
+create policy admin_view_as_log_update on public.admin_view_as_log
+  for update to authenticated using (public.current_role_is('admin') and admin_id = auth.uid())
+  with check (public.current_role_is('admin') and admin_id = auth.uid());

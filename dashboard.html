@@ -304,7 +304,7 @@ function NedezTab({ baseline }){
   );
 }
 
-function App({ role }){
+function App({ role, ogled, profil }){
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("sms");
 
@@ -316,6 +316,7 @@ function App({ role }){
 
   return (
     <div className="wrap">
+      <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Pravičnost</span><span className="tag">za koordinatorje</span></div>
@@ -345,8 +346,14 @@ function App({ role }){
 function Gate(){
   const [ok, setOk] = useState(false);
   const [role, setRole] = useState("vodja");
-  useEffect(() => { RazporedAuth.requireRole(["admin","vodja"]).then(res => { if (res) { setRole(res.profile.role); setOk(true); } }); }, []);
-  return ok ? <App role={role}/> : null;
+  const [ogled, setOgled] = useState(false);
+  const [profil, setProfil] = useState(null);
+  useEffect(() => {
+    RazporedAuth.requireRole(["admin","vodja"]).then(res => {
+      if (res) { setRole(res.profile.role); setOgled(!!res.ogled); setProfil(res.profile); setOk(true); }
+    });
+  }, []);
+  return ok ? <App role={role} ogled={ogled} profil={profil}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>

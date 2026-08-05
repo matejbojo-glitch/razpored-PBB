@@ -197,13 +197,22 @@ function Seznam({ osebe, oddelki, onOdpri }){
 // ---------------------------------------------------------------------
 const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"" };
 
-function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
+function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno }){
   const jeMoj = oseba.id === myId;
   const smemVidetiHr = jeMoj || myRole === "admin";
   const [telefon, setTelefon] = useState(oseba.phone || "");
   const [vloga, setVloga] = useState(oseba.role);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [ogledBusy, setOgledBusy] = useState(false);
+  const [ogledMsg, setOgledMsg] = useState(null);
+
+  const zacniOgledOsebe = async () => {
+    setOgledBusy(true); setOgledMsg(null);
+    const { error } = await RazporedAuth.zacniOgled({ id: oseba.id, full_name: oseba.full_name, email: oseba.email });
+    if (error) { setOgledMsg(error); setOgledBusy(false); return; }
+    location.href = "index.html";
+  };
 
   // Več oddelkov na osebo (profile_departments) — prvi (primarni) je tisti,
   // ki šteje za generator urnika (profiles.department_code, sprožilec v
@@ -413,6 +422,18 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
             <button className="submitBtn" onClick={shraniAdmin} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
             <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
             {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+
+          <h2 className="section no-print">Ogled kot ta uporabnik (admin)</h2>
+          <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              Vidiš aplikacijo natanko tako, kot jo vidi {oseba.full_name} (vloga, oddelek, "moj razpored" itd.) — brez
+              poznavanja ali ponastavljanja gesla. Vsak začetek/konec ogleda se zabeleži v revizijsko sled.
+            </p>
+            <button className="submitBtn" onClick={zacniOgledOsebe} disabled={ogledBusy || ogled}>
+              {ogledBusy ? "Začenjam …" : ogled ? "Že v ogledu (najprej se vrni v Admin)" : `👁 Prijavi se kot ${oseba.full_name}`}
+            </button>
+            {ogledMsg && <p className="err">{ogledMsg}</p>}
           </div>
 
           <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator urnika</h2>
@@ -956,6 +977,7 @@ function App(){
 
   return (
     <div className="wrap">
+      <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Imenik</span></div>
@@ -969,7 +991,7 @@ function App(){
       </p>
 
       {odprtId && oseba && (
-        <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
+        <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} ogled={!!auth.ogled} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
       )}
       {odprtId && cakajocaOseba && (
         <PendingProfil oseba={cakajocaOseba} myRole={myRole} oddelki={oddelki} onNazaj={zapri} />

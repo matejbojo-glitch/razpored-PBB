@@ -1597,10 +1597,11 @@ function DopustTab(){
   );
 }
 
-function App(){
+function App({ ogled, profil }){
   const [tab, setTab] = useState("kalup");
   return (
     <div className="wrap">
+      <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
@@ -1632,8 +1633,14 @@ function App(){
 
 function Gate(){
   const [ok, setOk] = useState(false);
-  useEffect(() => { RazporedAuth.requireRole(["admin"]).then(res => { if (res) setOk(true); }); }, []);
-  return ok ? <App/> : null;
+  const [ogled, setOgled] = useState(false);
+  const [profil, setProfil] = useState(null);
+  useEffect(() => {
+    RazporedAuth.requireRole(["admin"]).then(res => {
+      if (res) { setOgled(!!res.ogled); setProfil(res.profile); setOk(true); }
+    });
+  }, []);
+  return ok ? <App ogled={ogled} profil={profil}/> : null;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>
