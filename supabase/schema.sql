@@ -874,3 +874,125 @@ on conflict (full_name) do update set
   odsotnost_do = excluded.odsotnost_do,
   nadomesca = excluded.nadomesca,
   opomba = excluded.opomba;
+
+-- ---------------------------------------------------------------------
+-- 8) Mesečna zgodovina stanja dopusta (Kadris) + trend
+--    Na izrecno željo: admin vsak mesec uvozi izvoz iz Kadrisa (ime,
+--    šifra zaposlenega/"Mat.št", leto, mesec, DOPUST). employee_code je
+--    edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
+--    včasih zapišejo drugače) - ista logika kot že uveljavljen
+--    profile_hr_details.employee_code, zato se prek njega samodejno
+--    poveže s pravim profilom, če je znan.
+-- ---------------------------------------------------------------------
+create table if not exists public.leave_balance_history (
+  id uuid primary key default gen_random_uuid(),
+  employee_code text not null,
+  full_name text not null,
+  leto smallint not null check (leto between 2020 and 2100),
+  mesec smallint not null check (mesec between 1 and 12),
+  dnevi numeric(5,1) not null check (dnevi >= 0),
+  profile_id uuid references public.profiles (id) on delete set null,
+  uvozeno timestamptz not null default now(),
+  uvozil uuid references auth.users (id) on delete set null,
+  unique (employee_code, leto, mesec)
+);
+
+comment on column public.leave_balance_history.dnevi is 'Preostali dnevi dopusta na prvi dan meseca (stolpec DOPUST v Kadrisu)';
+
+create index if not exists idx_leave_balance_history_obdobje on public.leave_balance_history (leto, mesec);
+create index if not exists idx_leave_balance_history_profile on public.leave_balance_history (profile_id);
+
+alter table public.leave_balance_history enable row level security;
+drop policy if exists leave_balance_history_select on public.leave_balance_history;
+create policy leave_balance_history_select on public.leave_balance_history
+  for select to authenticated using (
+    public.current_role_is('admin') or profile_id = auth.uid()
+  );
+drop policy if exists leave_balance_history_admin_write on public.leave_balance_history;
+create policy leave_balance_history_admin_write on public.leave_balance_history
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+-- Pregled s primerjavo s prejšnjim mesecem (lag). security_invoker: pogled
+-- spoštuje RLS zgoraj, torej ne-admin vidi kvečjemu svojo vrstico.
+create or replace view public.leave_balance_pregled
+with (security_invoker = true) as
+select
+  h.id, h.employee_code, h.full_name, h.leto, h.mesec, h.dnevi, h.profile_id, h.uvozeno,
+  lag(h.dnevi) over (partition by h.employee_code order by h.leto, h.mesec) as dnevi_prejsnji,
+  h.dnevi - lag(h.dnevi) over (partition by h.employee_code order by h.leto, h.mesec) as sprememba
+from public.leave_balance_history h;
+
+create or replace view public.leave_balance_obdobja
+with (security_invoker = true) as
+select leto, mesec, count(*) as stevilo_oseb, max(uvozeno) as zadnji_uvoz
+from public.leave_balance_history
+group by leto, mesec
+order by leto desc, mesec desc;
+
+-- Ob vsakem uvozu drži profile_hr_details.leave_balance_days/asof usklajena
+-- z NAJNOVEJŠIM mesecem te osebe v zgodovini - tako Imenik (trenutno stanje)
+-- in ta zgodovina (trend) nikoli ne razideta, ne glede na to, v katerem
+-- vrstnem redu admin uvozi mesece.
+create or replace function public.sync_leave_balance_to_hr_details()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  najnovejsi record;
+begin
+  if new.profile_id is null then
+    return new;
+  end if;
+
+  select leto, mesec into najnovejsi
+  from public.leave_balance_history
+  where employee_code = new.employee_code
+  order by leto desc, mesec desc
+  limit 1;
+
+  if najnovejsi.leto = new.leto and najnovejsi.mesec = new.mesec then
+    insert into public.profile_hr_details (profile_id, leave_balance_days, leave_balance_asof, updated_at)
+    values (new.profile_id, new.dnevi, make_date(new.leto, new.mesec, 1), now())
+    on conflict (profile_id) do update set
+      leave_balance_days = excluded.leave_balance_days,
+      leave_balance_asof = excluded.leave_balance_asof,
+      updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_leave_balance on public.leave_balance_history;
+create trigger trg_sync_leave_balance
+  after insert or update of dnevi, profile_id on public.leave_balance_history
+  for each row execute function public.sync_leave_balance_to_hr_details();
+
+-- ---------------------------------------------------------------------
+-- 12) absence_color_map — pomni, katera barva celice v uvoženem barvnem
+--     koledarju odsotnosti (Kadris) pomeni katero vrsto (leave_entries.kind),
+--     da administratorju vsak mesec ni treba znova ročno določati istih
+--     barv. Sam uvoz piše neposredno v obstoječ leave_entries (upsert, brez
+--     brisanja), zato ta tabela hrani SAMO preslikavo barva->vrsta, ne
+--     podatkov o odsotnostih samih.
+-- ---------------------------------------------------------------------
+create table if not exists public.absence_color_map (
+  barva text primary key,
+  kind text check (kind in ('omejitev', 'ld', 'bs', 'sti')),
+  prezri boolean not null default false,
+  posodobil uuid references auth.users (id) on delete set null,
+  posodobljeno timestamptz not null default now(),
+  check ((prezri and kind is null) or (not prezri and kind is not null))
+);
+
+comment on table public.absence_color_map is 'ARGB barva celice iz uvoženega Excela -> vrsta odsotnosti (leave_entries.kind); prezri=true pomeni "ni odsotnost, ne uvažaj"';
+
+alter table public.absence_color_map enable row level security;
+drop policy if exists absence_color_map_admin on public.absence_color_map;
+create policy absence_color_map_admin on public.absence_color_map
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));

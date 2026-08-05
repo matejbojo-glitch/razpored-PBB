@@ -75,8 +75,11 @@
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
 
   @media print{
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; }
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
+    table.fair tr{ break-inside:avoid; page-break-inside:avoid; }
   }
 </style>
 </head>
@@ -90,6 +93,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useEffect } = React;
@@ -321,7 +325,7 @@ function App({ role }){
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
           <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
         </div>
-        <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+        <button className="dlBtn no-print" onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
       </header>
 
       {!data && <p className="hint">Nalagam osnovne podatke …</p>}

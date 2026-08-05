@@ -189,11 +189,20 @@
 
   @media print{
     :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
-    body{ background:#fff !important; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; background:#fff !important; }
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
     table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
     table.wardTable thead th{ background:#f2f2f2 !important; }
+    /* Izvoz v PDF gre na točno 1 A4 stran (PrintFit.natisni izračuna
+       --print-scale) — "Po oddelkih" ležeče (širok koledar), "Moj razpored"
+       pokončno (ozek tedenski seznam). */
+    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
+      zoom: var(--print-scale, 1); }
+    table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
+    table.wardTable tr{ break-inside:avoid; page-break-inside:avoid; }
+    #printMy{ zoom: var(--print-scale, 1); }
   }
 </style>
 </head>
@@ -206,6 +215,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -312,7 +322,7 @@ function MyScheduleView({ userId, month }){
   if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
-    <div>
+    <div id="printMy">
       {startISO <= iso && iso <= endISO && (
         <div className="todayCard">
           <div className="lbl">Danes · {new Date(iso+"T00:00:00").toLocaleDateString("sl-SI",{day:"numeric",month:"long"})}</div>
@@ -501,7 +511,10 @@ function App(){
           <label htmlFor="mm">Mesec</label>
           <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} />
         </div>
-        <button className="pdfBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+        <button className="pdfBtn no-print" onClick={() => {
+          const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
+          PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
+        }}>📄 Izvozi v PDF ({view === "ward" ? "A4 ležeče" : "A4 pokončno"}, 1 stran)</button>
       </header>
 
       {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}

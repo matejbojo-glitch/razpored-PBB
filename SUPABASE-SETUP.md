@@ -298,6 +298,104 @@ za vsak klic posebej glede na `current_role_is()`).
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda pogled
 `contact_imports_public` + `grant select ... to authenticated`.
 
+## 5i. Mesečna zgodovina stanja dopusta (Kadris) + trend — zavihek Dopust
+
+Nov zavihek **Dopust** v Uvozi/admin.html: admin vsak mesec naloži izvoz iz
+Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec,
+DOPUST). Glava se sama poišče med prvimi 15 vrsticami (`najdiGlavo` v
+`import-utils.js`), tako da morebitni naslovi nad tabelo ne motijo.
+
+Šifra zaposlenega (`employee_code`) je edini stabilen ključ med meseci —
+ista, kot jo že uporablja `profile_hr_details.employee_code` — zato se
+uvožena oseba samodejno poveže s pravim profilom, če je znana; sicer se
+poskusi ujemanje po imenu (vreča besed, diakritike neobčutljivo, ista
+logika kot `imenaSeUjemataAdmin`). Predogled pred potrditvijo loči
+nove/spremenjene/nespremenjene vrstice in opozori, katere osebe iz
+prejšnjih uvozov v novem izvozu ni bilo (njihovi podatki ostanejo,
+samo se v tem mesecu ne posodobijo). Ponoven uvoz istega meseca obstoječo
+vrstico posodobi (upsert po `employee_code, leto, mesec`), ne podvoji.
+
+Nova tabela `public.leave_balance_history` hrani en zapis na osebo na
+mesec (RLS: admin vidi vse, uporabnik samo vrstico s svojim `profile_id`).
+Pogled `public.leave_balance_pregled` doda trend — razliko glede na
+prejšnji mesec te osebe (`lag` po `employee_code`, urejeno po
+leto/mesec). Sprožilec `trg_sync_leave_balance` po vsakem uvozu preveri,
+ali je pravkar zapisan mesec NAJNOVEJŠI za to osebo, in če je, samodejno
+uskladi `profile_hr_details.leave_balance_days/leave_balance_asof` — tako
+Imenik (trenutno stanje pri osebi) in zavihek Dopust (zgodovina/trend)
+nikoli ne razideta, ne glede na vrstni red uvoza mesecev.
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 8)
+(`leave_balance_history`, pogleda `leave_balance_pregled`/
+`leave_balance_obdobja`, sprožilec).
+
+## 5j. Uvoz barvnega koledarja odsotnosti (Kadris) — zavihek Želje
+
+V **Želje** (zelje.html), pod razpredelnico dopusti/omejitve, je nov
+admin-only gumb za uvoz CELEGA koledarja hkrati iz obarvane Excel datoteke
+(npr. izvoz iz Kadrisa, kjer je vsak dan pobarvan glede na vrsto
+odsotnosti — LD/BS/študijski dopust/omejitev). Ker vgrajena knjižnica za
+branje Excela (SheetJS) ne bere barv celic, je za to dodana knjižnica
+**ExcelJS** (`exceljs.min.js`, vendorirano, brez CDN — enak vzorec kot
+`xlsx.core.min.js`/`pdf.min.mjs`).
+
+Vrstica z dnevi 1–31 se poišče sama med prvimi 15 vrsticami (podobno kot
+`najdiGlavo` v razdelku 5i, a tu iščemo števila, ne besedilne glave), prvi
+stolpec vsake naslednje vrstice je ime osebe. Ker nekateri oddelki v
+seznamu osebja uporabljajo okrajšano ime ("VREVC M.", samo prva črka
+imena), Kadris pa vedno polno ("VREVC MARJETA"), je dodano posebno
+ujemanje imen (`imeSeUjemaZRosterjem` v zelje.html) — beseda z "." na
+koncu na seznamu osebja šteje kot ujemanje po prvih črkah, ne kot cela
+beseda; primerjava je tudi neobčutljiva na vrstni red in šumnike. Osebe
+brez ujemanja se v predogledu izpišejo posebej (uvoz jih preskoči, ne
+prekine celote) — admin lahko popravi črkovanje v datoteki in uvozi znova.
+
+Nova tabela `public.absence_color_map` hrani preslikavo barva → vrsta
+odsotnosti (`admin`-only), da je admin ob prvem uvozu ne določa vsak
+mesec znova — samo NOVE barve (ki jih tabela še ne pozna) se v predogledu
+izpišejo z izbirnikom vrste (ali "Ignoriraj", če barva ne pomeni
+odsotnosti). Sam uvoz piše neposredno v že obstoječ `leave_entries`
+(upsert po `full_name, work_date`, torej brez podvajanja ob ponovnem
+uvozu istega meseca) — ista tabela, ki jo generator dežurstev (admin.html)
+že bere. Uvoz zapiše SAMO dejanske obarvane dni iz datoteke; pravilo
+"generator samodejno blokira tudi dan pred začetkom strnjenega LD bloka"
+(glej razdelek "Kalup"/`generator-core.js`) se izvede kasneje, ob branju
+— uvoz ga NE podvoji, sicer bi generator blokiral preveč dni.
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda razdelek 12)
+(`absence_color_map`).
+
+## 5k. Izvoz v PDF na 1 A4 stran + pogled "Po dnevih" za telefon
+
+Vsi gumbi "Izvozi v PDF" (admin.html, index.html, zelje.html, dashboard.html,
+menjave.html) zdaj uporabljajo skupno `print-fit.js`
+(`PrintFit.natisni(element, {orientacija})`). Ker aplikacija tiska samo prek
+brskalnikovega "Natisni" (`window.print`, brez jsPDF/html2pdf/CDN), pred
+tiskanjem sami preračunamo, koliko je treba vsebino pomanjšati (CSS `zoom`,
+ne `transform` — samo zoom dejansko zmanjša zaseden prostor, kar brskalnik
+potrebuje za pravilen izračun 1 strani), in nastavimo `@page` (velikost/
+usmerjenost/rob) tik pred klicem `window.print()`:
+
+- **Mesečni razporedi** (Kalup/Vodje v admin.html, "Po oddelkih" v index.html,
+  Razpredelnica v zelje.html) — A4 **ležeče**, 5 mm rob, prisiljeno na
+  **točno 1 stran** ne glede na število zaposlenih/dni v mesecu.
+- **Posamezni obrazci/seznami** (Dežurstva v admin.html, "Moj razpored" v
+  index.html, Pravičnost v dashboard.html, Menjave, Seznam želja v
+  zelje.html) — A4 **pokončno**, 10 mm rob; več strani ni težava, ker gre za
+  sezname spremenljive dolžine, ne za razpored.
+
+Dodano je tudi `-webkit-print-color-adjust: exact` (barve izmen/vikendov se
+natisnejo take, kot so na zaslonu) in `page-break-inside: avoid` na vrsticah
+tabel (varovalka, če bi se preračun kdaj rahlo zmotil).
+
+V **Razpredelnici** (zelje.html) je nov preklop **Mreža / Po dnevih** — "Po
+dnevih" prikaže en dan naenkrat s kartico na osebo (namesto ozkih stolpcev),
+primerno za telefon ("hitro preverjanje na poti"). Urejanje v tem pogledu
+gre prek spodnjega drsnega menija (bottom sheet) z večjimi gumbi za izbiro
+vrste odsotnosti, namesto tapkanja po majhnih celicah mreže. Zamrznjeni
+(sticky) prvi stolpec/vrstica v mreži in v Kalup/Vodje tabelah so obstajali
+že prej.
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov

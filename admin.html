@@ -112,11 +112,22 @@
 
   @media print{
     :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
-    body{ background:#fff !important; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; background:#fff !important; }
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
     table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
     table.wardTable thead th, table.roster th{ background:#f2f2f2 !important; }
+    /* Izvoz v PDF (Kalup/Vodje) mora iti na 1 A4 stran ne glede na število
+       zaposlenih/dni v mesecu — PrintFit.natisni() izračuna --print-scale in
+       pokliče window.print(); "zoom" (ne transform) dejansko zmanjša zaseden
+       prostor, kar brskalnik potrebuje za pravilen izračun 1 strani. Sticky
+       stolpci/vrstice na 1 strani niso potrebni in bi lahko motili tisk. */
+    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
+      zoom: var(--print-scale, 1); }
+    table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
+    table.wardTable tr, table.dutyTable tr{ break-inside:avoid; page-break-inside:avoid; }
+    .printBlok{ zoom: var(--print-scale, 1); }
   }
 </style>
 </head>
@@ -132,6 +143,7 @@
 <script src="nav.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
+<script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
@@ -468,6 +480,7 @@ function KalupTab(){
   const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
+  const wardRef = useRef();
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -597,7 +610,7 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
-          <div className="wardScroller">
+          <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -629,7 +642,7 @@ function KalupTab(){
             </table>
           </div>
           <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
-          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" onClick={() => PrintFit.natisni(wardRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
@@ -663,6 +676,7 @@ function DezurstvaTab(){
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [pdfBesedilo, setPdfBesedilo] = useState(null);
   const uvozRef = useRef();
+  const printRef = useRef();
 
   const { startISO, endISO } = monthRange(month);
 
@@ -914,21 +928,23 @@ function DezurstvaTab(){
             </div>
           )}
 
-          <h2 className="section">3 · Predlagan razpored — {rezultat.mesec}</h2>
-          <table className="dutyTable">
-            <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
-            <tbody>
-              {rezultat.razpored.map(r => (
-                <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
-                  <td>{r.datum}</td><td>{r.dan}</td>
-                  <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="printBlok" ref={printRef}>
+            <h2 className="section">3 · Predlagan razpored — {rezultat.mesec}</h2>
+            <table className="dutyTable">
+              <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
+              <tbody>
+                {rezultat.razpored.map(r => (
+                  <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
+                    <td>{r.datum}</td><td>{r.dan}</td>
+                    <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <h2 className="section">4 · Pravičnost — novo stanje</h2>
-          <table className="fairTable">
+          <h2 className="section no-print">4 · Pravičnost — novo stanje</h2>
+          <table className="fairTable no-print">
             <thead><tr><th>Zaposleni</th><th>Prej</th><th>Novih</th><th>Skupaj</th></tr></thead>
             <tbody>
               {rezultat.stanje.map(s => (
@@ -942,7 +958,7 @@ function DezurstvaTab(){
           </table>
 
           <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON</button>
-          <button className="dlBtn no-print" onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" onClick={() => PrintFit.natisni(printRef.current, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno, 1 stran)</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
@@ -981,6 +997,7 @@ function VodjeTab(){
   const [popravki, setPopravki] = useState({});
   // Prosto besedilo "Izjeme in opombe" na dan (ne na osebo/stolpec).
   const [izjeme, setIzjeme] = useState({});
+  const wardRef = useRef();
 
   useEffect(() => {
     client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
@@ -1111,7 +1128,7 @@ function VodjeTab(){
 
       {rezultat && (
         <React.Fragment>
-          <div className="wardScroller">
+          <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -1140,7 +1157,7 @@ function VodjeTab(){
             </table>
           </div>
 
-          <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => window.print()}>📄 Izvozi v PDF</button>
+          <button className="dlBtn no-print" style={{marginTop:10}} onClick={() => PrintFit.natisni(wardRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
           <button className="dlBtn no-print" style={{marginTop:8}} onClick={izvoziCSV}>⬇ Izvozi CSV</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (izračunano, brez ročnih popravkov)"}
@@ -1318,6 +1335,268 @@ function UporabnikiTab(){
   );
 }
 
+// ---------------------------------------------------------------------
+// Dopust: mesečni uvoz stanja dopusta iz Kadrisa (ime, šifra zaposlenega/
+// "Mat.št", leto, mesec, DOPUST) + pregled z mesečnim trendom. employee_code
+// je edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
+// včasih zapišejo drugače) - povezuje se s profile_hr_details.employee_code,
+// če je znan, sicer poskusi ujemanje po imenu (vreča besed). Ob vsakem uvozu
+// sprožilec v shemi drži profile_hr_details.leave_balance_days/asof
+// usklajena z najnovejšim mesecem (Imenik torej vedno kaže isto stanje).
+// ---------------------------------------------------------------------
+const DOPUST_GLAVE_MAPA = {
+  full_name: ["full_name", "priimek in ime", "ime in priimek", "ime"],
+  employee_code: ["employee_code", "mat.št", "mat št", "mat.st", "mat st", "šifra zaposlenega", "sifra zaposlenega"],
+  leto: ["leto", "year"],
+  mesec: ["mesec", "month"],
+  dnevi: ["dnevi", "dopust", "stanje", "stanje dopusta"],
+};
+const MESECI_SL2 = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
+
+function DopustTab(){
+  const [obdobja, setObdobja] = useState(null);
+  const [obdobje, setObdobje] = useState("");
+  const [vrstice, setVrstice] = useState([]);
+  const [iskanje, setIskanje] = useState("");
+  const [sort, setSort] = useState({ polje: "full_name", smer: 1 });
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [predogled, setPredogled] = useState(null); // { zapisi, leto, mesec, novih, spremenjenih, enakih, manjkajoci }
+  const fileRef = useRef();
+
+  const nalozi = async () => {
+    const { data } = await client.from("leave_balance_obdobja").select("*");
+    setObdobja(data || []);
+    if (data && data.length && !obdobje) setObdobje(data[0].leto + "-" + data[0].mesec);
+  };
+  useEffect(() => { nalozi(); }, []);
+
+  useEffect(() => {
+    if (!obdobje) { setVrstice([]); return; }
+    const [leto, mesec] = obdobje.split("-").map(Number);
+    client.from("leave_balance_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
+      .then(({ data }) => setVrstice(data || []));
+  }, [obdobje]);
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null); setPredogled(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, DOPUST_GLAVE_MAPA);
+      if (!najdeniStolpci.includes("employee_code") || !najdeniStolpci.includes("dnevi")) {
+        setUvozMsg("V datoteki ni bilo mogoče najti stolpcev za šifro zaposlenega (Mat.št) in DOPUST.");
+        return;
+      }
+      const zapisi = objekti
+        .map(o => ({
+          full_name: (o.full_name || "").trim().toUpperCase(),
+          employee_code: (o.employee_code || "").trim(),
+          leto: Number(o.leto) || null,
+          mesec: Number(o.mesec) || null,
+          dnevi: o.dnevi !== "" && !isNaN(Number(o.dnevi)) ? Number(o.dnevi) : null,
+        }))
+        .filter(z => z.employee_code && z.dnevi != null);
+      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic."); return; }
+
+      // Obdobje: iz datoteke, če ga ima; sicer trenutni mesec (admin lahko
+      // pred potrditvijo popravi spodaj).
+      const zdaj = new Date();
+      const leto = zapisi.find(z => z.leto)?.leto || zdaj.getFullYear();
+      const mesec = zapisi.find(z => z.mesec)?.mesec || (zdaj.getMonth() + 1);
+
+      // Zadnje znano stanje vsake osebe (za primerjavo novo/spremenjeno/enako).
+      const { data: zgodovina } = await client.from("leave_balance_history")
+        .select("employee_code, leto, mesec, dnevi")
+        .order("leto", { ascending: false }).order("mesec", { ascending: false });
+      const zadnje = new Map();
+      (zgodovina || []).forEach(r => { if (!zadnje.has(r.employee_code)) zadnje.set(r.employee_code, Number(r.dnevi)); });
+
+      // Poveži z obstoječimi profili: najprej po employee_code
+      // (profile_hr_details), sicer po imenu (vreča besed).
+      const { data: hrPodatki } = await client.from("profile_hr_details").select("profile_id, employee_code");
+      const { data: profili } = await client.from("profiles").select("id, full_name");
+      const poEmployeeCode = new Map((hrPodatki || []).filter(h => h.employee_code).map(h => [h.employee_code, h.profile_id]));
+
+      const zVsebino = zapisi.map(z => {
+        let profile_id = poEmployeeCode.get(z.employee_code) || null;
+        if (!profile_id) {
+          const ujemanje = (profili || []).find(p => imenaSeUjemataAdmin(p.full_name, z.full_name));
+          if (ujemanje) profile_id = ujemanje.id;
+        }
+        const prej = zadnje.has(z.employee_code) ? zadnje.get(z.employee_code) : undefined;
+        const vrsta = prej === undefined ? "nov" : (prej !== z.dnevi ? "sprem" : "enako");
+        return { ...z, leto, mesec, profile_id, prej, vrsta };
+      });
+
+      const obstojeci = await client.from("leave_balance_history").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
+      const vNovem = new Set(zVsebino.map(z => z.employee_code));
+      const { data: vsiZgodovina } = await client.from("leave_balance_history").select("employee_code, full_name").order("full_name");
+      const znaniZaEnkrat = new Map();
+      (vsiZgodovina || []).forEach(r => { if (!znaniZaEnkrat.has(r.employee_code)) znaniZaEnkrat.set(r.employee_code, r.full_name); });
+      const manjkajoci = [...znaniZaEnkrat.entries()].filter(([koda]) => !vNovem.has(koda)).map(([, ime]) => ime);
+
+      setPredogled({
+        zapisi: zVsebino, leto, mesec,
+        novih: zVsebino.filter(z => z.vrsta === "nov").length,
+        spremenjenih: zVsebino.filter(z => z.vrsta === "sprem").length,
+        enakih: zVsebino.filter(z => z.vrsta === "enako").length,
+        manjkajoci,
+      });
+      setUvozMsg(`Prebranih ${zVsebino.length} vrstic iz "${file.name}" — preveri predogled spodaj pred potrditvijo.`);
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const potrdiUvoz = async () => {
+    if (!predogled) return;
+    setUvozBusy(true);
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      const zapisi = predogled.zapisi.map(z => ({
+        employee_code: z.employee_code, full_name: z.full_name, leto: predogled.leto, mesec: predogled.mesec,
+        dnevi: z.dnevi, profile_id: z.profile_id, uvozeno: new Date().toISOString(), uvozil: user ? user.id : null,
+      }));
+      for (let i = 0; i < zapisi.length; i += 200) {
+        const { error } = await client.from("leave_balance_history").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
+        if (error) throw error;
+      }
+      setUvozMsg(`Uvoženih ${zapisi.length} vrstic za ${MESECI_SL2[predogled.mesec - 1]} ${predogled.leto}.`);
+      setPredogled(null);
+      await nalozi();
+      setObdobje(predogled.leto + "-" + predogled.mesec);
+    } catch (e) {
+      setUvozMsg("Uvoz ni uspel: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const razvrsti = (polje) => setSort(s => ({ polje, smer: s.polje === polje ? -s.smer : 1 }));
+
+  const filtrirano = useMemo(() => {
+    const s = iskanje.trim().toLowerCase();
+    let v = !s ? vrstice : vrstice.filter(r =>
+      (r.full_name || "").toLowerCase().includes(s) || String(r.employee_code).includes(s)
+    );
+    v = v.slice().sort((a, b) => {
+      const x = a[sort.polje], y = b[sort.polje];
+      if (typeof x === "string") return sort.smer * String(x).localeCompare(String(y), "sl");
+      return sort.smer * ((x == null ? -1e9 : Number(x)) - (y == null ? -1e9 : Number(y)));
+    });
+    return v;
+  }, [vrstice, iskanje, sort]);
+
+  const izvoziCSV = () => {
+    if (!filtrirano.length) return;
+    const [leto, mesec] = obdobje.split("-");
+    const csv = "full_name,employee_code,dnevi,sprememba\n" + filtrirano.map(r =>
+      [`"${(r.full_name||"").replace(/"/g,'""')}"`, r.employee_code, r.dnevi, r.sprememba ?? ""].join(",")
+    ).join("\n") + "\n";
+    download(`dopust-${leto}-${String(mesec).padStart(2,"0")}.csv`, csv);
+  };
+
+  const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
+  const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
+  const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
+
+  return (
+    <div>
+      <h2 className="section no-print">Mesečno stanje dopusta (Kadris)</h2>
+      <p className="hint no-print">
+        Vsak mesec naloži izvoz iz Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec, DOPUST).
+        Šifra zaposlenega je edini stabilen ključ med meseci — ista oseba se ne podvoji, tudi če se ime kdaj zapiše
+        drugače. Ponoven uvoz istega meseca obstoječo vrstico posodobi, ne podvoji. Stanje se samodejno prikaže tudi
+        v Imeniku pri posamezni osebi (najnovejši mesec).
+      </p>
+      <div className="card no-print">
+        <input ref={fileRef} type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz mesečnega stanja iz datoteke"}
+        </button>
+        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+
+      {predogled && (
+        <div className="card no-print">
+          <h3 style={{marginTop:0}}>Predogled — {MESECI_SL2[predogled.mesec - 1]} {predogled.leto}</h3>
+          <p className="hint">{predogled.novih} novih · {predogled.spremenjenih} spremenjenih · {predogled.enakih} nespremenjenih</p>
+          {predogled.manjkajoci.length > 0 && (
+            <p className="hint">V tem izvozu jih ni (bodo iz prejšnjih uvozov, podatki ostanejo): {predogled.manjkajoci.join(", ")}</p>
+          )}
+          <button className="genBtn" onClick={potrdiUvoz} disabled={uvozBusy}>{uvozBusy ? "Uvažam …" : "Potrdi uvoz"}</button>
+          <button className="dlBtn" style={{marginLeft:8}} onClick={() => setPredogled(null)}>Prekliči</button>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="dobd">Obdobje</label>
+            <select id="dobd" value={obdobje} onChange={e => setObdobje(e.target.value)}>
+              {(obdobja || []).length === 0 && <option value="">— ni podatkov —</option>}
+              {(obdobja || []).map(o => (
+                <option key={o.leto+"-"+o.mesec} value={o.leto+"-"+o.mesec}>{MESECI_SL2[o.mesec-1]} {o.leto} — {o.stevilo_oseb} oseb</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{flex:1, minWidth:180}}>
+            <label htmlFor="disc">Iskanje</label>
+            <input id="disc" type="text" placeholder="Ime ali šifra zaposlenega …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
+          </div>
+          <button className="dlBtn no-print" onClick={izvoziCSV}>⬇ Izvozi CSV</button>
+        </div>
+
+        {vrstice.length > 0 && (
+          <p className="hint" style={{marginTop:10}}>
+            {filtrirano.length} zaposlenih · skupaj {Math.round(skupaj*10)/10} dni ·
+            povprečje {(skupaj/(filtrirano.length||1)).toFixed(1)} · brez dopusta {brezDopusta} · brez računa {brezRacuna}
+          </p>
+        )}
+
+        {vrstice.length === 0 ? (
+          <p className="hint">Za to obdobje ni podatkov.</p>
+        ) : (
+          <div style={{overflowX:"auto"}}>
+            <table className="roster">
+              <thead>
+                <tr>
+                  <th className="weekToggle" style={{cursor:"pointer"}} onClick={() => razvrsti("full_name")}>Priimek in ime</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("employee_code")}>Šifra</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("dnevi")}>Dnevi</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("sprememba")}>Sprememba</th>
+                  <th>Račun</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrirano.map(r => {
+                  const s = r.sprememba == null ? null : Number(r.sprememba);
+                  const barva = s == null || s === 0 ? "var(--muted)" : (s > 0 ? "var(--ok)" : "var(--danger)");
+                  const besedilo = s == null ? "—" : (s > 0 ? "+" : "") + s;
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.full_name}</td>
+                      <td>{r.employee_code}</td>
+                      <td><strong>{r.dnevi}</strong></td>
+                      <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
+                      <td>{r.profile_id ? "povezan" : "ni računa"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const [tab, setTab] = useState("kalup");
   return (
@@ -1331,12 +1610,14 @@ function App(){
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
           <button role="tab" aria-selected={tab==="vodje"} onClick={() => setTab("vodje")}>Vodje</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
+          <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
         </div>
       </header>
 
       {tab==="kalup" && <KalupTab/>}
       {tab==="dez" && <DezurstvaTab/>}
       {tab==="vodje" && <VodjeTab/>}
+      {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
 
       <footer className="foot no-print">
