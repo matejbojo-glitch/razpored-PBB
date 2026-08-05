@@ -128,6 +128,7 @@
     table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
     table.wardTable tr, table.dutyTable tr{ break-inside:avoid; page-break-inside:avoid; }
     .printBlok{ zoom: var(--print-scale, 1); }
+    table.wardTable input[type="text"]{ border:none !important; color:#000 !important; }
   }
 </style>
 </head>
@@ -481,6 +482,10 @@ function KalupTab(){
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
   const wardRef = useRef();
+  // Ročni popravki po izračunu: "ime|datum" -> besedilo. Enaka logika kot že
+  // v zavihku Vodje - spremeni samo prikaz/izvoz (PDF/CSV), NE pa objave v
+  // Supabase (ta ostane vezana na izračunano vrednost generatorja).
+  const [popravki, setPopravki] = useState({});
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -518,6 +523,29 @@ function KalupTab(){
     }));
     const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
     setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, staff: meta.staff.map(([ime,l]) => ({ime, vloga:"SMS / TZN"})) });
+    setPopravki({});
+  };
+
+  const celica = (z, dn) => {
+    const key = z.ime + "|" + dn.datum;
+    return popravki[key] != null ? popravki[key] : (dn.izmene[z.ime] || "");
+  };
+  const nastaviPopravek = (z, dn, vrednost) => {
+    setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
+  };
+
+  const izvoziCSV = () => {
+    if (!rezultat) return;
+    const glava = ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)];
+    const vrstice = rezultat.staff.map(z => [z.ime, ...rezultat.dnevi.map(dn => celica(z, dn))]);
+    const csv = [glava, ...vrstice]
+      .map(vrsta => vrsta.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `kalup-${rezultat.koda}-${rezultat.mesec}.csv`; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   const prenesi = () => {
@@ -610,6 +638,11 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
+          <p className="hint no-print">
+            Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) — to spremeni samo prikaz/izvoz (PDF/CSV), ne pa
+            objave v Supabase (ta ostane vezana na izračunano vrednost generatorja, ker prostega besedila ni mogoče
+            zanesljivo preslikati nazaj na eno izmeno).
+          </p>
           <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
@@ -627,12 +660,13 @@ function KalupTab(){
                   <tr key={z.ime}>
                     <td className="name">{z.ime}</td>
                     {rezultat.dnevi.map(dn => {
-                      const sifra = dn.izmene[z.ime]; const cls = classify(sifra);
+                      const sifra = celica(z, dn); const cls = classify(sifra);
                       return (
                         <td key={dn.datum}>
-                          <span className="swatch" style={{background:BARVE[cls]+"33"}} title={sifra}>
-                            {cls==="off" ? "–" : (sifra||"").slice(0,3)}
-                          </span>
+                          <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
+                            title={sifra}
+                            style={{width:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
+                              border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 2px"}} />
                         </td>
                       );
                     })}
@@ -642,6 +676,7 @@ function KalupTab(){
             </table>
           </div>
           <button className="dlBtn no-print" onClick={prenesi}>⬇ Prenesi JSON za mobilno aplikacijo</button>
+          <button className="dlBtn no-print" onClick={izvoziCSV}>⬇ Izvozi CSV (za Google Sheets/Excel)</button>
           <button className="dlBtn no-print" onClick={() => PrintFit.natisni(wardRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
