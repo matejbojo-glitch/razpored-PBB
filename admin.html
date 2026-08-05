@@ -1162,12 +1162,18 @@ function imenaSeUjemataAdmin(a, b){
   return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
 }
 
+// Trije stalni administratorji (na izrecno, trajno navodilo) — nikoli se ne
+// ponastavijo na "Zaposleni", tudi ne pri množičnem ponastavljanju spodaj.
+const STALNI_ADMINI = ["ALUKIĆ DINO", "BOJIĆ MATEJ", "DŽAMASTAGIĆ DENIS"];
+
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
   const [status, setStatus] = useState({});
   const [uvozMsg, setUvozMsg] = useState(null);
   const [uvozBusy, setUvozBusy] = useState(false);
+  const [ponastaviBusy, setPonastaviBusy] = useState(false);
+  const [ponastaviMsg, setPonastaviMsg] = useState(null);
   const uvozRef = useRef();
 
   const reload = () => {
@@ -1181,6 +1187,26 @@ function UporabnikiTab(){
     const { error } = await client.from("profiles").update(patch).eq("id", id);
     setStatus(s => ({ ...s, [id]: error ? ("napaka: " + error.message) : "shranjeno" }));
     setProfili(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
+    return error;
+  };
+
+  // Množično ponastavi vlogo/oddelek vsem RAZEN treh stalnih administratorjev
+  // (na izrecno željo). Prijava (e-pošta/geslo) ostane nedotaknjena — ureja se
+  // samo public.profiles prek te iste, že delujoče prijavljene povezave, zato
+  // ni tveganja napačnega Supabase projekta kot pri ročnem SQL.
+  const ponastaviVse = async () => {
+    if (profili === null) return;
+    const cilj = profili.filter(p => !STALNI_ADMINI.some(a => imenaSeUjemataAdmin(p.full_name, a)));
+    if (!cilj.length) { setPonastaviMsg("Ni koga ponastaviti."); return; }
+    if (!confirm(`Vsem uporabnikom RAZEN treh stalnih administratorjev (${cilj.length} oseb) bo vloga ponastavljena na "Zaposleni" in oddelek izbrisan. Prijava (e-pošta/geslo) ostane nespremenjena. Nadaljuj?`)) return;
+    setPonastaviBusy(true); setPonastaviMsg(null);
+    let ok = 0, napak = 0;
+    for (const p of cilj) {
+      const err = await posodobi(p.id, { role: "user", department_code: null });
+      if (err) napak++; else ok++;
+    }
+    setPonastaviBusy(false);
+    setPonastaviMsg(`Ponastavljenih ${ok} uporabnikov.` + (napak ? ` ${napak} napak.` : ""));
   };
 
   const uvoziVlogeOddelke = async (file) => {
@@ -1249,6 +1275,16 @@ function UporabnikiTab(){
           (ujemanje po imenu, vrstni red besed ni pomemben). Za še neregistrirane osebe uporabi Imenik.
         </p>
         {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+      <div className="card" style={{marginBottom:14, borderColor:"var(--danger)"}}>
+        <button className="dangerBtn" disabled={ponastaviBusy || profili === null} onClick={ponastaviVse}>
+          {ponastaviBusy ? "Ponastavljam …" : "⚠ Ponastavi vse vloge/oddelke (razen 3 stalnih administratorjev)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Vsem RAZEN Alukić Dino, Bojić Matej in Džamastagić Denis ponastavi vlogo na "Zaposleni" in izbriše oddelek —
+          kot da jih admin še ni uredil. Prijava (e-pošta/geslo) ostane nespremenjena.
+        </p>
+        {ponastaviMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{ponastaviMsg}</p>}
       </div>
       {vseKode.map(k => (
         <div key={k || "brez"} style={{marginTop:14}}>
