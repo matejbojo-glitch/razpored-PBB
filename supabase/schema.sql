@@ -323,24 +323,24 @@ create table if not exists public.contact_imports (
   role text check (role in ('admin', 'vodja', 'user')),
   department_code text references public.departments (code) on update cascade,
   linked_profile_id uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now(),
-  -- Dodatna HR polja iz uradnega seznama zaposlenih (šifra zaposlenega, datum
-  -- rojstva, naziv delovnega mesta, vodja, starševsko varstvo, letni dopust) —
-  -- na izrecno željo, da se ti podatki ob povezavi prenesejo na uporabnika.
-  employee_code text,
-  birth_date date,
-  position_name text,
-  manager_name text,
-  parental_leave text,
-  annual_leave_total integer,
-  -- Tekoče stanje dopusta (preostanek dni), ki ga admin redno posodablja z
-  -- uvozom nove Excel tabele (na izrecno željo) — ločeno od letne kvote
-  -- (annual_leave_total, fiksna za celo leto), ker se to spreminja med letom.
-  -- leave_balance_asof je privzeto 1. v tekočem mesecu, če datoteka nima
-  -- lastnega stolpca z datumom.
-  leave_balance_days integer,
-  leave_balance_asof date
+  created_at timestamptz not null default now()
 );
+
+-- POZOR: ker je zgornji "create table IF NOT EXISTS" na obstoječi (že prej
+-- ustvarjeni) tabeli no-op, stolpcev, dodanih pozneje, NI SMELO biti znotraj
+-- tega bloka (bili so v prejšnji različici te datoteke - napaka, ki je
+-- povzročila "column employee_code does not exist" pri poganjanju pogleda
+-- spodaj na bazi, kjer je contact_imports že obstajala pred to spremembo).
+-- "alter table add column if not exists" deluje pravilno v obeh primerih
+-- (nova IN že obstoječa tabela), zato se od tu naprej dosledno uporablja to.
+alter table public.contact_imports add column if not exists employee_code text;
+alter table public.contact_imports add column if not exists birth_date date;
+alter table public.contact_imports add column if not exists position_name text;
+alter table public.contact_imports add column if not exists manager_name text;
+alter table public.contact_imports add column if not exists parental_leave text;
+alter table public.contact_imports add column if not exists annual_leave_total integer;
+alter table public.contact_imports add column if not exists leave_balance_days integer;
+alter table public.contact_imports add column if not exists leave_balance_asof date;
 
 alter table public.contact_imports enable row level security;
 drop policy if exists contact_imports_admin on public.contact_imports;
@@ -348,6 +348,33 @@ create policy contact_imports_admin on public.contact_imports
   for all to authenticated
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
+
+-- contact_imports_public: na izrecno željo morajo biti VSI vneseni podatki
+-- takoj vidni v Imeniku, TUDI za še ne povezane (neregistrirane) osebe — ne
+-- samo adminu v "Uvoz zaposlenih". Osnovna tabela contact_imports ostaja
+-- admin-only (ureja jo samo admin), ta pogled pa istim vidnostnim pravilom
+-- kot pri registriranih profilih (e-pošta vsem, telefon admin+vodja, HR
+-- polja samo admin — ni "lastnika", ker oseba še ni registrirana) izpostavi
+-- BRANJE vsem prijavljenim. Pogled ni "security invoker": teče s pravicami
+-- lastnika (privzeto obnašanje navadnega pogleda), zato prebere vse vrstice
+-- ne glede na RLS na contact_imports — vidnost posameznih stolpcev namesto
+-- tega vsili spodnja CASE logika, ovrednotena za VSAKEGA klicatelja posebej
+-- (current_role_is bere iz profiles glede na auth.uid() klicatelja).
+create or replace view public.contact_imports_public as
+select
+  id, full_name, department_code, role, linked_profile_id, created_at, email,
+  case when public.current_role_is('admin') or public.current_role_is('vodja') then phone else null end as phone,
+  case when public.current_role_is('admin') then employee_code else null end as employee_code,
+  case when public.current_role_is('admin') then birth_date else null end as birth_date,
+  case when public.current_role_is('admin') then position_name else null end as position_name,
+  case when public.current_role_is('admin') then manager_name else null end as manager_name,
+  case when public.current_role_is('admin') then parental_leave else null end as parental_leave,
+  case when public.current_role_is('admin') then annual_leave_total else null end as annual_leave_total,
+  case when public.current_role_is('admin') then leave_balance_days else null end as leave_balance_days,
+  case when public.current_role_is('admin') then leave_balance_asof else null end as leave_balance_asof
+from public.contact_imports;
+
+grant select on public.contact_imports_public to authenticated;
 
 -- profile_hr_details: dodatni HR podatki (šifra zaposlenega, datum rojstva,
 -- naziv delovnega mesta, vodja, starševsko varstvo, letni dopust), ki se
@@ -363,10 +390,14 @@ create table if not exists public.profile_hr_details (
   manager_name text,
   parental_leave text,
   annual_leave_total integer,
-  leave_balance_days integer,
-  leave_balance_asof date,
   updated_at timestamptz not null default now()
 );
+
+-- Ista past kot pri contact_imports zgoraj (glej opombo tam) - leave_balance_*
+-- je bil prej pomotoma znotraj "create table if not exists", kar na že
+-- obstoječi tabeli ne naredi ničesar.
+alter table public.profile_hr_details add column if not exists leave_balance_days integer;
+alter table public.profile_hr_details add column if not exists leave_balance_asof date;
 
 alter table public.profile_hr_details enable row level security;
 drop policy if exists profile_hr_details_select on public.profile_hr_details;
@@ -410,6 +441,68 @@ create policy profiles_update_admin on public.profiles
   for update to authenticated
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
+
+-- profile_departments: en zaposleni lahko pokriva VEČ oddelkov (na izrecno
+-- željo, prikazano/urejano v Imeniku) - "primaren" (sort_order najnižji) je
+-- tisti, ki šteje za generator urnika. Namenoma NE spreminja WARDS_META /
+-- lead_departments / obstoječega generatorja (admin.html) - ta še naprej
+-- uporablja izključno profiles.department_code (=primarni oddelek), da se
+-- ne tvega regresij v že delujočem generiranju razporeda. Sprožilec spodaj
+-- profiles.department_code drži usklajen s "primarnim" vnosom tukaj, ne
+-- glede na to, kateri del aplikacije department_code spremeni.
+create table if not exists public.profile_departments (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  department_code text not null references public.departments (code) on update cascade,
+  sort_order integer not null default 0,
+  unique (profile_id, department_code)
+);
+
+alter table public.profile_departments enable row level security;
+drop policy if exists profile_departments_select on public.profile_departments;
+create policy profile_departments_select on public.profile_departments
+  for select to authenticated using (true);
+drop policy if exists profile_departments_admin_write on public.profile_departments;
+create policy profile_departments_admin_write on public.profile_departments
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+create or replace function public.sync_primary_department()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.department_code is null then
+    return new;
+  end if;
+  -- Vse ostale oddelke te osebe premakni za enega nazaj, nato nov primarni
+  -- oddelek postavi na sort_order 0 (upsert, če ga na seznamu še ni bilo).
+  update public.profile_departments
+  set sort_order = sort_order + 1
+  where profile_id = new.id and department_code <> new.department_code;
+
+  insert into public.profile_departments (profile_id, department_code, sort_order)
+  values (new.id, new.department_code, 0)
+  on conflict (profile_id, department_code) do update set sort_order = 0;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_primary_department on public.profiles;
+create trigger trg_sync_primary_department
+  after insert or update of department_code on public.profiles
+  for each row execute function public.sync_primary_department();
+
+-- Enkraten (idempotenten) zagon za profile, ki so department_code dobili
+-- PREDEN je ta sprožilec obstajal - sprožilec sam se namreč ne požene za
+-- pretekle vrstice, samo za bodoče insert/update.
+insert into public.profile_departments (profile_id, department_code, sort_order)
+select id, department_code, 0 from public.profiles
+where department_code is not null
+on conflict (profile_id, department_code) do nothing;
 
 -- schedule_entries: berejo vsi prijavljeni, za VSE oddelke (dogovorjeno);
 -- pišejo (kalup/dežurstva) samo admin.

@@ -66,6 +66,13 @@ Dashboard → **Authentication → Providers → Email**:
 - Če e-pošte niso resnične/dostopne vsem zaposlenim, razmisli o tem, da
   administrator namesto tega vsakemu zaposlenemu sporoči začasno geslo
   in e-poštni naslov, ki ga zaposleni uporabi samo za prijavo.
+- **Za "Pozabljeno geslo" (glej §5g):** Supabase ima vgrajeno pošiljanje
+  e-pošte, a je na privzetih (brezplačnih) načrtih strogo omejeno po številu
+  na uro in se sme uporabljati samo za testiranje — za zanesljivo pošiljanje
+  vsem zaposlenim v produkciji je treba nastaviti **lasten SMTP** (Dashboard
+  → Authentication → Settings → SMTP Settings; npr. poslovni e-poštni
+  strežnik bolnišnice ali storitev kot Resend/SendGrid). Brez tega bodo
+  e-pošte za ponastavitev gesla morda prihajale nezanesljivo ali sploh ne.
 
 ## 3. Ustvari prvega administratorja
 
@@ -226,6 +233,70 @@ zaposlene:
 
 Zahteva **ponoven zagon `supabase/schema.sql`** — doda `leave_balance_days`
 in `leave_balance_asof` na `contact_imports` in `profile_hr_details`.
+
+## 5f. Več oddelkov na zaposlenega + brez podvajanja pri ponovnem uvozu
+
+Na izrecno željo:
+
+- V Imeniku ima lahko en zaposleni **več oddelkov** (npr. pokriva C in C1) —
+  nova tabela `profile_departments` (profile_id, department_code,
+  sort_order). **Prvi** (najnižji `sort_order`) je "primarni" in ostaja
+  edini, ki šteje za obstoječi generator urnika (`profiles.department_code`
+  — WARDS_META/lead_departments v `admin.html` sta **namenoma
+  nespremenjena**, da se ne tvega regresij). Sprožilec
+  `sync_primary_department` v shemi drži `profiles.department_code` in
+  `profile_departments` usklajena, ne glede na to, kateri del aplikacije
+  (Imenik, Uporabniki, uvoz, gumb za ponastavitev) oddelek spremeni.
+  V Imeniku → profil osebe (admin) je nov urejevalnik: dodajanje/odstranitev
+  oddelka in gumb "Naredi primaren" za spremembo vrstnega reda.
+- **Uvoz ne podvaja več** "še ne povezanih" oseb: če ista (še neregistrirana)
+  oseba po e-pošti že obstaja v seznamu za uvoz, ponoven uvoz njeno vrstico
+  **posodobi**, namesto da ustvari podvojen zapis (velja tudi za
+  "posodobljeno stanje dopusta" iz §5e, ko oseba še ni registrirana).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda tabelo
+`profile_departments` + sprožilec (z enkratnim, idempotentnim backfillom za
+obstoječe profile).
+
+## 5g. Pozabljeno geslo + potrditev gesla po registraciji
+
+Na izrecno željo, brez sprememb sheme (samo `login.html` + nova
+`reset-geslo.html`):
+
+- **"Pozabljeno geslo?"** na prijavni strani — vnese e-pošto,
+  `client.auth.resetPasswordForEmail()` pošlje povezavo (Supabase, glej
+  opozorilo o SMTP v §2 zgoraj). Sporočilo je namerno enako, ne glede na to,
+  ali račun s to e-pošto obstaja (ne razkriva, kdo je registriran).
+- Povezava iz e-pošte pripelje na novo `reset-geslo.html`, ki prek
+  `detectSessionInUrl` (privzeto vklopljeno v supabase-js) samodejno
+  vzpostavi sejo iz povezave in prikaže obrazec za novo geslo
+  (`client.auth.updateUser({ password })`).
+- **Takoj po uspešni "Nova registracija"** (če je "Confirm email" izklopljen,
+  glej §2, torej je oseba takoj prijavljena) se pred vstopom v aplikacijo
+  prikaže še en korak "Nastavi geslo" — dvojna potrditev/priprava gesla.
+
+Ne zahteva ponovnega zagona `schema.sql`.
+
+## 5h. Še ne povezane osebe zdaj vidne VSEM v Imeniku
+
+Na izrecno željo ("vsi vneseni podatki naj bodo takoj vidni pri vseh, tudi
+nepovezanih uporabnikih"): uvožene, a še ne registrirane osebe (prej vidne
+samo adminu v "Uvoz zaposlenih") se zdaj pojavijo tudi v glavnem, iskalnem
+seznamu Imenika za VSE vloge — z oznako "še ni registriran" namesto
+vloge/vrstice.
+
+Nov pogled `public.contact_imports_public` (osnovna tabela `contact_imports`
+ostaja admin-only) uveljavlja ISTA pravila vidljivosti kot za registrirane
+profile: e-pošta in oddelek vsem, telefon admin+vodja, HR polja (rojstni
+datum, šifra zaposlenega, stanje dopusta ipd.) samo adminu — ker
+neregistrirana oseba nima "lastnika", ki bi jih smel videti namesto admina.
+Pogled teče s pravicami lastnika (ne "security invoker"), da prebere vse
+vrstice ne glede na RLS na `contact_imports`, nato pa vsak stolpec, ki ga
+klicatelj po vlogi ne sme videti, vrne kot `null` (CASE izraz, ovrednoten
+za vsak klic posebej glede na `current_role_is()`).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda pogled
+`contact_imports_public` + `grant select ... to authenticated`.
 
 ## 6. Znane omejitve te faze
 
