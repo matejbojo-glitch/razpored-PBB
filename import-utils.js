@@ -177,22 +177,37 @@ window.ImportUtils = (function () {
     return out;
   }
 
+  // Poišče vrstico glave med prvimi 15 vrsticami (ne samo vrstico 0) - nekateri
+  // izvozi (npr. Kadris) imajo nad tabelo naslovne vrstice. Vrne indekse
+  // stolpcev za vrstico z NAJVEČ ujemanji (vsaj 2, sicer privzame vrstico 0
+  // za nazaj združljivost s tem, kar je klicalo to funkcijo prej).
+  function najdiGlavo(vrsteVrstic, glaveMapa) {
+    const meja = Math.min(vrsteVrstic.length, 15);
+    let najboljsi = { vrstica: 0, indeksi: {}, steviloUjemanj: -1 };
+    for (let i = 0; i < meja; i++) {
+      const glava = (vrsteVrstic[i] || []).map(g => (g || "").toString().trim().toLowerCase());
+      const indeksi = {};
+      Object.keys(glaveMapa).forEach(kanonicno => {
+        const mozne = glaveMapa[kanonicno].map(g => g.toLowerCase());
+        const idx = glava.findIndex(g => mozne.includes(g));
+        if (idx !== -1) indeksi[kanonicno] = idx;
+      });
+      const stevilo = Object.keys(indeksi).length;
+      if (stevilo > najboljsi.steviloUjemanj) najboljsi = { vrstica: i, indeksi, steviloUjemanj: stevilo };
+    }
+    return najboljsi;
+  }
+
   // Splošnejša različica za realne datoteke, kjer vrstni red stolpcev ni
   // znan vnaprej (npr. uraden HR izvoz z veliko stolpci v poljubnem
-  // vrstnem redu). Prva vrstica MORA biti glava. glaveMapa je
-  // { kanoničnoIme: [možne glave, case-insensitive] }. Stolpci, ki jih ni v
-  // datoteki, ostanejo prazen string "" v vsakem vrnjenem objektu.
+  // vrstnem redu). glaveMapa je { kanoničnoIme: [možne glave, case-
+  // insensitive] }. Stolpci, ki jih ni v datoteki, ostanejo prazen string ""
+  // v vsakem vrnjenem objektu.
   function vVrsticeObjekteGlave(vrsteVrstic, glaveMapa) {
-    if (!vrsteVrstic.length) return [];
-    const glava = vrsteVrstic[0].map(g => (g || "").toString().trim().toLowerCase());
-    const indeksi = {};
-    Object.keys(glaveMapa).forEach(kanonicno => {
-      const mozne = glaveMapa[kanonicno].map(g => g.toLowerCase());
-      const idx = glava.findIndex(g => mozne.includes(g));
-      if (idx !== -1) indeksi[kanonicno] = idx;
-    });
+    if (!vrsteVrstic.length) return { objekti: [], najdeniStolpci: [] };
+    const { vrstica: glavaVrstica, indeksi } = najdiGlavo(vrsteVrstic, glaveMapa);
     const out = [];
-    for (let i = 1; i < vrsteVrstic.length; i++) {
+    for (let i = glavaVrstica + 1; i < vrsteVrstic.length; i++) {
       const vrstica = vrsteVrstic[i];
       const obj = {};
       Object.keys(glaveMapa).forEach(kanonicno => {
