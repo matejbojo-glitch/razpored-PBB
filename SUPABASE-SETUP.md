@@ -277,6 +277,27 @@ Na izrecno željo, brez sprememb sheme (samo `login.html` + nova
 
 Ne zahteva ponovnega zagona `schema.sql`.
 
+## 5h. Še ne povezane osebe zdaj vidne VSEM v Imeniku
+
+Na izrecno željo ("vsi vneseni podatki naj bodo takoj vidni pri vseh, tudi
+nepovezanih uporabnikih"): uvožene, a še ne registrirane osebe (prej vidne
+samo adminu v "Uvoz zaposlenih") se zdaj pojavijo tudi v glavnem, iskalnem
+seznamu Imenika za VSE vloge — z oznako "še ni registriran" namesto
+vloge/vrstice.
+
+Nov pogled `public.contact_imports_public` (osnovna tabela `contact_imports`
+ostaja admin-only) uveljavlja ISTA pravila vidljivosti kot za registrirane
+profile: e-pošta in oddelek vsem, telefon admin+vodja, HR polja (rojstni
+datum, šifra zaposlenega, stanje dopusta ipd.) samo adminu — ker
+neregistrirana oseba nima "lastnika", ki bi jih smel videti namesto admina.
+Pogled teče s pravicami lastnika (ne "security invoker"), da prebere vse
+vrstice ne glede na RLS na `contact_imports`, nato pa vsak stolpec, ki ga
+klicatelj po vlogi ne sme videti, vrne kot `null` (CASE izraz, ovrednoten
+za vsak klic posebej glede na `current_role_is()`).
+
+Zahteva **ponoven zagon `supabase/schema.sql`** — doda pogled
+`contact_imports_public` + `grant select ... to authenticated`.
+
 ## 6. Znane omejitve te faze
 
 - Ni administratorske API funkcije za vnaprejšnje ustvarjanje računov

@@ -349,6 +349,33 @@ create policy contact_imports_admin on public.contact_imports
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
 
+-- contact_imports_public: na izrecno željo morajo biti VSI vneseni podatki
+-- takoj vidni v Imeniku, TUDI za še ne povezane (neregistrirane) osebe — ne
+-- samo adminu v "Uvoz zaposlenih". Osnovna tabela contact_imports ostaja
+-- admin-only (ureja jo samo admin), ta pogled pa istim vidnostnim pravilom
+-- kot pri registriranih profilih (e-pošta vsem, telefon admin+vodja, HR
+-- polja samo admin — ni "lastnika", ker oseba še ni registrirana) izpostavi
+-- BRANJE vsem prijavljenim. Pogled ni "security invoker": teče s pravicami
+-- lastnika (privzeto obnašanje navadnega pogleda), zato prebere vse vrstice
+-- ne glede na RLS na contact_imports — vidnost posameznih stolpcev namesto
+-- tega vsili spodnja CASE logika, ovrednotena za VSAKEGA klicatelja posebej
+-- (current_role_is bere iz profiles glede na auth.uid() klicatelja).
+create or replace view public.contact_imports_public as
+select
+  id, full_name, department_code, role, linked_profile_id, created_at, email,
+  case when public.current_role_is('admin') or public.current_role_is('vodja') then phone else null end as phone,
+  case when public.current_role_is('admin') then employee_code else null end as employee_code,
+  case when public.current_role_is('admin') then birth_date else null end as birth_date,
+  case when public.current_role_is('admin') then position_name else null end as position_name,
+  case when public.current_role_is('admin') then manager_name else null end as manager_name,
+  case when public.current_role_is('admin') then parental_leave else null end as parental_leave,
+  case when public.current_role_is('admin') then annual_leave_total else null end as annual_leave_total,
+  case when public.current_role_is('admin') then leave_balance_days else null end as leave_balance_days,
+  case when public.current_role_is('admin') then leave_balance_asof else null end as leave_balance_asof
+from public.contact_imports;
+
+grant select on public.contact_imports_public to authenticated;
+
 -- profile_hr_details: dodatni HR podatki (šifra zaposlenega, datum rojstva,
 -- naziv delovnega mesta, vodja, starševsko varstvo, letni dopust), ki se
 -- prekopirajo iz contact_imports ob "Poveži". Bolj občutljivi kot telefon

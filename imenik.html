@@ -176,7 +176,9 @@ function Seznam({ osebe, oddelki, onOdpri }){
             <div className="info">
               <div className="name">{o.full_name}</div>
               <div className="meta">
-                <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>
+                {o.pending
+                  ? <span className="pill pending">še ni registriran</span>
+                  : <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>}
                 {(o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : [])).map((k, i) => (
                   <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
                 ))}
@@ -450,6 +452,62 @@ function Profil({ oseba, myId, myRole, oddelki, onNazaj, onSpremenjeno }){
             {hrMsg && <p className={hrMsg.ok ? "okMsg" : "err"}>{hrMsg.text}</p>}
           </div>
         </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Bralni prikaz še ne povezane (neregistrirane) osebe — vidna vsem, na
+// izrecno željo, z istimi vidnostnimi pravili kot pri registriranih
+// profilih. contact_imports_public (glej schema.sql) že vrne null za
+// stolpce, ki jih klicatelj po vlogi ne sme videti (phone/HR polja), zato
+// se tu samo prikaže, kar je prišlo.
+// ---------------------------------------------------------------------
+function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
+  const hr = oseba.hr || {};
+  const imaHr = hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null;
+  return (
+    <div>
+      <button className="backlink no-print" onClick={onNazaj}>‹ Nazaj na imenik</button>
+      <div className="card" style={{marginTop:10, textAlign:"center"}}>
+        <div className="avatarBig" style={{margin:"0 auto 10px"}}>{initials(oseba.full_name)}</div>
+        <div className="name" style={{fontSize:18, fontWeight:800}}>{oseba.full_name}</div>
+        <div style={{marginTop:6}}><span className="pill pending">še ni registriran</span></div>
+      </div>
+
+      <div className="card">
+        <EmailRow email={oseba.email} />
+        <PhoneRow phone={oseba.phone} />
+        {oseba.dept_codes.length > 0 && (
+          <div className="rowline">
+            <div className="lbl">Oddelek</div>
+            <div className="val">{oseba.dept_codes.map(k => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}</div>
+          </div>
+        )}
+        {!oseba.phone && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
+      </div>
+
+      {imaHr && (
+        <div className="card">
+          {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
+          {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{hr.birth_date}</div></div>}
+          {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
+          {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
+          {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
+          {hr.annual_leave_total != null && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
+          {hr.leave_balance_days != null && (
+            <div className="rowline">
+              <div className="lbl">Stanje dopusta</div>
+              <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + hr.leave_balance_asof + ")" : ""}</div>
+            </div>
+          )}
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>HR podatki — vidni samo adminu.</p>
+        </div>
+      )}
+
+      {myRole === "admin" && (
+        <p className="hint no-print">Za povezovanje s pravim profilom (ko se oseba registrira) ali urejanje pojdi na dno strani v razdelek "Uvoz zaposlenih".</p>
       )}
     </div>
   );
@@ -826,6 +884,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 function App(){
   const [auth, setAuth] = useState(null);
   const [osebe, setOsebe] = useState([]);
+  const [cakajoce, setCakajoce] = useState([]); // še ne povezane osebe (contact_imports_public) — vidne VSEM, na izrecno željo
   const [oddelki, setOddelki] = useState([]);
   const [odprtId, setOdprtId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -852,6 +911,20 @@ function App(){
         })));
       });
     client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+    client.from("contact_imports_public").select("*").is("linked_profile_id", null).order("full_name")
+      .then(({ data }) => {
+        setCakajoce((data || []).map(u => ({
+          id: u.id, full_name: u.full_name, role: u.role || "user",
+          dept_codes: u.department_code ? [u.department_code] : [],
+          email: u.email, phone: u.phone, pending: true,
+          hr: {
+            employee_code: u.employee_code, birth_date: u.birth_date, position_name: u.position_name,
+            manager_name: u.manager_name, parental_leave: u.parental_leave,
+            annual_leave_total: u.annual_leave_total, leave_balance_days: u.leave_balance_days,
+            leave_balance_asof: u.leave_balance_asof,
+          },
+        })));
+      });
   }, [auth, reloadKey]);
 
   const odpri = (id) => {
@@ -871,7 +944,9 @@ function App(){
   const { profile } = auth;
   const myId = auth.session.user.id;
   const myRole = profile ? profile.role : "user";
+  const vsi = useMemo(() => osebe.concat(cakajoce), [osebe, cakajoce]);
   const oseba = odprtId ? osebe.find(o => o.id === odprtId) : null;
+  const cakajocaOseba = !oseba && odprtId ? cakajoce.find(o => o.id === odprtId) : null;
 
   return (
     <div className="wrap">
@@ -890,13 +965,16 @@ function App(){
       {odprtId && oseba && (
         <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
       )}
-      {odprtId && !oseba && osebe.length > 0 && (
+      {odprtId && cakajocaOseba && (
+        <PendingProfil oseba={cakajocaOseba} myRole={myRole} oddelki={oddelki} onNazaj={zapri} />
+      )}
+      {odprtId && !oseba && !cakajocaOseba && vsi.length > 0 && (
         <div><button className="backlink no-print" onClick={zapri}>‹ Nazaj na imenik</button><p className="empty">Osebe ni bilo mogoče najti.</p></div>
       )}
 
       {!odprtId && (
         <React.Fragment>
-          <Seznam osebe={osebe} oddelki={oddelki} onOdpri={odpri} />
+          <Seznam osebe={vsi} oddelki={oddelki} onOdpri={odpri} />
           {myRole === "admin" && <AdminUvoz osebe={osebe} oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
         </React.Fragment>
       )}
