@@ -56,7 +56,8 @@
 
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
-    { key: "menjave", href: "menjave.html", ic: "🔁", lbl: "Menjave", roles: ["admin", "vodja", "user"], badge: true },
+    { key: "menjave", href: "menjave.html", ic: "🔁", lbl: "Menjave", roles: ["admin", "vodja", "user"], badge: "menjave" },
+    { key: "obrazec", href: "obrazec.html", ic: "📝", lbl: "Obrazec", roles: ["admin", "vodja", "user"], badge: "obrazec" },
     { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
     { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
     { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Pravičnost", roles: ["admin", "vodja"] },
@@ -85,6 +86,19 @@
         .catch(function () {});
     }, [role]);
 
+    // Enak rumen klicaj na "Obrazec": obrazci_moja_naloga je že RLS-filtriran
+    // na trenutnega uporabnika (glej supabase/schema.sql, security_invoker),
+    // zato ni treba ločevati po vlogi kot zgoraj pri menjavah.
+    var obrazecPendingState = useState(0);
+    var obrazecPending = obrazecPendingState[0], setObrazecPending = obrazecPendingState[1];
+    useEffect(function () {
+      var auth = root.RazporedAuth;
+      if (!auth || !auth.client) return;
+      auth.client.from("obrazci_moja_naloga").select("id", { count: "exact", head: true }).not("moje_dejanje", "is", null)
+        .then(function (res) { setObrazecPending(res.count || 0); })
+        .catch(function () {});
+    }, [role]);
+
     var items = ITEMS.filter(function (it) { return it.roles.indexOf(role) !== -1; });
 
     return e(
@@ -95,10 +109,11 @@
         { className: "inner" },
         items.map(function (it) {
           var badge = null;
+          var badgePending = it.badge === "obrazec" ? obrazecPending : (it.badge === "menjave" ? pending : 0);
           if (it.badge) {
-            if (pending > 0) {
+            if (badgePending > 0) {
               badge = e("span", { className: "badge warn", key: "b", title: "Čaka tvojo odločitev" }, "!");
-            } else if (unread > 0) {
+            } else if (it.badge === "menjave" && unread > 0) {
               badge = e("span", { className: "badge", key: "b" }, unread > 9 ? "9+" : String(unread));
             }
           }
