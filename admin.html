@@ -487,6 +487,49 @@ function PrednostniPanel({ staff, stanje, tedni, onPredlagaj, kvote, setKvote })
 }
 
 // ---------------------------------------------------------------------
+// Pokritost po dnevih — kontrolni seznam, razdelek 7, predlog 3: primerja
+// dejansko zasedbo (po dopustu/pomoči/nadomestilih) s tem, kar bi kalup
+// običajno zasedel ta dan brez odsotnosti. Prag je samodejno izračunan,
+// a ostaja ročno popravljiv na dan, ker "pričakovano" ni vedno enoznačno
+// (npr. namerno tanjša zasedba ob znanih mirnejših dnevih).
+function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki }){
+  const vrstice = rezultat.dnevi.map(dn => {
+    const dejansko = rezultat.staff.filter(z => {
+      const v = celica(z, dn);
+      return v && v !== "LD" && v !== "POMOČ DRUGJE";
+    }).length;
+    const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
+    const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
+    return { dn, dejansko, prag, samodejniPrag, primanjkljaj: prag - dejansko };
+  }).filter(v => v.primanjkljaj > 0);
+
+  if (vrstice.length === 0) {
+    return <p className="hint no-print">Ni zaznanih vrzeli — dejanska zasedba ustreza pričakovani zasedbi kalupa na vsak dan.</p>;
+  }
+
+  return (
+    <div className="card no-print" style={{overflowX:"auto"}}>
+      <table className="roster">
+        <thead><tr><th>Dan</th><th>Dejansko</th><th>Pričakovano</th><th>Primanjkljaj</th></tr></thead>
+        <tbody>
+          {vrstice.map(({ dn, dejansko, prag, samodejniPrag, primanjkljaj }) => (
+            <tr key={dn.datum}>
+              <td>{dn.dan} {dn.datum}</td>
+              <td>{dejansko}</td>
+              <td>
+                <input type="number" min="0" style={{width:56}} value={prag}
+                  onChange={e => setPragPopravki(p => ({ ...p, [dn.datum]: e.target.value === "" ? samodejniPrag : Number(e.target.value) }))}
+                  title="Samodejno izračunano iz kalupa, ročno popravljivo" />
+              </td>
+              <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function KalupTab(){
   const [koda, setKoda] = useState("B");
   const [month, setMonth] = useState("2026-11");
@@ -508,6 +551,10 @@ function KalupTab(){
   // zanesljivo preslika nazaj na eno izmeno (v Vodje en stolpec združuje več
   // ljudi v eno prosto besedilo, zato tam to ni varno).
   const [popravki, setPopravki] = useState({});
+  // Pokritost po dnevih (razdelek 7, predlog 3): samodejno pričakovano
+  // število po dnevu (iz kalupa) je le izhodišče — admin ga lahko tu
+  // ročno popravi, če se za posamezen dan ne zdi pravilno.
+  const [pragPopravki, setPragPopravki] = useState({});
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
   const [genBusy, setGenBusy] = useState(false);
@@ -563,8 +610,18 @@ function KalupTab(){
         omejitve: omejitveMap[ime] || [],
       }));
       const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
-      setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})) });
+      // Pokritost po dnevih: kar bi kalup ta dan običajno zasedel, ČE nihče
+      // ne bi bil na dopustu/pomoči drugje (isto osebje/rotacija, brez
+      // odsotnosti) — izhodišče za primerjavo z dejansko zasedbo spodaj.
+      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], pomocTedni: [], omejitve: [] }));
+      const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
+      const pricakovanoPoDnevih = {};
+      bazno.dnevi.forEach(dn => {
+        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v).length;
+      });
+      setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
       setPopravki({});
+      setPragPopravki({});
     } finally {
       setGenBusy(false);
     }
@@ -701,6 +758,11 @@ function KalupTab(){
             izvozu (PDF/CSV) IN ob objavi v Supabase (vsaka celica je ena oseba/en dan, zato se popravek zanesljivo
             preslika nazaj na eno izmeno).
           </p>
+
+          <h2 className="section no-print">4b · Pokritost po dnevih</h2>
+          <p className="hint no-print">Primerjava dejanske zasedbe (po dopustu/pomoči/nadomestilih) s tem, kar bi kalup običajno zasedel ta dan brez odsotnosti. Prikazani so samo dnevi s primanjkljajem; pričakovano število lahko ročno popraviš.</p>
+          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} />
+
           <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
               <thead>
