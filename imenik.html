@@ -411,7 +411,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             <div className="lbl">Oddelek{oddelkiOsebe.length > 1 ? "i" : ""}</div>
             <div className="val">
               {oddelkiOsebe.map((k, i) => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}
-              {oddelkiOsebe.length > 1 && <span className="hint" style={{display:"block", marginTop:2}}>Prvi ({(oddelki.find(o => o.code === oddelkiOsebe[0]) || {}).name || oddelkiOsebe[0]}) šteje za generator urnika.</span>}
+              {oddelkiOsebe.length > 1 && <span className="hint" style={{display:"block", marginTop:2}}>Prvi ({(oddelki.find(o => o.code === oddelkiOsebe[0]) || {}).name || oddelkiOsebe[0]}) šteje za generator razporeda.</span>}
             </div>
           </div>
         )}
@@ -483,7 +483,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             {ogledMsg && <p className="err">{ogledMsg}</p>}
           </div>
 
-          <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator urnika</h2>
+          <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator razporeda</h2>
           <div className="card no-print">
             {oddelkiOsebe.length === 0 && <p className="empty">Ni dodanih oddelkov.</p>}
             {oddelkiOsebe.map((k, i) => (

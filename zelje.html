@@ -309,6 +309,14 @@ function jeVikend(y,m,d){ const l = dowZa(y,m,d); return l==="SOB"||l==="NED"; }
 function pad2(n){ return String(n).padStart(2,"0"); }
 function isoZa(y,m,d){ return y+"-"+pad2(m+1)+"-"+pad2(d); }
 
+// Slovenska sklanjatev za število (dvojina/množina): 1 vnos, 2 vnosa, 3-4 vnosi, 5+ vnosov.
+function steviloVnosov(n){
+  if (n === 1) return "vnos";
+  if (n === 2) return "vnosa";
+  if (n === 3 || n === 4) return "vnosi";
+  return "vnosov";
+}
+
 function normalizirajIme(s){ return (s||"").trim().toUpperCase().replace(/\s+/g," "); }
 function imenaSeUjemata(a, b){
   // Primerja kot "vrečo besed" (ne glede na vrstni red) — roster uporablja
@@ -1128,7 +1136,7 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
         <div key={g.ime}>
           <div className="groupHead">
             <span className="n">{g.ime}</span>
-            <span className="g">{g.list.length} {g.list.length===1 ? "vnos" : "vnosi"}</span>
+            <span className="g">{g.list.length} {steviloVnosov(g.list.length)}</span>
           </div>
           {g.list.map(e => (
             <div className="entry" key={e.id}>
