@@ -198,16 +198,16 @@ function WardView({ deptCode, month, myId }){
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
-  const jeVodje = deptCode === "VODJE";
+  const jeVodje = deptCode === "NZV";
 
   useEffect(() => {
     let cancelled = false;
     setEmployees(null); setEntries(null);
 
-    // "Vodje" ni pravi oddelek v profiles.department_code (nosilci
+    // "NZV" ni pravi oddelek v profiles.department_code (nosilci
     // oddelkov obdržijo svoj lasten negovalni oddelek kot profil) - seznam
     // enot, ki jih pokrivajo, pride iz lead_departments, osebe/vnosi pa iz
-    // schedule_entries za te enote (objavi jih Vodje zavihek v admin.html).
+    // schedule_entries za te enote (objavi jih NZV zavihek v admin.html).
     if (jeVodje) {
       client.from("lead_departments").select("department_code").then(({ data }) => {
         const kode = [...new Set((data || []).map(d => d.department_code).filter(Boolean))];
@@ -291,10 +291,10 @@ function WardView({ deptCode, month, myId }){
   );
 }
 
-// "Po oddelkih" je na izrecno navodilo omejen na 6 SMS/TZN oddelkov + en
-// virtualen "VODJE" (nosilci oddelkov, dežurstva vključena) - ostali oddelki
+// "Po oddelkih" je na izrecno navodilo omejen na 6 SMS/TZN oddelkov + FLEXI
+// + en virtualen "NZV" (vodje/admin, dežurstva vključena) - ostali oddelki
 // (DEZ, NEDEZ, PDZN, SOBO ...) tu niso na voljo, ne glede na vlogo.
-const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2"];
+const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 
 function App(){
   const [auth, setAuth] = useState(null); // { session, profile }
@@ -313,7 +313,7 @@ function App(){
       const dept = res.profile ? res.profile.department_code : null;
       const jeKoordinator = res.profile && (res.profile.role === "admin" || res.profile.role === "vodja");
       // Navaden zaposleni je zaklenjen na svoj oddelek (če ta sploh spada med
-      // teh 6) - admin/vodja lahko brskata po vseh, tudi po Vodje.
+      // PO_ODDELKIH_KODE) - admin/vodja lahko brskata po vseh, tudi po NZV.
       setWardCode(jeKoordinator ? dept : (PO_ODDELKIH_KODE.includes(dept) ? dept : null));
       RazporedAuth.unreadNotificationCount(res.session.user.id).then(setUnread);
     });
@@ -324,7 +324,7 @@ function App(){
       const imenaPoKodi = {};
       (data || []).forEach(d => { imenaPoKodi[d.code] = d.name; });
       const seznam = PO_ODDELKIH_KODE.map(k => ({ code: k, name: imenaPoKodi[k] || k }));
-      seznam.push({ code: "VODJE", name: "Vodje (nosilci oddelkov + dežurstva)" });
+      seznam.push({ code: "NZV", name: "NZV — vodje, administratorji (+ dežurstva)" });
       setDepts(seznam);
     });
   }, []);
@@ -351,8 +351,8 @@ function App(){
   const { session, profile } = auth;
   const jeKoordinator = profile && (profile.role === "admin" || profile.role === "vodja");
   // Navaden zaposleni sme "Po oddelkih" videti SAMO, če njegov lasten oddelek
-  // sploh spada med teh 6 (ostali oddelki tu niso na voljo) - admin/vodja
-  // vidita zavihek vedno, saj lahko brskata po vseh (tudi po Vodje).
+  // sploh spada med PO_ODDELKIH_KODE (ostali oddelki tu niso na voljo) -
+  // admin/vodja vidita zavihek vedno, saj lahko brskata po vseh (tudi NZV).
   const smePoOddelkih = jeKoordinator || PO_ODDELKIH_KODE.includes(profile ? profile.department_code : null);
 
   return (

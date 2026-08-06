@@ -2273,3 +2273,38 @@ create policy obrazci_select on public.obrazci for select to authenticated using
     and date_trunc('month', (polja ->> 'datum_a')::date) = date_trunc('month', current_date)
   )
 );
+
+-- ---------------------------------------------------------------------
+-- 23) NZV kot oddelek za razporede (vodje + admin) — na izrecno željo so
+--     oddelki za KREIRANJE/GENERIRANJE RAZPOREDA odslej izključno:
+--     B, C, C1, D, E1, E2, FLEXI (vsi z vlogo 'user') in NZV (vsi z vlogo
+--     'vodja' ali 'admin', vključno z dežurstvi — glej admin.html "NZV"
+--     zavihek, ki združi obstoječa Vodje+Dežurstva na eno mesto, logika
+--     generiranja ostane nespremenjena). FLEXI je bil dodan že v sekciji
+--     17 in ostaja ročno voden bazen brez samodejnega kalupa (namerna,
+--     na izrecno željo potrjena odločitev).
+--
+--     Namenoma NE brišemo/ne diramo starih department kod (DEZ, NEDEZ,
+--     PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA, U2) iz tabele
+--     departments — obstoječi schedule_entries (že objavljeni razporedi
+--     vodij/dežurstev, NOT NULL FK na departments) jih zgodovinsko
+--     referencira; izbris bi ali padel na FK omejitvi ali (če bi ga na
+--     silo izvedli) uničil zgodovino že objavljenih razporedov, česar
+--     nimam možnosti preveriti brez neposrednega dostopa do žive baze.
+--     Namesto tega jih aplikacija preprosto preneha PONUJATI za novo
+--     dodeljevanje (glej RAZPORED_ODDELKI konstante v admin.html/
+--     imenik.html/zelje.html) — obstoječi profili s staro kodo ostanejo
+--     nedotaknjeni, dokler jih admin ročno ne popravi v Imeniku (na
+--     izrecno željo uporabnika — "naknadno bom popravil").
+-- ---------------------------------------------------------------------
+insert into public.departments (code, name) values
+  ('NZV', 'NZV — vodje in administratorji (vključno z dežurstvi)')
+on conflict (code) do update set name = excluded.name;
+
+-- employee_wishes: "VODJE" preimenovan v "NZV" (ista skupina, novo ime,
+-- usklajeno z zgornjim modelom) — najprej podatki, nato CHECK.
+update public.employee_wishes set department_code = 'NZV' where department_code = 'VODJE';
+
+alter table public.employee_wishes drop constraint if exists employee_wishes_department_code_check;
+alter table public.employee_wishes add constraint employee_wishes_department_code_check
+  check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'FLEXI', 'NZV'));

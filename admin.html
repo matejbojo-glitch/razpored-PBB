@@ -155,6 +155,12 @@
 const { useState, useMemo, useCallback, useEffect, useRef } = React;
 const { client } = RazporedAuth;
 
+// Oddelki za kreiranje/generiranje razporeda — na izrecno željo omejeno na
+// natanko teh 8 (glej supabase/schema.sql sekcija 23, isti seznam kot v
+// imenik.html/zelje.html). Stare kode ostanejo v bazi (schedule_entries jih
+// zgodovinsko referencira), samo tu se jih ne ponuja več za dodeljevanje.
+const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+
 // ---------------------------------------------------------------------
 // Objava generiranega razporeda naravnost v Supabase (schedule_entries),
 // poleg obstoječega ročnega prenosa JSON. Zaposlene poveže po polnem
@@ -1550,7 +1556,8 @@ function UporabnikiTab(){
 
   const reload = () => {
     client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
-    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+    client.from("departments").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
+      .then(({ data }) => setOddelki(data || []));
   };
   useEffect(() => { reload(); }, []);
 
@@ -1620,12 +1627,20 @@ function UporabnikiTab(){
   const vrstniRedKod = [""].concat(oddelki.map(o => o.code)).filter((k, i, arr) => arr.indexOf(k) === i);
   const vseKode = Object.keys(skupine).sort((a, b) => vrstniRedKod.indexOf(a) - vrstniRedKod.indexOf(b));
 
-  const OddelekSelect = ({ p }) => (
-    <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
-      <option value="">— brez oddelka —</option>
-      {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
-    </select>
-  );
+  // Trenutna koda je lahko ena od starih, ki jih spodaj ne ponujamo več za
+  // novo dodeljevanje (glej RAZPORED_ODDELKI) — če je oseba še ni ročno
+  // popravila, jo prikažemo kot dodatno možnost, da izbirnik ne pade na
+  // prazno/napačno vrednost.
+  const OddelekSelect = ({ p }) => {
+    const trenutnaZunaj = p.department_code && !oddelki.some(o => o.code === p.department_code);
+    return (
+      <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
+        <option value="">— brez oddelka —</option>
+        {trenutnaZunaj && <option value={p.department_code}>{p.department_code} (opuščen — izberi nov oddelek)</option>}
+        {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+      </select>
+    );
+  };
 
   return (
     <div>
@@ -1963,6 +1978,25 @@ function DopustTab(){
   );
 }
 
+// NZV — oddelek za vodje in administratorje (glej supabase/schema.sql
+// sekcija 23). Na izrecno željo združuje vodstveno pokritost in dežurstva
+// na enem mestu ("bo skupaj naredi da bo pregledno in razumljivo") — sama
+// logika generiranja obeh (VodjeTab/DezurstvaTab) ostaja nespremenjena,
+// samo dostop je zdaj pod enim skupnim zavihkom namesto dveh ločenih.
+function NzvTab(){
+  const [pod, setPod] = useState("vodje"); // "vodje" | "dez"
+  return (
+    <div>
+      <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
+        <button role="tab" aria-selected={pod==="vodje"} onClick={() => setPod("vodje")}>Vodstvena pokritost</button>
+        <button role="tab" aria-selected={pod==="dez"} onClick={() => setPod("dez")}>Dežurstva</button>
+      </div>
+      {pod==="vodje" && <VodjeTab/>}
+      {pod==="dez" && <DezurstvaTab/>}
+    </div>
+  );
+}
+
 function App({ ogled, profil }){
   const [tab, setTab] = useState("kalup");
   return (
@@ -1974,16 +2008,14 @@ function App({ ogled, profil }){
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
         <div className="tabs no-print" role="tablist">
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
-          <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurstva (DMS/DZN)</button>
-          <button role="tab" aria-selected={tab==="vodje"} onClick={() => setTab("vodje")}>Vodje</button>
+          <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
           <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
         </div>
       </header>
 
       {tab==="kalup" && <KalupTab/>}
-      {tab==="dez" && <DezurstvaTab/>}
-      {tab==="vodje" && <VodjeTab/>}
+      {tab==="nzv" && <NzvTab/>}
       {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
 
