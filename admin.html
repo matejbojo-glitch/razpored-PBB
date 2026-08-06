@@ -317,6 +317,30 @@ function classify(sifra){
 }
 const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672" };
 
+// Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
+// od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" — tu ju
+// razdelimo, ker dnevna12 (SO/NE, 07-19) šteje k DOPOLDNE pokritosti,
+// nočna12 pa k PONOCI.
+function shiftBucket(sifra){
+  const t=(sifra||"").toLowerCase();
+  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomoč drugje" || !t) return null;
+  if (t.includes("nočna12")) return "PONOCI";
+  if (t.includes("dnevna12")) return "DOPOLDNE";
+  if (t.startsWith("nočna")) return "PONOCI";
+  if (t.startsWith("dopoldan")) return "DOPOLDNE";
+  if (t.startsWith("popoldan")) return "POPOLDNE";
+  return null;
+}
+const IZMENA_LABEL = { DOPOLDNE: "Dopoldan", POPOLDNE: "Popoldan", PONOCI: "Nočna" };
+
+async function nalozizMinimume(koda){
+  const { data, error } = await client.from("department_shift_minimums").select("*").eq("department_code", koda);
+  if (error) { console.error("Nalaganje minimumov ni uspelo:", error); return {}; }
+  const map = {};
+  (data || []).forEach(row => { map[row.shift_bucket] = row; });
+  return map;
+}
+
 function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
   const [y,m] = monthStr.split("-").map(Number);
   const start = `${y}-${String(m).padStart(2,"0")}-01`;
@@ -492,7 +516,111 @@ function PrednostniPanel({ staff, stanje, tedni, onPredlagaj, kvote, setKvote })
 // običajno zasedel ta dan brez odsotnosti. Prag je samodejno izračunan,
 // a ostaja ročno popravljiv na dan, ker "pričakovano" ni vedno enoznačno
 // (npr. namerno tanjša zasedba ob znanih mirnejših dnevih).
-function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki }){
+// Urejevalnik minimumov (department_shift_minimums) — admin ureja natančen
+// minimum po izmeni za trenutni oddelek. Osnutek vrednosti je bil seed-an
+// prek schema.sql (§17, iz starega analiznega prototipa) — ni potrjen,
+// zato je tu vedno urejljiv, ne prikazan kot trdno pravilo.
+function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const polje = (bucket, key, vrednost) => {
+    setMinimumi(m => ({ ...m, [bucket]: { ...(m[bucket] || { shift_bucket: bucket }), [key]: vrednost } }));
+  };
+
+  const shrani = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const rows = ["DOPOLDNE", "POPOLDNE", "PONOCI"].map(b => {
+        const v = minimumi[b] || {};
+        return {
+          department_code: koda, shift_bucket: b,
+          min_dms: v.min_dms === "" || v.min_dms == null ? null : Number(v.min_dms),
+          min_sms: v.min_sms === "" || v.min_sms == null ? null : Number(v.min_sms),
+          min_flexi: v.min_flexi === "" || v.min_flexi == null ? null : Number(v.min_flexi),
+          note: v.note || null,
+        };
+      });
+      const { error } = await client.from("department_shift_minimums").upsert(rows, { onConflict: "department_code,shift_bucket" });
+      if (error) throw error;
+      setMsg({ ok: true, text: "Minimumi shranjeni." });
+    } catch (e) {
+      setMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card no-print" style={{overflowX:"auto", marginBottom:10}}>
+      <table className="roster">
+        <thead><tr><th>Izmena</th><th>Min. DMS</th><th>Min. SMS</th><th>Min. FLEXI</th><th>Opomba</th></tr></thead>
+        <tbody>
+          {["DOPOLDNE", "POPOLDNE", "PONOCI"].map(b => {
+            const v = minimumi[b] || {};
+            return (
+              <tr key={b}>
+                <td>{IZMENA_LABEL[b]}</td>
+                {["min_dms", "min_sms", "min_flexi"].map(key => (
+                  <td key={key}>
+                    <input type="number" min="0" style={{width:56}} value={v[key] ?? ""}
+                      onChange={e => polje(b, key, e.target.value)} />
+                  </td>
+                ))}
+                <td><input type="text" style={{width:"100%"}} value={v.note || ""} onChange={e => polje(b, "note", e.target.value)} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button className="dlBtn" style={{marginTop:8}} disabled={busy} onClick={shrani}>{busy ? "Shranjujem …" : "Shrani minimume"}</button>
+      {msg && <p className="hint" style={{marginTop:6, color: msg.ok ? "inherit" : "var(--danger)"}}>{msg.text}</p>}
+    </div>
+  );
+}
+
+function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
+  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
+    const v = minimumi[b];
+    return v && (v.min_dms || v.min_sms || v.min_flexi);
+  });
+
+  if (imaMinimume) {
+    const vrstice = [];
+    rezultat.dnevi.forEach(dn => {
+      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
+        const v = minimumi[b];
+        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
+        if (!minVsota) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+        if (dejansko < minVsota) vrstice.push({ dn, b, dejansko, minVsota, primanjkljaj: minVsota - dejansko });
+      });
+    });
+    if (vrstice.length === 0) {
+      return <p className="hint no-print">Ni zaznanih vrzeli — dejanska zasedba po izmenah ustreza nastavljenim minimumom na vsak dan.</p>;
+    }
+    return (
+      <div className="card no-print" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead><tr><th>Dan</th><th>Izmena</th><th>Dejansko</th><th>Minimum</th><th>Primanjkljaj</th></tr></thead>
+          <tbody>
+            {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj }) => (
+              <tr key={dn.datum + b}>
+                <td>{dn.dan} {dn.datum}</td>
+                <td>{IZMENA_LABEL[b]}</td>
+                <td>{dejansko}</td>
+                <td>{minVsota}</td>
+                <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Brez nastavljenih minimumov za ta oddelek: pade nazaj na prvotno
+  // primerjavo z "bazni kalup" (brez odsotnosti), da ni regresije.
   const vrstice = rezultat.dnevi.map(dn => {
     const dejansko = rezultat.staff.filter(z => {
       const v = celica(z, dn);
@@ -504,7 +632,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki }){
   }).filter(v => v.primanjkljaj > 0);
 
   if (vrstice.length === 0) {
-    return <p className="hint no-print">Ni zaznanih vrzeli — dejanska zasedba ustreza pričakovani zasedbi kalupa na vsak dan.</p>;
+    return <p className="hint no-print">Ni zaznanih vrzeli — dejanska zasedba ustreza pričakovani zasedbi kalupa na vsak dan. (Nasvet: nastavi natančne minimume po izmeni zgoraj za bolj natančno zaznavo.)</p>;
   }
 
   return (
@@ -558,6 +686,10 @@ function KalupTab(){
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
   const [genBusy, setGenBusy] = useState(false);
+  // Minimumi po izmeni (department_shift_minimums) — natančnejša osnova za
+  // "Pokritost po dnevih" kot bazni-kalup primerjava, glej PokritostPoDnevih.
+  const [minimumi, setMinimumi] = useState({});
+  useEffect(() => { setMinimumi({}); nalozizMinimume(koda).then(setMinimumi); }, [koda]);
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -760,8 +892,9 @@ function KalupTab(){
           </p>
 
           <h2 className="section no-print">4b · Pokritost po dnevih</h2>
-          <p className="hint no-print">Primerjava dejanske zasedbe (po dopustu/pomoči/nadomestilih) s tem, kar bi kalup običajno zasedel ta dan brez odsotnosti. Prikazani so samo dnevi s primanjkljajem; pričakovano število lahko ročno popraviš.</p>
-          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} />
+          <p className="hint no-print">Minimum po izmeni (spodaj) je osnutek, ročno urejaj po potrebi — ko je nastavljen za ta oddelek, se uporabi za natančno zaznavo primanjkljaja po izmeni namesto grobe primerjave z osnovnim kalupom.</p>
+          <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
+          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} />
 
           <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">

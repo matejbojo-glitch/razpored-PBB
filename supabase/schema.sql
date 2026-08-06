@@ -1177,3 +1177,153 @@ on conflict (profile_id) do update set
   duty_max_monthly = coalesce(public.profile_hr_details.duty_max_monthly, excluded.duty_max_monthly),
   duty_day_off = coalesce(public.profile_hr_details.duty_day_off, excluded.duty_day_off),
   duty_weekdays_only = coalesce(public.profile_hr_details.duty_weekdays_only, excluded.duty_weekdays_only);
+
+-- ---------------------------------------------------------------------
+-- 17) FLEXI oddelek + department_shift_minimums + profile_hr_details.employee_code
+--     Del kontrolnega seznama za jutri — tri stvari, ki so bile v Google
+--     Sheets predlogah (Hospital/NZV/Dežurstva, 6.8.2026) uporabljene kot
+--     "osnutek"/"referenca", zdaj postanejo pravi del aplikacije.
+-- ---------------------------------------------------------------------
+
+-- FLEXI kot pravi oddelek — plavajoče osebje, ki dela v več oddelkih hkrati
+-- (glej roster/analiza-razporedov.md §4). Rotacijski generator
+-- (generirajKalup/WARDS_META) namerno ostaja nedotaknjen — FLEXI kader se
+-- še vedno ne razporeja samodejno, to je znana, dokumentirana omejitev.
+-- Novi oddelek se avtomatsko pojavi v Imeniku (dropdown bere departments),
+-- brez sprememb UI kode.
+insert into public.departments (code, name) values
+  ('FLEXI', 'FLEXI — plavajoče osebje (več oddelkov)')
+on conflict (code) do update set name = excluded.name;
+
+-- Minimumi po oddelku × izmeni — natančnejši nadomestek za "bazni kalup"
+-- primerjavo, ki jo PokritostPoDnevih (admin.html) doslej uporablja.
+-- Osnutek številk je iz starega analiznega prototipa (schedule_data.json,
+-- department_requirements) — NI potrjen s strani koordinatorja, zato
+-- admin.html to prikaže kot urejljivo tabelo, ne kot trdno pravilo.
+create table if not exists public.department_shift_minimums (
+  department_code text not null references public.departments (code) on update cascade,
+  shift_bucket text not null check (shift_bucket in ('DOPOLDNE', 'POPOLDNE', 'PONOCI')),
+  min_dms integer,
+  min_sms integer,
+  min_flexi integer,
+  note text,
+  updated_at timestamptz not null default now(),
+  primary key (department_code, shift_bucket)
+);
+
+alter table public.department_shift_minimums enable row level security;
+
+drop policy if exists dept_min_select on public.department_shift_minimums;
+create policy dept_min_select on public.department_shift_minimums
+  for select to authenticated using (true);
+
+drop policy if exists dept_min_write on public.department_shift_minimums;
+create policy dept_min_write on public.department_shift_minimums
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));
+
+insert into public.department_shift_minimums (department_code, shift_bucket, min_dms, min_sms, min_flexi, note) values
+  ('B', 'DOPOLDNE', 1, 1, null, null),
+  ('B', 'POPOLDNE', null, 1, null, null),
+  ('B', 'PONOCI', null, 1, null, null),
+  ('C', 'DOPOLDNE', 1, 1, 1, null),
+  ('C', 'POPOLDNE', null, 1, 1, null),
+  ('C', 'PONOCI', null, 1, null, null),
+  ('C1', 'DOPOLDNE', 1, 2, null, '1 SMS + Gazibara Aldin'),
+  ('C1', 'POPOLDNE', null, 2, null, '1 SMS + Gazibara Aldin'),
+  ('C1', 'PONOCI', null, 2, null, '1 SMS + Gazibara Aldin'),
+  ('D', 'DOPOLDNE', 1, 2, null, null),
+  ('D', 'POPOLDNE', null, 2, null, null),
+  ('D', 'PONOCI', null, 2, null, null),
+  ('E1', 'DOPOLDNE', 1, null, null, null),
+  ('E1', 'POPOLDNE', null, 1, null, null),
+  ('E1', 'PONOCI', null, 1, null, null),
+  ('E2', 'DOPOLDNE', 1, 1, 1, null),
+  ('E2', 'POPOLDNE', null, 1, 1, null),
+  ('E2', 'PONOCI', null, 1, null, null)
+on conflict (department_code, shift_bucket) do nothing;
+
+-- Matična številka — enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev
+-- + 22 vodij/nosilcev oddelkov, iz "Zaposleni - SMS-DMS" in "Zaposleni -
+-- Oddelki", 6.8.2026). `profile_hr_details.employee_code` stolpec je že
+-- obstajal (uvožen prek HR podatkov), a doslej neizpolnjen za te osebe.
+-- `imena_se_ujemata()` namesto točnega ujemanja, ker profiles.full_name
+-- lahko odstopa po vrstnem redu/velikosti črk od "PRIIMEK IME" seznama
+-- (glej komentar ob imena_se_ujemata zgoraj). Coalesce ščiti poznejši
+-- ročni popravek v Imeniku.
+insert into public.profile_hr_details (profile_id, employee_code)
+select p.id, v.employee_code
+from (values
+  ('ALUKIĆ DINO', '823'),
+  ('ARNEŽ GREGA', '1092'),
+  ('BAJT ANJA', '830'),
+  ('BEĆIROVIĆ NELVEDIN', '1069'),
+  ('BIZJAK TEA', '989'),
+  ('BOJIĆ MATEJ', '855'),
+  ('BRATUŠA MARIJA', '691'),
+  ('DJEDOVIĆ MARK', '1172'),
+  ('DOLAR TOMAŽ', '747'),
+  ('DŽAMASTAGIĆ DENIS', '912'),
+  ('DŽINIĆ AMIN', '826'),
+  ('GASHI GENTIANA', '1167'),
+  ('GAZIBARA ALDIN', '1141'),
+  ('HROVAT NINA', '820'),
+  ('HUMAR SAŠA', '705'),
+  ('HUSEINBAŠIĆ AJLA', '1086'),
+  ('JEREB SARA', '994'),
+  ('KARNIČAR JURE', '1145'),
+  ('KODRAS NADJA', '1089'),
+  ('KOGOJ EVA', '1180'),
+  ('KVRŽIĆ MARKO', '1051'),
+  ('LELIČ DIJANA', '1090'),
+  ('LUNAR MATEJA', '844'),
+  ('MAGLIĆ ALEKSANDER', '1001'),
+  ('MALER ANTONINA', '971'),
+  ('MAVRI TRATNIK MAGDALENA', '833'),
+  ('MEGLIČ JAKA', '987'),
+  ('MISOTIČ REBEKA', '1163'),
+  ('MOČNIK SIMONA', '1084'),
+  ('MRAVLJE UROŠ', '997'),
+  ('MURIĆ ALMA', '964'),
+  ('MUŠIĆ ALEN', '1109'),
+  ('MUŠIČ INES', '926'),
+  ('NUHANOVIĆ MERIMA', '909'),
+  ('PERVIZ AMAL', '887'),
+  ('PETERMAN RENATA', '818'),
+  ('POGAČNIK MATEJ', '1075'),
+  ('POGAČNIK TEJA', '1058'),
+  ('RANT LUKA', '1072'),
+  ('REJC JANA', '973'),
+  ('REKIĆ ELMA', '1106'),
+  ('ROZMAN ANKA', '715'),
+  ('ROZMAN KLARA', '1062'),
+  ('SALKIĆ MARUŠA', '925'),
+  ('SMOLEJ NATAŠA', '1133'),
+  ('SODJA BARBARA', '1073'),
+  ('SOFRIĆ NIKOLINA', '1174'),
+  ('STARC ERIK', '1164'),
+  ('SUŠNIK JAKA', '1022'),
+  ('SVETINA ROBERT', '633'),
+  ('SVETINA SABINA', '676'),
+  ('TALIĆ AMIRA', '1159'),
+  ('TOMAŠIĆ NIKOLINA', '1035'),
+  ('TOMAŽEVIČ SIMONA', '793'),
+  ('TORKAR TANJA', '965'),
+  ('TRPIN SAŠA', '870'),
+  ('URANKER MOJCA', '604'),
+  ('VALJAVEC ENEJ', '1102'),
+  ('VELUŠČEK METKA', '834'),
+  ('VOLARIČ NEJC', '865'),
+  ('VOVK URŠKA', '657'),
+  ('VOZEL DEJAN', '991'),
+  ('VOZEL NEJA', '1179'),
+  ('VREVC MAJA', '974'),
+  ('ZEKAN ALMEDIN', '852'),
+  ('ŠABIĆ SEBINA', '1152'),
+  ('ŠKANTAR MARK', '963'),
+  ('ŠUBIC PETRA', '905')
+) as v(full_name, employee_code)
+join public.profiles p on public.imena_se_ujemata(p.full_name, v.full_name)
+on conflict (profile_id) do update set
+  employee_code = coalesce(public.profile_hr_details.employee_code, excluded.employee_code);
