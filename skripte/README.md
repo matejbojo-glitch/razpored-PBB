@@ -60,7 +60,13 @@ node uvoz-racunov.mjs            # 2) dejansko ustvari račune + pošlje vabila
 # Test (brez e-pošte, samo lokalna začasna gesla):
 node uvoz-racunov.mjs --test --suho   # 1) najprej samo izpis
 node uvoz-racunov.mjs --test          # 2) dejansko ustvari račune, brez maila
+
+# Samo peščica ljudi (npr. samo administratorji, ne čakaš na celoten seznam):
+node uvoz-racunov.mjs --test --suho --samo=matej.bojic@pb-begunje.si,denis.dzamastagic@pb-begunje.si,dino.alukic@pb-begunje.si
+node uvoz-racunov.mjs --test --samo=matej.bojic@pb-begunje.si,denis.dzamastagic@pb-begunje.si,dino.alukic@pb-begunje.si
 ```
+
+`--samo=email1,email2,...` deluje z obema načinoma (produkcija/`--test`) in z `--suho` — omeji zagon na točno navedene e-pošte namesto celotnega seznama iz `roster/*.csv`. Uporabno za hitro ustvarjanje ključnih računov (npr. administratorjev), ne da bi čakal na vseh 72.
 
 Preden poženeš dejanski (ne-suh) zagon PRODUKCIJSKEGA načina, v **Supabase
 Dashboard → Authentication → URL Configuration → Redirect URLs** dodaj
