@@ -30,8 +30,11 @@
 // vrstico namesto spodnje na širokih zaslonih, theme.css dobi širše "wrap.wide"
 // prelome. Oba se servirata cache-first (nista .html/.json), zato spet
 // potreben dvig verzije, da sprememba doseže brskalnike z že nameščenim SW.
+// v13: Excel/Google Sheets izvoz na vseh straneh z razpredelnicami — 3 nove
+// skupne datoteke (export-utils.js, gsheets-client.js, export-buttons.js),
+// vse cache-first, zato v precache in nova verzija.
 
-const CACHE = 'razpored-pbb-v12';
+const CACHE = 'razpored-pbb-v13';
 const ASSETS = [
   './',
   './index.html',
@@ -59,7 +62,10 @@ const ASSETS = [
   './supabase-client.js',
   './nav.js',
   './xlsx.core.min.js',
-  './import-utils.js'
+  './import-utils.js',
+  './export-utils.js',
+  './gsheets-client.js',
+  './export-buttons.js'
 ];
 
 self.addEventListener('install', (event) => {

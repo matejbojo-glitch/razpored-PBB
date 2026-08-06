@@ -88,6 +88,10 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -457,6 +461,19 @@ function App(){
 
       <h2 className="section">Moje menjave</h2>
       <MojeMenjave rows={mine} />
+      <RazporedIzvoz
+        naslov="moje-menjave"
+        pripravi={() => [{
+          ime: "Menjave",
+          glave: ["Sodelavec 1", "Datum 1", "Sodelavec 2", "Datum 2", "Status", "Opomba"],
+          vrstice: mine.map(r => [
+            r.requester.full_name, fmtDate(r.requester_date),
+            r.target.full_name, fmtDate(r.target_date),
+            (STATUS_LABEL[r.status] || { text: r.status }).text,
+            r.note || "",
+          ]),
+        }]}
+      />
       <button className="submitBtn no-print" style={{marginTop:10}} onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
 
       <footer className="foot no-print">
