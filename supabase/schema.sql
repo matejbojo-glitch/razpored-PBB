@@ -1454,9 +1454,10 @@ join public.profiles p on lower(p.email) = v.email
 on conflict (profile_id, department_code) do nothing;
 
 -- ---------------------------------------------------------------------
--- 19) Obrazec za evidentiranje prisotnosti in sprememb razporeda
---     Digitalna različica papirnatega obrazca PB Begunje "Obvestilo
---     koordinatorici za razporejanje kadra v ZN". Namenoma LOČEN od
+-- 19) Obrazec "Zahtevek za spremembo evidence delovnega časa in razporeda"
+--     Digitalna različica papirnatega obrazca PB Begunje istega imena
+--     (prvotno "Obvestilo koordinatorici za razporejanje kadra v ZN" -
+--     preimenovano na izrecno željo uporabnika). Namenoma LOČEN od
 --     obstoječega swap_requests (menjave.html) — ta obrazec je širši
 --     (3 kategorije: ročno evidentiranje / menjava službe / drugo) in za
 --     menjavo dodaja korak "sodelavec mora najprej privoliti" ter
