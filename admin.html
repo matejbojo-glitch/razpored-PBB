@@ -6,6 +6,7 @@
 <title>Generator razporeda · Begunje</title>
 <meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
 
 <style>
@@ -67,8 +68,8 @@
     letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
   table.roster tr:last-child td{ border-bottom:0; }
-  .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:11px;
-    font-weight:800; padding:6px 9px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:12px;
+    font-weight:800; padding:9px 11px; min-height:40px; border-radius:8px; cursor:pointer; white-space:nowrap; }
   .weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#2A1608; }
 
   .genBtn{ margin-top:16px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
@@ -722,8 +723,8 @@ function KalupTab(){
                         <td key={dn.datum}>
                           <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
                             title={sifra}
-                            style={{width:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
-                              border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 2px"}} />
+                            style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
+                              border:"1px solid var(--line)", borderRadius:6, fontSize:13, padding:"3px 2px"}} />
                         </td>
                       );
                     })}
