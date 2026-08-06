@@ -10,6 +10,16 @@
   var useEffect = root.React.useEffect;
   var useRef = root.React.useRef;
 
+  // Širina zaslona, od katere naprej štejemo za "spletno/namizno različico"
+  // (nav na vrhu namesto na dnu) — tablica/telefon ostaneta na spodnji
+  // vrstici, ker je ta tam lažje dosegljiva s palcem.
+  var DESKTOP_BP = 900;
+  // Fiksna višina zgornje navigacijske vrstice na namizju (mora se ujemati
+  // s "height" spodaj v CSS-ju) — RazporedOgledTrak jo uporabi za izračun
+  // skupnega odmika telesa strani, ko je hkrati prikazan tudi opozorilni
+  // trak "ogled kot uporabnik".
+  var NAV_DESKTOP_H = 64;
+
   var STYLE_ID = "razpored-nav-style";
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -30,9 +40,28 @@
       " border-radius:999px; background:#B3402A; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
       ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
-      "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; } }" +
+      // Spletna/namizna različica (≥900px): vrstica se preseli na vrh
+      // zaslona (nad vsebino, pod morebitnim opozorilnim trakom "ogled kot
+      // uporabnik" — glej --ogled-h spremenljivko, ki jo nastavi
+      // RazporedOgledTrak), postavke so v vrsti (ikona+napis vodoravno),
+      // ne druga pod drugo kot na mobilnem zaslonu.
+      "@media (min-width:" + DESKTOP_BP + "px){" +
+      "  body{ padding-bottom:0 !important; padding-top:" + NAV_DESKTOP_H + "px; }" +
+      "  .rpNav{ top:var(--ogled-h,0px); bottom:auto; height:" + NAV_DESKTOP_H + "px;" +
+      "    border-top:0; border-bottom:1px solid #E1D9C2; padding-bottom:0; display:flex; align-items:center; }" +
+      "  .rpNav .inner{ max-width:1040px; padding:0 24px; height:100%; align-items:center; justify-content:center; gap:6px; }" +
+      "  .rpNav a{ flex:0 0 auto; flex-direction:row; gap:7px; padding:9px 16px; font-size:13.5px;" +
+      "    min-height:auto; border-radius:999px; }" +
+      "  .rpNav a:hover{ background:#F2EEDF; }" +
+      "  .rpNav a.active{ background:#F2EEDF; }" +
+      "  .rpNav .ic{ font-size:16px; }" +
+      "  .rpNav .lbl{ max-width:none; }" +
+      "  .rpNav .badge{ position:static; margin-left:1px; }" +
+      "}" +
+      "@media print{ .rpNav{ display:none !important; } body{ padding-bottom:0 !important; padding-top:0 !important; } }" +
       ".rpTopIcons{ position:fixed; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:41;" +
       " display:flex; align-items:center; gap:8px; }" +
+      "@media (min-width:" + DESKTOP_BP + "px){ .rpTopIcons{ top:calc(var(--ogled-h,0px) + 12px); } }" +
       ".rpIconBtn{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" +
       " background:rgba(255,255,255,0.96); border:1px solid #E1D9C2; color:#6E5F2A; font-size:17px; line-height:1;" +
       " text-decoration:none; cursor:pointer; padding:0; box-shadow:0 2px 8px rgba(43,39,18,0.10);" +
@@ -173,16 +202,30 @@
     var ref = useRef(null);
     var aktivno = !!props.aktivno;
     useEffect(function () {
-      if (!aktivno) { document.body.style.paddingTop = ""; return; }
+      if (!aktivno) {
+        document.body.style.paddingTop = "";
+        document.documentElement.style.removeProperty("--ogled-h");
+        return;
+      }
       ensureStyle();
+      // Na namizju (≥900px) je nav vrstica ZDAJ TUDI na vrhu (glej
+      // DESKTOP_BP zgoraj), zato mora skupni odmik telesa strani vsebovati
+      // višino traku IN nav vrstice, ne samo traku kot na mobilnem zaslonu
+      // (kjer je nav na dnu). --ogled-h sporoči nav vrstici, za koliko naj
+      // se sama premakne navzdol, da ne prekrije traku.
       function posodobi() {
-        if (ref.current) document.body.style.paddingTop = ref.current.offsetHeight + "px";
+        if (!ref.current) return;
+        var h = ref.current.offsetHeight;
+        document.documentElement.style.setProperty("--ogled-h", h + "px");
+        var namizje = window.matchMedia("(min-width:" + DESKTOP_BP + "px)").matches;
+        document.body.style.paddingTop = (namizje ? h + NAV_DESKTOP_H : h) + "px";
       }
       posodobi();
       window.addEventListener("resize", posodobi);
       return function () {
         window.removeEventListener("resize", posodobi);
         document.body.style.paddingTop = "";
+        document.documentElement.style.removeProperty("--ogled-h");
       };
     }, [aktivno, props.profil && props.profil.full_name]);
 

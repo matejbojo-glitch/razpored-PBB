@@ -427,7 +427,7 @@ function App(){
   const { profile } = auth;
 
   return (
-    <div className="wrap">
+    <div className="wrap wide">
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top">
@@ -453,7 +453,7 @@ function App(){
 
       <h2 className="section no-print">Nov predlog menjave</h2>
       <p className="hint no-print">Predlagaj menjavo izmene s sodelavcem. Predlog najprej pregleda vodja tvoje ekipe, nato še administrator — šele takrat se razpored dejansko spremeni.</p>
-      <div className="no-print"><NovPredlog myId={auth.session.user.id} colleagues={colleagues} onSubmitted={reload} /></div>
+      <div className="no-print" style={{maxWidth:560}}><NovPredlog myId={auth.session.user.id} colleagues={colleagues} onSubmitted={reload} /></div>
 
       <h2 className="section">Moje menjave</h2>
       <MojeMenjave rows={mine} />

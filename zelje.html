@@ -1176,7 +1176,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
   useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
 
   return (
-    <div className="wrap">
+    <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout/>
       <header className="top">

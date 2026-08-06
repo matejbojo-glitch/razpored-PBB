@@ -317,7 +317,7 @@ function App({ role, ogled, profil }){
   const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));
 
   return (
-    <div className="wrap">
+    <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout/>
       <header className="top">

@@ -342,8 +342,17 @@ footer.foot b{ color: var(--text); }
   body{ background: #fff !important; }
 }
 
-@media (min-width: 700px){
-  .wrap.wide{ max-width: 760px; }
+/* Spletna/namizna različica: nekatere strani (imajo tabele/sezname, ki
+   izkoristijo prostor) se na širših zaslonih razširijo prek "wide" razreda,
+   ki ga stran doda na svoj .wrap. Dve ravni: 900px (isti prag kot vrh-nav
+   v nav.js) in 1400px+ za res velike monitorje. Prijavne strani (login,
+   reset-geslo) namenoma NE uporabljajo "wide" — kratek obrazec naj ostane
+   ozek in berljiv ne glede na širino zaslona. */
+@media (min-width: 900px){
+  .wrap.wide{ max-width: 1040px; }
+}
+@media (min-width: 1400px){
+  .wrap.wide{ max-width: 1240px; }
 }
 
 /* ============================================================
