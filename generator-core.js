@@ -72,23 +72,69 @@
   /**
    * opts.anchorMondayISO — ponedeljek, za katerega poznamo črko kalupa vsakega zaposlenega
    * opts.startISO / opts.endISO — razpon dni, ki jih generiramo (vključno)
-   * opts.staff — [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool, dopustTedni: ["YYYY-MM-DD" (ponedeljek tistega tedna), ...] }]
+   * opts.staff — [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool,
+   *                 dopustTedni: ["YYYY-MM-DD" (ponedeljek tistega tedna), ...],
+   *                 pomocTedni: ["YYYY-MM-DD" (ponedeljek), ...], omejitve: ["YYYY-MM-DD", ...] }]
+   *   pomocTedni — tedni, ko oseba začasno pomaga drugemu oddelku (ni na voljo za svoj kalup, a to
+   *   NI dopust — izpiše se "POMOČ DRUGJE", ne "LD"). Cilj oddelek to osebo za ta teden doda ročno.
+   *   omejitve — dnevi "rumene" omejitve (iz Razpredelnice Želje): če oseba ta dan po kalupu dela,
+   *   generator poišče nadomestilo med preostalim osebjem istega oddelka, ki je ta dan naravno prosto
+   *   (prazna izmena po LASTNEM vzorcu — NE nekdo na LD/pomoči, da se ne krati zaslužen prost teden) in
+   *   nima svoje omejitve/dopusta/pomoči isti dan. Nadomeščanja se pravično porazdelijo (kdor je
+   *   nadomeščal manjkrat, ima prednost). Če nadomestila ni, izmena ostane zasedena in generator doda
+   *   opozorilo — koordinator ročno popravi celico (glej "Kalup: poveži ročne popravke z objavo").
    */
   function generirajKalup(opts) {
     var anchorMonday = toDate(opts.anchorMondayISO);
     var start = toDate(opts.startISO);
     var end = toDate(opts.endISO);
     var dnevi = [];
+    var opozorila = [];
+    var substCount = {};
+    opts.staff.forEach(function (z) { substCount[z.ime] = 0; });
+
     for (var d = start; d.getTime() <= end.getTime(); d = addDays(d, 1)) {
+      var iso = fromDate(d);
+      var mondayISO = fromDate(mondayOfWeek(d));
       var izmene = {};
+
       opts.staff.forEach(function (z) {
-        var mondayISO = fromDate(mondayOfWeek(d));
+        if ((z.pomocTedni || []).indexOf(mondayISO) !== -1) { izmene[z.ime] = "POMOČ DRUGJE"; return; }
         var forced = (z.dopustTedni || []).indexOf(mondayISO) !== -1 ? "C" : null;
         izmene[z.ime] = shiftFor(z.startLetter, d, anchorMonday, !!z.hsuffix, forced);
       });
-      dnevi.push({ datum: fromDate(d), dan: DNI[weekdayMon0(d)], izmene: izmene });
+
+      opts.staff.forEach(function (z) {
+        if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
+        var trenutna = izmene[z.ime];
+        if (!trenutna) return; // že prost ta dan (vzorec/LD/pomoč) — omejitev je brezpredmetna
+
+        var kandidati = opts.staff.filter(function (k) {
+          if (k.ime === z.ime) return false;
+          if (izmene[k.ime]) return false; // dela, na LD-tednu ali pomaga drugje — ni na voljo
+          if ((k.omejitve || []).indexOf(iso) !== -1) return false;
+          return true;
+        }).sort(function (a, b) {
+          if (substCount[a.ime] !== substCount[b.ime]) return substCount[a.ime] - substCount[b.ime];
+          return a.ime.localeCompare(b.ime);
+        });
+
+        if (kandidati.length) {
+          var nadomesti = kandidati[0];
+          izmene[nadomesti.ime] = trenutna;
+          izmene[z.ime] = "";
+          substCount[nadomesti.ime] += 1;
+        } else {
+          opozorila.push({
+            datum: iso,
+            sporocilo: z.ime + ": omejitev na ta dan, a nihče na oddelku ni na voljo za nadomestilo — izmena (" + trenutna + ") ostaja zasedena, preveri ročno."
+          });
+        }
+      });
+
+      dnevi.push({ datum: iso, dan: DNI[weekdayMon0(d)], izmene: izmene });
     }
-    return { dnevi: dnevi };
+    return { dnevi: dnevi, opozorila: opozorila };
   }
 
   // ---------------------------------------------------------------------

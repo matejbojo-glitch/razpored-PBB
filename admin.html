@@ -226,6 +226,17 @@ async function nalozizOddelek(koda){
   return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot]);
 }
 
+// Dnevne "rumene" omejitve (Razpredelnica Želje, leave_entries.kind="omejitev")
+// za dani razpon — Kalup generator jih uporabi za samodejno iskanje
+// nadomestila (glej generirajKalup v generator-core.js).
+async function nalozizOmejitve(startISO, endISO){
+  const { data } = await client.from("leave_entries").select("full_name, work_date")
+    .eq("kind", "omejitev").gte("work_date", startISO).lte("work_date", endISO);
+  const map = {};
+  (data || []).forEach(r => { (map[r.full_name] = map[r.full_name] || []).push(r.work_date); });
+  return map;
+}
+
 // Dežurni kader DMS/DZN — ZAPRTA zgodovina do 31. 8. 2026 (iz uradnega
 // seznama dežurstev jan.–avg. 2026, posredoval uporabnik, 243 vnosov,
 // preverjeno v celoti — glej roster/dezurstva-jan-avg-2026.tsv in
@@ -371,7 +382,7 @@ function download(filename, text){
 // ugibanja. Kvota letnega dopusta ni znana vnaprej (ni je v Kadrisu, ki
 // smo ga analizirali) — vnese jo koordinator ročno, po zaposlenem.
 // ---------------------------------------------------------------------
-function PrednostniPanel({ staff, dopust, tedni, onPredlagaj, kvote, setKvote }){
+function PrednostniPanel({ staff, stanje, tedni, onPredlagaj, kvote, setKvote }){
   const [baseline, setBaseline] = useState(null);
   const [err, setErr] = useState(null);
   const [sortKey, setSortKey] = useState("nedpraz");
@@ -388,7 +399,7 @@ function PrednostniPanel({ staff, dopust, tedni, onPredlagaj, kvote, setKvote })
     return staff.map(([ime]) => {
       const b = (baseline || []).find(z => z.ime === ime);
       const dosedanjiLD = b ? b.ld : null;
-      const novihTaSeja = tedni.filter(mo => dopust[ime + "|" + mo]).length;
+      const novihTaSeja = tedni.filter(mo => stanje[ime + "|" + mo] === "LD").length;
       const kvota = kvote[ime] !== undefined && kvote[ime] !== "" ? Number(kvote[ime]) : null;
       const preostane = (kvota != null && dosedanjiLD != null) ? kvota - dosedanjiLD - novihTaSeja : null;
       return {
@@ -401,7 +412,7 @@ function PrednostniPanel({ staff, dopust, tedni, onPredlagaj, kvote, setKvote })
         preostane,
       };
     });
-  }, [staff, baseline, kvote, dopust, tedni]);
+  }, [staff, baseline, kvote, stanje, tedni]);
 
   const sorted = useMemo(() => {
     const arr = rows.slice();
@@ -419,7 +430,7 @@ function PrednostniPanel({ staff, dopust, tedni, onPredlagaj, kvote, setKvote })
   const maxNedpraz = Math.max(1, ...rows.map(r => r.nedpraz || 0));
 
   const predlagaj = (ime) => {
-    const prostTeden = tedni.find(mo => !dopust[ime + "|" + mo]);
+    const prostTeden = tedni.find(mo => !stanje[ime + "|" + mo]);
     if (!prostTeden) { setMsg(ime + ": vsi vidni tedni so že označeni."); return; }
     onPredlagaj(ime, prostTeden);
     setMsg(null);
@@ -477,7 +488,9 @@ function KalupTab(){
   const [koda, setKoda] = useState("B");
   const [month, setMonth] = useState("2026-11");
   const [letters, setLetters] = useState({}); // override startLetter po imenu
-  const [dopust, setDopust] = useState({}); // "ime|monday" -> true
+  // "ime|monday" -> "LD" (letni dopust) | "POMOC" (začasno pomaga drugemu
+  // oddelku, ni na voljo za svoj kalup) | undefined (navadna rotacija).
+  const [tedenskoStanje, setTedenskoStanje] = useState({});
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -494,14 +507,26 @@ function KalupTab(){
   const [popravki, setPopravki] = useState({});
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
+  const [genBusy, setGenBusy] = useState(false);
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
   const tedni = useMemo(() => mondaysInRange(startISO, endISO), [startISO, endISO]);
 
-  const toggleDopust = (ime, monday) => {
+  // Klik kroži: navadna rotacija -> LD -> Pomoč drugje -> navadna rotacija.
+  const cikliTeden = (ime, monday) => {
     const key = ime + "|" + monday;
-    setDopust(d => ({ ...d, [key]: !d[key] }));
+    setTedenskoStanje(t => {
+      const trenutno = t[key];
+      const novo = trenutno === "LD" ? "POMOC" : trenutno === "POMOC" ? undefined : "LD";
+      const kopija = { ...t };
+      if (novo) kopija[key] = novo; else delete kopija[key];
+      return kopija;
+    });
+  };
+  // "Predlagaj teden" iz spodnjega panela vedno predlaga LD, ne kroži.
+  const predlagajLD = (ime, monday) => {
+    setTedenskoStanje(t => ({ ...t, [ime + "|" + monday]: "LD" }));
   };
 
   const uvoziKvote = async (file) => {
@@ -522,16 +547,24 @@ function KalupTab(){
     }
   };
 
-  const generiraj = () => {
-    const staff = staffList.map(([ime, defLetter]) => ({
-      ime,
-      startLetter: letters[ime] || defLetter,
-      hsuffix: meta.hsuffix,
-      dopustTedni: tedni.filter(mo => dopust[ime + "|" + mo]),
-    }));
-    const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
-    setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})) });
-    setPopravki({});
+  const generiraj = async () => {
+    setGenBusy(true);
+    try {
+      const omejitveMap = await nalozizOmejitve(startISO, endISO);
+      const staff = staffList.map(([ime, defLetter]) => ({
+        ime,
+        startLetter: letters[ime] || defLetter,
+        hsuffix: meta.hsuffix,
+        dopustTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "LD"),
+        pomocTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "POMOC"),
+        omejitve: omejitveMap[ime] || [],
+      }));
+      const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
+      setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})) });
+      setPopravki({});
+    } finally {
+      setGenBusy(false);
+    }
   };
 
   const celica = (z, dn) => {
@@ -611,11 +644,11 @@ function KalupTab(){
         <p className="hint" style={{marginTop:8, marginBottom:0}}>Oblika: <code>ime,kvota</code> (ime kot spodaj v tabeli).</p>
         {kvoteUvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{kvoteUvozMsg}</p>}
       </div>
-      <PrednostniPanel staff={staffList} dopust={dopust} tedni={tedni} kvote={kvote} setKvote={setKvote}
-        onPredlagaj={(ime, teden) => toggleDopust(ime, teden)} />
+      <PrednostniPanel staff={staffList} stanje={tedenskoStanje} tedni={tedni} kvote={kvote} setKvote={setKvote}
+        onPredlagaj={(ime, teden) => predlagajLD(ime, teden)} />
 
       <h2 className="section">3 · Kalup in dopust po zaposlenih</h2>
-      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da tisti teden zaposlenemu prisilno vpišete letni dopust ne glede na rotacijo.</p>
+      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da med LD (letni dopust), POM (začasna pomoč drugemu oddelku — cilj oddelek osebo za ta teden doda ročno) in navadno rotacijo kroži. Rumene omejitve (Razpredelnica Želje) generator samodejno pokrije z nadomestilom, če je kdo na oddelku ta dan prost — sicer opozori spodaj.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
           <thead>
@@ -636,8 +669,8 @@ function KalupTab(){
                 </td>
                 {tedni.map(mo => (
                   <td key={mo}>
-                    <button className="weekToggle" aria-pressed={!!dopust[ime+"|"+mo]} onClick={() => toggleDopust(ime, mo)}>
-                      {dopust[ime+"|"+mo] ? "LD" : "—"}
+                    <button className="weekToggle" aria-pressed={!!tedenskoStanje[ime+"|"+mo]} onClick={() => cikliTeden(ime, mo)}>
+                      {tedenskoStanje[ime+"|"+mo] === "LD" ? "LD" : tedenskoStanje[ime+"|"+mo] === "POMOC" ? "POM" : "—"}
                     </button>
                   </td>
                 ))}
@@ -647,13 +680,19 @@ function KalupTab(){
         </table>
       </div>
 
-      <button className="genBtn" onClick={generiraj}>Generiraj razpored</button>
+      <button className="genBtn" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "Generiraj razpored"}</button>
       </React.Fragment>
       )}
 
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
+          {rezultat.opozorila && rezultat.opozorila.length > 0 && (
+            <div className="warnBox no-print">
+              <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
+              <ul>{rezultat.opozorila.map((o, i) => <li key={i}>{o.datum}: {o.sporocilo}</li>)}</ul>
+            </div>
+          )}
           <p className="hint no-print">
             Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) — sprememba se upošteva povsod: v prikazu,
             izvozu (PDF/CSV) IN ob objavi v Supabase (vsaka celica je ena oseba/en dan, zato se popravek zanesljivo
