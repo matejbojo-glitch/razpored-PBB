@@ -95,6 +95,10 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -197,6 +201,14 @@ function SmsTab({ baseline, onUpdate }){
           </tbody>
         </table>
       </div>
+      <RazporedIzvoz
+        naslov={`pravicnost-sms-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "SMS-TZN",
+          glave: ["#", "Zaposleni", "Enota", "Delovni dnevi", "Nočne izmene", "Ned. + prazniki", "Vikend", "LD", "KPU"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.delo, z.nocne, z.nedpraz, z.vikend, z.ld, z.kpu]),
+        }]}
+      />
       <button className="dlBtn no-print" onClick={() => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
     </div>
   );
@@ -264,6 +276,14 @@ function DezTab({ baseline, onUpdate }){
         </table>
       </div>
       <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
+      <RazporedIzvoz
+        naslov={`pravicnost-dezurstva-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "Dežurstva",
+          glave: ["#", "Zaposleni", "Enota", "Dežurstva", "Delovnih ur", "REDI ur", "NZV ur"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.dezurstva, z.ure, z.redi, z.nzv]),
+        }]}
+      />
       <button className="dlBtn no-print" onClick={() => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
     </div>
   );
@@ -302,6 +322,14 @@ function NedezTab({ baseline }){
           </tbody>
         </table>
       </div>
+      <RazporedIzvoz
+        naslov={`pravicnost-nedezurni-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "Nedežurni",
+          glave: ["#", "Zaposleni", "Enota", "Podskupina", "Delovnih ur", "REDI ur", "Nočnih ur", "Nedelj"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, PODSKUPINA_NAZIV[z.podskupina] || z.podskupina, z.ure, z.redi, z.noc, z.ned]),
+        }]}
+      />
     </div>
   );
 }

@@ -113,6 +113,10 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -484,7 +488,23 @@ function App(){
             </div>
           )}
           {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} />}
-          {zavihek === "moji" && <MojiObrazci rows={moji} onOdpri={setOdprt} />}
+          {zavihek === "moji" && (
+            <React.Fragment>
+              <MojiObrazci rows={moji} onOdpri={setOdprt} />
+              <RazporedIzvoz
+                naslov="moji-obrazci"
+                pripravi={() => [{
+                  ime: "Obrazci",
+                  glave: ["Številka", "Vrsta", "Ustvarjen", "Status"],
+                  vrstice: moji.map(r => [
+                    r.stevilka, VRSTA_LABEL[r.vrsta] || r.vrsta,
+                    new Date(r.ustvarjen).toLocaleDateString("sl-SI"),
+                    (STATUS_LABEL[r.status] || { text: r.status }).text,
+                  ]),
+                }]}
+              />
+            </React.Fragment>
+          )}
         </React.Fragment>
       )}
       {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}

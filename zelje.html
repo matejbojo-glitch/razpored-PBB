@@ -189,6 +189,9 @@
 <script src="xlsx.core.min.js"></script>
 <script src="exceljs.min.js"></script>
 <script src="import-utils.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -878,6 +881,21 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
         )}
         <span className="hint" style={{margin:0}}>{nalagam ? "Nalagam …" : status}</span>
       </div>
+
+      {nacin==="mreza" && (
+        <RazporedIzvoz
+          naslov={`zelje-${view.year}-${String(view.month+1).padStart(2,"0")}`}
+          pripravi={() => [{
+            ime: MESECI_SL[view.month] + " " + view.year,
+            glave: ["Ime", ...dnevi.map(d => isoZa(view.year, view.month, d)), "LD dni"],
+            vrstice: vsiLjudje.map(({ ime }) => [
+              ime,
+              ...dnevi.map(d => { const val = trenutnaVrednost(ime, isoZa(view.year, view.month, d)); return val ? PEN_META[val].label : ""; }),
+              ldStevilo(ime),
+            ]),
+          }]}
+        />
+      )}
 
       {nacin==="dnevi" && (
         <DnevniPogled view={view} vsiLjudje={vsiLjudje} trenutnaVrednost={trenutnaVrednost} smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />

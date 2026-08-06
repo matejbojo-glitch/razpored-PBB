@@ -104,6 +104,9 @@
 <script src="nav.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -186,6 +189,21 @@ function Seznam({ osebe, oddelki, onOdpri }){
           {oddelkiUrejeni.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
         </select>
       </div>
+      <RazporedIzvoz
+        naslov="imenik"
+        pripravi={() => [{
+          ime: "Imenik",
+          glave: ["Ime in priimek", "Vloga", "Oddelek", "E-pošta", "Telefon"],
+          vrstice: filtrirano.map(o => [
+            o.full_name || "",
+            o.pending ? "še ni registriran" : (RazporedAuth.ROLE_LABEL[o.role] || o.role),
+            (o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []))
+              .map(k => imeOddelka[k] || k).join(", "),
+            o.email || "",
+            o.phone || "",
+          ]),
+        }]}
+      />
       <div className="card">
         {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
         {filtrirano.map(o => (
