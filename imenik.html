@@ -350,6 +350,26 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setVodjaBusy(false); }
   };
 
+  // Koordinator za menjave (profiles.is_koordinator) — kdor ima to zastavico,
+  // sam (in samo on/oni) potrjuje menjave, kjer je udeležen vodja (glej
+  // menjave.html/decide_swap_koordinator). Privzeto samo Denis Džamastagić,
+  // a urejljivo tu, da ni trajno trdo vezano na eno osebo.
+  const [koordinator, setKoordinator] = useState(!!oseba.is_koordinator);
+  const [koordinatorBusy, setKoordinatorBusy] = useState(false);
+  const [koordinatorMsg, setKoordinatorMsg] = useState(null);
+  const preklopiKoordinatorja = async () => {
+    const novaVrednost = !koordinator;
+    setKoordinatorBusy(true); setKoordinatorMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ is_koordinator: novaVrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setKoordinator(novaVrednost);
+      setKoordinatorMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setKoordinatorMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setKoordinatorBusy(false); }
+  };
+
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -579,6 +599,20 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
                 </div>
                 <button className="submitBtn" onClick={shraniVodjo} disabled={vodjaBusy}>{vodjaBusy ? "Shranjujem …" : "Shrani"}</button>
                 {vodjaMsg && <p className={vodjaMsg.ok ? "okMsg" : "err"}>{vodjaMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Koordinator za menjave (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Menjave, kjer je udeležen vodja, preskočijo 2-stopenjsko odobritev (vodja → administrator) in
+                  gredo naravnost na eno stopnjo — potrdi jih lahko izključno oseba s to zastavico (privzeto samo
+                  Denis Džamastagić).
+                </p>
+                <label style={{display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:600}}>
+                  <input type="checkbox" checked={koordinator} onChange={preklopiKoordinatorja} disabled={koordinatorBusy} />
+                  Ta oseba je koordinator za menjave
+                </label>
+                {koordinatorMsg && <p className={koordinatorMsg.ok ? "okMsg" : "err"}>{koordinatorMsg.text}</p>}
               </div>
             </React.Fragment>
           )}
@@ -1172,7 +1206,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, rotation_slot, vodja_id, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data }) => {
         setOsebe((data || []).map(o => ({
