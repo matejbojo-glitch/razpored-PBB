@@ -99,6 +99,16 @@
       location.replace("login.html?next=" + next);
       return null;
     }
+    // Računi, ustvarjeni prek skripte/uvoz-racunov.mjs --test, dobijo znano
+    // (fiksno ali naključno, a adminu vidno) začetno geslo — must_change_password
+    // v user_metadata prisili spremembo na reset-geslo.html, preden lahko
+    // oseba uporablja karkoli drugega. Zastavica se počisti tam ob uspešni
+    // spremembi gesla (client.auth.updateUser z data.must_change_password:false).
+    var trenutna = (location.pathname.split("/").pop() || "").toLowerCase();
+    if (session.user.user_metadata && session.user.user_metadata.must_change_password && trenutna !== "reset-geslo.html") {
+      location.replace("reset-geslo.html");
+      return null;
+    }
     return { session: session, profile: profile };
   }
 

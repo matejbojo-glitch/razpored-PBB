@@ -6,9 +6,14 @@
 //     (ista povezava/stran kot "Pozabljeno geslo" v aplikaciji —
 //     reset-geslo.html). Za produkcijo, ko naj ljudje dejansko dobijo mail.
 //   - --test: ustvari enak pravi Auth račun, a BREZ pošiljanja e-pošte —
-//     dodeli začasno geslo, ki ga izpiše samo lokalno (in v lokalno,
-//     gitignored poročilo). Za testno fazo, ko računi morajo obstajati
-//     (da jih generator razporeda vidi), a povabila še ni čas poslati.
+//     dodeli začetno geslo (fiksno iz roster/zaposleni-vloge-gesla.csv
+//     stolpca geslo_predlog, če obstaja, sicer naključno), izpisano samo
+//     lokalno (in v lokalno, gitignored poročilo). Za testno fazo, ko
+//     računi morajo obstajati (da jih generator razporeda vidi), a
+//     povabila še ni čas poslati. Ker je začetno geslo znano (adminu, ali
+//     celo predvidljivo), aplikacija ob prvi prijavi prisili spremembo
+//     gesla (must_change_password v user_metadata, glej supabase-client.js
+//     requireAuth() + reset-geslo.html).
 //
 // Zakaj lokalna skripta, ne nekaj v aplikaciji: ustvarjanje Auth računov
 // zahteva service_role ključ, ki NIKOLI ne sme priti v brskalnik (obšel bi
@@ -88,20 +93,22 @@ function parsirajCSV(besedilo) {
 }
 
 function nalozizOsebe() {
-  const osebe = new Map(); // email -> full_name
+  const osebe = new Map(); // email -> { fullName, geslo (iz geslo_predlog, ali null) }
 
   const emaili = parsirajCSV(fs.readFileSync(path.join(ROSTER_DIR, "zaposleni-emaili.csv"), "utf8"));
   emaili.forEach(r => {
     const email = (r.email || "").trim().toLowerCase();
     if (!email) return;
-    osebe.set(email, `${r.ime} ${r.priimek}`.trim());
+    osebe.set(email, { fullName: `${r.ime} ${r.priimek}`.trim(), geslo: null });
   });
 
   const vlogeGesla = parsirajCSV(fs.readFileSync(path.join(ROSTER_DIR, "zaposleni-vloge-gesla.csv"), "utf8"));
   vlogeGesla.forEach(r => {
     const email = (r.email || "").trim().toLowerCase();
     if (!email) return;
-    if (!osebe.has(email)) osebe.set(email, `${r.ime} ${r.priimek}`.trim());
+    const geslo = (r.geslo_predlog || "").trim() || null;
+    if (!osebe.has(email)) osebe.set(email, { fullName: `${r.ime} ${r.priimek}`.trim(), geslo });
+    else if (geslo) osebe.get(email).geslo = geslo;
   });
 
   return osebe;
@@ -121,25 +128,34 @@ async function main() {
 
   const rezultati = { ustvarjeni: [], obstojeci: [], napake: [] };
 
-  for (const [email, fullName] of osebe) {
+  for (const [email, { fullName, geslo: gesloPredlog }] of osebe) {
     if (SUHO) {
-      console.log(TEST
-        ? `  (bi ustvaril, TEST način, brez e-pošte) ${fullName} <${email}>`
-        : `  (bi ustvaril) ${fullName} <${email}>`);
+      if (TEST) {
+        const vir = gesloPredlog ? `fiksno geslo iz roster CSV: ${gesloPredlog}` : "naključno geslo (v CSV-ju ni geslo_predlog)";
+        console.log(`  (bi ustvaril, TEST način, brez e-pošte) ${fullName} <${email}> — ${vir}`);
+      } else {
+        console.log(`  (bi ustvaril) ${fullName} <${email}>`);
+      }
       continue;
     }
 
     if (TEST) {
-      const geslo = generirajZacasnoGeslo();
+      // Fiksno geslo iz roster/zaposleni-vloge-gesla.csv (geslo_predlog), če
+      // obstaja — admin ga lahko osebno sporoči zaposlenemu. Za ~3 osebe brez
+      // vira pade nazaj na naključno geslo. V OBEH primerih je geslo znano
+      // (viru/adminu), zato must_change_password:true prisili spremembo ob
+      // prvi prijavi (glej requireAuth() v supabase-client.js) — oseba si
+      // mora izbrati svoje geslo, preden lahko uporablja aplikacijo.
+      const geslo = gesloPredlog || generirajZacasnoGeslo();
       const { error } = await client.auth.admin.createUser({
         email,
         password: geslo,
         email_confirm: true,
-        user_metadata: { full_name: fullName },
+        user_metadata: { full_name: fullName, must_change_password: true },
       });
       if (!error) {
         rezultati.ustvarjeni.push({ email, fullName, geslo });
-        console.log(`  ✓ ustvarjen (brez maila): ${fullName} <${email}> — začasno geslo: ${geslo}`);
+        console.log(`  ✓ ustvarjen (brez maila): ${fullName} <${email}> — začasno geslo: ${geslo}${gesloPredlog ? "" : " (naključno, ni bilo v CSV-ju)"}`);
       } else if (/already|obstaja|registered/i.test(error.message || "")) {
         rezultati.obstojeci.push({ email, fullName });
         console.log(`  – že obstaja, preskočeno: ${fullName} <${email}>`);
@@ -179,10 +195,11 @@ async function main() {
       console.log(`  Podrobnosti napak: ${izhod}`);
     }
     if (TEST && rezultati.ustvarjeni.length) {
-      const csv = ["email,ime,zacasno_geslo", ...rezultati.ustvarjeni.map(n => `"${n.email}","${n.fullName}","${n.geslo}"`)].join("\n");
+      const csv = ["email,ime,zacetno_geslo", ...rezultati.ustvarjeni.map(n => `"${n.email}","${n.fullName}","${n.geslo}"`)].join("\n");
       const izhod = path.join(__dirname, `porocilo-gesla-${Date.now()}.csv`);
       fs.writeFileSync(izhod, csv, "utf8");
-      console.log(`  Začasna gesla (samo lokalno, NE deli naprej): ${izhod}`);
+      console.log(`  Začetna gesla (samo lokalno, NE deli naprej): ${izhod}`);
+      console.log(`  Vsaka oseba mora ob prvi prijavi nastaviti svoje geslo (prisiljeno v aplikaciji).`);
     }
   }
 }

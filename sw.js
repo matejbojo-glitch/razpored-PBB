@@ -22,8 +22,12 @@
 // v10: nov skupni theme.css (vizualna prenova) — dodan v precache, da je
 // oblikovanje na voljo tudi brez signala; dvignjena verzija, da se povsod
 // takoj prenese.
+// v11: nova stran obrazec.html (evidentiranje prisotnosti/menjava službe) +
+// posodobljen nav.js (dodana ikona "Obrazec"). nav.js se je do zdaj serviral
+// cache-first (ni HTML/JSON), zato brez dviga verzije nova ikona v navigaciji
+// ne bi nikoli prišla do uporabnikov z že nameščenim service workerjem.
 
-const CACHE = 'razpored-pbb-v10';
+const CACHE = 'razpored-pbb-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -31,6 +35,7 @@ const ASSETS = [
   './login.html',
   './reset-geslo.html',
   './menjave.html',
+  './obrazec.html',
   './admin.html',
   './dashboard.html',
   './zelje.html',
