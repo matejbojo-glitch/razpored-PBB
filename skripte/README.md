@@ -27,14 +27,24 @@ nedvoumne primere.
   `reset-geslo.html`, ki jo aplikacija uporablja za "Pozabljeno geslo").
   Oseba nikoli ne vidi/prejme gesla od tebe — sama si ga izbere. Uporabi to,
   ko je aplikacija v produkciji in je čas, da ljudje dejansko dobijo mail.
-- **Test (`--test`)** — pokliče `auth.admin.createUser` z naključnim začasnim
-  geslom, **brez pošiljanja kakršnekoli e-pošte**. Za testno fazo: računi
-  morajo obstajati zdaj (da jih generator razporeda vidi in da jih lahko
-  uporabljaš pri sestavljanju razporedov), a pravega vabila še ni čas
-  poslati. Začasna gesla se izpišejo samo v terminal in v lokalno datoteko
-  `porocilo-gesla-<čas>.csv` (v `.gitignore`, nikoli se ne commita/deli) —
-  ko boš pripravljen na produkcijo, poženi skripto brez `--test`, da se
-  pošljejo prava vabila (obstoječi računi se samo preskočijo, ne podvojijo).
+- **Test (`--test`)** — pokliče `auth.admin.createUser`, **brez pošiljanja
+  kakršnekoli e-pošte**. Za testno fazo: računi morajo obstajati zdaj (da jih
+  generator razporeda vidi in da jih lahko uporabljaš pri sestavljanju
+  razporedov), a pravega vabila še ni čas poslati. Začetno geslo je:
+  - **fiksno**, iz `roster/zaposleni-vloge-gesla.csv` stolpca `geslo_predlog`
+    (npr. `dino823` = ime + matična številka) — za 69 od 72 oseb, kjer ta
+    podatek obstaja. To lahko osebno sporočiš zaposlenemu.
+  - **naključno** za preostale ~3 osebe brez vira v CSV-ju.
+
+  V obeh primerih velja: ker je začetno geslo znano (ali celo predvidljivo iz
+  vzorca ime+matična), skripta vsak `--test` račun označi z
+  `must_change_password: true` — aplikacija ob prvi prijavi **prisili**
+  spremembo gesla (`supabase-client.js` → `requireAuth()` preusmeri na
+  `reset-geslo.html`, ki nato zastavico počisti). Uporabljena gesla se
+  izpišejo v terminal in v lokalno datoteko `porocilo-gesla-<čas>.csv` (v
+  `.gitignore`, nikoli se ne commita/deli) — ko boš pripravljen na
+  produkcijo, poženi skripto brez `--test`, da se pošljejo prava vabila
+  (obstoječi računi se samo preskočijo, ne podvojijo).
 
 ### Zagon
 
@@ -66,10 +76,14 @@ dotakne.
 
 ### Kaj ni vključeno (namenoma)
 
-- **Gesla** — nihče, niti admin, ne izbira/vidi začetnega gesla. To je
-  varnejše od pošiljanja/tiskanja začasnih gesel (kar je bil pristop v
-  prejšnjem, neuporabljenem osnutku `roster/zaposleni-vloge-gesla.csv`
-  stolpec `geslo_predlog` — ta stolpec skripta namerno ignorira).
-- **Oddelek/vloga za dvoumne primere** (npr. "C/C1", "UA/SA/B2", "STROKOVNI
-  VODJA") — teh ~10 ljudi admin po registraciji ročno dokonča v Imeniku
-  (dropdown že podpira vse potrebno), glej komentar v `schema.sql` (18).
+- **Produkcijski način ne uporablja `geslo_predlog`** — tam osebo nikoli ne
+  seznanjaš z geslom niti začasno, pošlje se pravo vabilo in oseba si sama
+  izbere geslo prek povezave v e-pošti. `geslo_predlog` (ime + matična
+  številka, predvidljiv vzorec) se uporabi izključno v `--test` načinu, kjer
+  je namen ravno to, da admin osebno pozna in lahko sporoči začetno geslo —
+  in ravno zato aplikacija ob prvi prijavi prisili njegovo spremembo (glej
+  zgoraj).
+- **Oddelek/vloga za dvoumne primere** — 3 osebe (Zaplotnik Alenka, Balek
+  Mija, Sejdinović Mustafa), za katere noben vir ne pove konkretnega
+  oddelka, admin po registraciji ročno dokonča v Imeniku (dropdown že
+  podpira vse potrebno), glej komentar v `schema.sql` (18).

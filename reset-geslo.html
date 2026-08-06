@@ -61,10 +61,16 @@ function App(){
   const [password2, setPassword2] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  // Ločimo dva vzroka za pristanek na tej strani: klasičen "Pozabljeno geslo"
+  // (povezava iz e-pošte) proti prisilni preusmeritvi iz requireAuth() za
+  // testne račune z znanim začetnim geslom (must_change_password) — druga
+  // skupina sicer ne bi razumela, zakaj je tu, brez da bi karkoli kliknila.
+  const [prisiljeno, setPrisiljeno] = useState(false);
 
   useEffect(() => {
     client.auth.getSession().then(({ data: { session } }) => {
       setStanje(session ? "pripravljeno" : "ni-veljavno");
+      setPrisiljeno(!!(session && session.user.user_metadata && session.user.user_metadata.must_change_password));
     });
     const { data: sub } = client.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setStanje("pripravljeno");
@@ -78,7 +84,11 @@ function App(){
     try {
       if (password.length < 6) throw new Error("Geslo mora imeti vsaj 6 znakov.");
       if (password !== password2) throw new Error("Gesli se ne ujemata.");
-      const { error } = await client.auth.updateUser({ password });
+      // data.must_change_password:false počisti prisilno preusmeritev iz
+      // requireAuth() (supabase-client.js) za račune, ustvarjene z znanim
+      // začetnim geslom (skripte/uvoz-racunov.mjs --test) — pri ostalih
+      // (brez zastavice) je ta klic neškodljiv no-op.
+      const { error } = await client.auth.updateUser({ password, data: { must_change_password: false } });
       if (error) throw error;
       setStanje("uspesno");
     } catch (err) {
@@ -103,6 +113,11 @@ function App(){
         )}
         {stanje === "pripravljeno" && (
           <form onSubmit={submit}>
+            {prisiljeno && (
+              <p className="hint" style={{marginTop:0, marginBottom:16}}>
+                Prijavljen si bil z začetnim geslom. Pred nadaljevanjem si izberi svoje novo geslo.
+              </p>
+            )}
             <div className="field">
               <label htmlFor="pw">Novo geslo</label>
               <input id="pw" type="password" required minLength={6} autoComplete="new-password"
