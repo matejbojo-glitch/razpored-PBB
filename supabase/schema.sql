@@ -1874,3 +1874,179 @@ from (values
   ('dino.alukic@pb-begunje.si', 'ALUKIĆ DINO')
 ) as v(email, full_name)
 where lower(p.email) = v.email and p.full_name = p.email;
+
+-- ---------------------------------------------------------------------
+-- 21) Enostopenjska odobritev menjav, kjer je udeležen vodja
+--     ("Menjave dejansko potrebujejo samo vodje ki dežurajo" — vodja ne more
+--     smiselno odločati o lastni menjavi na 1. stopnji, zato taka menjava
+--     preskoči navadno dvostopenjsko verigo (vodja→admin) in gre naravnost
+--     na EN sam korak, ki ga sme potrditi izključno oseba z zastavico
+--     is_koordinator = true (privzeto samo Denis Džamastagić — glej seed
+--     spodaj). Zastavica je urejljiva v Imeniku (admin), da ni trajno trdo
+--     vezana na eno osebo. Ob potrditvi se menjava neposredno izvede v
+--     schedule_entries — enak vzorec kot obstoječi decide_swap_admin.
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists is_koordinator boolean not null default false;
+
+update public.profiles set is_koordinator = true where lower(email) = 'denis.dzamastagic@pb-begunje.si';
+
+alter table public.swap_requests drop constraint if exists swap_requests_status_check;
+alter table public.swap_requests add constraint swap_requests_status_check check (
+  status in (
+    'pending_lead', 'pending_admin', 'pending_koordinator',
+    'approved', 'rejected_by_lead', 'rejected_by_admin', 'rejected_by_koordinator'
+  )
+);
+
+create or replace function public.current_is_koordinator()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select is_koordinator from public.profiles where id = auth.uid()), false);
+$$;
+
+-- submit_swap_request: če je predlagatelj ALI sodelavec vodja, usmeri
+-- naravnost na pending_koordinator namesto na običajni pending_lead.
+create or replace function public.submit_swap_request(
+  p_target_id uuid,
+  p_requester_date date,
+  p_target_date date,
+  p_note text default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id bigint;
+  v_requester_role text;
+  v_target_role text;
+  v_status text;
+begin
+  if p_target_id = auth.uid() then
+    raise exception 'Ne moreš predlagati menjave sam s seboj.';
+  end if;
+
+  select role into v_requester_role from public.profiles where id = auth.uid();
+  select role into v_target_role from public.profiles where id = p_target_id;
+
+  if v_requester_role = 'vodja' or v_target_role = 'vodja' then
+    v_status := 'pending_koordinator';
+  else
+    v_status := 'pending_lead';
+  end if;
+
+  insert into public.swap_requests (requester_id, requester_date, target_id, target_date, note, status)
+  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, v_status)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+grant execute on function public.submit_swap_request(uuid, date, date, text) to authenticated;
+
+-- Enostopenjska odločitev koordinatorja za menjave z udeleženim vodjo.
+-- Namenoma NE preverja current_role_is('admin') - dostop je izključno
+-- prek is_koordinator, tudi če je koordinator hkrati admin (Denis je).
+create or replace function public.decide_swap_koordinator(
+  p_swap_id bigint,
+  p_approve boolean,
+  p_note text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_req record;
+  v_requester_shift text;
+  v_target_shift text;
+begin
+  if not public.current_is_koordinator() then
+    raise exception 'Samo koordinator lahko odloča o tej menjavi.';
+  end if;
+
+  select * into v_req from public.swap_requests
+  where id = p_swap_id and status = 'pending_koordinator'
+  for update;
+
+  if v_req.id is null then
+    raise exception 'Predlog ne obstaja ali ni več v čakanju na koordinatorja.';
+  end if;
+
+  if p_approve then
+    select shift_code into v_requester_shift from public.schedule_entries
+      where employee_id = v_req.requester_id and work_date = v_req.requester_date;
+    select shift_code into v_target_shift from public.schedule_entries
+      where employee_id = v_req.target_id and work_date = v_req.target_date;
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    select v_req.requester_id, department_code, v_req.requester_date, coalesce(v_target_shift, ''), now()
+    from public.profiles where id = v_req.requester_id
+    on conflict (employee_id, work_date)
+      do update set shift_code = excluded.shift_code, updated_at = now();
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    select v_req.target_id, department_code, v_req.target_date, coalesce(v_requester_shift, ''), now()
+    from public.profiles where id = v_req.target_id
+    on conflict (employee_id, work_date)
+      do update set shift_code = excluded.shift_code, updated_at = now();
+  end if;
+
+  update public.swap_requests
+  set status = case when p_approve then 'approved' else 'rejected_by_koordinator' end,
+      admin_id = auth.uid(),
+      admin_decided_at = now(),
+      admin_note = p_note,
+      updated_at = now()
+  where id = p_swap_id;
+end;
+$$;
+grant execute on function public.decide_swap_koordinator(bigint, boolean, text) to authenticated;
+
+-- swap_select: koordinator mora videti pending_koordinator vrstice tudi če
+-- ni admin (dostop naj bo neodvisen od role, samo od zastavice).
+drop policy if exists swap_select on public.swap_requests;
+create policy swap_select on public.swap_requests
+  for select to authenticated using (
+    requester_id = auth.uid()
+    or target_id = auth.uid()
+    or public.current_role_is('admin')
+    or public.current_is_koordinator()
+    or (
+      public.current_role_is('vodja')
+      and public.current_department() = (select department_code from public.profiles where id = requester_id)
+    )
+  );
+
+-- notify_swap_status_change: dopolni sporočila za novo enostopenjsko pot.
+create or replace function public.notify_swap_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  msg text;
+begin
+  if new.status = old.status then
+    return new;
+  end if;
+  msg := case new.status
+    when 'pending_admin'           then 'Vodja je odobril predlog menjave — čaka na administratorja.'
+    when 'pending_koordinator'     then 'Predlog menjave čaka na potrditev koordinatorja.'
+    when 'approved'                then 'Menjava izmene je bila potrjena.'
+    when 'rejected_by_lead'        then 'Vodja je zavrnil predlog menjave.'
+    when 'rejected_by_admin'       then 'Administrator je zavrnil predlog menjave.'
+    when 'rejected_by_koordinator' then 'Koordinator je zavrnil predlog menjave.'
+    else 'Status predloga menjave se je spremenil: ' || new.status
+  end;
+  insert into public.notifications (user_id, swap_request_id, message)
+  values (new.requester_id, new.id, msg), (new.target_id, new.id, msg);
+  return new;
+end;
+$$;

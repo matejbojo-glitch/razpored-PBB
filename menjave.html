@@ -101,9 +101,11 @@ const { client } = RazporedAuth;
 const STATUS_LABEL = {
   pending_lead: { text: "Čaka na vodjo", cls: "wait" },
   pending_admin: { text: "Čaka na administratorja", cls: "wait" },
+  pending_koordinator: { text: "Čaka na koordinatorja", cls: "wait" },
   approved: { text: "Odobreno", cls: "ok" },
   rejected_by_lead: { text: "Zavrnil vodja", cls: "no" },
   rejected_by_admin: { text: "Zavrnil administrator", cls: "no" },
+  rejected_by_koordinator: { text: "Zavrnil koordinator", cls: "no" },
 };
 
 const SWAP_SELECT = "*, requester:profiles!swap_requests_requester_id_fkey(full_name), target:profiles!swap_requests_target_id_fkey(full_name)";
@@ -280,6 +282,44 @@ function OdobritevAdmin({ rows, onDecide }){
   );
 }
 
+// Enostopenjska pot za menjave, kjer je udeležen vodja — vidna samo osebi z
+// is_koordinator=true (privzeto samo Denis Džamastagić, urejljivo v Imeniku).
+// Ob potrditvi se menjava takoj izvede v razporedu, brez 2. stopnje.
+function OdobritevKoordinator({ rows, onDecide }){
+  const [busyId, setBusyId] = useState(null);
+  if (rows.length === 0) return <p className="empty">Trenutno ni predlogov, ki čakajo tvojo odobritev.</p>;
+  const decide = async (id, approve) => {
+    setBusyId(id);
+    try {
+      const { error } = await client.rpc("decide_swap_koordinator", { p_swap_id: id, p_approve: approve, p_note: null });
+      if (error) throw error;
+      onDecide();
+    } catch (e) { alert(e.message || String(e)); }
+    finally { setBusyId(null); }
+  };
+  return (
+    <div className="card">
+      {rows.map(r => (
+        <div className="entry" key={r.id}>
+          <div>
+            <div className="who">
+              <a href={"imenik.html?id=" + r.requester_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.requester.full_name}</a>
+              {" ↔ "}
+              <a href={"imenik.html?id=" + r.target_id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{r.target.full_name}</a>
+            </div>
+            <div className="meta">{fmtDate(r.requester_date)} ⇄ {fmtDate(r.target_date)} · udeležen vodja, brez 2. stopnje</div>
+            {r.note && <div className="note">{r.note}</div>}
+          </div>
+          <div className="actions">
+            <button className="actBtn yes" disabled={busyId===r.id} onClick={() => decide(r.id, true)}>Potrdi</button>
+            <button className="actBtn no" disabled={busyId===r.id} onClick={() => decide(r.id, false)}>Zavrni</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const SWAP_STATS_SELECT = "id, status, created_at, admin_decided_at, requester:profiles!swap_requests_requester_id_fkey(full_name), lead:profiles!swap_requests_lead_id_fkey(full_name), admin:profiles!swap_requests_admin_id_fkey(full_name)";
 
 // Statistika menjav — kontrolni seznam, razdelek 7, predlog 4: swap_requests
@@ -317,7 +357,7 @@ function StatistikaMenjav(){
   const stOdlocitev = {};
   rows.forEach(r => {
     if (r.lead && r.status !== "pending_lead") stOdlocitev[r.lead.full_name] = (stOdlocitev[r.lead.full_name] || 0) + 1;
-    if (r.admin && (r.status === "approved" || r.status === "rejected_by_admin")) stOdlocitev[r.admin.full_name] = (stOdlocitev[r.admin.full_name] || 0) + 1;
+    if (r.admin && (r.status === "approved" || r.status === "rejected_by_admin" || r.status === "rejected_by_koordinator")) stOdlocitev[r.admin.full_name] = (stOdlocitev[r.admin.full_name] || 0) + 1;
   });
   const topOdlocevalci = Object.entries(stOdlocitev).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
@@ -328,7 +368,7 @@ function StatistikaMenjav(){
 
   const skupaj = rows.length;
   const odobrenih = rows.filter(r => r.status === "approved").length;
-  const zavrnjenih = rows.filter(r => r.status === "rejected_by_lead" || r.status === "rejected_by_admin").length;
+  const zavrnjenih = rows.filter(r => r.status === "rejected_by_lead" || r.status === "rejected_by_admin" || r.status === "rejected_by_koordinator").length;
 
   return (
     <div className="card">
@@ -388,6 +428,7 @@ function App(){
   const [mine, setMine] = useState([]);
   const [pendingLead, setPendingLead] = useState([]);
   const [pendingAdmin, setPendingAdmin] = useState([]);
+  const [pendingKoordinator, setPendingKoordinator] = useState([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -417,6 +458,11 @@ function App(){
       client.from("swap_requests").select(SWAP_SELECT).eq("status", "pending_admin")
         .order("created_at", { ascending: true })
         .then(({ data }) => setPendingAdmin(data || []));
+    }
+    if (auth.profile && auth.profile.is_koordinator){
+      client.from("swap_requests").select(SWAP_SELECT).eq("status", "pending_koordinator")
+        .order("created_at", { ascending: true })
+        .then(({ data }) => setPendingKoordinator(data || []));
     }
 
     // Ob obisku strani označi obvestila kot prebrana — v ozadju, brez
@@ -455,8 +501,15 @@ function App(){
         </React.Fragment>
       )}
 
+      {profile && profile.is_koordinator && (
+        <React.Fragment>
+          <h2 className="section">Čaka tvojo odobritev (menjave z vodjo, ena stopnja)</h2>
+          <OdobritevKoordinator rows={pendingKoordinator} onDecide={reload} />
+        </React.Fragment>
+      )}
+
       <h2 className="section no-print">Nov predlog menjave</h2>
-      <p className="hint no-print">Predlagaj menjavo izmene s sodelavcem. Predlog najprej pregleda vodja tvoje ekipe, nato še administrator — šele takrat se razpored dejansko spremeni.</p>
+      <p className="hint no-print">Predlagaj menjavo izmene s sodelavcem. Predlog najprej pregleda vodja tvoje ekipe, nato še administrator — šele takrat se razpored dejansko spremeni. Če je v menjavi udeležen vodja, gre predlog naravnost h koordinatorju (ena sama stopnja).</p>
       <div className="no-print" style={{maxWidth:560}}><NovPredlog myId={auth.session.user.id} colleagues={colleagues} onSubmitted={reload} /></div>
 
       <h2 className="section">Moje menjave</h2>
@@ -477,7 +530,7 @@ function App(){
       <button className="submitBtn no-print" style={{marginTop:10}} onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
 
       <footer className="foot no-print">
-        <p><b>Dvostopenjska odobritev.</b> 1. stopnja: vodja tvoje ekipe. 2. stopnja: administrator — šele po tem se izmeni dejansko zamenjata v razporedu. Obvestila o spremembi statusa dobiš v aplikaciji (oznaka ob "Menjave" spodaj).</p>
+        <p><b>Odobritev menjav.</b> Navadna menjava: 1. stopnja vodja tvoje ekipe, 2. stopnja administrator. Menjava, kjer je udeležen vodja: ena sama stopnja, potrdi jo lahko samo koordinator. Šele po dokončni potrditvi se izmeni dejansko zamenjata v razporedu. Obvestila o spremembi statusa dobiš v aplikaciji (oznaka ob "Menjave" spodaj).</p>
       </footer>
 
       <RazporedNav active="menjave" role={profile ? profile.role : "user"} unread={0} />
