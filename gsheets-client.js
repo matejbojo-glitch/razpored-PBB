@@ -23,7 +23,7 @@
 (function (root) {
   "use strict";
 
-  var CLIENT_ID = ""; // <-- sem prilepi svoj Google OAuth Client ID
+  var CLIENT_ID = "728346935664-gpkl2dh4av069cp5hlvjhj7culb72t1h.apps.googleusercontent.com";
   var SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
   var tokenClient = null;
