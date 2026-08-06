@@ -230,7 +230,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
       <div className="card">
         <div className="field">
           <label htmlFor="ip">Ime, priimek, oddelek</label>
-          <input id="ip" type="text" value={`${profil.full_name}${profil.department_code ? " · " + profil.department_code : ""}`} disabled />
+          <input id="ip" type="text" value={profil ? `${profil.full_name}${profil.department_code ? " · " + profil.department_code : ""}` : "Nalagam …"} disabled />
         </div>
 
         {vrsta === "menjava_sluzbe" && (
