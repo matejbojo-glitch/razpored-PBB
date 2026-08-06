@@ -85,46 +85,31 @@
 
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
-    { key: "menjave", href: "menjave.html", ic: "🔁", lbl: "Menjave", roles: ["admin", "vodja", "user"], badge: "menjave" },
-    { key: "obrazec", href: "obrazec.html", ic: "📝", lbl: "Obrazec", roles: ["admin", "vodja", "user"], badge: "obrazec" },
+    { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
     { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
     { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
     { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Pravičnost", roles: ["admin", "vodja"] },
     { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
   ];
 
-  // props: active (ključ trenutne strani), role ("admin"|"vodja"|"user"), unread (število za značko na Menjave)
+  // props: active (ključ trenutne strani), role ("admin"|"vodja"|"user"), unread (število za značko na Menjava)
   function RazporedNav(props) {
     ensureStyle();
     var active = props.active;
     var role = props.role || "user";
     var unread = props.unread || 0;
 
-    // Rumen klicaj na "Menjave": admin/vodja ima predlog menjave, ki čaka
-    // NJIHOVO odločitev (pending_admin / pending_lead) — bolj nujno kot
-    // navadno obvestilo, zato prevlada nad rdečo številko.
-    var pendingState = useState(0);
-    var pending = pendingState[0], setPending = pendingState[1];
-    useEffect(function () {
-      if (role !== "admin" && role !== "vodja") return;
-      var auth = root.RazporedAuth;
-      if (!auth || !auth.client) return;
-      var status = role === "admin" ? "pending_admin" : "pending_lead";
-      auth.client.from("swap_requests").select("id", { count: "exact", head: true }).eq("status", status)
-        .then(function (res) { setPending(res.count || 0); })
-        .catch(function () {});
-    }, [role]);
-
-    // Enak rumen klicaj na "Obrazec": obrazci_moja_naloga je že RLS-filtriran
-    // na trenutnega uporabnika (glej supabase/schema.sql, security_invoker),
-    // zato ni treba ločevati po vlogi kot zgoraj pri menjavah.
-    var obrazecPendingState = useState(0);
-    var obrazecPending = obrazecPendingState[0], setObrazecPending = obrazecPendingState[1];
+    // Rumen klicaj na "Menjava": obrazci_moja_naloga je že RLS-filtriran na
+    // trenutnega uporabnika (glej supabase/schema.sql, security_invoker) in
+    // pokrije vse vrste odločitev (sodelavec/vodja/koordinator, tudi
+    // dežurstvo-koordinator), zato ni treba ločevati po vlogi.
+    var menjavaPendingState = useState(0);
+    var menjavaPending = menjavaPendingState[0], setMenjavaPending = menjavaPendingState[1];
     useEffect(function () {
       var auth = root.RazporedAuth;
       if (!auth || !auth.client) return;
       auth.client.from("obrazci_moja_naloga").select("id", { count: "exact", head: true }).not("moje_dejanje", "is", null)
-        .then(function (res) { setObrazecPending(res.count || 0); })
+        .then(function (res) { setMenjavaPending(res.count || 0); })
         .catch(function () {});
     }, [role]);
 
@@ -138,11 +123,10 @@
         { className: "inner" },
         items.map(function (it) {
           var badge = null;
-          var badgePending = it.badge === "obrazec" ? obrazecPending : (it.badge === "menjave" ? pending : 0);
-          if (it.badge) {
-            if (badgePending > 0) {
+          if (it.badge === "menjava") {
+            if (menjavaPending > 0) {
               badge = e("span", { className: "badge warn", key: "b", title: "Čaka tvojo odločitev" }, "!");
-            } else if (it.badge === "menjave" && unread > 0) {
+            } else if (unread > 0) {
               badge = e("span", { className: "badge", key: "b" }, unread > 9 ? "9+" : String(unread));
             }
           }
