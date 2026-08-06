@@ -1342,12 +1342,22 @@ on conflict (profile_id) do update set
 --     ročnega popravka v Imeniku, in NIKOLI ne povrneta admina/vodjo
 --     nazaj na 'user'.
 --
---     Vrednost oddelka je null za osebe, kjer je izvorni podatek dvoumen
---     ("C/C1", "UA/SA/B2", "STROKOVNI VODJA" ipd.) — teh ~10 oseb (glej
---     seznam spodaj) admin ročno dokonča v Imeniku. Za "FLEXI/<oddelek>"
---     zapise je department_code='FLEXI' (primarni), spodnji drugi insert
---     pa doda njihov "domači" oddelek kot SEKUNDARNO članstvo prek
---     profile_departments (oseba je hkrati FLEXI in npr. E2/C/A).
+--     10 vodij/adminov (Alukić Dino, Arnež Grega, Bizjak Tea, Bojić Matej,
+--     Lelić Dijana, Maglić Aleksander, Mavri Tratnik Magdalena, Mušič Ines,
+--     Šubic Petra, Trpin Saša), ki jim prvotno (iz zaposleni-vloge-gesla.csv)
+--     ni bilo mogoče dodeliti nedvoumnega oddelka, imajo tu department_code
+--     dopolnjen iz že obstoječe tabele (10) lead_departments — ta natančno
+--     pozna njihov "domači" oddelek (isti vir, ki že polni Statistiko/Vodje).
+--
+--     Vrednost oddelka ostaja null samo za 3 osebe, za katere noben vir
+--     (zaposleni-emaili.csv, zaposleni-vloge-gesla.csv, lead_departments)
+--     ne pove konkretnega oddelka, samo splošno skupino: Zaplotnik Alenka
+--     in Balek Mija ("SMS/ZZT" — vloga 'user' od tod), Sejdinović Mustafa
+--     ("Nedežurni (DMS/DZN)" — vloga 'vodja' od tod). Te 3 admin ročno
+--     dokonča v Imeniku. Za "FLEXI/<oddelek>" zapise je department_code=
+--     'FLEXI' (primarni), spodnji drugi insert pa doda njihov "domači"
+--     oddelek kot SEKUNDARNO članstvo prek profile_departments (oseba je
+--     hkrati FLEXI in npr. E2/C/A).
 -- ---------------------------------------------------------------------
 update public.profiles p set
   department_code = coalesce(p.department_code, v.dept),
@@ -1355,7 +1365,8 @@ update public.profiles p set
 from (values
   ('ajla.huseinbasic@pb-begunje.si', 'FLEXI', 'user'),
   ('aldin.gazibara@pb-begunje.si', 'C1', 'user'),
-  ('aleksander.maglic@pb-begunje.si', null, 'vodja'),
+  ('aleksander.maglic@pb-begunje.si', 'E1', 'vodja'),
+  ('alenka.zaplotnik@pb-begunje.si', null, 'user'),
   ('alen.music@pb-begunje.si', 'E2', 'user'),
   ('alma.muric@pb-begunje.si', 'D', 'user'),
   ('almedin.zekan@pb-begunje.si', 'C1', 'user'),
@@ -1368,15 +1379,15 @@ from (values
   ('barbara.sodja@pb-begunje.si', 'E2', 'user'),
   ('dejan.vozel@pb-begunje.si', 'D', 'user'),
   ('denis.dzamastagic@pb-begunje.si', 'PDZN', 'admin'),
-  ('dijana.lelic@pb-begunje.si', null, 'vodja'),
-  ('dino.alukic@pb-begunje.si', null, 'admin'),
+  ('dijana.lelic@pb-begunje.si', 'E2', 'vodja'),
+  ('dino.alukic@pb-begunje.si', 'PDZN', 'admin'),
   ('elma.rekic@pb-begunje.si', 'D', 'user'),
   ('enej.valjavec@pb-begunje.si', 'C1', 'user'),
   ('erik.starc@pb-begunje.si', 'C1', 'user'),
   ('eva.kogoj@pb-begunje.si', 'FLEXI', 'user'),
   ('gentiana.gashi@pb-begunje.si', 'FLEXI', 'user'),
-  ('grega.arnez@pb-begunje.si', null, 'vodja'),
-  ('ines.music@pb-begunje.si', null, 'vodja'),
+  ('grega.arnez@pb-begunje.si', 'C1', 'vodja'),
+  ('ines.music@pb-begunje.si', 'SA', 'vodja'),
   ('jaka.meglic@pb-begunje.si', 'D', 'user'),
   ('jaka.susnik@pb-begunje.si', 'C1', 'user'),
   ('jana.rejc@pb-begunje.si', 'B', 'user'),
@@ -1384,19 +1395,21 @@ from (values
   ('klara.rozman@pb-begunje.si', 'C', 'user'),
   ('luka.rant@pb-begunje.si', 'D', 'user'),
   ('luka.stare@pb-begunje.si', 'C1', 'user'),
-  ('magdalena.mavritratnik@pb-begunje.si', null, 'vodja'),
+  ('magdalena.mavritratnik@pb-begunje.si', 'B1B2', 'vodja'),
   ('maja.vrevc@pb-begunje.si', 'FLEXI', 'user'),
   ('marija.bratusa@pb-begunje.si', 'E1', 'user'),
   ('mark.djedovic@pb-begunje.si', 'C', 'user'),
   ('mark.skantar@pb-begunje.si', 'C1', 'user'),
   ('marko.kvrzic@pb-begunje.si', 'FLEXI', 'user'),
   ('marusa.salkic@pb-begunje.si', 'C1', 'vodja'),
-  ('matej.bojic@pb-begunje.si', null, 'admin'),
+  ('matej.bojic@pb-begunje.si', 'PDZN', 'admin'),
   ('matej.pogacnik@pb-begunje.si', 'C1', 'user'),
   ('mateja.lunar@pb-begunje.si', 'B', 'vodja'),
   ('merima.nuhanovic@pb-begunje.si', 'D', 'user'),
   ('metka.veluscek@pb-begunje.si', 'SOBO', 'vodja'),
+  ('mija.balek@pb-begunje.si', null, 'user'),
   ('mojca.uranker@pb-begunje.si', 'E1', 'user'),
+  ('mustafa.sejdinovic@pb-begunje.si', null, 'vodja'),
   ('nadja.kodras@pb-begunje.si', 'C', 'user'),
   ('natasa.smolej@pb-begunje.si', 'C', 'user'),
   ('neja.vozel@pb-begunje.si', 'FLEXI', 'user'),
@@ -1405,19 +1418,19 @@ from (values
   ('nikolina.sofric@pb-begunje.si', 'E2', 'vodja'),
   ('nikolina.tomasic@pb-begunje.si', 'D', 'user'),
   ('nina.hrovat@pb-begunje.si', 'DB', 'vodja'),
-  ('petra.subic@pb-begunje.si', null, 'vodja'),
+  ('petra.subic@pb-begunje.si', 'B1B2', 'vodja'),
   ('rebeka.misotic@pb-begunje.si', 'C', 'vodja'),
   ('renata.peterman@pb-begunje.si', 'E1', 'user'),
   ('robert.svetina@pb-begunje.si', 'E1', 'user'),
   ('sabina.svetina@pb-begunje.si', 'B', 'user'),
   ('sara.jereb@pb-begunje.si', 'FLEXI', 'user'),
   ('sasa.humar@pb-begunje.si', 'SA', 'user'),
-  ('sasa.trpin@pb-begunje.si', null, 'vodja'),
+  ('sasa.trpin@pb-begunje.si', 'SA', 'vodja'),
   ('sebina.sabic@pb-begunje.si', 'C1', 'user'),
   ('simona.mocnik@pb-begunje.si', 'D', 'user'),
   ('simona.tomazevic@pb-begunje.si', 'A', 'vodja'),
   ('tanja.torkar@pb-begunje.si', 'DB', 'vodja'),
-  ('tea.bizjak@pb-begunje.si', null, 'vodja'),
+  ('tea.bizjak@pb-begunje.si', 'SA', 'vodja'),
   ('teja.pogacnik@pb-begunje.si', 'E1', 'vodja'),
   ('tomaz.dolar@pb-begunje.si', 'B', 'user'),
   ('uros.mravlje@pb-begunje.si', 'D', 'user'),
