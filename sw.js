@@ -33,15 +33,18 @@
 // v13: Excel/Google Sheets izvoz na vseh straneh z razpredelnicami — 3 nove
 // skupne datoteke (export-utils.js, gsheets-client.js, export-buttons.js),
 // vse cache-first, zato v precache in nova verzija.
+// v14: menjave.html (swap_requests, dvostopenjski vodja→admin) ukinjena —
+// združena v obrazec.html ("Menjava", nav.js dobi en sam vnos namesto dveh).
+// menjave.html odstranjena iz precache (dvig verzije, da cache.addAll ne
+// poskuša naložiti ukinjene datoteke in podre namestitve service workerja).
 
-const CACHE = 'razpored-pbb-v13';
+const CACHE = 'razpored-pbb-v14';
 const ASSETS = [
   './',
   './index.html',
   './theme.css',
   './login.html',
   './reset-geslo.html',
-  './menjave.html',
   './obrazec.html',
   './admin.html',
   './dashboard.html',

@@ -2050,3 +2050,218 @@ begin
   return new;
 end;
 $$;
+
+-- ---------------------------------------------------------------------
+-- 22) POPRAVEK sekcije 21 + prava izvedba: "vodja ki dežura" iz uporabnikove
+--     zahteve NI pomenilo "vodja je udeležen v menjavi" (napačna predpostavka
+--     sekcije 21), ampak "menjava DEŽURSTVA" (izmena, ne vloga osebe).
+--     Poleg tega je uporabnik naročil ENO združeno stran "Menjava" namesto
+--     ločenih menjave.html (swap_requests, dvostopenjski vodja→admin) +
+--     obrazec.html (obrazci, štiristopenjski sodelavec→vodja→koordinator).
+--     menjave.html je ukinjena (glej commit) - swap_requests ostane v bazi
+--     nedotaknjen (brez izgube morebitnih obstoječih vrstic), samo brez UI
+--     poti vanj. Vsa nova logika za menjave gre prek sistema "obrazci", ki
+--     že ima pravo verigo za navadne menjave (sodelavec → vodja →
+--     koordinator/admin) - dodana je samo veja za menjavo dežurstva, ki
+--     preskoči korak vodje in gre h koordinatorju, potrdi pa jo lahko
+--     izključno oseba z is_koordinator=true (ne kdorkoli admin).
+-- ---------------------------------------------------------------------
+
+-- Prekliči napačno usmerjanje submit_swap_request iz sekcije 21 - nazaj na
+-- izvirno obnašanje (vedno pending_lead). Funkcija ostane v bazi (varno, ni
+-- podatkov), le brez UI, ki bi jo klicala.
+create or replace function public.submit_swap_request(
+  p_target_id uuid,
+  p_requester_date date,
+  p_target_date date,
+  p_note text default null
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id bigint;
+begin
+  if p_target_id = auth.uid() then
+    raise exception 'Ne moreš predlagati menjave sam s seboj.';
+  end if;
+  insert into public.swap_requests (requester_id, requester_date, target_id, target_date, note, status)
+  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, 'pending_lead')
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+grant execute on function public.submit_swap_request(uuid, date, date, text) to authenticated;
+
+-- decide_swap_koordinator je bila specifična za napačno vodja-usmerjanje -
+-- ni več potrebna (obrazci sistem ima svojo obrazec_potrdi_koordinator).
+drop function if exists public.decide_swap_koordinator(bigint, boolean, text);
+
+-- obrazci.je_dezurstvo: samodejno zaznano ob oddaji (glej obrazec_oddaj
+-- spodaj) - ali je izmena predlagatelja ALI sodelavca na dan menjave
+-- "DEŽURSTVO". Taka menjava preskoči stopnjo neposrednega vodje in gre
+-- naravnost h koordinatorju, a to stopnjo sme potrditi izključno oseba z
+-- is_koordinator=true (za razliko od navadne menjave, kjer koordinatorsko
+-- stopnjo opravi kdorkoli ima role='admin').
+alter table public.obrazci add column if not exists je_dezurstvo boolean not null default false;
+
+-- STOPNJA 1 — oddaja (popravljena: zazna je_dezurstvo, vodja ni obvezen,
+-- če ga menjava dežurstva sploh ne bo potrebovala).
+create or replace function public.obrazec_oddaj(p_id uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  o public.obrazci;
+  v_vodja uuid;
+  v_status text;
+  v_je_dez boolean := false;
+  v_izmena_a text;
+  v_izmena_b text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vlagatelj_id <> auth.uid() then raise exception 'Oddaš lahko samo svoj obrazec'; end if;
+  if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
+
+    select shift_code into v_izmena_a from public.schedule_entries
+      where employee_id = o.vlagatelj_id and work_date = (o.polja ->> 'datum_a')::date;
+    select shift_code into v_izmena_b from public.schedule_entries
+      where employee_id = o.sodelavec_id and work_date = (o.polja ->> 'datum_b')::date;
+    v_je_dez := (lower(coalesce(v_izmena_a, '')) like 'dežurstvo%') or (lower(coalesce(v_izmena_b, '')) like 'dežurstvo%');
+
+    v_status := 'caka_sodelavca';
+  else
+    v_status := 'caka_vodjo';
+  end if;
+
+  -- Neposrednega vodjo potrebujemo samo, če bo obrazec dejansko šel skozi
+  -- njegovo stopnjo — menjava dežurstva jo preskoči (glej
+  -- obrazec_potrdi_sodelavec spodaj), zato zanjo vodja ni pogoj za oddajo.
+  if not (o.vrsta = 'menjava_sluzbe' and v_je_dez) then
+    select vodja_id into v_vodja from public.profiles where id = auth.uid();
+    if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje — admin ga mora najprej nastaviti v Imeniku.'; end if;
+  end if;
+
+  update public.obrazci set status = v_status, vodja_id = v_vodja, je_dezurstvo = v_je_dez where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 1::smallint, 'ODDANO');
+  return v_status;
+end;
+$$;
+grant execute on function public.obrazec_oddaj(uuid) to authenticated;
+
+-- STOPNJA 2 — sodelavec potrdi (popravljena: menjava dežurstva gre naravnost
+-- h koordinatorju, brez vodje).
+create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare o public.obrazci; v_naslednji text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.sodelavec_id <> auth.uid() then raise exception 'Nisi izbrani sodelavec'; end if;
+  if o.status <> 'caka_sodelavca' then raise exception 'Obrazec ni v stanju čakanja na sodelavca'; end if;
+
+  if p_sprejmi then
+    v_naslednji := case when o.je_dezurstvo then 'caka_koordinatorja' else 'caka_vodjo' end;
+    update public.obrazci set status = v_naslednji where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_POTRDIL', p_opomba);
+    return v_naslednji;
+  else
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+end;
+$$;
+grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
+
+-- STOPNJA 4 — koordinator (popravljena: menjava dežurstva zahteva
+-- is_koordinator=true, navadna menjava ostane role='admin' kot doslej).
+create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  o public.obrazci;
+  v_dan_a date; v_dan_b date;
+  v_izmena_a text; v_izmena_b text;
+  v_dept_a text; v_dept_b text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.status <> 'caka_koordinatorja' then raise exception 'Obrazec ni v stanju čakanja na koordinatorja'; end if;
+
+  if o.je_dezurstvo then
+    if not public.current_is_koordinator() then
+      raise exception 'Menjavo dežurstva lahko potrdi izključno koordinator.';
+    end if;
+  else
+    if not public.current_role_is('admin') then
+      raise exception 'Za končno potrditev nimaš pravic';
+    end if;
+  end if;
+
+  if not p_sprejmi then
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba, koordinator_id = auth.uid() where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    v_dan_a := (o.polja ->> 'datum_a')::date;
+    v_dan_b := (o.polja ->> 'datum_b')::date;
+
+    select shift_code into v_izmena_a from public.schedule_entries where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+    select shift_code into v_izmena_b from public.schedule_entries where employee_id = o.sodelavec_id and work_date = v_dan_b;
+    select department_code into v_dept_a from public.profiles where id = o.vlagatelj_id;
+    select department_code into v_dept_b from public.profiles where id = o.sodelavec_id;
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+  end if;
+
+  update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
+  return 'zakljucen';
+end;
+$$;
+grant execute on function public.obrazec_potrdi_koordinator(uuid, boolean, text) to authenticated;
+
+-- Kaj čaka name (popravljeno: koordinatorska naloga je vidna glede na
+-- je_dezurstvo - is_koordinator za dežurstvo, kateri koli admin za navadno).
+create or replace view public.obrazci_moja_naloga
+with (security_invoker = true) as
+select o.*,
+  case
+    when o.status = 'caka_sodelavca' and o.sodelavec_id = auth.uid() then 'potrdi_kot_sodelavec'
+    when o.status = 'caka_vodjo' and o.vodja_id = auth.uid() then 'odobri_kot_vodja'
+    when o.status = 'caka_koordinatorja' and o.je_dezurstvo and public.current_is_koordinator() then 'potrdi_kot_koordinator'
+    when o.status = 'caka_koordinatorja' and not o.je_dezurstvo and public.current_role_is('admin') then 'potrdi_kot_koordinator'
+  end as moje_dejanje
+from public.obrazci o;
+
+-- obrazci_select: razširjeno na "vse menjave v tekočem mesecu" - na izrecno
+-- željo naj bo seznam menjav (kdo ↔ kdo, kdaj, status) viden vsem
+-- prijavljenim, ne samo udeležencem/vodji/adminu. Namenoma omejeno na
+-- vrsta='menjava_sluzbe' in izključi 'osnutek' (neoddan predlog ni "javen").
+-- Ostali dve vrsti (ročno evidentiranje/drugo) ostajata vidni samo
+-- udeležencem in adminu - širša vidnost ni bila naročena zanju.
+drop policy if exists obrazci_select on public.obrazci;
+create policy obrazci_select on public.obrazci for select to authenticated using (
+  vlagatelj_id = auth.uid()
+  or sodelavec_id = auth.uid()
+  or vodja_id = auth.uid()
+  or public.current_role_is('admin')
+  or public.current_is_koordinator()
+  or (
+    vrsta = 'menjava_sluzbe'
+    and status <> 'osnutek'
+    and date_trunc('month', (polja ->> 'datum_a')::date) = date_trunc('month', current_date)
+  )
+);

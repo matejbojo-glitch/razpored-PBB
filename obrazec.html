@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>Obrazec · Begunje</title>
+<title>Menjava · Begunje</title>
 <meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
@@ -186,6 +186,14 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     }
   };
 
+  // Samo informativno (dejansko zaznavanje je server-side v obrazec_oddaj) -
+  // menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju
+  // (izključno Denis Džamastagić), zato je prav, da to vidiš že pred oddajo.
+  const jeDezurstvo = vrsta === "menjava_sluzbe" && (
+    (mojaIzmena || "").toLowerCase().startsWith("dežurstvo")
+    || (izbranSodelavec && (izbranSodelavec.njihova_izmena || "").toLowerCase().startsWith("dežurstvo"))
+  );
+
   const oddaj = async () => {
     setErr(null);
     if (!datum){ setErr("Izberi datum."); return; }
@@ -288,6 +296,12 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
           <label htmlFor="op">Opomba (neobvezno)</label>
           <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
         </div>
+        {jeDezurstvo && (
+          <p className="hint" style={{marginTop:-6}}>
+            🔁 Menjava dežurstva: po potrditvi sodelavca gre predlog naravnost h koordinatorju
+            (Denis Džamastagić), brez vmesnega koraka pri vodji.
+          </p>
+        )}
         <button className="submitBtn" onClick={oddaj} disabled={busy}>{busy ? "Oddajam …" : "Oddaj obrazec"}</button>
         {err && <p className="err">{err}</p>}
       </div>
@@ -349,11 +363,14 @@ function CakaName({ rows, onOdloceno }){
 }
 
 function Casovnica({ obrazec, dnevnik }){
+  // Menjava dežurstva preskoči korak "Neposredni vodja" (glej
+  // obrazec_potrdi_sodelavec v supabase/schema.sql) - v časovnici se zato
+  // sploh ne prikaže, da ne izgleda kot "čaka", čeprav do tja nikoli ne pride.
   const koraki = [
     { stopnja: 1, naslov: "Oddano" },
     ...(obrazec.vrsta === "menjava_sluzbe" ? [{ stopnja: 2, naslov: "Sodelavec" }] : []),
-    { stopnja: 3, naslov: "Neposredni vodja" },
-    { stopnja: 4, naslov: "Koordinator" },
+    ...(obrazec.je_dezurstvo ? [] : [{ stopnja: 3, naslov: "Neposredni vodja" }]),
+    { stopnja: 4, naslov: obrazec.je_dezurstvo ? "Koordinator (Denis Džamastagić)" : "Koordinator" },
   ];
   return (
     <ul className="timeline">
@@ -432,11 +449,42 @@ function MojiObrazci({ rows, onOdpri }){
   );
 }
 
+// "V tem mesecu" — vse menjave službe (ne ročno evidentiranje/drugo) tekočega
+// meseca, vidne VSEM prijavljenim (glej razširjeno obrazci_select RLS v
+// supabase/schema.sql, sekcija 22) - ne samo lastnim/udeleženim, ker je
+// uporabnik izrecno zahteval pregleden mesečni seznam za vse.
+function MenjaveMeseca({ rows }){
+  if (rows === null) return <p className="empty">Nalagam …</p>;
+  if (rows.length === 0) return <p className="empty">V tem mesecu še ni bilo nobene menjave.</p>;
+  return (
+    <div className="card">
+      {rows.map(r => {
+        const p = r.polja || {};
+        return (
+          <div className="entry" style={{cursor:"default"}} key={r.id}>
+            <div>
+              <div className="who">
+                {r.vlagatelj ? r.vlagatelj.full_name : "?"}
+                {" ↔ "}
+                {r.sodelavec ? r.sodelavec.full_name : "?"}
+                {r.je_dezurstvo && <span className="pill wait" style={{marginLeft:6}}>dežurstvo</span>}
+              </div>
+              <div className="meta">{p.datum_a ? fmtDatum(p.datum_a) : ""} ⇄ {p.datum_b ? fmtDatum(p.datum_b) : ""}</div>
+            </div>
+            <StatusPill status={r.status} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null);
-  const [zavihek, setZavihek] = useState("nov"); // nov | caka | moji
+  const [zavihek, setZavihek] = useState("nov"); // nov | caka | moji | mesec
   const [caka, setCaka] = useState([]);
   const [moji, setMoji] = useState([]);
+  const [mesec, setMesec] = useState(null);
   const [odprt, setOdprt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [prednapolni, setPrednapolni] = useState(null);
@@ -459,6 +507,16 @@ function App(){
       .then(({ data }) => setCaka(data || []));
     client.from("obrazci").select("*").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
       .then(({ data }) => setMoji(data || []));
+
+    const zdaj = new Date();
+    const prviDan = new Date(zdaj.getFullYear(), zdaj.getMonth(), 1).toISOString().slice(0, 10);
+    const naslednjiPrviDan = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1).toISOString().slice(0, 10);
+    client.from("obrazci")
+      .select("*, vlagatelj:profiles!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profiles!obrazci_sodelavec_id_fkey(full_name)")
+      .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
+      .filter("polja->>datum_a", "gte", prviDan).filter("polja->>datum_a", "lt", naslednjiPrviDan)
+      .order("ustvarjen", { ascending: false })
+      .then(({ data, error }) => { if (error) console.error("Nalaganje menjav meseca ni uspelo:", error); setMesec(data || []); });
   }, [auth, reloadKey]);
 
   if (!auth) return null;
@@ -470,8 +528,8 @@ function App(){
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top no-print">
-        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Obrazec</span></div>
-        <p className="sub">Evidentiranje prisotnosti in sprememb razporeda · {profile ? profile.full_name : ""}</p>
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Menjava</span></div>
+        <p className="sub">Menjave izmen in evidentiranje prisotnosti · {profile ? profile.full_name : ""}</p>
       </header>
 
       {!odprt && (
@@ -480,6 +538,7 @@ function App(){
             <button role="tab" aria-selected={zavihek === "nov"} onClick={() => setZavihek("nov")}>Nov obrazec</button>
             <button role="tab" aria-selected={zavihek === "caka"} onClick={() => setZavihek("caka")}>Čaka name{caka.length > 0 ? " (" + caka.length + ")" : ""}</button>
             <button role="tab" aria-selected={zavihek === "moji"} onClick={() => setZavihek("moji")}>Moji obrazci</button>
+            <button role="tab" aria-selected={zavihek === "mesec"} onClick={() => setZavihek("mesec")}>V tem mesecu</button>
           </div>
 
           {zavihek === "nov" && (
@@ -505,15 +564,41 @@ function App(){
               />
             </React.Fragment>
           )}
+          {zavihek === "mesec" && (
+            <React.Fragment>
+              <p className="hint no-print">Vse menjave izmen (ne ročno evidentiranje/drugo) za tekoči mesec, vidne vsem.</p>
+              <MenjaveMeseca rows={mesec} />
+              {mesec && mesec.length > 0 && (
+                <RazporedIzvoz
+                  naslov="menjave-meseca"
+                  pripravi={() => [{
+                    ime: "Menjave",
+                    glave: ["Predlagatelj", "Sodelavec", "Datum 1", "Datum 2", "Dežurstvo", "Status"],
+                    vrstice: mesec.map(r => [
+                      r.vlagatelj ? r.vlagatelj.full_name : "?",
+                      r.sodelavec ? r.sodelavec.full_name : "?",
+                      r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : "",
+                      r.polja && r.polja.datum_b ? fmtDatum(r.polja.datum_b) : "",
+                      r.je_dezurstvo ? "da" : "ne",
+                      (STATUS_LABEL[r.status] || { text: r.status }).text,
+                    ]),
+                  }]}
+                />
+              )}
+            </React.Fragment>
+          )}
         </React.Fragment>
       )}
       {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}
 
       <footer className="foot no-print">
-        <p>Digitalna različica papirnatega obrazca "Obvestilo koordinatorici za razporejanje kadra v ZN". Veriga odobritev je odvisna od vrste: menjava službe gre skozi sodelavca, neposrednega vodjo in koordinatorja; ostali dve vrsti brez sodelavca.</p>
+        <p>Digitalna različica papirnatega obrazca "Obvestilo koordinatorici za razporejanje kadra v ZN". Veriga odobritev je odvisna od vrste in izmene:
+        navadna menjava službe gre skozi sodelavca, neposrednega vodjo in koordinatorja (kdorkoli ima vlogo administrator);
+        menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju, potrdi pa jo lahko izključno Denis Džamastagić;
+        ostali dve vrsti (ročno evidentiranje, drugo) brez sodelavca. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.</p>
       </footer>
 
-      <RazporedNav active="obrazec" role={profile ? profile.role : "user"} unread={0} />
+      <RazporedNav active="menjava" role={profile ? profile.role : "user"} unread={0} />
     </div>
   );
 }

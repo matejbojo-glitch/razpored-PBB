@@ -351,9 +351,11 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
   };
 
   // Koordinator za menjave (profiles.is_koordinator) — kdor ima to zastavico,
-  // sam (in samo on/oni) potrjuje menjave, kjer je udeležen vodja (glej
-  // menjave.html/decide_swap_koordinator). Privzeto samo Denis Džamastagić,
-  // a urejljivo tu, da ni trajno trdo vezano na eno osebo.
+  // sam (in samo on/oni) dokončno potrjuje menjave DEŽURSTVA (glej
+  // obrazec.html "Menjava" / obrazec_potrdi_koordinator v schema.sql), ki
+  // preskočijo korak vodje. Navadne menjave službe še vedno potrdi kdorkoli
+  // ima vlogo administrator. Privzeto samo Denis Džamastagić, a urejljivo
+  // tu, da ni trajno trdo vezano na eno osebo.
   const [koordinator, setKoordinator] = useState(!!oseba.is_koordinator);
   const [koordinatorBusy, setKoordinatorBusy] = useState(false);
   const [koordinatorMsg, setKoordinatorMsg] = useState(null);
@@ -604,9 +606,9 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <h2 className="section no-print">Koordinator za menjave (admin)</h2>
               <div className="card no-print">
                 <p className="hint" style={{marginTop:0}}>
-                  Menjave, kjer je udeležen vodja, preskočijo 2-stopenjsko odobritev (vodja → administrator) in
-                  gredo naravnost na eno stopnjo — potrdi jih lahko izključno oseba s to zastavico (privzeto samo
-                  Denis Džamastagić).
+                  Menjave DEŽURSTVA (glej stran "Menjava") preskočijo korak neposrednega vodje in gredo po potrditvi
+                  sodelavca naravnost h koordinatorju — dokončno jih lahko potrdi izključno oseba s to zastavico
+                  (privzeto samo Denis Džamastagić). Navadne menjave službe potrdi kdorkoli ima vlogo administrator.
                 </p>
                 <label style={{display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:600}}>
                   <input type="checkbox" checked={koordinator} onChange={preklopiKoordinatorja} disabled={koordinatorBusy} />
