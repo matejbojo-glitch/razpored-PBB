@@ -525,7 +525,9 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   });
   const [cells, setCells] = useState({}); // "IME|ISO" -> kind
   const [pen, setPen] = useState("omejitev");
-  const [nacin, setNacin] = useState("mreza"); // "mreza" (cela tabela) | "dnevi" (1 dan, kartice — za telefon)
+  const [nacin, setNacin] = useState(() => (
+    typeof window !== "undefined" && window.innerWidth <= 640 ? "dnevi" : "mreza"
+  )); // "mreza" (cela tabela) | "dnevi" (1 dan, kartice — za telefon); na ozkih zaslonih privzeto "dnevi"
   const [nalagam, setNalagam] = useState(true);
   const [status, setStatus] = useState("");
   const [log, setLog] = useState([]);
