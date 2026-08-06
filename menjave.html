@@ -312,9 +312,12 @@ function App(){
         .then(({ data }) => setPendingAdmin(data || []));
     }
 
-    // Ob obisku strani označi obvestila kot prebrana.
+    // Ob obisku strani označi obvestila kot prebrana — v ozadju, brez
+    // prekinitve uporabnika ob napaki (kvečjemu ostane neprebrana značka
+    // malce dlje); napako vseeno zabeležimo, da ni popolnoma neopažena.
     client.from("notifications").update({ read_at: new Date().toISOString() })
-      .eq("user_id", myId).is("read_at", null).then(() => {});
+      .eq("user_id", myId).is("read_at", null)
+      .then(({ error }) => { if (error) console.error("Označevanje obvestil kot prebranih ni uspelo:", error); });
   }, [auth, reloadKey]);
 
   if (!auth) return null;
