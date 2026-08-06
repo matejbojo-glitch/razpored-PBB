@@ -26,8 +26,12 @@
 // posodobljen nav.js (dodana ikona "Obrazec"). nav.js se je do zdaj serviral
 // cache-first (ni HTML/JSON), zato brez dviga verzije nova ikona v navigaciji
 // ne bi nikoli prišla do uporabnikov z že nameščenim service workerjem.
+// v12: spletna/namizna različica — nav.js dobi zgornjo (namizno) navigacijsko
+// vrstico namesto spodnje na širokih zaslonih, theme.css dobi širše "wrap.wide"
+// prelome. Oba se servirata cache-first (nista .html/.json), zato spet
+// potreben dvig verzije, da sprememba doseže brskalnike z že nameščenim SW.
 
-const CACHE = 'razpored-pbb-v11';
+const CACHE = 'razpored-pbb-v12';
 const ASSETS = [
   './',
   './index.html',

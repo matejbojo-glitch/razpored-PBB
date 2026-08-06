@@ -462,7 +462,7 @@ function App(){
   const myId = auth.session.user.id;
 
   return (
-    <div className="wrap">
+    <div className="wrap wide">
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top no-print">
@@ -478,7 +478,11 @@ function App(){
             <button role="tab" aria-selected={zavihek === "moji"} onClick={() => setZavihek("moji")}>Moji obrazci</button>
           </div>
 
-          {zavihek === "nov" && <NovObrazec myId={myId} profil={profile} onOddano={() => { reload(); setZavihek("moji"); }} prednapolni={prednapolni} />}
+          {zavihek === "nov" && (
+            <div style={{maxWidth:560}}>
+              <NovObrazec myId={myId} profil={profile} onOddano={() => { reload(); setZavihek("moji"); }} prednapolni={prednapolni} />
+            </div>
+          )}
           {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} />}
           {zavihek === "moji" && <MojiObrazci rows={moji} onOdpri={setOdprt} />}
         </React.Fragment>
