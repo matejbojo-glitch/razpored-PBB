@@ -13,196 +13,24 @@
 <link rel="manifest" href="manifest.json" />
 <link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="icon" href="icon-192.png" />
+<link rel="stylesheet" href="theme.css" />
 
 <style>
-  :root{
-    --bg: #FAF8F1;
-    --bg-grad: #FFFFFF;
-    --surface: #FFFFFF;
-    --surface-2: #F2EEDF;
-    --line: #E1D9C2;
-    --text: #2B2712;
-    --muted: #8A7F5E;
-    --accent: #A79448;
-    --accent-2: #6E5F2A;
-    --accent-ink: #2B2712;
-    --dop: #4F9B6B;
-    --pop: #C9713F;
-    --noc: #4A67B0;
-    --h12: #8560A8;
-    --off: #8B8672;
-    --off-text: #6B6656;
-    --danger: #B3402A;
-    --radius: 16px;
-    --radius-sm: 10px;
-    --tabular: "tnum" 1, "lnum" 1;
-  }
-  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-  html,body{ height:100%; }
-  body{
-    margin:0;
-    background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    min-height: 100dvh;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .wrap{ max-width: 480px; margin: 0 auto; padding: 0 16px 40px; }
-  a, button{ font-family: inherit; }
-  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
-
-  header.top{
-    position: sticky; top:0; z-index: 20;
-    background: linear-gradient(180deg, var(--bg) 70%, transparent);
-    padding: calc(env(safe-area-inset-top) + 18px) 0 10px;
-  }
-  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .wordmark .logoSmall{ height:28px; width:auto; }
-  .wordmark .mark{
-    font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
-  }
-  .wordmark .dept{
-    font-size: 13px; color: var(--accent-2); font-weight: 700;
-    letter-spacing: 0.02em;
-  }
-  .sub{ margin: 2px 0 0; font-size: 13px; color: var(--muted); }
-  .whoRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
-  .whoRow .who{ font-size:12.5px; color:var(--muted); }
-  .whoRow .who b{ color:var(--text); }
-  .navLinks{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .navLink{ font-size:12px; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
-    text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0; font-family:inherit; }
-  .navLink:hover{ color:var(--text); }
-  .badge{ display:inline-block; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
-    background:var(--danger); color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; margin-left:4px; }
-
-  .segmented{
-    display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
-    padding:4px; border-radius: 999px; margin-top: 14px;
-  }
-  .segmented button{
-    flex:1; border:0; background:transparent; color: var(--muted);
-    padding: 9px 10px; border-radius: 999px; font-size: 13.5px; font-weight: 700;
-    cursor:pointer; transition: background .15s ease, color .15s ease;
-  }
-  .segmented button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); }
-
-  .field{ display:flex; flex-direction:column; gap:5px; margin-top:12px; }
-  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-  select, input[type=month]{
-    background: var(--surface); border:1px solid var(--line); color:var(--text);
-    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px;
-  }
-
-  /* ---------- my schedule ---------- */
-  .todayCard{
-    margin-top:16px; background: linear-gradient(135deg, var(--surface-2), var(--surface));
-    border:1px solid var(--line); border-radius: var(--radius); padding:16px;
-  }
-  .todayCard .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
-  .todayCard .shift{ display:flex; align-items:center; gap:10px; margin-top:8px; }
-  .dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; }
-  .todayCard .shiftName{ font-size: 19px; font-weight: 800; letter-spacing:-0.01em; }
-  .todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
-
-  .weekLabel{
-    font-size: 12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-    color: var(--muted); margin: 22px 2px 8px;
-  }
-  .dayRow{
-    display:flex; align-items:center; gap:12px; padding: 10px 4px;
-    border-bottom: 1px solid var(--line);
-  }
-  .dayRow:last-child{ border-bottom:0; }
-  .dayRow .dnum{
-    width: 40px; flex: 0 0 auto; text-align:center; font-variant-numeric: tabular-nums;
-  }
-  .dayRow .dnum .n{ font-size:18px; font-weight:800; line-height:1; }
-  .dayRow .dnum .d{ font-size:10px; color: var(--muted); text-transform:uppercase; margin-top:2px; }
-  .dayRow.today{ background: rgba(167,148,72,0.12); border-radius: 10px; }
-  .dayRow.today .dnum .n{ color: var(--accent-2); }
-  .dayRow.weekend .dnum .d{ color: var(--pop); }
-  .chip{
-    flex:1; display:flex; align-items:center; gap:8px; padding: 8px 12px;
-    border-radius: 999px; font-size: 13.5px; font-weight:700; min-width:0;
-  }
-  .chip .txt{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .chip.off{ color: var(--off-text); }
-
-  /* ---------- ward table ---------- */
-  .wardScroller{
-    margin-top: 16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
-    -webkit-overflow-scrolling: touch;
-  }
-  table.wardTable{ border-collapse:separate; border-spacing:0; width:max-content; }
-  table.wardTable th, table.wardTable td{
-    padding: 8px 9px; font-size: 12px; text-align:center; white-space:nowrap;
-    border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
-  }
-  table.wardTable thead th{
-    background: var(--surface-2); color: var(--muted); font-weight:700; position:sticky; top:0; z-index:2;
-    font-size: 11px;
-  }
-  table.wardTable thead th.weekend{ color: var(--pop); }
-  table.wardTable td.name, table.wardTable th.name{
-    position:sticky; left:0; z-index:3; background: var(--surface); text-align:left;
-    font-weight:700; min-width:118px; max-width:118px; overflow:hidden; text-overflow:ellipsis;
-  }
-  table.wardTable thead th.name{ z-index:4; background: var(--surface-2); }
-  table.wardTable td.cell{ min-width:46px; }
-  table.wardTable td.me{ box-shadow: inset 0 0 0 2px var(--accent); }
-  .swatch{
-    display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700;
-  }
-
-  .legend{
-    margin-top:16px; display:flex; flex-wrap:wrap; gap:8px 14px; font-size:12px; color: var(--muted);
-  }
-  .legend .li{ display:flex; align-items:center; gap:6px; }
-  .legend .dot{ width:9px; height:9px; }
-
-  footer.foot{
-    margin-top: 30px; padding-top:16px; border-top:1px solid var(--line);
-    font-size: 11.5px; color: var(--muted); line-height:1.6;
-  }
-  footer.foot b{ color: var(--text); }
-
-  .installBar{
-    position: sticky; bottom: 0; margin-top: 20px; background: var(--surface);
-    border:1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px;
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-  }
-  .installBar .t{ font-size:13px; font-weight:700; }
-  .installBar .s{ font-size:11.5px; color:var(--muted); margin-top:1px; }
-  .installBtn{
-    background: var(--accent); color: var(--accent-ink); border:0; border-radius:999px;
-    padding: 8px 14px; font-weight:800; font-size:12.5px; cursor:pointer; flex:0 0 auto;
-  }
-
-  @media (prefers-reduced-motion: reduce){
-    *{ transition:none !important; animation:none !important; }
-  }
-
-  .pdfBtn{ margin-top:12px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
-    padding:10px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer; }
-
+  /* Stran-specifično za index.html: samo tisk v PDF na točno 1 stran
+     (PrintFit.natisni izračuna --print-scale). Vse ostalo (barve,
+     gumbi, kartice, tabela …) prihaja iz theme.css. */
   @media print{
-    :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
-    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
-    html, body{ margin:0; padding:0; background:#fff !important; }
-    .no-print{ display:none !important; }
-    .wrap{ max-width:100% !important; }
     table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
     table.wardTable thead th{ background:#f2f2f2 !important; }
-    /* Izvoz v PDF gre na točno 1 A4 stran (PrintFit.natisni izračuna
-       --print-scale) — "Po oddelkih" ležeče (širok koledar), "Moj razpored"
-       pokončno (ozek tedenski seznam). */
     .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
       zoom: var(--print-scale, 1); }
     table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
     table.wardTable tr{ break-inside:avoid; page-break-inside:avoid; }
     #printMy{ zoom: var(--print-scale, 1); }
+    :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; background:#fff !important; }
+    .wrap{ max-width:100% !important; }
   }
 </style>
 </head>
@@ -567,7 +395,7 @@ function App(){
           <label htmlFor="mm">Mesec</label>
           <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} />
         </div>
-        <button className="pdfBtn no-print" onClick={() => {
+        <button className="btn btn-ghost btn-block no-print" style={{marginTop:12}} onClick={() => {
           const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
           PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
         }}>📄 Izvozi v PDF ({view === "ward" ? "A4 ležeče" : "A4 pokončno"}, 1 stran)</button>
@@ -583,7 +411,7 @@ function App(){
             <div className="t">Namesti na domači zaslon</div>
             <div className="s">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
           </div>
-          <button className="installBtn" onClick={install}>Namesti</button>
+          <button className="btn btn-primary btn-sm" onClick={install}>Namesti</button>
         </div>
       )}
 

@@ -19,11 +19,15 @@
 // zamenjalo dan/mesec (import-utils.js normalizirajDatum()).
 // v9: dodana stran reset-geslo.html (pozabljeno geslo) + korak "nastavi
 // geslo" takoj po registraciji v login.html.
+// v10: nov skupni theme.css (vizualna prenova) — dodan v precache, da je
+// oblikovanje na voljo tudi brez signala; dvignjena verzija, da se povsod
+// takoj prenese.
 
-const CACHE = 'razpored-pbb-v9';
+const CACHE = 'razpored-pbb-v10';
 const ASSETS = [
   './',
   './index.html',
+  './theme.css',
   './login.html',
   './reset-geslo.html',
   './menjave.html',

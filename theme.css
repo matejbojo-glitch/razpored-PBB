@@ -1,0 +1,467 @@
+/* ============================================================
+   Razpored PBB — skupni oblikovni sistem (theme.css)
+   Ena datoteka, ki jo vključujejo vse strani aplikacije.
+   Barve so NAMENOMA nespremenjene (bolnišnična identiteta) —
+   izboljšana so razmerja, tipografija, sence, presledki in
+   ponovno uporabni gradniki (.btn, .card, .field …), da je
+   videz na vseh straneh dosleden.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+
+:root{
+  /* --- barve: identične prejšnjim, samo zbrane na enem mestu --- */
+  --bg: #FAF8F1;
+  --bg-grad: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F2EEDF;
+  --line: #E1D9C2;
+  --text: #2B2712;
+  --muted: #8A7F5E;
+  --accent: #A79448;
+  --accent-2: #6E5F2A;
+  --accent-ink: #2B2712;
+  --dop: #4F9B6B;
+  --pop: #C9713F;
+  --noc: #4A67B0;
+  --h12: #8560A8;
+  --off: #8B8672;
+  --off-text: #6B6656;
+  --danger: #B3402A;
+  --ok: #4F9B6B;
+
+  /* --- izpeljano (rgb za prosojnost, brez novih barv) --- */
+  --text-rgb: 43,39,18;
+  --accent-rgb: 167,148,72;
+  --danger-rgb: 179,64,42;
+  --ok-rgb: 79,155,107;
+
+  /* --- merski sistem --- */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --tabular: "tnum" 1, "lnum" 1;
+  --ease: cubic-bezier(.22,.7,.24,1);
+  --fast: 140ms;
+  --slow: 240ms;
+
+  /* --- sence: mehke, plastovite, tople (ne sive) --- */
+  --shadow-xs: 0 1px 2px rgba(var(--text-rgb),.05);
+  --shadow-sm: 0 1px 1px rgba(var(--text-rgb),.04), 0 6px 16px -6px rgba(var(--text-rgb),.14);
+  --shadow-md: 0 2px 6px rgba(var(--text-rgb),.05), 0 16px 32px -12px rgba(var(--text-rgb),.20);
+  --shadow-lg: 0 8px 16px rgba(var(--text-rgb),.08), 0 30px 60px -20px rgba(var(--text-rgb),.28);
+  --shadow-accent: 0 10px 22px -10px rgba(var(--accent-rgb),.55);
+
+  /* --- tipografija --- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
+/* ---------- osnove ---------- */
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:
+    radial-gradient(900px 480px at 14% -8%, rgba(var(--accent-rgb),.09), transparent 60%),
+    radial-gradient(1200px 600px at 100% 0%, var(--bg-grad), var(--bg) 55%);
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.wrap{ max-width: 480px; margin: 0 auto; padding: 0 16px 40px; }
+a{ color: inherit; }
+a, button, input, select, textarea{ font-family: inherit; }
+:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+::selection{ background: rgba(var(--accent-rgb),.30); }
+
+/* scrollbar (webkit) — tanek, v barvah sheme */
+*::-webkit-scrollbar{ height:8px; width:8px; }
+*::-webkit-scrollbar-track{ background:transparent; }
+*::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover{ background: var(--muted); }
+
+/* ---------- glava strani ---------- */
+header.top{
+  position: sticky; top:0; z-index: 20;
+  background: linear-gradient(180deg, var(--bg) 68%, rgba(250,248,241,0));
+  padding: calc(env(safe-area-inset-top) + 18px) 0 12px;
+}
+.wordmark{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding-right: 96px; }
+.wordmark .logoSmall{ height:30px; width:auto; border-radius: 7px; }
+.wordmark .mark, .mark{
+  font-family: var(--font-display);
+  font-weight: 600; font-size: 22px; letter-spacing: -0.01em;
+}
+.wordmark .dept{
+  font-size: 12.5px; color: var(--accent-2); font-weight: 700;
+  letter-spacing: 0.03em; background: rgba(var(--accent-rgb),.14);
+  padding: 3px 9px; border-radius: var(--radius-pill);
+}
+.sub{ margin: 5px 0 0; font-size: 13px; color: var(--muted); letter-spacing:.01em; }
+.whoRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; }
+.whoRow .who{ font-size:12.5px; color:var(--muted); }
+.whoRow .who b{ color:var(--text); font-weight:700; }
+.navLinks{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.navLink{
+  font-size:12px; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
+  text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0;
+  transition: color var(--fast) var(--ease);
+}
+.navLink:hover{ color:var(--accent-2); }
+
+/* eyebrow / naslov razdelka (uporabljano dosledno namesto ad-hoc velikih tipk) */
+.eyebrow{
+  font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  color: var(--muted);
+}
+h1.pageTitle, h2.pageTitle{
+  font-family: var(--font-display); font-weight:600; letter-spacing:-0.01em;
+  font-size: 21px; margin: 2px 0 0; color: var(--text);
+}
+
+/* ---------- oznake / značke ---------- */
+.badge{
+  display:inline-block; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+  background:var(--danger); color:#fff; font-size:10px; font-weight:800; line-height:16px;
+  text-align:center; margin-left:4px;
+}
+.pill, .tag{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--accent-2); border:1px solid transparent;
+}
+.pill.ok, .tag.ok{ background: rgba(var(--ok-rgb),.14); color:#33694A; }
+.pill.warn, .tag.warn{ background: rgba(var(--accent-rgb),.18); color: var(--accent-2); }
+.pill.danger, .tag.danger{ background: rgba(var(--danger-rgb),.12); color: var(--danger); }
+.pill.muted, .tag.muted{ background: var(--surface-2); color: var(--muted); }
+
+.swatch{
+  display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700;
+}
+.dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,.5) inset; }
+.legend{ margin-top:16px; display:flex; flex-wrap:wrap; gap:8px 14px; font-size:12px; color: var(--muted); }
+.legend .li{ display:flex; align-items:center; gap:6px; }
+.legend .dot{ width:9px; height:9px; box-shadow:none; }
+
+/* ---------- preklopnik (segmented) ---------- */
+.segmented{
+  display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
+  padding:4px; border-radius: var(--radius-pill); margin-top: 14px; box-shadow: var(--shadow-xs);
+}
+.segmented button{
+  flex:1; border:0; background:transparent; color: var(--muted);
+  padding: 9px 10px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700;
+  cursor:pointer; transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.segmented button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-accent); }
+.segmented button:not([aria-selected="true"]):hover{ color: var(--text); background: var(--surface-2); }
+
+/* ---------- polja / vnosi ---------- */
+.field{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+.field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+
+input, select, textarea{
+  background: var(--surface); border:1px solid var(--line); color:var(--text);
+  padding:10px 12px; border-radius: var(--radius-sm); font-size:14.5px;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+input::placeholder, textarea::placeholder{ color:#B7AC87; }
+input:hover, select:hover, textarea:hover{ border-color: var(--muted); }
+input:focus, select:focus, textarea:focus{
+  outline:none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),.18);
+}
+input:disabled, select:disabled, textarea:disabled{ opacity:.6; cursor:not-allowed; }
+textarea{ resize: vertical; min-height: 76px; line-height:1.5; }
+
+/* ---------- gumbi: en sistem za vso aplikacijo ---------- */
+button{ cursor:pointer; }
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  font-size:14px; font-weight:700; padding: 11px 16px; min-height:44px;
+  border-radius: var(--radius-sm); border:1px solid transparent;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              background-color var(--fast) var(--ease), border-color var(--fast) var(--ease), opacity var(--fast) var(--ease);
+  white-space: nowrap;
+}
+.btn:active{ transform: translateY(1px) scale(.99); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+.btn-block{ width:100%; }
+.btn-sm{ padding: 7px 12px; min-height:36px; font-size:13px; border-radius: var(--radius-sm); }
+
+.btn-primary{ background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: var(--shadow-accent); }
+.btn-primary:hover{ background: var(--accent-2); border-color: var(--accent-2); color:#fff; }
+
+.btn-ghost{ background: var(--surface); color: var(--text); border-color: var(--line); box-shadow: var(--shadow-xs); }
+.btn-ghost:hover{ background: var(--surface-2); border-color: var(--muted); }
+
+.btn-outline{ background: transparent; color: var(--accent-2); border-color: var(--accent); }
+.btn-outline:hover{ background: rgba(var(--accent-rgb),.10); }
+
+.btn-danger{ background: #FBEAE6; color: var(--danger); border-color: #F0C9BE; }
+.btn-danger:hover{ background: var(--danger); color:#fff; border-color: var(--danger); }
+
+.btn-link{ background:none; border:0; color: var(--accent-2); text-decoration:underline; text-underline-offset:3px; padding:4px 2px; min-height:auto; font-weight:700; }
+.btn-link:hover{ color: var(--text); }
+
+/* ---------- kartice ---------- */
+.card{
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; box-shadow: var(--shadow-sm);
+}
+.card + .card{ margin-top: 14px; }
+.section{ margin-top: 22px; }
+.section > .eyebrow{ display:block; margin: 0 2px 8px; }
+
+.todayCard{
+  margin-top:16px; background: linear-gradient(135deg, var(--surface-2), var(--surface));
+  border:1px solid var(--line); border-radius: var(--radius-lg); padding:18px;
+  box-shadow: var(--shadow-md);
+}
+.todayCard .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+.todayCard .shift{ display:flex; align-items:center; gap:11px; margin-top:9px; }
+.todayCard .shiftName{ font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing:-0.01em; }
+.todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
+
+/* ---------- seznami / vrstice ---------- */
+.row{
+  display:flex; align-items:center; gap:12px; padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child{ border-bottom:0; }
+
+.weekLabel{
+  font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  color: var(--muted); margin: 24px 2px 8px;
+}
+.dayRow{
+  display:flex; align-items:center; gap:12px; padding: 10px 4px;
+  border-bottom: 1px solid var(--line); border-radius: 10px;
+  transition: background var(--fast) var(--ease);
+}
+.dayRow:last-child{ border-bottom:0; }
+.dayRow .dnum{ width: 40px; flex: 0 0 auto; text-align:center; font-variant-numeric: tabular-nums; }
+.dayRow .dnum .n{ font-size:18px; font-weight:800; line-height:1; }
+.dayRow .dnum .d{ font-size:10px; color: var(--muted); text-transform:uppercase; margin-top:2px; }
+.dayRow.today{ background: rgba(var(--accent-rgb),.12); }
+.dayRow.today .dnum .n{ color: var(--accent-2); }
+.dayRow.weekend .dnum .d{ color: var(--pop); }
+.chip{
+  flex:1; display:flex; align-items:center; gap:8px; padding: 9px 13px;
+  border-radius: var(--radius-pill); font-size: 13.5px; font-weight:700; min-width:0;
+}
+.chip .txt{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chip.off{ color: var(--off-text); }
+
+/* ---------- tabele (razpored, dežurstva, pravičnost …) ---------- */
+.wardScroller, .tableScroller{
+  margin-top: 16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
+  -webkit-overflow-scrolling: touch; box-shadow: var(--shadow-xs); background: var(--surface);
+}
+table{ border-collapse:separate; border-spacing:0; width:100%; }
+table.wardTable, table.dutyTable, table.fairTable{ width:max-content; min-width:100%; }
+table th, table td{
+  padding: 9px 10px; font-size: 12.5px; text-align:center; white-space:nowrap;
+  border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+table tr:last-child td{ border-bottom:0; }
+table th:last-child, table td:last-child{ border-right:0; }
+table thead th{
+  background: var(--surface-2); color: var(--accent-2); font-weight:800; position:sticky; top:0; z-index:2;
+  font-size: 10.5px; text-transform:uppercase; letter-spacing:.03em;
+}
+table thead th.weekend{ color: var(--pop); }
+table td.name, table th.name{
+  position:sticky; left:0; z-index:3; background: var(--surface); text-align:left;
+  font-weight:700; min-width:120px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
+}
+table thead th.name{ z-index:4; background: var(--surface-2); }
+table td.cell{ min-width:46px; }
+table td.me{ box-shadow: inset 0 0 0 2px var(--accent); border-radius: 6px; }
+table tbody tr:hover td{ background: rgba(var(--accent-rgb),.05); }
+table tbody tr:hover td.name{ background: var(--surface-2); }
+
+/* ---------- stanja: prazno / opozorilo / v redu ---------- */
+.emptyState{
+  text-align:center; padding: 40px 16px; color: var(--muted); font-size:13.5px;
+  border:1.5px dashed var(--line); border-radius: var(--radius); background: rgba(var(--accent-rgb),.03);
+}
+.hint{ font-size:12px; color: var(--muted); line-height:1.55; margin-top:8px; }
+.warnBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: rgba(var(--accent-rgb),.12); border:1px solid rgba(var(--accent-rgb),.35); color: var(--accent-2);
+}
+.okBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: rgba(var(--ok-rgb),.12); border:1px solid rgba(var(--ok-rgb),.35); color:#2E5C40;
+}
+.dangerBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: #FBEAE6; border:1px solid #F0C9BE; color: var(--danger);
+}
+
+/* ---------- vznožje ---------- */
+footer.foot{
+  margin-top: 32px; padding-top:16px; border-top:1px solid var(--line);
+  font-size: 11.5px; color: var(--muted); line-height:1.65;
+}
+footer.foot b{ color: var(--text); }
+
+.installBar{
+  position: sticky; bottom: 0; margin-top: 20px; background: var(--surface);
+  border:1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow: var(--shadow-md);
+}
+.installBar .t{ font-size:13px; font-weight:700; }
+.installBar .s{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+
+/* ---------- nalaganje (skeleton) ---------- */
+.skel{
+  background: linear-gradient(90deg, var(--surface-2) 25%, #EAE4CE 37%, var(--surface-2) 63%);
+  background-size: 400% 100%; animation: skel-shine 1.4s ease infinite; border-radius: var(--radius-sm);
+}
+@keyframes skel-shine{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
+
+/* ---------- majhne pripomočke ---------- */
+.stack-xs > * + *{ margin-top:6px; }
+.stack-sm > * + *{ margin-top:10px; }
+.stack > * + *{ margin-top:16px; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+@media print{
+  .no-print{ display:none !important; }
+  body{ background: #fff !important; }
+}
+
+@media (min-width: 700px){
+  .wrap.wide{ max-width: 760px; }
+}
+
+/* ============================================================
+   Poravnava obstoječih, na posamezni strani "domačih" imen
+   razredov (nastala, ker je bila vsaka stran zgrajena posebej)
+   na en sam, dosleden vizualni jezik — brez spreminjanja JSX,
+   torej brez tveganja za obstoječo funkcionalnost.
+   ============================================================ */
+
+/* zavihki: .tabs (admin/zelje/dashboard/login) = .segmented (index) */
+.tabs{
+  display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
+  padding:4px; border-radius: var(--radius-pill); margin-top: 14px; box-shadow: var(--shadow-xs);
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+.tabs button{
+  flex:1; border:0; background:transparent; color: var(--muted); white-space:nowrap;
+  padding: 9px 14px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700;
+  cursor:pointer; transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.tabs button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-accent); }
+.tabs button:not([aria-selected="true"]):hover{ color: var(--text); background: var(--surface-2); }
+
+/* naslov razdelka: div.section (spacing) ali h2.section (naslov+spacing) */
+.section{ margin-top: 22px; }
+h2.section{
+  font-family: var(--font-display); font-weight:600; font-size:18px; letter-spacing:-0.01em;
+  margin: 26px 0 10px; color: var(--text);
+}
+p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.55; }
+
+/* nazaj-povezava nad glavo strani */
+.backlink{
+  display:inline-flex; align-items:center; gap:4px; margin-top:10px; font-size:12.5px; color:var(--muted);
+  text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line);
+  transition: color var(--fast) var(--ease);
+}
+.backlink:hover{ color: var(--accent-2); }
+
+/* glavni CTA gumbi po straneh -> primarni .btn videz */
+.submitBtn, .genBtn, #genBtn{
+  margin-top:16px; width:100%; background: var(--accent); color: var(--accent-ink); border:1px solid var(--accent);
+  padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; min-height:46px;
+  box-shadow: var(--shadow-accent); transition: background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.submitBtn:hover, .genBtn:hover{ background: var(--accent-2); border-color:var(--accent-2); color:#fff; }
+.submitBtn:active, .genBtn:active{ transform: translateY(1px) scale(.99); }
+.submitBtn:disabled, .genBtn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
+
+/* sekundarni gumbi (prenos, datoteka, povezava …) -> ghost .btn videz */
+.dlBtn, .fileBtn, .navBtn, .toolBtn{
+  margin-top:10px; background: var(--surface); color: var(--text); border:1px solid var(--line);
+  padding:11px 14px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer;
+  box-shadow: var(--shadow-xs); transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.dlBtn:hover, .fileBtn:hover, .navBtn:hover, .toolBtn:hover{ background: var(--surface-2); border-color: var(--muted); }
+
+/* nevarni gumbi (izbriši, odstrani …) */
+.dangerBtn, .delBtn, .clearImg{
+  background: #FBEAE6; color: var(--danger); border:1px solid #F0C9BE;
+  padding:10px 14px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.dangerBtn:hover, .delBtn:hover, .clearImg:hover{ background: var(--danger); color:#fff; border-color:var(--danger); }
+
+/* majhne okrogle ikonske tipke (puščice, urejanje …) */
+.iconBtn, .chev{
+  display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px;
+  border-radius:50%; background: var(--surface); border:1px solid var(--line); color: var(--accent-2);
+  cursor:pointer; transition: background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.iconBtn:hover, .chev:hover{ background: var(--surface-2); }
+.iconBtn:active, .chev:active{ transform: scale(.94); }
+
+/* preklopni gumbi za oddelke/tedne (aria-pressed) */
+.deptBtn{
+  border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-weight:800;
+  padding:9px 16px; border-radius:var(--radius-pill); cursor:pointer; font-size:14px;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.deptBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); box-shadow: var(--shadow-accent); }
+.weekToggle{
+  border:1px solid var(--line); background:transparent; color:var(--muted); font-size:11px;
+  font-weight:800; padding:6px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#fff; }
+
+/* statusne značke: .pill + vloge/stanja modifikatorji */
+.pill{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800;
+  padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--accent-2);
+}
+.pill.admin{ background: rgba(var(--accent-rgb),.20); color: var(--accent-2); }
+.pill.vodja{ background: rgba(74,103,176,.14); color: #34508A; }
+.pill.user{ background: var(--surface-2); color: var(--muted); }
+.pill.pending, .pill.wait{ background: rgba(var(--accent-rgb),.18); color: var(--accent-2); }
+.pill.ok{ background: rgba(var(--ok-rgb),.16); color:#2E5C40; }
+.pill.no{ background: rgba(var(--danger-rgb),.12); color: var(--danger); }
+
+/* sporočila o napaki/uspehu */
+.err, .msg.err, .statusMsg.err{
+  color: var(--danger); font-size:13px; font-weight:600; margin-top:8px; line-height:1.5;
+}
+.okMsg, .msg.ok{
+  color:#2E5C40; font-size:13px; font-weight:600; margin-top:8px; line-height:1.5;
+}
+
+/* prazno stanje (seznami brez vsebine) */
+.empty{
+  text-align:center; padding: 36px 16px; color: var(--muted); font-size:13.5px;
+  border:1.5px dashed var(--line); border-radius: var(--radius); background: rgba(var(--accent-rgb),.03);
+  margin-top:14px;
+}
+
+/* napredkovna vrstica (pravičnost/obremenitev) */
+.bar{ height:7px; border-radius:4px; background: var(--surface-2); overflow:hidden; margin-top:5px; }
+.bar i{ display:block; height:100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius:4px; }
+
+/* logotip na prijavnih straneh */
+.logo{ height:46px; width:auto; display:block; margin:0 auto 14px; filter: drop-shadow(var(--shadow-sm)); }
