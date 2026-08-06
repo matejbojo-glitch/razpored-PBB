@@ -355,8 +355,10 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na \"Zaposleni\", oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE (ni ga mogoče izbrisati brez service_role ključa) — samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Nadaljuj?")) return;
     setBusy(true); setMsg(null);
     try {
-      await client.from("contact_phones").delete().eq("profile_id", oseba.id);
-      await client.from("profile_departments").delete().eq("profile_id", oseba.id);
+      const { error: e1 } = await client.from("contact_phones").delete().eq("profile_id", oseba.id);
+      if (e1) throw e1;
+      const { error: e2 } = await client.from("profile_departments").delete().eq("profile_id", oseba.id);
+      if (e2) throw e2;
       const { error } = await client.from("profiles").update({ role: "user", department_code: null }).eq("id", oseba.id);
       if (error) throw error;
       setMsg({ ok:true, text:"Odstranjeno." });
@@ -813,7 +815,8 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 
   const odstraniUvoz = async (id) => {
     if (!confirm("Odstranim to vrstico iz seznama za uvoz?")) return;
-    await client.from("contact_imports").delete().eq("id", id);
+    const { error } = await client.from("contact_imports").delete().eq("id", id);
+    if (error) { alert(error.message); return; }
     nalozi();
   };
 
@@ -821,7 +824,8 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     if (!profileId) return;
     const err = await prenesiPodatkeNaProfil(uvoz, profileId);
     if (err) { alert(err.message); return; }
-    await client.from("contact_imports").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
+    const { error } = await client.from("contact_imports").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
+    if (error) { alert(error.message); return; }
     nalozi();
     onSpremenjeno();
   };

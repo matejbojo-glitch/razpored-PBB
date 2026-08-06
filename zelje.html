@@ -584,14 +584,16 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     });
     setStatus("Shranjujem …");
     try {
+      let error;
       if (vrednost) {
-        await RazporedAuth.client.from("leave_entries").upsert(
+        ({ error } = await RazporedAuth.client.from("leave_entries").upsert(
           { full_name: ime, work_date: iso, kind: vrednost, created_by: myId },
           { onConflict: "full_name,work_date" }
-        );
+        ));
       } else {
-        await RazporedAuth.client.from("leave_entries").delete().eq("full_name", ime).eq("work_date", iso);
+        ({ error } = await RazporedAuth.client.from("leave_entries").delete().eq("full_name", ime).eq("work_date", iso));
       }
+      if (error) throw error;
       setStatus("Shranjeno " + new Date().toLocaleTimeString("sl-SI", {hour:"2-digit", minute:"2-digit"}));
     } catch (e) {
       setStatus("Napaka: " + (e.message || String(e)));
@@ -1070,7 +1072,8 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
   useEffect(() => { nalozi(); }, [oddelek]);
 
   const obrisi = async (id) => {
-    await RazporedAuth.client.from("employee_wishes").delete().eq("id", id);
+    const { error } = await RazporedAuth.client.from("employee_wishes").delete().eq("id", id);
+    if (error) { alert(error.message); return; }
     nalozi();
   };
 
