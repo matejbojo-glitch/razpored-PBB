@@ -259,34 +259,6 @@ const DEZURNI_ZACETNO = [
   { ime:"TRPIN SAŠA", enota:"170", stevilo:8, zadnje:"2026-08-27", minMesecno:1, maxMesecno:1, samoMedTednom:true },
 ];
 
-// Dopust (rdeče) / omejitve (rumeno) za september 2026, izluščeno neposredno
-// iz barvnih pravokotnikov v "Letni dopusti in omejitve za NZV — september
-// 2026.pdf" (geometrijska analiza z Python/PyMuPDF nad vektorskimi objekti
-// PDF-ja — vsak pravokotnik ima natančno RGB barvo in koordinate, kar je
-// zanesljivejše od vizualnega branja). Glej roster/analiza-razporedov.md §1b
-// za podroben postopek in roster/omejitve-september-2026.csv za isto v CSV
-// obliki (za gumb "Uvoz omejitev" spodaj). Uporablja se kot privzeta vrednost
-// za mesec 2026-09 — polja v tabeli ostanejo ročno urejljiva.
-const SEPT_2026_DOPUST_OMEJITVE = {
-  "BOJIĆ MATEJ": { dopust:"2026-09-01", omejitve:"" },
-  "ARNEŽ GREGA": { dopust:"2026-09-28,2026-09-29,2026-09-30", omejitve:"2026-09-01,2026-09-03,2026-09-04,2026-09-05,2026-09-06,2026-09-25,2026-09-26,2026-09-27" },
-  "SALKIĆ MARUŠA": { dopust:"2026-09-21", omejitve:"2026-09-04,2026-09-05,2026-09-06,2026-09-11,2026-09-12,2026-09-13,2026-09-18,2026-09-19,2026-09-20" },
-  "LUNAR MATEJA": { dopust:"2026-09-01,2026-09-02,2026-09-03,2026-09-04", omejitve:"2026-09-05,2026-09-06,2026-09-18,2026-09-26,2026-09-27" },
-  "VELUŠČEK METKA": { dopust:"2026-09-02,2026-09-03,2026-09-04,2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18,2026-09-21,2026-09-22,2026-09-23,2026-09-24,2026-09-25,2026-09-28,2026-09-29,2026-09-30", omejitve:"2026-09-01,2026-09-05,2026-09-06,2026-09-09,2026-09-10,2026-09-11,2026-09-19,2026-09-20,2026-09-26,2026-09-27" },
-  "TOMAŽEVIČ SIMONA": { dopust:"", omejitve:"2026-09-18,2026-09-19,2026-09-20" },
-  "MAVRI TRATNIK MAGDALENA": { dopust:"", omejitve:"2026-09-12,2026-09-13" },
-  "TORKAR TANJA": { dopust:"2026-09-17,2026-09-18", omejitve:"2026-09-15,2026-09-16,2026-09-19,2026-09-20" },
-  "HROVAT NINA": { dopust:"2026-09-01,2026-09-02,2026-09-03,2026-09-04", omejitve:"2026-09-05,2026-09-06,2026-09-11,2026-09-18,2026-09-19,2026-09-20,2026-09-21,2026-09-25,2026-09-26,2026-09-27" },
-  // TRPIN SAŠA: dan 18.9. je v izvirniku označen s temno rdečo barvo, ki NI
-  // v legendi (Omejitev=oranžna, LD=bela, BS=zelena, STI=lila) — namerno
-  // NEUVRŠČENO ne v dopust ne v omejitve, dokler koordinator ne pojasni pomena.
-  "TRPIN SAŠA": { dopust:"", omejitve:"2026-09-10,2026-09-25,2026-09-26" },
-  "ALUKIĆ DINO": { dopust:"", omejitve:"" },
-  "PERVIZ AMAL": { dopust:"", omejitve:"" },
-  "ŠUBIC PETRA": { dopust:"", omejitve:"" },
-  "DŽAMASTAGIĆ DENIS": { dopust:"", omejitve:"" },
-};
-
 function classify(sifra){
   const t=(sifra||"").toLowerCase();
   if (t.startsWith("ld")) return "off";
@@ -691,15 +663,12 @@ function KalupTab(){
 
 // ---------------------------------------------------------------------
 function DezurstvaTab(){
-  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => {
-    const sept = SEPT_2026_DOPUST_OMEJITVE[z.ime] || { dopust:"", omejitve:"" };
-    return {
-      ...z, odsotnosti:"", dopust: sept.dopust, omejitve: sept.omejitve,
-      prostDanVTednu: z.prostDanVTednu || "",
-      minMesecno: z.minMesecno != null ? String(z.minMesecno) : "",
-      maxMesecno: z.maxMesecno != null ? String(z.maxMesecno) : "",
-    };
-  }));
+  const [roster, setRoster] = useState(DEZURNI_ZACETNO.map(z => ({
+    ...z, odsotnosti:"", dopust:"", omejitve:"",
+    prostDanVTednu: z.prostDanVTednu || "",
+    minMesecno: z.minMesecno != null ? String(z.minMesecno) : "",
+    maxMesecno: z.maxMesecno != null ? String(z.maxMesecno) : "",
+  })));
   const [month, setMonth] = useState("2026-09");
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
@@ -738,22 +707,19 @@ function DezurstvaTab(){
     return grouped;
   };
 
-  const uporabiVZelja = (izZelja, noviMesec) => {
+  const uporabiVZelja = (izZelja) => {
     setRoster(r => r.map(z => {
       let dopust = "", omejitve = "";
       if (izZelja && izZelja[z.ime]) {
         dopust = izZelja[z.ime].dopust.join(",");
         omejitve = izZelja[z.ime].omejitve.join(",");
-      } else if (noviMesec === "2026-09") {
-        const sept = SEPT_2026_DOPUST_OMEJITVE[z.ime] || { dopust:"", omejitve:"" };
-        dopust = sept.dopust; omejitve = sept.omejitve;
       }
       return { ...z, dopust, omejitve, odsotnosti:"" };
     }));
   };
 
   useEffect(() => {
-    nalozitIzZelja(month).then(izZelja => { if (izZelja && Object.keys(izZelja).length) uporabiVZelja(izZelja, month); });
+    nalozitIzZelja(month).then(izZelja => { if (izZelja && Object.keys(izZelja).length) uporabiVZelja(izZelja); });
     // eslint-disable-next-line
   }, []);
 
@@ -921,13 +887,13 @@ function DezurstvaTab(){
               const noviMesec = e.target.value;
               setMonth(noviMesec); setRezultat(null);
               const izZelja = await nalozitIzZelja(noviMesec);
-              uporabiVZelja(izZelja, noviMesec);
+              uporabiVZelja(izZelja);
             }} />
           </div>
           <div className="field"><label>&nbsp;</label>
             <button className="dlBtn" type="button" onClick={async () => {
               const izZelja = await nalozitIzZelja(month);
-              uporabiVZelja(izZelja, month);
+              uporabiVZelja(izZelja);
               setUvozMsg("Osveženo iz razpredelnice Želje.");
             }}>🔄 Osveži iz Želje</button>
           </div>
