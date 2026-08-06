@@ -37,8 +37,10 @@
 // združena v obrazec.html ("Menjava", nav.js dobi en sam vnos namesto dveh).
 // menjave.html odstranjena iz precache (dvig verzije, da cache.addAll ne
 // poskuša naložiti ukinjene datoteke in podre namestitve service workerja).
+// v15: nav.js gumb "Pravičnost" preimenovan v "Statistika" — cache-first,
+// zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v14';
+const CACHE = 'razpored-pbb-v15';
 const ASSETS = [
   './',
   './index.html',
