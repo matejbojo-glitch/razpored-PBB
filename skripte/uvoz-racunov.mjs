@@ -28,6 +28,10 @@
 //   node uvoz-racunov.mjs --test --suho   # samo izpiše, kaj bi naredil (testni način)
 //   node uvoz-racunov.mjs --test          # dejansko ustvari račune, BREZ e-pošte, z začasnimi gesli
 //
+//   --samo email1,email2,...  # omeji na točno te e-pošte (poljuben od zgornjih
+//                              # načinov) - npr. za hitro ustvarjanje samo peščice
+//                              # ključnih računov, brez čakanja na celoten seznam.
+//
 // Varno je pognati večkrat: e-pošte, za katere račun že obstaja, se samo
 // preskočijo (ne podvoji, ne prepiše).
 
@@ -43,6 +47,8 @@ const ROSTER_DIR = path.join(__dirname, "..", "roster");
 
 const SUHO = process.argv.includes("--suho");
 const TEST = process.argv.includes("--test");
+const samoArg = process.argv.find(a => a.startsWith("--samo="));
+const SAMO = samoArg ? new Set(samoArg.slice("--samo=".length).split(",").map(e => e.trim().toLowerCase()).filter(Boolean)) : null;
 
 function preveriOkolje() {
   if (SUHO) return; // suh zagon ne kliče Supabase, ne potrebuje pravih vrednosti
@@ -116,8 +122,14 @@ function nalozizOsebe() {
 
 async function main() {
   preveriOkolje();
-  const osebe = nalozizOsebe();
-  console.log(`Najdenih ${osebe.size} unikatnih e-poštnih naslovov v roster/*.csv.`);
+  let osebe = nalozizOsebe();
+  if (SAMO) {
+    const najdene = new Map([...osebe].filter(([email]) => SAMO.has(email)));
+    const manjkajo = [...SAMO].filter(email => !najdene.has(email));
+    if (manjkajo.length) console.log(`Opozorilo: teh e-pošt ni v roster/*.csv, preskočene: ${manjkajo.join(", ")}`);
+    osebe = najdene;
+  }
+  console.log(`Najdenih ${osebe.size} unikatnih e-poštnih naslovov v roster/*.csv${SAMO ? " (po --samo filtru)" : ""}.`);
   console.log(TEST ? "Način: TEST (brez pošiljanja e-pošte, začasna gesla samo lokalno)." : "Način: PRODUKCIJA (pravo vabilo po e-pošti).");
   if (SUHO) console.log("--suho: samo izpis, brez dejanskih klicev v Supabase.\n");
 
