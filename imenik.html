@@ -511,9 +511,10 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               Vidiš aplikacijo natanko tako, kot jo vidi {oseba.full_name} (vloga, oddelek, "moj razpored" itd.) — brez
               poznavanja ali ponastavljanja gesla. Vsak začetek/konec ogleda se zabeleži v revizijsko sled.
             </p>
-            <button className="submitBtn" onClick={zacniOgledOsebe} disabled={ogledBusy || ogled}>
-              {ogledBusy ? "Začenjam …" : ogled ? "Že v ogledu (najprej se vrni v Admin)" : `👁 Prijavi se kot ${oseba.full_name}`}
+            <button className="submitBtn" onClick={zacniOgledOsebe} disabled={ogledBusy}>
+              {ogledBusy ? "Začenjam …" : ogled ? `👁 Preklopi ogled na ${oseba.full_name}` : `👁 Prijavi se kot ${oseba.full_name}`}
             </button>
+            {ogled && <p className="hint" style={{marginTop:6}}>Trenutno si v ogledu kot druga oseba — s tem gumbom preklopiš neposredno nanjo, brez vmesnega izhoda.</p>}
             {ogledMsg && <p className="err">{ogledMsg}</p>}
           </div>
 

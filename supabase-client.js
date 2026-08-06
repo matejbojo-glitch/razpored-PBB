@@ -67,6 +67,17 @@
     var { data: mojProfil } = await client.from("profiles").select("role").eq("id", user.id).single();
     if (!mojProfil || mojProfil.role !== "admin") return { error: "Samo administrator lahko uporabi ogled kot uporabnik." };
     if (target.id === user.id) return { error: "Ne moreš gledati kot sam sebe." };
+    // client.auth.getUser() zgoraj vedno vrne PRAVEGA prijavljenega admina
+    // (ogled je samo client-side preslikava, ne spremeni prave seje), zato je
+    // varno klicati to funkcijo tudi neposredno iz ogleda ene osebe na drugo,
+    // brez vmesnega "Prekini ogled". Če je ogled že aktiven, najprej pravilno
+    // zaključi PREJŠNJI zapis v reviziji (sicer bi ta ostal videti neskončen).
+    var prejsnji = trenutniOgled();
+    if (prejsnji && prejsnji.logId) {
+      try {
+        await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", prejsnji.logId);
+      } catch (e) { /* ni usodno — nov ogled se vseeno zabeleži spodaj */ }
+    }
     var { data: vrstica, error } = await client
       .from("admin_view_as_log")
       .insert({
