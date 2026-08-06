@@ -1108,3 +1108,30 @@ create policy employee_wishes_update on public.employee_wishes
 drop policy if exists employee_wishes_delete on public.employee_wishes;
 create policy employee_wishes_delete on public.employee_wishes
   for delete to authenticated using (public.current_role_is('admin') or created_by = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 15) profiles.rotation_slot — nadomešča trdo kodirano drugo kolono
+--     (rotacijska črka A-E) v admin.html WARDS_META.staff. RLS ni nova:
+--     rotation_slot je navaden profiles stolpec, torej ga že pokrivata
+--     obstoječa profiles_select (vsi ga vidijo) in profiles_update_admin
+--     (samo admin ga ureja, prek Imenika) - enako kot department_code.
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists rotation_slot text check (rotation_slot in ('A','B','C','D','E'));
+
+-- Enkratna zasnovna vrednost = isti podatek, ki je bil doslej trdo kodiran
+-- v WARDS_META (izpeljan iz analize dejanskega razporeda, glej
+-- roster/analiza-razporedov.md). "and rotation_slot is null" naredi to
+-- varno za ponovni zagon: ne prepiše ročnega popravka, ki ga admin naredi
+-- pozneje v Imeniku.
+update public.profiles p set rotation_slot = v.slot
+from (values
+  ('ROZMAN A.', 'E'), ('SVETINA S.', 'A'), ('REJC J.', 'D'), ('DOLAR T.', 'C'), ('VOVK U.', 'B'),
+  ('ŠABIĆ S.', 'A'), ('KODRAS N.', 'B'), ('ROZMAN K.', 'C'), ('MOČNIK S.', 'D'), ('SMOLEJ N.', 'E'),
+  ('DŽINIĆ A.', 'B'), ('STARC E.', 'E'), ('KARNIČAR J.', 'D'), ('ZEKAN A.', 'A'), ('ŠKANTAR M.', 'B'),
+  ('VALJAVEC E.', 'C'), ('BEĆIROVIĆ N.', 'D'), ('SUŠNIK J.', 'A'), ('POGAČNIK M.', 'A'), ('GAZIBARA A.', 'C'),
+  ('MURIĆ A.', 'D'), ('RANT L.', 'B'), ('REKIĆ E.', 'B'), ('BALEK M.', 'A'), ('MEGLIČ J.', 'C'),
+  ('NUHANOVIĆ M.', 'C'), ('STARE L.', 'D'), ('TOMAŠIĆ N.', 'A'), ('MRAVLJE U.', 'C'), ('VOZEL D.', 'E'),
+  ('BRATUŠA M.', 'C'), ('SVETINA R.', 'E'), ('URANKER M.', 'A'), ('PETERMAN R.', 'D'), ('MALER A.', 'B'),
+  ('MUŠIĆ A.', 'B'), ('BAJT A.', 'C'), ('VOLARIČ N.', 'E'), ('SODJA B.', 'D'), ('TALIĆ A.', 'A')
+) as v(full_name, slot)
+where p.full_name = v.full_name and p.rotation_slot is null;
