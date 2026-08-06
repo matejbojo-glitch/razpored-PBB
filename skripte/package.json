@@ -1,0 +1,13 @@
+{
+  "name": "razpored-pbb-skripte",
+  "private": true,
+  "type": "module",
+  "description": "Lokalne administratorske skripte za Razpored PBB — tečejo samo na tvojem računalniku, nikoli v brskalniku, ker potrebujejo service_role ključ.",
+  "scripts": {
+    "uvoz-racunov": "node uvoz-racunov.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5"
+  }
+}
