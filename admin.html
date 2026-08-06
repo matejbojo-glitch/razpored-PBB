@@ -202,27 +202,29 @@ async function publishLeadScheduleRows(rows){
 // oktobra 2026. Črka je stanje kalupa v tednu 28. 9. 2026 (sidro).
 // ---------------------------------------------------------------------
 const ANCHOR_MONDAY = "2026-09-28";
-// Popravljeno po analizi dejanskega razporeda "2026_SMS_RAZPORED.xlsx" (junij
-// 2026, po oddelkih) in ZAPOSLENI_1.8.xlsx — glej roster/analiza-razporedov.md.
-// Premiki, potrjeni z realnim razporedom: Pogačnik M. C1 (ne D), Mravlje U. D
-// (ne C1), Močnik S. C (ne D), Balek M. dodan v D (prej manjkal); Vozel D. in
-// Gazibara A. sta bila kot ne-rotacijska najprej odstranjena, nato na
-// izrecno željo znova dodana (glej roster/README.md za razlago). Črke pri
-// premaknjenih/dodanih osebah so ocenjene z ujemanjem realnih junijskih izmen
-// (glej roster/kalup-ujemanje-raw.txt) — kjer ujemanje ni ~90%+, je označeno
-// kot "preveri". POZOR: nizko ujemanje ni nujno napaka v izbrani črki — v
-// času dopustov koordinator nujno odstopa od strogega kalupa, ker razporeda
-// glede na oddane želje ni mogoče sestaviti drugače (glej analiza-razporedov.md
-// §1). Kalup → gumb "LD" po tednu je pravi mehanizem za dopust pri
-// generiranju; te črke so samo privzeto stanje za tedne brez dopusta.
+// Oddelčna struktura (kode, nazivi, hsuffix) je stalna nastavitev — 6
+// SMS/TZN oddelkov se ne spreminja. Članstvo in rotacijska črka (A-E) sta
+// PREJ bila tu trdo kodirana skupaj s to strukturo (glej git zgodovino),
+// zdaj pa prihajata živo iz Supabase (profiles.department_code +
+// profiles.rotation_slot, urejljivo v Imeniku) — glej nalozizOddelek spodaj.
 const WARDS_META = {
-  B:  { naziv:"B - ODDELEK",  hsuffix:false, staff:[["ROZMAN A.","E"],["SVETINA S.","A"],["REJC J.","D"],["DOLAR T.","C"],["VOVK U.","B"]] },
-  C:  { naziv:"C - ODDELEK",  hsuffix:false, staff:[["ŠABIĆ S.","A"],["KODRAS N.","B"],["ROZMAN K.","C"],["MOČNIK S.","D"],["SMOLEJ N.","E"]] }, // MOČNIK S.: D — ujemanje 65%, preveri
-  C1: { naziv:"C1 - ODDELEK", hsuffix:false, staff:[["DŽINIĆ A.","B"],["STARC E.","E"],["KARNIČAR J.","D"],["ZEKAN A.","A"],["ŠKANTAR M.","B"],["VALJAVEC E.","C"],["BEĆIROVIĆ N.","D"],["SUŠNIK J.","A"],["POGAČNIK M.","A"],["GAZIBARA A.","C"]] }, // POGAČNIK M.: A — ujemanje 88%; GAZIBARA A.: C — na izrecno željo znova dodan, dejanski razpored ga v juniju ni prikazoval kot del fiksne rotacije, preveri; VALJAVEC E. (prej pomotoma "A.") in BEĆIROVIĆ (prej "BEČIROVIĆ", napačen naglas) popravljena po uradnem seznamu zaposlenih
-  D:  { naziv:"D - ODDELEK",  hsuffix:false, staff:[["MURIĆ A.","D"],["RANT L.","B"],["REKIĆ E.","B"],["BALEK M.","A"],["MEGLIČ J.","C"],["NUHANOVIĆ M.","C"],["STARE L.","D"],["TOMAŠIĆ N.","A"],["MRAVLJE U.","C"],["VOZEL D.","E"]] }, // BALEK M.: A — ujemanje 63%, preveri; MRAVLJE U.: C — ujemanje 59%, preveri; VOZEL D.: E — na izrecno željo znova dodan, dejanski razpored ga v juniju ni prikazoval kot del fiksne rotacije, preveri
-  E1: { naziv:"E1 - ODDELEK", hsuffix:true,  staff:[["BRATUŠA M.","C"],["SVETINA R.","E"],["URANKER M.","A"],["PETERMAN R.","D"],["MALER A.","B"]] },
-  E2: { naziv:"E2 - ODDELEK", hsuffix:false, staff:[["MUŠIĆ A.","B"],["BAJT A.","C"],["VOLARIČ N.","E"],["SODJA B.","D"],["TALIĆ A.","A"]] },
+  B:  { naziv:"B - ODDELEK",  hsuffix:false },
+  C:  { naziv:"C - ODDELEK",  hsuffix:false },
+  C1: { naziv:"C1 - ODDELEK", hsuffix:false },
+  D:  { naziv:"D - ODDELEK",  hsuffix:false },
+  E1: { naziv:"E1 - ODDELEK", hsuffix:true },
+  E2: { naziv:"E2 - ODDELEK", hsuffix:false },
 };
+
+// Vrne [[ime, rotacijskaČrka], ...] za en oddelek — ista oblika, kot jo je
+// prej vračal WARDS_META[koda].staff, da ostane vsa nadaljnja koda (Kalup,
+// PrednostniPanel) nespremenjena. Manjkajoč rotation_slot (nova oseba, še
+// ne nastavljena v Imeniku) privzeto pade na "A", vidno označeno spodaj.
+async function nalozizOddelek(koda){
+  const { data } = await client.from("profiles").select("full_name, rotation_slot")
+    .eq("department_code", koda).order("full_name");
+  return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot]);
+}
 
 // Dežurni kader DMS/DZN — stanje ob koncu avgusta 2026, iz uradnega seznama
 // dežurstev jan.–avg. 2026 (posredoval uporabnik, 243 vnosov, preverjeno v
@@ -459,6 +461,8 @@ function KalupTab(){
   // v zavihku Vodje - spremeni samo prikaz/izvoz (PDF/CSV), NE pa objave v
   // Supabase (ta ostane vezana na izračunano vrednost generatorja).
   const [popravki, setPopravki] = useState({});
+  const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
+  useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
 
   const meta = WARDS_META[koda];
   const { startISO, endISO } = monthRange(month);
@@ -488,14 +492,14 @@ function KalupTab(){
   };
 
   const generiraj = () => {
-    const staff = meta.staff.map(([ime, defLetter]) => ({
+    const staff = staffList.map(([ime, defLetter]) => ({
       ime,
       startLetter: letters[ime] || defLetter,
       hsuffix: meta.hsuffix,
       dopustTedni: tedni.filter(mo => dopust[ime + "|" + mo]),
     }));
     const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
-    setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, staff: meta.staff.map(([ime,l]) => ({ime, vloga:"SMS / TZN"})) });
+    setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})) });
     setPopravki({});
   };
 
@@ -559,6 +563,8 @@ function KalupTab(){
         </div>
       </div>
 
+      {!staffList ? <p className="hint">Nalagam osebje …</p> : (
+      <React.Fragment>
       <h2 className="section">2 · Predlog prednosti za prost teden</h2>
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
@@ -570,11 +576,11 @@ function KalupTab(){
         <p className="hint" style={{marginTop:8, marginBottom:0}}>Oblika: <code>ime,kvota</code> (ime kot spodaj v tabeli).</p>
         {kvoteUvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{kvoteUvozMsg}</p>}
       </div>
-      <PrednostniPanel staff={meta.staff} dopust={dopust} tedni={tedni} kvote={kvote} setKvote={setKvote}
+      <PrednostniPanel staff={staffList} dopust={dopust} tedni={tedni} kvote={kvote} setKvote={setKvote}
         onPredlagaj={(ime, teden) => toggleDopust(ime, teden)} />
 
       <h2 className="section">3 · Kalup in dopust po zaposlenih</h2>
-      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej). Kliknite teden, da tisti teden zaposlenemu prisilno vpišete letni dopust ne glede na rotacijo.</p>
+      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da tisti teden zaposlenemu prisilno vpišete letni dopust ne glede na rotacijo.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
           <thead>
@@ -585,9 +591,9 @@ function KalupTab(){
             </tr>
           </thead>
           <tbody>
-            {meta.staff.map(([ime, defLetter]) => (
+            {staffList.map(([ime, defLetter, manjka]) => (
               <tr key={ime}>
-                <td>{ime}</td>
+                <td>{ime}{manjka && <span className="hint" style={{color:"var(--danger)", marginLeft:6}} title="Rotacijska črka ni nastavljena v Imeniku — privzeto A">⚠</span>}</td>
                 <td>
                   <select value={letters[ime] || defLetter} onChange={e => setLetters(l => ({...l, [ime]: e.target.value}))}>
                     {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
@@ -607,6 +613,8 @@ function KalupTab(){
       </div>
 
       <button className="genBtn" onClick={generiraj}>Generiraj razpored</button>
+      </React.Fragment>
+      )}
 
       {rezultat && (
         <React.Fragment>

@@ -272,6 +272,24 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
     finally { setOddBusy(false); }
   };
+
+  // Rotacijska črka (A-E) za Kalup generator (admin.html) — samo za 6
+  // SMS/TZN oddelkov. Prej trdo kodirano v admin.html WARDS_META, zdaj
+  // urejljivo tu (glej supabase/schema.sql profiles.rotation_slot).
+  const [rotSlot, setRotSlot] = useState(oseba.rotation_slot || "");
+  const [rotBusy, setRotBusy] = useState(false);
+  const [rotMsg, setRotMsg] = useState(null);
+  const shraniRotacijo = async () => {
+    setRotBusy(true); setRotMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ rotation_slot: rotSlot || null }).eq("id", oseba.id);
+      if (error) throw error;
+      setRotMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setRotMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setRotBusy(false); }
+  };
+
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -459,6 +477,27 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             </div>
             {oddMsg && <p className={oddMsg.ok === false ? "err" : "okMsg"}>{oddMsg.text}</p>}
           </div>
+
+          {["B","C","C1","D","E1","E2"].includes(primarni) && (
+            <React.Fragment>
+              <h2 className="section no-print">Rotacija za Kalup (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Izhodiščna črka 5-tedenskega kalupa (A–E) v Kalup generatorju (admin.html) — velja samo za
+                  6 SMS/TZN oddelkov. Če ni nastavljena, generator privzame "A" in to označi z ⚠.
+                </p>
+                <div className="field" style={{maxWidth:160}}>
+                  <label>Rotacijska črka</label>
+                  <select value={rotSlot} onChange={e => setRotSlot(e.target.value)}>
+                    <option value="">— ni nastavljena —</option>
+                    {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <button className="submitBtn" onClick={shraniRotacijo} disabled={rotBusy}>{rotBusy ? "Shranjujem …" : "Shrani"}</button>
+                {rotMsg && <p className={rotMsg.ok ? "okMsg" : "err"}>{rotMsg.text}</p>}
+              </div>
+            </React.Fragment>
+          )}
 
           <h2 className="section no-print">HR podatki (admin, vidno samo tebi in tej osebi)</h2>
           <div className="card no-print">
@@ -923,7 +962,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data }) => {
         setOsebe((data || []).map(o => ({
