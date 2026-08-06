@@ -218,39 +218,36 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
 // ---------------------------------------------------------------------
-// Skupni seznam vseh zaposlenih (za Razpredelnico dopusti/omejitve, ki
-// zajema vso zdravstveno nego, ne le 6 oddelkov iz Seznama želja) — prej
-// je bil ta seznam trdo kodiran tukaj in je s časom razšel od dejanskega
-// stanja v Supabase (profiles/profile_departments), glej
-// roster/analiza-razporedov.md. Zdaj se ob nalaganju prebere živo:
-// department_code (primarni oddelek) + profile_departments (dodatne
-// enote, npr. nekdo je hkrati na svojem oddelku IN v dežurnem kadru) se
-// preslikata v spodnjih 9 skupin, primarni oddelek ima prednost pri
-// razvrstitvi, če je oseba v več kot eni od teh skupin hkrati.
+// Skupni seznam vseh zaposlenih (za Razpredelnico dopusti/omejitve in za
+// Seznam želja) — oddelki za kreiranje/generiranje razporeda so na
+// izrecno željo omejeni na natanko teh 8: B/C/C1/D/E1/E2/FLEXI za vse z
+// vlogo "user" (razvrščeni po primarnem oddelku, ki šteje za generator
+// razporeda), in NZV za vse z vlogo "vodja" ali "admin" (ne glede na
+// njihov department_code — NZV vključuje tudi dežurstva, glej admin.html
+// zavihek "NZV"). Stare kode oddelkov (DEZ, NEDEZ, PDZN, SOBO, ZO, MO, PO,
+// A, B1B2, DB, SA, URGENCA, U2) tu niso več uporabljene.
 // ---------------------------------------------------------------------
 const RAZPOREDNICA_ODDELKI = [
-  ["A", "A - oddelek, MT (SMS)"],
   ["B", "B - oddelek (SMS/TZN)"],
   ["C", "C - oddelek (SMS/TZN)"],
   ["C1", "C1 - oddelek (SMS/TZN)"],
   ["D", "D - oddelek (SMS/TZN)"],
   ["E1", "E1 - oddelek (SMS/TZN)"],
   ["E2", "E2 - oddelek (SMS/TZN)"],
-  ["DEZ", "Dežurni kader (DMS/DZN)"],
-  ["NEDEZ", "Nedežurni kader (DMS/DZN)"],
+  ["FLEXI", "FLEXI — plavajoče osebje"],
+  ["NZV", "NZV — vodje in administratorji"],
 ];
 
 async function nalozizRoster(){
   const { data, error } = await RazporedAuth.client
-    .from("profiles").select("full_name, department_code, profile_departments(department_code)")
+    .from("profiles").select("full_name, role, department_code")
     .order("full_name");
   if (error) throw error;
   const skupine = RAZPOREDNICA_ODDELKI.map(([koda, naziv]) => ({ koda, naziv, ljudje: [] }));
   const poKodi = Object.fromEntries(skupine.map(s => [s.koda, s]));
   (data || []).forEach(p => {
-    const kode = [p.department_code, ...(p.profile_departments || []).map(d => d.department_code)];
-    const koda = kode.find(k => poKodi[k]);
-    if (koda) poKodi[koda].ljudje.push(p.full_name);
+    const koda = (p.role === "vodja" || p.role === "admin") ? "NZV" : p.department_code;
+    if (koda && poKodi[koda]) poKodi[koda].ljudje.push(p.full_name);
   });
   const vsiLjudje = skupine.reduce((acc, g) => acc.concat(g.ljudje.map(ime => ({ ime, skupina: g.naziv }))), []);
   return { skupine, vsiLjudje };
@@ -1009,22 +1006,16 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
 }
 
 // Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) —
-// samo 6 SMS/TZN oddelkov + "VODJE", na izrecno navodilo. Imena oseb za
+// 6 SMS/TZN oddelkov + FLEXI + NZV (na izrecno navodilo). Imena oseb za
 // izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
-// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster), za
-// VODJE pa neposredno iz lead_departments (edini pravi vir 22 nosilcev
-// oddelkov — tu se ne podvaja/ne tvega neujemanja s tistim, kar ureja
-// admin.html).
+// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster) — NZV
+// je tam že pravilno napolnjen (vsi z vlogo vodja/admin), enako kot
+// ostalih 7 skupin, zato ni več potreben poseben primer za lead_departments.
 function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded }){
-  const [imena, setImena] = useState(null); // null dokler se ne naloži (pomembno za VODJE, ki gre prek Supabase)
+  const [imena, setImena] = useState(null); // null dokler se ne naloži
   useEffect(() => {
-    if (oddelek === "VODJE") {
-      RazporedAuth.client.from("lead_departments").select("full_name").order("full_name")
-        .then(({ data }) => setImena([...new Set((data || []).map(v => v.full_name))]));
-    } else {
-      const skupina = skupine.find(g => g.koda === oddelek);
-      setImena(skupina ? skupina.ljudje : []);
-    }
+    const skupina = skupine.find(g => g.koda === oddelek);
+    setImena(skupina ? skupina.ljudje : []);
   }, [oddelek, skupine]);
 
   const [ime, setIme] = useState(myFullName || "");
@@ -1110,7 +1101,7 @@ function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded 
   );
 }
 
-const ZELJE_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "VODJE"];
+const ZELJE_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
 function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
   const jeKoordinator = role === "admin" || role === "vodja";
@@ -1158,13 +1149,13 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
       {jeKoordinator && (
         <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
           {ZELJE_ODDELKI.map(k => (
-            <button key={k} role="tab" aria-selected={oddelek===k} onClick={() => setOddelek(k)}>{k === "VODJE" ? "Vodje" : k}</button>
+            <button key={k} role="tab" aria-selected={oddelek===k} onClick={() => setOddelek(k)}>{k}</button>
           ))}
         </div>
       )}
 
       <div className="no-print">
-        <h2 className="section">Nov vnos — {oddelek === "VODJE" ? "vodje" : "oddelek " + oddelek}</h2>
+        <h2 className="section">Nov vnos — {oddelek === "NZV" ? "NZV" : "oddelek " + oddelek}</h2>
         <VnosForma oddelek={oddelek} skupine={skupine} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
       </div>
 
