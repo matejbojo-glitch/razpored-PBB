@@ -1858,3 +1858,19 @@ begin
 end;
 $$;
 grant execute on function public.mozni_sodelavci(uuid, date) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 20) Enkraten popravek: full_name je bil za te 3 admin račune dobesedno
+--     enak e-pošti namesto pravega imena (handle_new_user() je verjetno
+--     padel nazaj na e-pošto, ker takrat ni dobil pravih metapodatkov o
+--     imenu — glej tudi popravek uvoza v imenik.html, ki to od zdaj naprej
+--     prepreči za bodoče uvoze). "coalesce" ni potreben - te tri vrednosti
+--     so bile potrjeno napačne (enake e-pošti), zato je varno prepisati.
+-- ---------------------------------------------------------------------
+update public.profiles p set full_name = v.full_name
+from (values
+  ('matej.bojic@pb-begunje.si', 'BOJIĆ MATEJ'),
+  ('denis.dzamastagic@pb-begunje.si', 'DŽAMASTAGIĆ DENIS'),
+  ('dino.alukic@pb-begunje.si', 'ALUKIĆ DINO')
+) as v(email, full_name)
+where lower(p.email) = v.email and p.full_name = p.email;
