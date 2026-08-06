@@ -1327,3 +1327,115 @@ from (values
 join public.profiles p on public.imena_se_ujemata(p.full_name, v.full_name)
 on conflict (profile_id) do update set
   employee_code = coalesce(public.profile_hr_details.employee_code, excluded.employee_code);
+
+-- ---------------------------------------------------------------------
+-- 18) Oddelek/vloga po e-pošti — dopolnilo k skripte/uvoz-racunov.mjs
+--     Ta skripta samo ustvari Auth račune (prazen department_code, role
+--     privzeto 'user'); ta blok jih takoj po tem samodejno izpolni za
+--     osebe, kjer je vir (roster/zaposleni-vloge-gesla.csv) nedvoumen.
+--     Ujemanje po e-pošti (ne po imenu) — bolj zanesljivo, ker e-pošto
+--     pozna handle_new_user() natančno (iz auth.users.email), brez
+--     razhajanj v zapisu imena.
+--
+--     "coalesce(department_code, ...)" in "role samo če je še 'user'"
+--     naredita to varno za ponovni zagon: ne prepišeta poznejšega
+--     ročnega popravka v Imeniku, in NIKOLI ne povrneta admina/vodjo
+--     nazaj na 'user'.
+--
+--     Vrednost oddelka je null za osebe, kjer je izvorni podatek dvoumen
+--     ("C/C1", "UA/SA/B2", "STROKOVNI VODJA" ipd.) — teh ~10 oseb (glej
+--     seznam spodaj) admin ročno dokonča v Imeniku. Za "FLEXI/<oddelek>"
+--     zapise je department_code='FLEXI' (primarni), spodnji drugi insert
+--     pa doda njihov "domači" oddelek kot SEKUNDARNO članstvo prek
+--     profile_departments (oseba je hkrati FLEXI in npr. E2/C/A).
+-- ---------------------------------------------------------------------
+update public.profiles p set
+  department_code = coalesce(p.department_code, v.dept),
+  role = case when p.role = 'user' then coalesce(v.role, p.role) else p.role end
+from (values
+  ('ajla.huseinbasic@pb-begunje.si', 'FLEXI', 'user'),
+  ('aldin.gazibara@pb-begunje.si', 'C1', 'user'),
+  ('aleksander.maglic@pb-begunje.si', null, 'vodja'),
+  ('alen.music@pb-begunje.si', 'E2', 'user'),
+  ('alma.muric@pb-begunje.si', 'D', 'user'),
+  ('almedin.zekan@pb-begunje.si', 'C1', 'user'),
+  ('amal.perviz@pb-begunje.si', 'D', 'vodja'),
+  ('amin.dzinic@pb-begunje.si', 'C1', 'user'),
+  ('amira.talic@pb-begunje.si', 'E2', 'user'),
+  ('anja.bajt@pb-begunje.si', 'E2', 'user'),
+  ('anka.rozman@pb-begunje.si', 'B', 'user'),
+  ('antonina.maler@pb-begunje.si', 'E1', 'user'),
+  ('barbara.sodja@pb-begunje.si', 'E2', 'user'),
+  ('dejan.vozel@pb-begunje.si', 'D', 'user'),
+  ('denis.dzamastagic@pb-begunje.si', 'PDZN', 'admin'),
+  ('dijana.lelic@pb-begunje.si', null, 'vodja'),
+  ('dino.alukic@pb-begunje.si', null, 'admin'),
+  ('elma.rekic@pb-begunje.si', 'D', 'user'),
+  ('enej.valjavec@pb-begunje.si', 'C1', 'user'),
+  ('erik.starc@pb-begunje.si', 'C1', 'user'),
+  ('eva.kogoj@pb-begunje.si', 'FLEXI', 'user'),
+  ('gentiana.gashi@pb-begunje.si', 'FLEXI', 'user'),
+  ('grega.arnez@pb-begunje.si', null, 'vodja'),
+  ('ines.music@pb-begunje.si', null, 'vodja'),
+  ('jaka.meglic@pb-begunje.si', 'D', 'user'),
+  ('jaka.susnik@pb-begunje.si', 'C1', 'user'),
+  ('jana.rejc@pb-begunje.si', 'B', 'user'),
+  ('jure.karnicar@pb-begunje.si', 'C1', 'user'),
+  ('klara.rozman@pb-begunje.si', 'C', 'user'),
+  ('luka.rant@pb-begunje.si', 'D', 'user'),
+  ('luka.stare@pb-begunje.si', 'C1', 'user'),
+  ('magdalena.mavritratnik@pb-begunje.si', null, 'vodja'),
+  ('maja.vrevc@pb-begunje.si', 'FLEXI', 'user'),
+  ('marija.bratusa@pb-begunje.si', 'E1', 'user'),
+  ('mark.djedovic@pb-begunje.si', 'C', 'user'),
+  ('mark.skantar@pb-begunje.si', 'C1', 'user'),
+  ('marko.kvrzic@pb-begunje.si', 'FLEXI', 'user'),
+  ('marusa.salkic@pb-begunje.si', 'C1', 'vodja'),
+  ('matej.bojic@pb-begunje.si', null, 'admin'),
+  ('matej.pogacnik@pb-begunje.si', 'C1', 'user'),
+  ('mateja.lunar@pb-begunje.si', 'B', 'vodja'),
+  ('merima.nuhanovic@pb-begunje.si', 'D', 'user'),
+  ('metka.veluscek@pb-begunje.si', 'SOBO', 'vodja'),
+  ('mojca.uranker@pb-begunje.si', 'E1', 'user'),
+  ('nadja.kodras@pb-begunje.si', 'C', 'user'),
+  ('natasa.smolej@pb-begunje.si', 'C', 'user'),
+  ('neja.vozel@pb-begunje.si', 'FLEXI', 'user'),
+  ('nejc.volaric@pb-begunje.si', 'E2', 'user'),
+  ('nelvedin.becirovic@pb-begunje.si', 'C1', 'user'),
+  ('nikolina.sofric@pb-begunje.si', 'E2', 'vodja'),
+  ('nikolina.tomasic@pb-begunje.si', 'D', 'user'),
+  ('nina.hrovat@pb-begunje.si', 'DB', 'vodja'),
+  ('petra.subic@pb-begunje.si', null, 'vodja'),
+  ('rebeka.misotic@pb-begunje.si', 'C', 'vodja'),
+  ('renata.peterman@pb-begunje.si', 'E1', 'user'),
+  ('robert.svetina@pb-begunje.si', 'E1', 'user'),
+  ('sabina.svetina@pb-begunje.si', 'B', 'user'),
+  ('sara.jereb@pb-begunje.si', 'FLEXI', 'user'),
+  ('sasa.humar@pb-begunje.si', 'SA', 'user'),
+  ('sasa.trpin@pb-begunje.si', null, 'vodja'),
+  ('sebina.sabic@pb-begunje.si', 'C1', 'user'),
+  ('simona.mocnik@pb-begunje.si', 'D', 'user'),
+  ('simona.tomazevic@pb-begunje.si', 'A', 'vodja'),
+  ('tanja.torkar@pb-begunje.si', 'DB', 'vodja'),
+  ('tea.bizjak@pb-begunje.si', null, 'vodja'),
+  ('teja.pogacnik@pb-begunje.si', 'E1', 'vodja'),
+  ('tomaz.dolar@pb-begunje.si', 'B', 'user'),
+  ('uros.mravlje@pb-begunje.si', 'D', 'user'),
+  ('urska.vovk@pb-begunje.si', 'B', 'user')
+) as v(email, dept, role)
+where lower(p.email) = v.email;
+
+-- FLEXI osebe: sekundarno članstvo v "domačem" oddelku (glej opombo zgoraj).
+insert into public.profile_departments (profile_id, department_code, sort_order)
+select p.id, v.dept2, 1
+from (values
+  ('gentiana.gashi@pb-begunje.si', 'E2'),
+  ('ajla.huseinbasic@pb-begunje.si', 'E2'),
+  ('sara.jereb@pb-begunje.si', 'C'),
+  ('eva.kogoj@pb-begunje.si', 'E2'),
+  ('marko.kvrzic@pb-begunje.si', 'C'),
+  ('neja.vozel@pb-begunje.si', 'C'),
+  ('maja.vrevc@pb-begunje.si', 'A')
+) as v(email, dept2)
+join public.profiles p on lower(p.email) = v.email
+on conflict (profile_id, department_code) do nothing;
