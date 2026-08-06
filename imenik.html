@@ -151,24 +151,40 @@ function PhoneRow({ phone }){
 // ---------------------------------------------------------------------
 function Seznam({ osebe, oddelki, onOdpri }){
   const [q, setQ] = useState("");
+  // Oddelčni filter (spustni seznam) — brez njega je seznam vseh ~70+ ljudi
+  // ena dolga, nerazčlenjena vrsta, ki jo je težko pregledati.
+  const [oddelekFiltr, setOddelekFiltr] = useState("");
   const imeOddelka = useMemo(() => {
     const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
   }, [oddelki]);
+  const oddelkiUrejeni = useMemo(
+    () => oddelki.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "sl")),
+    [oddelki]
+  );
   const filtrirano = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return osebe;
-    return osebe.filter(o =>
-      (o.full_name || "").toLowerCase().includes(s) ||
-      (o.email || "").toLowerCase().includes(s) ||
-      (o.dept_codes || []).some(k => (imeOddelka[k] || "").toLowerCase().includes(s))
-    );
-  }, [osebe, q, imeOddelka]);
+    return osebe.filter(o => {
+      const kode = o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []);
+      if (oddelekFiltr && !kode.includes(oddelekFiltr)) return false;
+      if (!s) return true;
+      return (o.full_name || "").toLowerCase().includes(s) ||
+        (o.email || "").toLowerCase().includes(s) ||
+        kode.some(k => (imeOddelka[k] || "").toLowerCase().includes(s));
+    });
+  }, [osebe, q, oddelekFiltr, imeOddelka]);
 
   return (
     <React.Fragment>
       <div className="searchWrap no-print">
         <span className="ic">🔍</span>
         <input type="search" placeholder="Išči po imenu, e-pošti ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
+      </div>
+      <div className="field no-print" style={{marginTop:-6}}>
+        <label htmlFor="oddFiltr">Oddelek</label>
+        <select id="oddFiltr" value={oddelekFiltr} onChange={e => setOddelekFiltr(e.target.value)}>
+          <option value="">Vsi oddelki</option>
+          {oddelkiUrejeni.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+        </select>
       </div>
       <div className="card">
         {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
