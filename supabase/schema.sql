@@ -1439,3 +1439,409 @@ from (values
 ) as v(email, dept2)
 join public.profiles p on lower(p.email) = v.email
 on conflict (profile_id, department_code) do nothing;
+
+-- ---------------------------------------------------------------------
+-- 19) Obrazec za evidentiranje prisotnosti in sprememb razporeda
+--     Digitalna različica papirnatega obrazca PB Begunje "Obvestilo
+--     koordinatorici za razporejanje kadra v ZN". Namenoma LOČEN od
+--     obstoječega swap_requests (menjave.html) — ta obrazec je širši
+--     (3 kategorije: ročno evidentiranje / menjava službe / drugo) in za
+--     menjavo dodaja korak "sodelavec mora najprej privoliti" ter
+--     preverjanje 11-urnega počitka, česar swap_requests ne počne.
+--
+--     Prilagojeno iz zunanjega referenčnega gradiva (druga aplikacija,
+--     shema profili/zaposleni_kadris) na obstoječo shemo profiles/
+--     departments/schedule_entries — brez "koordinator" kot 4. vloge:
+--     ta korak opravi kdorkoli ima role='admin' (enako kot povsod drugod
+--     v aplikaciji, npr. 2. stopnja pri swap_requests).
+-- ---------------------------------------------------------------------
+
+-- Neposredni vodja — ločeno od profile_hr_details.manager_name (ki je
+-- samo prikazno prosto besedilo). Ta stolpec je prava FK-povezava, ker ga
+-- spodnje RPC funkcije uporabljajo za usmerjanje odobritev. Admin ga
+-- ureja v Imeniku (nov dropdown izbirnik druge osebe).
+alter table public.profiles add column if not exists vodja_id uuid references public.profiles (id) on delete set null;
+
+create table if not exists public.obrazci (
+  id uuid primary key default gen_random_uuid(),
+  stevilka text unique,
+  vrsta text not null check (vrsta in ('rocno_evidentiranje', 'menjava_sluzbe', 'drugo')),
+  status text not null default 'osnutek'
+    check (status in ('osnutek', 'caka_sodelavca', 'caka_vodjo', 'caka_koordinatorja', 'zakljucen', 'zavrnjen', 'preklican')),
+  vlagatelj_id uuid not null references public.profiles (id) on delete restrict,
+  sodelavec_id uuid references public.profiles (id) on delete restrict,
+  vodja_id uuid references public.profiles (id) on delete set null,
+  koordinator_id uuid references public.profiles (id) on delete set null,
+  polja jsonb not null default '{}'::jsonb,
+  ustvarjen timestamptz not null default now(),
+  zakljucen_dne timestamptz,
+  razlog_zavrnitve text,
+  constraint obrazci_sodelavec_le_pri_menjavi check (vrsta = 'menjava_sluzbe' or sodelavec_id is null),
+  constraint obrazci_sodelavec_ni_vlagatelj check (sodelavec_id is null or sodelavec_id <> vlagatelj_id)
+);
+create index if not exists idx_obrazci_vlagatelj on public.obrazci (vlagatelj_id);
+create index if not exists idx_obrazci_sodelavec on public.obrazci (sodelavec_id);
+create index if not exists idx_obrazci_status on public.obrazci (status);
+
+create sequence if not exists public.obrazci_zap;
+
+create or replace function public.obrazec_stevilka()
+returns trigger language plpgsql as $$
+begin
+  if new.stevilka is null then
+    new.stevilka := 'OBV-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('public.obrazci_zap')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists ob_vstavljanju_obrazca on public.obrazci;
+create trigger ob_vstavljanju_obrazca before insert on public.obrazci
+  for each row execute function public.obrazec_stevilka();
+
+create table if not exists public.obrazci_dnevnik (
+  id bigint generated always as identity primary key,
+  obrazec_id uuid not null references public.obrazci (id) on delete cascade,
+  stopnja smallint not null,
+  dejanje text not null,
+  uporabnik_id uuid references public.profiles (id) on delete set null,
+  ime_ob_dejanju text,
+  vloga_ob_dejanju text,
+  opomba text,
+  cas timestamptz not null default now()
+);
+create index if not exists idx_obrazci_dnevnik_obrazec on public.obrazci_dnevnik (obrazec_id, cas);
+
+alter table public.obrazci enable row level security;
+alter table public.obrazci_dnevnik enable row level security;
+
+drop policy if exists obrazci_select on public.obrazci;
+create policy obrazci_select on public.obrazci for select to authenticated using (
+  vlagatelj_id = auth.uid()
+  or sodelavec_id = auth.uid()
+  or vodja_id = auth.uid()
+  or public.current_role_is('admin')
+);
+
+-- Vlagatelj sme vstaviti samo svoj osnutek. Vse nadaljnje spremembe gredo
+-- skozi spodnje funkcije — tu ni pravila za update, zato tudi neposreden
+-- klic API mimo funkcij ne more obiti verige odobritev.
+drop policy if exists obrazci_insert on public.obrazci;
+create policy obrazci_insert on public.obrazci for insert to authenticated
+  with check (vlagatelj_id = auth.uid() and status = 'osnutek');
+
+drop policy if exists obrazci_dnevnik_select on public.obrazci_dnevnik;
+create policy obrazci_dnevnik_select on public.obrazci_dnevnik for select to authenticated using (
+  exists (
+    select 1 from public.obrazci o where o.id = obrazci_dnevnik.obrazec_id
+    and (o.vlagatelj_id = auth.uid() or o.sodelavec_id = auth.uid() or o.vodja_id = auth.uid() or public.current_role_is('admin'))
+  )
+);
+
+create or replace function public.zapisi_v_dnevnik(
+  p_obrazec uuid, p_stopnja smallint, p_dejanje text, p_opomba text default null
+) returns void language plpgsql security definer set search_path = public as $$
+declare v_ime text; v_vloga text;
+begin
+  select full_name, role into v_ime, v_vloga from public.profiles where id = auth.uid();
+  insert into public.obrazci_dnevnik (obrazec_id, stopnja, dejanje, uporabnik_id, ime_ob_dejanju, vloga_ob_dejanju, opomba)
+  values (p_obrazec, p_stopnja, p_dejanje, auth.uid(), v_ime, v_vloga, p_opomba);
+end;
+$$;
+revoke execute on function public.zapisi_v_dnevnik(uuid, smallint, text, text) from public, anon, authenticated;
+
+-- STOPNJA 1 — oddaja
+create or replace function public.obrazec_oddaj(p_id uuid)
+returns text language plpgsql security definer set search_path = public as $$
+declare o public.obrazci; v_vodja uuid; v_status text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vlagatelj_id <> auth.uid() then raise exception 'Oddaš lahko samo svoj obrazec'; end if;
+  if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
+
+  select vodja_id into v_vodja from public.profiles where id = auth.uid();
+  if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje — admin ga mora najprej nastaviti v Imeniku.'; end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
+    v_status := 'caka_sodelavca';
+  else
+    v_status := 'caka_vodjo';
+  end if;
+
+  update public.obrazci set status = v_status, vodja_id = v_vodja where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 1::smallint, 'ODDANO');
+  return v_status;
+end;
+$$;
+grant execute on function public.obrazec_oddaj(uuid) to authenticated;
+
+-- STOPNJA 2 — sodelavec potrdi (samo menjava)
+create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare o public.obrazci;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.sodelavec_id <> auth.uid() then raise exception 'Nisi izbrani sodelavec'; end if;
+  if o.status <> 'caka_sodelavca' then raise exception 'Obrazec ni v stanju čakanja na sodelavca'; end if;
+
+  if p_sprejmi then
+    update public.obrazci set status = 'caka_vodjo' where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_POTRDIL', p_opomba);
+    return 'caka_vodjo';
+  else
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+end;
+$$;
+grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
+
+-- STOPNJA 3 — neposredni vodja
+create or replace function public.obrazec_potrdi_vodja(p_id uuid, p_sprejmi boolean, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare o public.obrazci;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vodja_id <> auth.uid() then raise exception 'Nisi neposredni vodja vlagatelja'; end if;
+  if o.status <> 'caka_vodjo' then raise exception 'Obrazec ni v stanju čakanja na vodjo'; end if;
+
+  if p_sprejmi then
+    update public.obrazci set status = 'caka_koordinatorja' where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ODOBRIL', p_opomba);
+    return 'caka_koordinatorja';
+  else
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+end;
+$$;
+grant execute on function public.obrazec_potrdi_vodja(uuid, boolean, text) to authenticated;
+
+-- STOPNJA 4 — koordinator (role='admin'); ob potrditvi menjave zamenja
+-- schedule_entries.shift_code med vlagateljem in sodelavcem — isti vzorec
+-- kot decide_swap_admin (glej zgoraj), samo brez zaposleni_kadris/mat_st
+-- posrednika, ker so profiles.id že stabilen ključ.
+create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  o public.obrazci;
+  v_dan_a date; v_dan_b date;
+  v_izmena_a text; v_izmena_b text;
+  v_dept_a text; v_dept_b text;
+begin
+  if not public.current_role_is('admin') then
+    raise exception 'Za končno potrditev nimaš pravic';
+  end if;
+
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.status <> 'caka_koordinatorja' then raise exception 'Obrazec ni v stanju čakanja na koordinatorja'; end if;
+
+  if not p_sprejmi then
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba, koordinator_id = auth.uid() where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    v_dan_a := (o.polja ->> 'datum_a')::date;
+    v_dan_b := (o.polja ->> 'datum_b')::date;
+
+    select shift_code into v_izmena_a from public.schedule_entries where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+    select shift_code into v_izmena_b from public.schedule_entries where employee_id = o.sodelavec_id and work_date = v_dan_b;
+    select department_code into v_dept_a from public.profiles where id = o.vlagatelj_id;
+    select department_code into v_dept_b from public.profiles where id = o.sodelavec_id;
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+
+    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+  end if;
+
+  update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
+  return 'zakljucen';
+end;
+$$;
+grant execute on function public.obrazec_potrdi_koordinator(uuid, boolean, text) to authenticated;
+
+-- Preklic s strani vlagatelja, dokler ni zaključen
+create or replace function public.obrazec_preklici(p_id uuid, p_opomba text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare o public.obrazci;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vlagatelj_id <> auth.uid() then raise exception 'Prekličeš lahko samo svoj obrazec'; end if;
+  if o.status in ('zakljucen', 'zavrnjen', 'preklican') then raise exception 'Obrazca v tem stanju ni mogoče preklicati'; end if;
+
+  update public.obrazci set status = 'preklican', razlog_zavrnitve = p_opomba where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 0::smallint, 'VLAGATELJ_PREKLICAL', p_opomba);
+  return 'preklican';
+end;
+$$;
+grant execute on function public.obrazec_preklici(uuid, text) to authenticated;
+
+-- Kaj čaka name — enako kot obstoječi "Menjave" rumen klicaj, samo za ta obrazec.
+create or replace view public.obrazci_moja_naloga
+with (security_invoker = true) as
+select o.*,
+  case
+    when o.status = 'caka_sodelavca' and o.sodelavec_id = auth.uid() then 'potrdi_kot_sodelavec'
+    when o.status = 'caka_vodjo' and o.vodja_id = auth.uid() then 'odobri_kot_vodja'
+    when o.status = 'caka_koordinatorja' and public.current_role_is('admin') then 'potrdi_kot_koordinator'
+  end as moje_dejanje
+from public.obrazci o;
+
+-- ---------------------------------------------------------------------
+-- 19b) Pomožne funkcije za menjavo: kdo je odsoten, kdo je na voljo,
+--      preverjanje 11-urnega počitka. Isti nabor kod izmen kot
+--      generator-core.js/admin.html classify() — glede na to, da je
+--      shift_code prosto besedilo, ujemanje po predponi (ne po tabeli
+--      točnih vrednosti), da zajame vse dosedanje zapise (npr. "popoldan
+--      do 19h" ali "popoldan do 19" — oboje).
+-- ---------------------------------------------------------------------
+
+-- Meje in "čez polnoč" za znane kode izmen. Vrne null, če koda ne pomeni
+-- dela (LD/KPU/prazno/POMOČ DRUGJE) — take dneve pocitek_ustreza spodaj
+-- preskoči.
+create or replace function public.izmena_cas(p_sifra text)
+returns table (zacetek time, konec time, cez_polnoc boolean)
+language plpgsql immutable as $$
+declare t text := lower(trim(coalesce(p_sifra, '')));
+begin
+  if t = '' or t like 'ld%' or t like 'kpu%' or t = 'pomoč drugje' then
+    return;
+  elsif t like '%nočna12%' then
+    return query select time '17:50', time '06:00', true;
+  elsif t like '%dnevna12%' then
+    return query select time '07:00', time '19:00', false;
+  elsif t like 'nočna od 19%' then
+    return query select time '18:50', time '06:00', true;
+  elsif t like 'nočna%' then
+    return query select time '20:50', time '06:00', true;
+  elsif t like 'dopoldan%' then
+    return query select time '05:50', time '14:00', false;
+  elsif t like 'popoldan do 19%' then
+    return query select time '13:50', time '19:00', false;
+  elsif t like 'popoldan%' then
+    return query select time '13:50', time '21:00', false;
+  elsif t like 'dežurstvo%' then
+    return query select time '07:00', time '07:00', true; -- 24 ur
+  end if;
+  return;
+end;
+$$;
+
+-- Ali bi oseba p_profile_id na p_datum v izmeni p_sifra ohranila 11 ur
+-- počitka pred/po vseh svojih že razporejenih izmenah v okolici (±2 dni)?
+-- Izjema (interno pravilo PB Begunje, glej PROMPTmenjavasluzbe.md): iz
+-- "popoldan do 19" (konec 19.00) na "dopoldan"/"dnevna12" naslednji dan
+-- (začetek 05.50/07.00) je dovoljeno kljub <11h, ker traja le ~10h50m/11h10m.
+create or replace function public.pocitek_ustreza(p_profile_id uuid, p_datum date, p_sifra text)
+returns boolean language plpgsql stable as $$
+declare
+  nova record; nova_od timestamp; nova_do timestamp;
+  r record; sosed record; od timestamp; do_ timestamp;
+begin
+  select * into nova from public.izmena_cas(p_sifra);
+  if nova is null then return true; end if; -- ne dela ta dan, počitek ni relevanten
+
+  nova_od := p_datum + nova.zacetek;
+  nova_do := p_datum + nova.konec + (case when nova.cez_polnoc then interval '1 day' else interval '0' end);
+
+  for r in
+    select se.work_date, se.shift_code from public.schedule_entries se
+    where se.employee_id = p_profile_id and se.work_date between p_datum - 2 and p_datum + 2 and se.work_date <> p_datum
+  loop
+    select * into sosed from public.izmena_cas(r.shift_code);
+    if sosed is null then continue; end if;
+    od := r.work_date + sosed.zacetek;
+    do_ := r.work_date + sosed.konec + (case when sosed.cez_polnoc then interval '1 day' else interval '0' end);
+
+    if r.work_date = p_datum - 1 and lower(trim(r.shift_code)) like 'popoldan do 19%'
+       and (lower(trim(p_sifra)) like 'dopoldan%' or lower(trim(p_sifra)) like 'dnevna12%') then
+      continue; -- interna izjema, glej komentar zgoraj
+    end if;
+
+    if nova_od < do_ + interval '11 hours' and od < nova_do + interval '11 hours' then
+      return false;
+    end if;
+  end loop;
+  return true;
+end;
+$$;
+
+-- Kdo je odsoten (dopust/omejitev/bolniška/študijski) med p_od in p_do,
+-- vključno s pravilom "dan pred dopustom" (in petek prej, če se blok LD
+-- začne v ponedeljek) — enako pravilo, kot ga generator-core.js/
+-- generirajDezurstva že uporablja, tu na voljo kot splošna SQL funkcija.
+create or replace function public.blokirani_dnevi(p_od date, p_do date)
+returns table (profile_id uuid, datum date)
+language sql stable as $$
+  with le as (
+    select p.id as profile_id, l.work_date, l.kind
+    from public.leave_entries l
+    join public.profiles p on public.imena_se_ujemata(p.full_name, l.full_name)
+    where l.work_date between p_od - 3 and p_do
+  ),
+  ld_bloki as (
+    select profile_id, work_date,
+      lag(work_date) over (partition by profile_id order by work_date) as prejsnji
+    from le where kind = 'ld'
+  ),
+  ld_pred as (
+    select profile_id,
+      (work_date - 1) as datum
+    from ld_bloki where prejsnji is null or work_date - prejsnji > 1
+    union
+    select profile_id, (work_date - 3) as datum
+    from ld_bloki
+    where (prejsnji is null or work_date - prejsnji > 1) and extract(dow from work_date) = 1
+  )
+  select profile_id, work_date as datum from le where work_date between p_od and p_do
+  union
+  select profile_id, datum from ld_pred where datum between p_od and p_do;
+$$;
+
+-- Kandidati za menjavo izmene z osebo p_profile_id na dan p_datum: nekdo
+-- drug, ki ima znotraj ±7 dni izmeno, ki jo je mogoče zamenjati, tisti dan
+-- ni odsoten, in po zamenjavi OBEMA ostane 11 ur počitka.
+create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date)
+returns table (
+  profile_id uuid, full_name text, njihova_izmena text, njihov_datum date,
+  moj_zacetek time, njihov_zacetek time, jaz_pridem_prej boolean
+)
+language plpgsql stable security invoker as $$
+declare v_moja_sifra text;
+begin
+  select shift_code into v_moja_sifra from public.schedule_entries
+    where employee_id = p_profile_id and work_date = p_datum;
+
+  return query
+  select p.id, p.full_name, se.shift_code, se.work_date,
+    (select zacetek from public.izmena_cas(v_moja_sifra)),
+    (select zacetek from public.izmena_cas(se.shift_code)),
+    (select zacetek from public.izmena_cas(v_moja_sifra)) < (select zacetek from public.izmena_cas(se.shift_code))
+  from public.schedule_entries se
+  join public.profiles p on p.id = se.employee_id
+  where se.work_date between p_datum - 7 and p_datum + 7
+    and se.employee_id <> p_profile_id
+    and se.shift_code is not null and se.shift_code <> ''
+    and (select zacetek from public.izmena_cas(se.shift_code)) is not null
+    and not exists (select 1 from public.blokirani_dnevi(p_datum, p_datum) b where b.profile_id = p.id)
+    and not exists (select 1 from public.blokirani_dnevi(se.work_date, se.work_date) b where b.profile_id = p_profile_id)
+    and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
+    and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
+  order by p.full_name;
+end;
+$$;
+grant execute on function public.mozni_sodelavci(uuid, date) to authenticated;

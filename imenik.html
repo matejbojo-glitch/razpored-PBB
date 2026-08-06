@@ -291,6 +291,31 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setRotBusy(false); }
   };
 
+  // Neposredni vodja (profiles.vodja_id) — prava FK-povezava na drugo
+  // osebo, ki jo Obrazec za evidentiranje prisotnosti (obrazec.html)
+  // uporablja za usmerjanje odobritev. Ločeno od profile_hr_details.
+  // manager_name zgoraj, ki je samo prikazno prosto besedilo.
+  const [vodjaId, setVodjaId] = useState(oseba.vodja_id || "");
+  const [vsiZaVodjo, setVsiZaVodjo] = useState(null);
+  const [vodjaBusy, setVodjaBusy] = useState(false);
+  const [vodjaMsg, setVodjaMsg] = useState(null);
+  useEffect(() => {
+    if (myRole !== "admin") return;
+    client.from("profiles").select("id, full_name").neq("id", oseba.id).order("full_name")
+      .then(({ data }) => setVsiZaVodjo(data || []));
+    // eslint-disable-next-line
+  }, [oseba.id]);
+  const shraniVodjo = async () => {
+    setVodjaBusy(true); setVodjaMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ vodja_id: vodjaId || null }).eq("id", oseba.id);
+      if (error) throw error;
+      setVodjaMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setVodjaMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setVodjaBusy(false); }
+  };
+
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -498,6 +523,27 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
                 </div>
                 <button className="submitBtn" onClick={shraniRotacijo} disabled={rotBusy}>{rotBusy ? "Shranjujem …" : "Shrani"}</button>
                 {rotMsg && <p className={rotMsg.ok ? "okMsg" : "err"}>{rotMsg.text}</p>}
+              </div>
+            </React.Fragment>
+          )}
+
+          {myRole === "admin" && (
+            <React.Fragment>
+              <h2 className="section no-print">Neposredni vodja (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Uporablja Obrazec za evidentiranje prisotnosti in sprememb razporeda (obrazec.html) za
+                  usmerjanje odobritev — brez tega oseba ne more oddati obrazca.
+                </p>
+                <div className="field">
+                  <label>Neposredni vodja</label>
+                  <select value={vodjaId} onChange={e => setVodjaId(e.target.value)} disabled={!vsiZaVodjo}>
+                    <option value="">— ni nastavljen —</option>
+                    {(vsiZaVodjo || []).map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                  </select>
+                </div>
+                <button className="submitBtn" onClick={shraniVodjo} disabled={vodjaBusy}>{vodjaBusy ? "Shranjujem …" : "Shrani"}</button>
+                {vodjaMsg && <p className={vodjaMsg.ok ? "okMsg" : "err"}>{vodjaMsg.text}</p>}
               </div>
             </React.Fragment>
           )}
@@ -1044,7 +1090,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, rotation_slot, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data }) => {
         setOsebe((data || []).map(o => ({
