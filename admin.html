@@ -539,6 +539,7 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
           min_sms: v.min_sms === "" || v.min_sms == null ? null : Number(v.min_sms),
           min_flexi: v.min_flexi === "" || v.min_flexi == null ? null : Number(v.min_flexi),
           note: v.note || null,
+          updated_at: new Date().toISOString(),
         };
       });
       const { error } = await client.from("department_shift_minimums").upsert(rows, { onConflict: "department_code,shift_bucket" });
