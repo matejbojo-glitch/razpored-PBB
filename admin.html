@@ -746,6 +746,44 @@ function KalupTab(){
   );
 }
 
+// Pravičnost dežurstev — kontrolni seznam, razdelek 7: doslej je bilo
+// skupno število dežurstev vidno samo znotraj rezultata generiranja
+// ("4 · Pravičnost — novo stanje" spodaj), ne pa kadarkoli, brez generiranja.
+// Uporabi isti roster.stevilo, ki ga nalozizDezurniKader že računa živo.
+function PravicnostPregled({ roster }){
+  const povprecje = roster.length ? roster.reduce((s, z) => s + (Number(z.stevilo) || 0), 0) / roster.length : 0;
+  const maxStevilo = Math.max(1, ...roster.map(z => Number(z.stevilo) || 0));
+  const sortirano = roster.slice().sort((a, b) => (Number(b.stevilo) || 0) - (Number(a.stevilo) || 0));
+  return (
+    <div className="card no-print" style={{marginBottom:12}}>
+      <div style={{fontWeight:800, marginBottom:4}}>⚖ Pravičnost dežurstev — trenutno stanje</div>
+      <p className="hint" style={{marginTop:0}}>
+        Skupno število dežurstev doslej (zaprta zgodovina do 31. 8. 2026 + živo objavljeno), povprečje
+        oddelka: <b>{povprecje.toFixed(1)}</b>. Kdor ima bistveno več od povprečja, je kandidat za manj
+        naslednjih dežurstev; kdor ima manj, za več.
+      </p>
+      <table className="fairTable">
+        <thead><tr><th>Zaposleni</th><th>Skupaj</th><th>Odstopanje od povprečja</th></tr></thead>
+        <tbody>
+          {sortirano.map(z => {
+            const st = Number(z.stevilo) || 0;
+            const odstopanje = st - povprecje;
+            return (
+              <tr key={z.ime}>
+                <td>{z.ime}</td>
+                <td><b>{st}</b><div className="bar"><i style={{width:(100*st/maxStevilo)+"%"}}></i></div></td>
+                <td style={{color: odstopanje > 0.5 ? "var(--danger)" : odstopanje < -0.5 ? "var(--ok)" : "var(--muted)"}}>
+                  {odstopanje > 0 ? "+" : ""}{odstopanje.toFixed(1)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------
 function DezurstvaTab(){
   const [roster, setRoster] = useState(null);
@@ -906,6 +944,7 @@ function DezurstvaTab(){
       <p className="hint no-print">Članstvo (kdo je dežurni kader) pride živo iz Imenika (oddelek "DEZ"). Število in datum zadnjega dežurstva se izračunata samodejno: zaprta zgodovina do 31. 8. 2026 + vse, kar je od takrat objavljeno v Supabase — po potrebi ju spodaj ročno popravite samo za to generiranje. Dopust/omejitve pridejo iz razpredelnice Želje in se ob spremembi meseca počistijo (znova jih uvozite ali osvežite spodaj). "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni nastavljen v Imeniku. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" in "Prost dan"/"Samo med tednom" so privzeto iz Imenika (HR podatki), tu jih lahko za to generiranje spremenite.</p>
       {!roster ? <p className="hint no-print">Nalagam dežurni kader …</p> : (
       <React.Fragment>
+      <PravicnostPregled roster={roster} />
       <div className="card no-print" style={{marginBottom:12}}>
         <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
           onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
