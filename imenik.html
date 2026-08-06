@@ -656,6 +656,11 @@ const GLAVE_MAPA = {
   position_name: ["position_name","naziv delovnega mesta"],
   org_unit_name: ["org_unit_name","naziv enote organizacijske strukture"],
   manager_name: ["manager_name","vodja (naziv)","vodja"],
+  // Šifra neposrednega vodje (ne ime) — če jo znamo razrešiti na obstoječ
+  // profil (prek profile_hr_details.employee_code), uvoz samodejno nastavi
+  // profiles.vodja_id (glej vodjaPari spodaj v uvoziVrsticeObjekte). To je
+  // ločeno od manager_name zgoraj (tisto je samo prosto besedilo za prikaz).
+  vodja_sifra: ["vodja_sifra","vodja (šifra)","vodja (sifra)"],
   parental_leave: ["parental_leave","starševsko varstvo","starsevsko varstvo"],
   annual_leave_total: ["annual_leave_total","letni dopust 2026 (skupaj)","letni dopust (skupaj)","letni dopust"],
   // Tekoče stanje dopusta (preostanek dni) - ločeno od letne kvote zgoraj,
@@ -728,6 +733,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
       birth_date: window.ImportUtils.normalizirajDatum(v.birth_date) || null,
       position_name: (v.position_name || "").trim() || null,
       manager_name: (v.manager_name || "").trim() || null,
+      vodja_sifra: (v.vodja_sifra || "").trim() || null,
       parental_leave: (v.parental_leave || "").trim() || null,
       annual_leave_total, leave_balance_days, leave_balance_asof,
     };
@@ -739,8 +745,16 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   // na izrecno željo: admin redno uvozi novo Excel tabelo, obstoječi
   // zaposleni naj bodo takoj na tekočem, brez ročnega "Poveži" vsakič znova.
   const prenesiPodatkeNaProfil = async (zapis, profileId) => {
+    // Najprej preberi trenutno stanje: splošen HR izvoz pogosto nima WARDS_META
+    // kode oddelka (samo splošno organizacijsko enoto, ki se ne preslika prek
+    // UNIT_TO_DEPT) — brez tega bi uvoz vsakič povozil ročno/SQL nastavljen
+    // oddelek z null. Enako varuje vlogo: uvoz nikoli ne povrne admina/vodje
+    // nazaj na "user", tudi če je izvorni stolpec "vloga" tam prazen/drugačen.
+    const { data: trenutni } = await client.from("profiles").select("role, department_code").eq("id", profileId).single();
+    const novaVloga = trenutni && trenutni.role !== "user" ? trenutni.role : (zapis.role || "user");
+    const noviOddelek = zapis.department_code || (trenutni && trenutni.department_code) || null;
     const { error: e1 } = await client.from("profiles").update({
-      role: zapis.role || "user", department_code: zapis.department_code || null,
+      role: novaVloga, department_code: noviOddelek,
     }).eq("id", profileId);
     if (e1) return e1;
     if (zapis.phone) {
@@ -767,19 +781,47 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   // contact_imports kot doslej (čaka na registracijo + ročno "Poveži").
   const uvoziVrsticeObjekte = async (vrsticeObj) => {
     let dodanih = 0, posodobljenih = 0, napak = 0;
+    // Zbrano med glavno zanko, razrešeno šele po njej (glej spodaj) — vodja
+    // je lahko naveden s svojo šifro PREDEN je njegova/njena vrstica sploh
+    // obdelana, zato mora biti razrešitev ločen drugi prehod čez že
+    // posodobljene profile, ne del posamezne iteracije.
+    const vodjaPari = [];
     for (const v of vrsticeObj) {
       const zapis = vrsticaVZapis(v);
       if (!zapis) { napak++; continue; }
       const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
       if (obstojeci) {
         const err = await prenesiPodatkeNaProfil(zapis, obstojeci.id);
-        if (err) napak++; else posodobljenih++;
+        if (err) { napak++; } else {
+          posodobljenih++;
+          if (zapis.vodja_sifra) vodjaPari.push({ profileId: obstojeci.id, vodjaSifra: zapis.vodja_sifra });
+        }
       } else {
         const err = await dodajAliPosodobiVrstico(zapis);
         if (err) napak++; else dodanih++;
       }
     }
-    setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno, ${dodanih} novih dodanih/posodobljenih v seznamu za uvoz`
+
+    let vodjaPosodobljenih = 0;
+    if (vodjaPari.length > 0) {
+      const { data: hrVrstice } = await client.from("profile_hr_details")
+        .select("profile_id, employee_code").not("employee_code", "is", null);
+      const sifraNaProfil = {};
+      (hrVrstice || []).forEach(r => { sifraNaProfil[r.employee_code] = r.profile_id; });
+      for (const par of vodjaPari) {
+        const vodjaProfilId = sifraNaProfil[par.vodjaSifra];
+        // Preskoči, če šifra vodje ne pripada nikomur z računom v aplikaciji
+        // (npr. direktor izven Službe za ZN) ali bi oseba postala sama sebi
+        // vodja (napaka v izvoru).
+        if (!vodjaProfilId || vodjaProfilId === par.profileId) continue;
+        const { error } = await client.from("profiles").update({ vodja_id: vodjaProfilId }).eq("id", par.profileId);
+        if (!error) vodjaPosodobljenih++;
+      }
+    }
+
+    setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno`
+      + (vodjaPosodobljenih ? ` (od tega ${vodjaPosodobljenih} z nastavljenim neposrednim vodjo)` : "")
+      + `, ${dodanih} novih dodanih/posodobljenih v seznamu za uvoz`
       + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
     nalozi();
     onSpremenjeno();
