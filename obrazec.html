@@ -401,7 +401,7 @@ function DetajlObrazca({ obrazec, profil, onNazaj }){
     <div>
       <button className="backBtn no-print" onClick={onNazaj}>‹ Nazaj</button>
       <div className="printHead">
-        <h1>Obrazec za evidentiranje prisotnosti in sprememb razporeda</h1>
+        <h1>Zahtevek za spremembo evidence delovnega časa in razporeda</h1>
         <p>Št. {obrazec.stevilka}</p>
       </div>
       <div className="card">
@@ -592,7 +592,7 @@ function App(){
       {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}
 
       <footer className="foot no-print">
-        <p>Digitalna različica papirnatega obrazca "Obvestilo koordinatorici za razporejanje kadra v ZN". Veriga odobritev je odvisna od vrste in izmene:
+        <p>Digitalna različica obrazca "Zahtevek za spremembo evidence delovnega časa in razporeda". Veriga odobritev je odvisna od vrste in izmene:
         navadna menjava službe gre skozi sodelavca, neposrednega vodjo in koordinatorja (kdorkoli ima vlogo administrator);
         menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju, potrdi pa jo lahko izključno Denis Džamastagić;
         ostali dve vrsti (ročno evidentiranje, drugo) brez sodelavca. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.</p>

@@ -325,10 +325,11 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setRotBusy(false); }
   };
 
-  // Neposredni vodja (profiles.vodja_id) — prava FK-povezava na drugo
-  // osebo, ki jo Obrazec za evidentiranje prisotnosti (obrazec.html)
-  // uporablja za usmerjanje odobritev. Ločeno od profile_hr_details.
-  // manager_name zgoraj, ki je samo prikazno prosto besedilo.
+  // Neposredni vodja (profiles.vodja_id) — prava FK-povezava na drugo osebo,
+  // ki jo stran Menjava (obrazec.html, "Zahtevek za spremembo evidence
+  // delovnega časa in razporeda") uporablja za usmerjanje odobritev. Ločeno
+  // od profile_hr_details.manager_name zgoraj, ki je samo prikazno prosto
+  // besedilo.
   const [vodjaId, setVodjaId] = useState(oseba.vodja_id || "");
   const [vsiZaVodjo, setVsiZaVodjo] = useState(null);
   const [vodjaBusy, setVodjaBusy] = useState(false);
@@ -589,7 +590,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <h2 className="section no-print">Neposredni vodja (admin)</h2>
               <div className="card no-print">
                 <p className="hint" style={{marginTop:0}}>
-                  Uporablja Obrazec za evidentiranje prisotnosti in sprememb razporeda (obrazec.html) za
+                  Uporablja stran Menjava ("Zahtevek za spremembo evidence delovnega časa in razporeda") za
                   usmerjanje odobritev — brez tega oseba ne more oddati obrazca.
                 </p>
                 <div className="field">
@@ -1195,6 +1196,7 @@ function App(){
   const [odprtId, setOdprtId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [pogled, setPogled] = useState("seznam"); // "seznam" | "dopust" (slednje samo admin)
+  const [napakaOsebe, setNapakaOsebe] = useState(null);
 
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
@@ -1210,7 +1212,23 @@ function App(){
     client.from("profiles")
       .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Nalaganje seznama oseb ni uspelo:", error);
+          // Najverjetnejši vzrok: manjka stolpec profiles.is_koordinator, ker
+          // še ni bila pognana zadnja različica supabase/schema.sql v
+          // Supabase SQL Editorju (dodan v PR "Menjava: enostopenjska
+          // koordinatorska odobritev ..."). Brez preverjanja napake bi to
+          // tiho izpraznilo cel seznam (data ostane undefined) - zato jasno
+          // sporočilo namesto praznega imenika.
+          setNapakaOsebe(
+            "Nalaganje seznama oseb ni uspelo (" + (error.message || String(error)) + "). "
+            + "Najverjetneje je treba v Supabase SQL Editorju znova pognati celoten supabase/schema.sql "
+            + "(dodaja stolpec profiles.is_koordinator)."
+          );
+          return;
+        }
+        setNapakaOsebe(null);
         setOsebe((data || []).map(o => ({
           ...o,
           phone: Array.isArray(o.contact_phones) ? (o.contact_phones[0] && o.contact_phones[0].phone) : (o.contact_phones ? o.contact_phones.phone : null),
@@ -1275,6 +1293,8 @@ function App(){
         {myRole === "vodja" && "Vidiš e-pošto in telefonsko številko vseh zaposlenih."}
         {myRole === "user" && "Vidiš e-pošto vseh sodelavcev; telefonske številke vidita samo admin in vodja (razen tvoje lastne)."}
       </p>
+
+      {napakaOsebe && <p className="err no-print">{napakaOsebe}</p>}
 
       {odprtId && oseba && (
         <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} ogled={!!auth.ogled} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
