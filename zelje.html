@@ -194,20 +194,43 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
 // ---------------------------------------------------------------------
-// Skupni seznam vseh zaposlenih (isti roster kot v admin.html), da lahko
-// želje vnašamo za kogar koli v zdravstveni negi, ne le za en oddelek.
+// Skupni seznam vseh zaposlenih (za Razpredelnico dopusti/omejitve, ki
+// zajema vso zdravstveno nego, ne le 6 oddelkov iz Seznama želja) — prej
+// je bil ta seznam trdo kodiran tukaj in je s časom razšel od dejanskega
+// stanja v Supabase (profiles/profile_departments), glej
+// roster/analiza-razporedov.md. Zdaj se ob nalaganju prebere živo:
+// department_code (primarni oddelek) + profile_departments (dodatne
+// enote, npr. nekdo je hkrati na svojem oddelku IN v dežurnem kadru) se
+// preslikata v spodnjih 9 skupin, primarni oddelek ima prednost pri
+// razvrstitvi, če je oseba v več kot eni od teh skupin hkrati.
 // ---------------------------------------------------------------------
-const SKUPINE = [
-  { naziv: "A - oddelek, MT (SMS)", ljudje: ["VREVC M.","JEREB S."] },
-  { naziv: "B - oddelek (SMS/TZN)", ljudje: ["ROZMAN A.","SVETINA S.","REJC J.","DOLAR T.","VOVK U."] },
-  { naziv: "C - oddelek (SMS/TZN)", ljudje: ["ŠABIĆ S.","KODRAS N.","ROZMAN K.","MOČNIK S.","SMOLEJ N.","DJEDOVIĆ M.","HUSEINBAŠIĆ A.","VOZEL N."] },
-  { naziv: "C1 - oddelek (SMS/TZN)", ljudje: ["DŽINIĆ A.","STARC E.","KARNIČAR J.","ZEKAN A.","ŠKANTAR M.","VALJAVEC E.","BEĆIROVIĆ N.","SUŠNIK J.","POGAČNIK M.","GAZIBARA A."] },
-  { naziv: "D - oddelek (SMS/TZN)", ljudje: ["MURIĆ A.","RANT L.","REKIĆ E.","BALEK M.","MEGLIČ J.","NUHANOVIĆ M.","STARE L.","TOMAŠIĆ N.","MRAVLJE U.","VOZEL D."] },
-  { naziv: "E1 - oddelek (SMS/TZN)", ljudje: ["BRATUŠA M.","SVETINA R.","URANKER M.","PETERMAN R.","MALER A."] },
-  { naziv: "E2 - oddelek (SMS/TZN)", ljudje: ["MUŠIĆ A.","BAJT A.","VOLARIČ N.","SODJA B.","TALIĆ A.","GASHI G.","KOGOJ E.","KVRŽIĆ M."] },
-  { naziv: "Dežurni kader (DMS/DZN)", ljudje: ["ALUKIĆ DINO","ARNEŽ GREGA","BOJIĆ MATEJ","DŽAMASTAGIĆ DENIS","PERVIZ AMAL","TOMAŽEVIČ SIMONA","TORKAR TANJA","HROVAT NINA","ŠUBIC PETRA","LUNAR MATEJA","MAVRI TRATNIK MAGDALENA","VELUŠČEK METKA","SALKIĆ MARUŠA","TRPIN SAŠA"] },
-  { naziv: "Nedežurni kader (DMS/DZN)", ljudje: ["BIZJAK TEA","GAZIBARA ALDIN","HUMAR SAŠA","LELIČ DIJANA","MAGLIĆ ALEKSANDER","MISOTIČ REBEKA","MUŠIČ INES","POGAČNIK TEJA","SEJDINOVIĆ MUSTAFA","SOFRIĆ NIKOLINA","VOZEL DEJAN"] },
+const RAZPOREDNICA_ODDELKI = [
+  ["A", "A - oddelek, MT (SMS)"],
+  ["B", "B - oddelek (SMS/TZN)"],
+  ["C", "C - oddelek (SMS/TZN)"],
+  ["C1", "C1 - oddelek (SMS/TZN)"],
+  ["D", "D - oddelek (SMS/TZN)"],
+  ["E1", "E1 - oddelek (SMS/TZN)"],
+  ["E2", "E2 - oddelek (SMS/TZN)"],
+  ["DEZ", "Dežurni kader (DMS/DZN)"],
+  ["NEDEZ", "Nedežurni kader (DMS/DZN)"],
 ];
+
+async function nalozizRoster(){
+  const { data, error } = await RazporedAuth.client
+    .from("profiles").select("full_name, department_code, profile_departments(department_code)")
+    .order("full_name");
+  if (error) throw error;
+  const skupine = RAZPOREDNICA_ODDELKI.map(([koda, naziv]) => ({ koda, naziv, ljudje: [] }));
+  const poKodi = Object.fromEntries(skupine.map(s => [s.koda, s]));
+  (data || []).forEach(p => {
+    const kode = [p.department_code, ...(p.profile_departments || []).map(d => d.department_code)];
+    const koda = kode.find(k => poKodi[k]);
+    if (koda) poKodi[koda].ljudje.push(p.full_name);
+  });
+  const vsiLjudje = skupine.reduce((acc, g) => acc.concat(g.ljudje.map(ime => ({ ime, skupina: g.naziv }))), []);
+  return { skupine, vsiLjudje };
+}
 
 // Pomanjša sliko na največ 1600 px in jo pretvori v JPEG — telefonske
 // fotografije so sicer lahko več MB, kar bi bazo po nekaj vnosih napihnilo.
@@ -242,7 +265,6 @@ function compressImage(file){
 // v admin.html: koordinator tu klikne/povleče čez dneve, generator
 // dežurstev pa te vnose samodejno prebere (glej admin.html "Osveži iz Želje").
 // ---------------------------------------------------------------------
-const VSI_LJUDJE = SKUPINE.reduce((acc, g) => acc.concat(g.ljudje.map(ime => ({ ime, skupina: g.naziv }))), []);
 
 const PEN_META = {
   omejitev: { label: "Omejitev", barva: "#FFD966" },
@@ -298,7 +320,7 @@ function imenaSeUjemata(a, b){
 
 // ---------------------------------------------------------------------
 // Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.
-// Nekateri oddelki v SKUPINE uporabljajo okrajšano ime ("VREVC M."), Kadris
+// Nekateri oddelki v profiles.full_name uporabljajo okrajšano ime ("VREVC M."), Kadris
 // pa vedno polno ("VREVC MARJETA"), zato navadno imenaSeUjemata (vreča
 // besed, cele besede) tu ne zadošča — beseda z "." na koncu šteje kot
 // ujemanje po prvih črkah (okrajšava), ne kot cela beseda.
@@ -321,8 +343,8 @@ function imeSeUjemaZRosterjem(rosterIme, uvozenoIme){
     return true;
   });
 }
-function najdiOsebo(uvozenoIme){
-  return VSI_LJUDJE.find(o => imeSeUjemaZRosterjem(o.ime, uvozenoIme));
+function najdiOsebo(vsiLjudje, uvozenoIme){
+  return vsiLjudje.find(o => imeSeUjemaZRosterjem(o.ime, uvozenoIme));
 }
 
 // Barva celice -> stabilen ključ za preslikavo (ARGB hex; bela/brez polnila
@@ -432,7 +454,7 @@ function UrediSheet({ ime: imeProp, kandidati, dan, dowLabel, mesecLbl, trenutna
 // Pogled "Po dnevih" — en dan naenkrat, kartice namesto ozke mreže; misljen
 // za telefon ("hitro preverjanje na poti"), a deluje povsod. Urejanje gre
 // prek UrediSheet zgoraj.
-function DnevniPogled({ view, trenutnaVrednost, smemUrejati, nastaviCelico }){
+function DnevniPogled({ view, vsiLjudje, trenutnaVrednost, smemUrejati, nastaviCelico }){
   const nd = danovVMesecu(view.year, view.month);
   const [dan, setDan] = useState(() => Math.min(new Date().getDate(), nd));
   const [sheet, setSheet] = useState(null); // { ime: string|null, kandidati: [...] }
@@ -440,8 +462,8 @@ function DnevniPogled({ view, trenutnaVrednost, smemUrejati, nastaviCelico }){
 
   const iso = isoZa(view.year, view.month, dan);
   const dowLabel = dowZa(view.year, view.month, dan);
-  const oznaceni = VSI_LJUDJE.filter(({ ime }) => trenutnaVrednost(ime, iso));
-  const proste = VSI_LJUDJE.filter(({ ime }) => !trenutnaVrednost(ime, iso));
+  const oznaceni = vsiLjudje.filter(({ ime }) => trenutnaVrednost(ime, iso));
+  const proste = vsiLjudje.filter(({ ime }) => !trenutnaVrednost(ime, iso));
 
   const potrdiSheet = (ime, vrednost) => {
     if (!ime) return;
@@ -493,7 +515,7 @@ function DnevniPogled({ view, trenutnaVrednost, smemUrejati, nastaviCelico }){
   );
 }
 
-function Razpredelnica({ role, myId, myFullName }){
+function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
   const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
   const [view, setView] = useState(() => {
@@ -633,7 +655,7 @@ function Razpredelnica({ role, myId, myFullName }){
       const barveNove = [...barveVDatoteki].filter(b => !barvnaMapa[b]);
       const neujemanja = [];
       let steviloUjemanj = 0;
-      vrstice.forEach(v => { if (najdiOsebo(v.imeRaw)) steviloUjemanj++; else neujemanja.push(v.imeRaw); });
+      vrstice.forEach(v => { if (najdiOsebo(vsiLjudje, v.imeRaw)) steviloUjemanj++; else neujemanja.push(v.imeRaw); });
       setBarvniPredogled({
         vrstice, leto: view.year, mesec: view.month,
         barveNove, neujemanja, steviloOseb: vrstice.length, steviloUjemanj,
@@ -672,7 +694,7 @@ function Razpredelnica({ role, myId, myFullName }){
       const dniVMesecu = danovVMesecu(leto, mesec);
       const zapisi = [];
       vrstice.forEach(v => {
-        const oseba = najdiOsebo(v.imeRaw);
+        const oseba = najdiOsebo(vsiLjudje, v.imeRaw);
         if (!oseba) return;
         v.zaznamki.forEach(z => {
           if (z.dan > dniVMesecu) return; // npr. 31. stolpec v mesecu s 30 dnevi
@@ -845,7 +867,7 @@ function Razpredelnica({ role, myId, myFullName }){
       </div>
 
       {nacin==="dnevi" && (
-        <DnevniPogled view={view} trenutnaVrednost={trenutnaVrednost} smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
+        <DnevniPogled view={view} vsiLjudje={vsiLjudje} trenutnaVrednost={trenutnaVrednost} smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
       )}
 
       {nacin==="mreza" && (
@@ -870,7 +892,7 @@ function Razpredelnica({ role, myId, myFullName }){
             </tr>
           </thead>
           <tbody>
-            {VSI_LJUDJE.map(({ ime }) => {
+            {vsiLjudje.map(({ ime }) => {
               const jeMoja = imenaSeUjemata(ime, myFullName);
               return (
                 <tr key={ime} style={!jeAdmin && !jeMoja ? {opacity:.6} : null}>
@@ -927,25 +949,21 @@ function Razpredelnica({ role, myId, myFullName }){
 // Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) —
 // samo 6 SMS/TZN oddelkov + "VODJE", na izrecno navodilo. Imena oseb za
 // izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
-// pridobimo iz že obstoječega SKUPINE seznama za 6 oddelkov, za VODJE pa
-// neposredno iz lead_departments (edini pravi vir 22 nosilcev oddelkov —
-// tu se ne podvaja/ne tvega neujemanja s tistim, kar ureja admin.html).
-const ODDELEK_SKUPINA = {
-  B: "B - oddelek (SMS/TZN)", C: "C - oddelek (SMS/TZN)", C1: "C1 - oddelek (SMS/TZN)",
-  D: "D - oddelek (SMS/TZN)", E1: "E1 - oddelek (SMS/TZN)", E2: "E2 - oddelek (SMS/TZN)",
-};
-
-function VnosForma({ oddelek, myId, myFullName, jeKoordinator, onAdded }){
+// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster), za
+// VODJE pa neposredno iz lead_departments (edini pravi vir 22 nosilcev
+// oddelkov — tu se ne podvaja/ne tvega neujemanja s tistim, kar ureja
+// admin.html).
+function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded }){
   const [imena, setImena] = useState(null); // null dokler se ne naloži (pomembno za VODJE, ki gre prek Supabase)
   useEffect(() => {
     if (oddelek === "VODJE") {
       RazporedAuth.client.from("lead_departments").select("full_name").order("full_name")
         .then(({ data }) => setImena([...new Set((data || []).map(v => v.full_name))]));
     } else {
-      const skupina = SKUPINE.find(g => g.naziv === ODDELEK_SKUPINA[oddelek]);
+      const skupina = skupine.find(g => g.koda === oddelek);
       setImena(skupina ? skupina.ljudje : []);
     }
-  }, [oddelek]);
+  }, [oddelek, skupine]);
 
   const [ime, setIme] = useState(myFullName || "");
   useEffect(() => {
@@ -1032,7 +1050,7 @@ function VnosForma({ oddelek, myId, myFullName, jeKoordinator, onAdded }){
 
 const ZELJE_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "VODJE"];
 
-function SeznamZeljTab({ role, myId, myFullName, myDept }){
+function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
   const jeKoordinator = role === "admin" || role === "vodja";
   const [oddelek, setOddelek] = useState(() => (
     jeKoordinator ? ZELJE_ODDELKI[0] : (ZELJE_ODDELKI.includes(myDept) ? myDept : null)
@@ -1084,7 +1102,7 @@ function SeznamZeljTab({ role, myId, myFullName, myDept }){
 
       <div className="no-print">
         <h2 className="section">Nov vnos — {oddelek === "VODJE" ? "vodje" : "oddelek " + oddelek}</h2>
-        <VnosForma oddelek={oddelek} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
+        <VnosForma oddelek={oddelek} skupine={skupine} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
       </div>
 
       <div className="toolRow no-print">
@@ -1140,6 +1158,8 @@ function Lightbox({ src, onClose }){
 
 function App({ role, myId, myFullName, myDept, ogled, profil }){
   const [tab, setTab] = useState("razpredelnica");
+  const [roster, setRoster] = useState(null); // { skupine, vsiLjudje } — glej nalozizRoster
+  useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
 
   return (
     <div className="wrap">
@@ -1155,10 +1175,14 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
         <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
       </div>
 
-      {tab === "razpredelnica" && <Razpredelnica role={role} myId={myId} myFullName={myFullName} />}
+      {!roster && <p className="hint">Nalagam seznam osebja …</p>}
 
-      {tab === "zelje" && (
-        <SeznamZeljTab role={role} myId={myId} myFullName={myFullName} myDept={myDept} />
+      {roster && tab === "razpredelnica" && (
+        <Razpredelnica role={role} myId={myId} myFullName={myFullName} vsiLjudje={roster.vsiLjudje} />
+      )}
+
+      {roster && tab === "zelje" && (
+        <SeznamZeljTab role={role} myId={myId} myFullName={myFullName} myDept={myDept} skupine={roster.skupine} />
       )}
 
       <footer className="foot no-print">
