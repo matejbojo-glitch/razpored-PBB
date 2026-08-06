@@ -486,9 +486,11 @@ function KalupTab(){
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
   const wardRef = useRef();
-  // Ročni popravki po izračunu: "ime|datum" -> besedilo. Enaka logika kot že
-  // v zavihku Vodje - spremeni samo prikaz/izvoz (PDF/CSV), NE pa objave v
-  // Supabase (ta ostane vezana na izračunano vrednost generatorja).
+  // Ročni popravki po izračunu: "ime|datum" -> besedilo. Podobna logika kot v
+  // zavihku Vodje, a tu se (za razliko od Vodje) popravek upošteva TUDI ob
+  // objavi v Supabase - vsaka celica tu je natanko ena oseba/en dan, zato se
+  // zanesljivo preslika nazaj na eno izmeno (v Vodje en stolpec združuje več
+  // ljudi v eno prosto besedilo, zato tam to ni varno).
   const [popravki, setPopravki] = useState({});
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
@@ -566,7 +568,11 @@ function KalupTab(){
     try {
       const rows = [];
       rezultat.dnevi.forEach(dn => {
-        Object.keys(dn.izmene).forEach(ime => rows.push({ ime, datum: dn.datum, sifra: dn.izmene[ime] }));
+        Object.keys(dn.izmene).forEach(ime => {
+          const key = ime + "|" + dn.datum;
+          const sifra = popravki[key] != null ? popravki[key] : dn.izmene[ime];
+          rows.push({ ime, datum: dn.datum, sifra });
+        });
       });
       const { objavljeno, manjkajo } = await publishScheduleRows(rezultat.koda, rows);
       setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") });
@@ -649,9 +655,9 @@ function KalupTab(){
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
           <p className="hint no-print">
-            Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) — to spremeni samo prikaz/izvoz (PDF/CSV), ne pa
-            objave v Supabase (ta ostane vezana na izračunano vrednost generatorja, ker prostega besedila ni mogoče
-            zanesljivo preslikati nazaj na eno izmeno).
+            Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) — sprememba se upošteva povsod: v prikazu,
+            izvozu (PDF/CSV) IN ob objavi v Supabase (vsaka celica je ena oseba/en dan, zato se popravek zanesljivo
+            preslika nazaj na eno izmeno).
           </p>
           <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
