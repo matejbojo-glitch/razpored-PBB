@@ -2236,7 +2236,14 @@ grant execute on function public.obrazec_potrdi_koordinator(uuid, boolean, text)
 
 -- Kaj čaka name (popravljeno: koordinatorska naloga je vidna glede na
 -- je_dezurstvo - is_koordinator za dežurstvo, kateri koli admin za navadno).
-create or replace view public.obrazci_moja_naloga
+-- "create or replace view" tu ne deluje: obrazci.je_dezurstvo je bil dodan
+-- k tabeli PRED to spremembo, zato "select o.*" zdaj vrne ta nov stolpec na
+-- mestu, kjer je bil prej zadnji stolpec "moje_dejanje" - Postgres to bere
+-- kot preimenovanje obstoječega stolpca, kar CREATE OR REPLACE VIEW
+-- prepoveduje (42P16). Pravi popravek je drop+create (varno: na pogled se
+-- ne sklicuje noben drug DB objekt, samo odjemalec prek PostgREST).
+drop view if exists public.obrazci_moja_naloga;
+create view public.obrazci_moja_naloga
 with (security_invoker = true) as
 select o.*,
   case
