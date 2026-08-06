@@ -1135,3 +1135,45 @@ from (values
   ('MUŠIĆ A.', 'B'), ('BAJT A.', 'C'), ('VOLARIČ N.', 'E'), ('SODJA B.', 'D'), ('TALIĆ A.', 'A')
 ) as v(full_name, slot)
 where p.full_name = v.full_name and p.rotation_slot is null;
+
+-- ---------------------------------------------------------------------
+-- 16) profile_hr_details.duty_* — osebne nastavitve dežurnega kadra
+--     (min/maks dežurstev na mesec, prost dan v tednu, samo med tednom),
+--     prej trdo kodirane v admin.html DEZURNI_ZACETNO. RLS ni nova - te
+--     kolone pokrivata obstoječi profile_hr_details_select/_admin_write.
+--     Št. dežurstev/zadnje dežurstvo NISTA tu - ti dve se od te spremembe
+--     dalje računata živo iz schedule_entries (glej nalozizDezurniKader v
+--     admin.html), zato ne potrebujeta stolpca ne seed vrednosti.
+-- ---------------------------------------------------------------------
+alter table public.profile_hr_details add column if not exists duty_min_monthly integer;
+alter table public.profile_hr_details add column if not exists duty_max_monthly integer;
+alter table public.profile_hr_details add column if not exists duty_day_off text check (duty_day_off in ('PO','TO','SR','ČE','PE','SO','NE'));
+alter table public.profile_hr_details add column if not exists duty_weekdays_only boolean;
+
+-- Enkratna zasnovna vrednost = isti podatek, ki je bil doslej trdo kodiran
+-- v DEZURNI_ZACETNO. "coalesce(obstoječe, novo)" v update delu naredi to
+-- varno za ponovni zagon: ne prepiše poznejšega ročnega popravka.
+insert into public.profile_hr_details (profile_id, duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)
+select p.id, v.min_m, v.max_m, v.day_off, v.weekdays_only
+from (values
+  ('ALUKIĆ DINO', 2, 3, null, false),
+  ('ARNEŽ GREGA', 2, 3, null, false),
+  ('BOJIĆ MATEJ', 2, 3, 'PO', false),
+  ('DŽAMASTAGIĆ DENIS', 2, 3, null, false),
+  ('PERVIZ AMAL', 2, 3, null, false),
+  ('TOMAŽEVIČ SIMONA', 2, 3, null, false),
+  ('TORKAR TANJA', 2, 3, null, false),
+  ('HROVAT NINA', 2, 3, null, false),
+  ('ŠUBIC PETRA', 2, 3, null, false),
+  ('LUNAR MATEJA', 2, 3, null, false),
+  ('MAVRI TRATNIK MAGDALENA', 2, 3, null, false),
+  ('VELUŠČEK METKA', 2, 2, null, false),
+  ('SALKIĆ MARUŠA', 1, 1, null, true),
+  ('TRPIN SAŠA', 1, 1, null, true)
+) as v(full_name, min_m, max_m, day_off, weekdays_only)
+join public.profiles p on p.full_name = v.full_name
+on conflict (profile_id) do update set
+  duty_min_monthly = coalesce(public.profile_hr_details.duty_min_monthly, excluded.duty_min_monthly),
+  duty_max_monthly = coalesce(public.profile_hr_details.duty_max_monthly, excluded.duty_max_monthly),
+  duty_day_off = coalesce(public.profile_hr_details.duty_day_off, excluded.duty_day_off),
+  duty_weekdays_only = coalesce(public.profile_hr_details.duty_weekdays_only, excluded.duty_weekdays_only);
