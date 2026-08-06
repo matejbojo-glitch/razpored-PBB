@@ -127,6 +127,26 @@
   table.grid td.cell:hover{ outline:2px solid var(--accent-2); outline-offset:-2px; }
   table.grid td.tot{ text-align:center; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line); }
 
+  table.grid tr.oddGroup th.oddGroupLbl{ position:sticky; left:0; top:44px; z-index:4; background:var(--surface-2);
+    text-align:left; padding:6px 10px; font-weight:800; font-size:11.5px; color:var(--accent-2);
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
+
+  /* Spletna/namizna različica (≥900px, isti prag kot nav.js top-nav): mreža
+     naj pokaže VSE dni meseca brez vodoravnega drsenja - tabela dobi
+     table-layout:fixed in polno širino vsebnika, dnevni stolpci si
+     enakomerno razdelijo preostali prostor (po odštetju stalnih stolpcev
+     imena/oddelka in "LD dni"). Na ožjih zaslonih (telefon/tablica) ostane
+     prvotno vodoravno drsenje z minimalno širino celice. */
+  @media (min-width: 900px){
+    .wrap.wide{ max-width: 1320px; }
+    .gridScroll{ overflow-x:visible; }
+    table.grid{ width:100%; table-layout:fixed; }
+    table.grid th.corner{ width:170px; min-width:0; }
+    table.grid th.tot, table.grid td.tot{ width:50px; min-width:0; }
+    table.grid thead th{ min-width:0; }
+    table.grid td.cell{ width:auto; }
+  }
+
   /* Preklop Mreža/Po dnevih — "Po dnevih" je prilagojen telefonu: en dan
      naenkrat, kartice namesto ozkih stolpcev, urejanje prek spodnjega
      drsnega menija (sheet) namesto tapkanja po majhnih celicah. */
@@ -789,7 +809,9 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       <p className="hint">
         Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
         samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" — LD (dopust) samodejno blokira tudi dan pred
-        začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan.
+        začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan. Mreža je razdeljena po
+        primarnem oddelku vsake osebe (isti oddelek, ki šteje za generator razporeda) — če za osebo v tem mesecu ni
+        nobenega vnosa, se šteje, da je na voljo cel mesec.
         {jeAdmin
           ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
           : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
@@ -923,11 +945,19 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
             </tr>
           </thead>
           <tbody>
-            {vsiLjudje.map(({ ime }) => {
+            {vsiLjudje.map(({ ime, skupina }, i) => {
               const jeMoja = imenaSeUjemata(ime, myFullName);
+              const prejsnjaSkupina = i > 0 ? vsiLjudje[i - 1].skupina : null;
+              const zacetekSkupine = skupina !== prejsnjaSkupina;
               return (
-                <tr key={ime} style={!jeAdmin && !jeMoja ? {opacity:.6} : null}>
-                  <th className="nm">{ime}{jeMoja && !jeAdmin ? " (jaz)" : ""}</th>
+                <React.Fragment key={ime}>
+                  {zacetekSkupine && (
+                    <tr className="oddGroup">
+                      <th className="oddGroupLbl" colSpan={dnevi.length + 2}>{skupina}</th>
+                    </tr>
+                  )}
+                  <tr style={!jeAdmin && !jeMoja ? {opacity:.6} : null}>
+                    <th className="nm">{ime}{jeMoja && !jeAdmin ? " (jaz)" : ""}</th>
                   {dnevi.map(d => {
                     const iso = isoZa(view.year, view.month, d);
                     const val = trenutnaVrednost(ime, iso);
@@ -946,7 +976,8 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
                     );
                   })}
                   <td className="tot">{ldStevilo(ime)}</td>
-                </tr>
+                  </tr>
+                </React.Fragment>
               );
             })}
           </tbody>

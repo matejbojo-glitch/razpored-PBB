@@ -146,6 +146,24 @@ function fmtCas(iso){
   return new Date(iso).toLocaleString("sl-SI", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
 }
 
+// Vsak vidi samo tisto, kar je zanj relevantno - namesto enega dolgega
+// opisa celotne verige (vseh vlog) za vse.
+function opisVerige(profile){
+  const rola = profile ? profile.role : "user";
+  const jeKoordinator = !!(profile && profile.is_koordinator);
+
+  if (jeKoordinator) {
+    return "Kot koordinator dokončno potrjuješ menjave dežurstva — po potrditvi sodelavca gredo naravnost k tebi, brez vmesnega koraka pri vodji. Navadne menjave službe (in ročno evidentiranje/drugo) dokončno potrdi kdorkoli ima vlogo administrator.";
+  }
+  if (rola === "admin") {
+    return "Kot administrator dokončno potrjuješ navadne menjave službe (po potrditvi sodelavca in vodje) ter ročno evidentiranje/drugo (po vodji). Menjave dežurstva namesto tega dokončno potrdi izključno koordinator — te se v tvojem seznamu \"Čaka name\" ne bodo pojavile.";
+  }
+  if (rola === "vodja") {
+    return "Zahtevke oseb, ki imajo tebe nastavljenega za neposrednega vodjo, odobriš na vmesni stopnji (po sodelavcu, pred administratorjem) — razen menjav dežurstva, ki to stopnjo preskočijo in gredo naravnost h koordinatorju. Tvoje lastne zahtevke odobrava enaka veriga, samo s tvojim neposrednim vodjo namesto tebe.";
+  }
+  return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator — pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
+}
+
 function StatusPill({ status }){
   const s = STATUS_LABEL[status] || { text: status, cls: "wait" };
   return <span className={"pill " + s.cls}>{s.text}</span>;
@@ -592,10 +610,8 @@ function App(){
       {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}
 
       <footer className="foot no-print">
-        <p>Digitalna različica obrazca "Zahtevek za spremembo evidence delovnega časa in razporeda". Veriga odobritev je odvisna od vrste in izmene:
-        navadna menjava službe gre skozi sodelavca, neposrednega vodjo in koordinatorja (kdorkoli ima vlogo administrator);
-        menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju, potrdi pa jo lahko izključno Denis Džamastagić;
-        ostali dve vrsti (ročno evidentiranje, drugo) brez sodelavca. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.</p>
+        <p>Digitalna različica obrazca "Zahtevek za spremembo evidence delovnega časa in razporeda".</p>
+        <p>{opisVerige(profile)}</p>
       </footer>
 
       <RazporedNav active="menjava" role={profile ? profile.role : "user"} unread={0} />
