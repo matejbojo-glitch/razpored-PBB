@@ -788,8 +788,13 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     const { data: trenutni } = await client.from("profiles").select("role, department_code").eq("id", profileId).single();
     const novaVloga = trenutni && trenutni.role !== "user" ? trenutni.role : (zapis.role || "user");
     const noviOddelek = zapis.department_code || (trenutni && trenutni.department_code) || null;
+    // full_name se vedno prepiše z izvozom — vrsticaVZapis() zgoraj zajame
+    // vrstico samo, če ima neprazno ime IN e-pošto, izvor pa je uraden HR
+    // izvoz, torej zanesljivejši od morebitne napačne vrednosti v bazi (npr.
+    // če je handle_new_user() sprožilec ob ustvarjanju računa padel nazaj na
+    // e-pošto namesto imena, ker takrat ni dobil pravih metapodatkov).
     const { error: e1 } = await client.from("profiles").update({
-      role: novaVloga, department_code: noviOddelek,
+      full_name: zapis.full_name, role: novaVloga, department_code: noviOddelek,
     }).eq("id", profileId);
     if (e1) return e1;
     if (zapis.phone) {
