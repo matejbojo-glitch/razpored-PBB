@@ -404,6 +404,26 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setParafaBusy(false); }
   };
 
+  // Naziv za podpis pod razporedom (profiles.job_title, npr. "dipl. zn.,
+  // Strokovni vodja V") - na profiles (ne profile_hr_details.position_name),
+  // ker mora podpis videti vsak prijavljen, ne samo lastnik/admin - glej
+  // schema.sql sekcija 25.
+  const [nazivPodpisa, setNazivPodpisa] = useState(oseba.job_title || "");
+  const [nazivBusy, setNazivBusy] = useState(false);
+  const [nazivMsg, setNazivMsg] = useState(null);
+  const shraniNazivPodpisa = async () => {
+    setNazivBusy(true); setNazivMsg(null);
+    try {
+      const vrednost = nazivPodpisa.trim() || null;
+      const { error } = await client.from("profiles").update({ job_title: vrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setNazivPodpisa(vrednost || "");
+      setNazivMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setNazivMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setNazivBusy(false); }
+  };
+
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -662,6 +682,21 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
                 </div>
                 <button className="submitBtn" onClick={shraniParafo} disabled={parafaBusy}>{parafaBusy ? "Shranjujem …" : "Shrani"}</button>
                 {parafaMsg && <p className={parafaMsg.ok ? "okMsg" : "err"}>{parafaMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Naziv za podpis pod razporedom (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Izpiše se pod tabelo na strani "Razpored" (Po oddelkih/NZV), če je ta oseba pripravila ali odobrila
+                  razpored - npr. "dipl. zn., Strokovni vodja V". Vidno vsem, ne samo tebi (za razliko od HR
+                  podatkov spodaj).
+                </p>
+                <div className="field" style={{marginTop:0}}>
+                  <input type="text" value={nazivPodpisa} placeholder="npr. dipl. zn., Strokovni vodja V"
+                    onChange={e => setNazivPodpisa(e.target.value)} />
+                </div>
+                <button className="submitBtn" onClick={shraniNazivPodpisa} disabled={nazivBusy}>{nazivBusy ? "Shranjujem …" : "Shrani"}</button>
+                {nazivMsg && <p className={nazivMsg.ok ? "okMsg" : "err"}>{nazivMsg.text}</p>}
               </div>
             </React.Fragment>
           )}
@@ -1256,7 +1291,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, job_title, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data, error }) => {
         if (error) {
