@@ -101,6 +101,7 @@
 <script src="nav.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
@@ -412,6 +413,139 @@ function NzvView({ month }){
 // (DEZ, NEDEZ, PDZN, SOBO ...) tu niso na voljo, ne glede na vlogo.
 const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 
+// ---------------------------------------------------------------------
+// Uvoz iz Google Sheets (admin) — javna povezava ("vsak s povezavo lahko
+// ogleda"), brez OAuth, isti mehanizem kot imenik.html (ImportUtils.
+// preberiGoogleSheet). Namenoma ISTA oblika, ki jo ta stran tudi izvozi
+// (glava "Datum, Dan, ..."), da je krog izvozi→uredi v Sheets→uvozi
+// nazaj preprost in predvidljiv. Piše naravnost v schedule_entries -
+// dovoljeno samo adminu (RLS schedule_write_admin to tudi vsili na
+// strežniku, ne samo tu).
+// ---------------------------------------------------------------------
+async function shraniZapiseRazporeda(zapisi){
+  for (let i = 0; i < zapisi.length; i += 200) {
+    const { error } = await client.from("schedule_entries").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_id,work_date" });
+    if (error) throw error;
+  }
+}
+
+async function uvoziMojRazpored(url, myId, deptCode){
+  if (!deptCode) throw new Error("Nimaš nastavljenega oddelka v profilu (Imenik) — uvoz zahteva primarni oddelek.");
+  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+  const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["datum", "dan", "izmena"], ["datum"]);
+  const zapisi = objekti
+    .filter(o => o.datum)
+    .map(o => ({
+      employee_id: myId, department_code: deptCode,
+      work_date: window.ImportUtils.normalizirajDatum(o.datum),
+      shift_code: o.izmena === "Prosto" ? "" : o.izmena,
+    }));
+  if (!zapisi.length) throw new Error("Ni najdenih vrstic z datumom (pričakovana glava: Datum, Dan, Izmena).");
+  await shraniZapiseRazporeda(zapisi);
+  return `Uvoženih ${zapisi.length} dni.`;
+}
+
+async function uvoziOddelek(url, wardCode){
+  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
+  const imena = vrsteVrstic[0].slice(2); // po Datum, Dan
+  if (!imena.length) throw new Error("V glavi ni najti nobene osebe (pričakovano: Datum, Dan, [imena oseb …]).");
+  const { data: profili } = await client.from("profiles").select("id, full_name");
+  const poImenu = {};
+  (profili || []).forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
+  const neujemanja = new Set();
+  const zapisi = [];
+  for (let r = 1; r < vrsteVrstic.length; r++) {
+    const vrstica = vrsteVrstic[r];
+    const datum = window.ImportUtils.normalizirajDatum(vrstica[0]);
+    if (!datum) continue;
+    imena.forEach((ime, idx) => {
+      const id = poImenu[(ime || "").trim().toUpperCase()];
+      if (!id) { if (ime) neujemanja.add(ime); return; }
+      const sifra = (vrstica[2 + idx] || "").trim();
+      zapisi.push({ employee_id: id, department_code: wardCode, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
+    });
+  }
+  if (!zapisi.length) throw new Error("Ni najdenih uporabnih vrstic (preveri obliko Datum/Dan v prvih dveh stolpcih).");
+  await shraniZapiseRazporeda(zapisi);
+  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "");
+}
+
+async function uvoziNzv(url){
+  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
+  const stolpci = vrsteVrstic[0].slice(2); // po Datum, Dan: enote + "Dežurstvo"
+  const nazivVKodo = { "Dežurstvo": "DEZ" };
+  NZV_ENOTE.forEach(([koda, naziv]) => { nazivVKodo[naziv] = koda; });
+  const { data: profili } = await client.from("profiles").select("id, full_name");
+  const poImenu = {};
+  (profili || []).forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
+  const neujemanja = new Set();
+  const zapisi = [];
+  for (let r = 1; r < vrsteVrstic.length; r++) {
+    const vrstica = vrsteVrstic[r];
+    const datum = window.ImportUtils.normalizirajDatum(vrstica[0]);
+    if (!datum) continue;
+    stolpci.forEach((naziv, idx) => {
+      const koda = nazivVKodo[naziv];
+      if (!koda) return;
+      const vsebina = (vrstica[2 + idx] || "").trim();
+      if (!vsebina) return;
+      vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(ime => {
+        const id = poImenu[ime.toUpperCase()];
+        if (!id) { neujemanja.add(ime); return; }
+        zapisi.push({ employee_id: id, department_code: koda, work_date: datum, shift_code: koda === "DEZ" ? "DEŽURSTVO" : "PRISOTEN" });
+      });
+    });
+  }
+  if (!zapisi.length) throw new Error("Ni najdenih uporabnih vrstic (preveri obliko Datum/Dan v prvih dveh stolpcih).");
+  await shraniZapiseRazporeda(zapisi);
+  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "");
+}
+
+function UvozIzSheets({ profile, wardCode, myId, onUvozeno }){
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(null); // "moj" | "oddelek" | null
+  const [msg, setMsg] = useState(null);
+
+  if (!profile || profile.role !== "admin") return null;
+
+  const nalozi = async (tip) => {
+    if (!url.trim()) { setMsg({ ok: false, text: "Vnesi povezavo do Google Sheets." }); return; }
+    setBusy(tip); setMsg(null);
+    try {
+      let besedilo;
+      if (tip === "moj") besedilo = await uvoziMojRazpored(url.trim(), myId, profile.department_code);
+      else if (wardCode === "NZV") besedilo = await uvoziNzv(url.trim());
+      else besedilo = await uvoziOddelek(url.trim(), wardCode);
+      setMsg({ ok: true, text: besedilo });
+      onUvozeno();
+    } catch (e) {
+      setMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="card no-print" style={{ marginTop: 10 }}>
+      <div className="field" style={{ marginTop: 0 }}>
+        <label htmlFor="gsUrl">Uvoz iz Google Sheets (deljeno kot "vsak s povezavo lahko ogleda")</label>
+        <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => setUrl(e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="dlBtn" type="button" disabled={!!busy} onClick={() => nalozi("moj")}>
+          {busy === "moj" ? "Uvažam …" : "📥 Uvozi Moj razpored"}
+        </button>
+        <button className="dlBtn" type="button" disabled={!!busy || !wardCode} onClick={() => nalozi("oddelek")}>
+          {busy === "oddelek" ? "Uvažam …" : "📥 Uvozi " + (wardCode === "NZV" ? "NZV" : "Oddelki")}
+        </button>
+      </div>
+      {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null); // { session, profile }
   const [depts, setDepts] = useState([]);
@@ -421,6 +555,7 @@ function App(){
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
 
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
@@ -600,11 +735,18 @@ function App(){
         </div>
       </header>
 
-      {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}
+      <UvozIzSheets
+        profile={profile}
+        wardCode={view === "my" ? null : wardCode}
+        myId={session.user.id}
+        onUvozeno={() => setReloadKey(k => k + 1)}
+      />
+
+      {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month} />}
       {view==="ward" && wardCode && (
         wardCode === "NZV"
-          ? <NzvView month={month} />
-          : <WardView deptCode={wardCode} month={month} myId={session.user.id} />
+          ? <NzvView key={"nzv" + reloadKey} month={month} />
+          : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} />
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 
