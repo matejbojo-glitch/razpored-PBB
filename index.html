@@ -32,6 +32,24 @@
     html, body{ margin:0; padding:0; background:#fff !important; }
     .wrap{ max-width:100% !important; }
   }
+
+  /* Ležeča postavitev telefona (manifest.json orientation zdaj "any", ne
+     več zaklenjeno na pokončno) - na izrecno željo naj celoten mesec pride
+     na en zaslon, kolikor gre. "Po oddelkih": tabela dobi table-layout:fixed
+     in polno širino namesto min-širine na celico (isti vzorec kot mreža v
+     zelje.html) - vsi dnevi meseca so vidni brez vodoravnega drsenja.
+     "Moj razpored": tedni se razporedijo v 2 stolpca namesto enega pod
+     drugim, da je na širšem, nižjem zaslonu manj navpičnega drsenja. */
+  @media (orientation: landscape){
+    .wardScroller{ overflow-x:visible; }
+    table.wardTable{ width:100%; table-layout:fixed; }
+    table.wardTable th.name, table.wardTable td.name{ width:130px; min-width:0; max-width:none; }
+    table.wardTable th:not(.name), table.wardTable td:not(.name){ width:auto; min-width:0; }
+    .weeksGrid{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  }
+  @media (orientation: landscape) and (min-width:700px){
+    .weeksGrid{ grid-template-columns:1fr 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -44,6 +62,10 @@
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="print-fit.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -165,30 +187,32 @@ function MyScheduleView({ userId, month }){
         </div>
       )}
 
-      {tedni.map((teden, i) => (
-        <div key={i}>
-          <div className="weekLabel">Teden {i+1}</div>
-          {teden.map(dn => {
-            const sifra = byDate[dn.datum];
-            const cls = classify(sifra);
-            const isToday = dn.datum === iso;
-            const isWeekend = dn.dan === "SO" || dn.dan === "NE";
-            const d = new Date(dn.datum + "T00:00:00");
-            return (
-              <div key={dn.datum} className={"dayRow" + (isToday ? " today" : "") + (isWeekend ? " weekend" : "")}>
-                <div className="dnum">
-                  <div className="n">{d.getDate()}</div>
-                  <div className="d">{dn.dan}</div>
+      <div className="weeksGrid">
+        {tedni.map((teden, i) => (
+          <div key={i}>
+            <div className="weekLabel">Teden {i+1}</div>
+            {teden.map(dn => {
+              const sifra = byDate[dn.datum];
+              const cls = classify(sifra);
+              const isToday = dn.datum === iso;
+              const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+              const d = new Date(dn.datum + "T00:00:00");
+              return (
+                <div key={dn.datum} className={"dayRow" + (isToday ? " today" : "") + (isWeekend ? " weekend" : "")}>
+                  <div className="dnum">
+                    <div className="n">{d.getDate()}</div>
+                    <div className="d">{dn.dan}</div>
+                  </div>
+                  <div className={"chip" + (cls==="off" ? " off" : "")} style={{background: cls==="off" ? "transparent" : (BARVE[cls] + "26"), border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls])}}>
+                    <span className="dot" style={{background: BARVE[cls]}}></span>
+                    <span className="txt">{shiftLabel(sifra)}</span>
+                  </div>
                 </div>
-                <div className={"chip" + (cls==="off" ? " off" : "")} style={{background: cls==="off" ? "transparent" : (BARVE[cls] + "26"), border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls])}}>
-                  <span className="dot" style={{background: BARVE[cls]}}></span>
-                  <span className="txt">{shiftLabel(sifra)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -346,6 +370,57 @@ function App(){
     setShowInstall(false);
   };
 
+  // Excel/Google Sheets izvoz — kliče ga kompaktni ikonski meni ob polju
+  // Mesec (glej RazporedIzvoz compact spodaj). PDF izvoz (PrintFit) dela
+  // neposredno nad izrisano tabelo/kartico, tu pa gre za surove podatke
+  // (glave+vrstice), zato ju je treba znova prebrati - isti poizvedbi kot
+  // MyScheduleView/WardView, samo na zahtevo namesto stalno v komponenti.
+  const pripraviIzvoz = async () => {
+    const { startISO, endISO } = monthRange(month);
+    const days = daysInRange(startISO, endISO);
+    if (view === "my") {
+      const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+        .eq("employee_id", auth.session.user.id).gte("work_date", startISO).lte("work_date", endISO);
+      const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
+      return [{
+        ime: "Moj razpored",
+        glave: ["Datum", "Dan", "Izmena"],
+        vrstice: days.map(dn => [dn.datum, dn.dan, shiftLabel(byDate[dn.datum])]),
+      }];
+    }
+
+    // view === "ward"
+    const naslovOddelka = (depts.find(d => d.code === wardCode) || {}).name || wardCode;
+    let zaposleni, vnosi;
+    if (wardCode === "NZV") {
+      const { data: ld } = await client.from("lead_departments").select("department_code");
+      const kode = [...new Set((ld || []).map(d => d.department_code).filter(Boolean))];
+      const { data } = kode.length
+        ? await client.from("schedule_entries").select("employee_id, work_date, shift_code, profiles(full_name)")
+            .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
+        : { data: [] };
+      const byEmp = new Map();
+      (data || []).forEach(r => { if (r.profiles && !byEmp.has(r.employee_id)) byEmp.set(r.employee_id, r.profiles.full_name); });
+      zaposleni = [...byEmp.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
+      vnosi = data || [];
+    } else {
+      const [{ data: profili }, { data }] = await Promise.all([
+        client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
+        client.from("schedule_entries").select("employee_id, work_date, shift_code")
+          .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
+      ]);
+      zaposleni = profili || [];
+      vnosi = data || [];
+    }
+    const byEmpDate = {};
+    vnosi.forEach(r => { byEmpDate[r.employee_id + "|" + r.work_date] = r.shift_code; });
+    return [{
+      ime: naslovOddelka,
+      glave: ["Zaposleni", ...days.map(dn => dn.datum)],
+      vrstice: zaposleni.map(z => [z.full_name, ...days.map(dn => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
+    }];
+  };
+
   if (!auth) return null; // requireAuth preusmeri, če ni prijave
 
   const { session, profile } = auth;
@@ -393,12 +468,22 @@ function App(){
         )}
         <div className="field no-print">
           <label htmlFor="mm">Mesec</label>
-          <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} />
+          <div style={{display:"flex", gap:8, alignItems:"center"}}>
+            <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} style={{flex:1, minWidth:0}} />
+            <RazporedIzvoz
+              compact
+              naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
+              pripravi={pripraviIzvoz}
+              pdf={{
+                label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
+                onClick: () => {
+                  const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
+                  PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
+                },
+              }}
+            />
+          </div>
         </div>
-        <button className="btn btn-ghost btn-block no-print" style={{marginTop:12}} onClick={() => {
-          const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
-          PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
-        }}>📄 Izvozi v PDF ({view === "ward" ? "A4 ležeče" : "A4 pokončno"}, 1 stran)</button>
       </header>
 
       {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}

@@ -39,8 +39,12 @@
 // poskuša naložiti ukinjene datoteke in podre namestitve service workerja).
 // v15: nav.js gumb "Pravičnost" preimenovan v "Statistika" — cache-first,
 // zato dvig verzije.
+// v16: export-buttons.js dobi "compact" ikonski način izvoza (mobilna
+// prilagoditev index.html) — cache-first, zato dvig verzije. manifest.json
+// se ob tem tudi na novo prenese (orientation: "any" namesto zaklenjeno na
+// pokončno, da telefon lahko obrne zaslon).
 
-const CACHE = 'razpored-pbb-v15';
+const CACHE = 'razpored-pbb-v16';
 const ASSETS = [
   './',
   './index.html',
