@@ -43,17 +43,32 @@
      spremenjena OB MERJENJU, ne šele med dejanskim tiskanjem. */
   #printMy.pdfCols .weeksGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
 
-  /* Ležeča postavitev telefona (manifest.json orientation zdaj "any", ne
-     več zaklenjeno na pokončno) - "Po oddelkih" tabela dobi table-layout:fixed
-     in polno širino namesto min-širine na celico (isti vzorec kot mreža v
-     zelje.html) - vsi dnevi meseca so vidni brez vodoravnega drsenja. "Moj
-     razpored" na zaslonu OSTANE nespremenjen (en stolpec) ne glede na
-     obračanje zaslona - glej "pdfCols" zgoraj za PDF izvoz. */
-  @media (orientation: landscape){
+  /* "Po oddelkih" — tabela postavljena kot uradna predloga "2026 SMS
+     RAZPORED": dnevi v vrsticah (stolpec "Dan" je zdaj samo datum, ne ime
+     osebe), osebe v stolpcih glave. Vikend obarva celo vrstico (kot v
+     predlogi), ne posamezne celice; lastni stolpec (bralec sam) je rahlo
+     poudarjen. */
+  table.wardTableT td.name, table.wardTableT th.name{ width:64px; min-width:0; text-align:center; white-space:nowrap; }
+  table.wardTableT tbody tr.weekend td{ background: rgba(201,113,63,.08); }
+  table.wardTableT thead th.me{ background: rgba(var(--accent-rgb),.15); }
+
+  /* Namizje (širši zaslon) IN ležeča postavitev telefona (manifest.json
+     orientation zdaj "any", ne več zaklenjeno na pokončno) - na izrecno
+     željo naj bo cela preglednica "Po oddelkih" prek celega zaslona in cel
+     mesec viden brez vodoravnega drsenja: tabela dobi table-layout:fixed in
+     polno širino namesto naravne širine na celico (isti vzorec kot mreža v
+     zelje.html). Na ozkem pokončnem telefonu ostane naravna širina +
+     vodoravno drsenje (fiksna postavitev bi tam stisnila stolpce oseb na
+     neberljivo majhno). "Moj razpored" ostane nespremenjen ne glede na
+     zaslon - glej "pdfCols" zgoraj za PDF izvoz. */
+  @media (min-width:900px), (orientation: landscape){
     .wardScroller{ overflow-x:visible; }
-    table.wardTable{ width:100%; table-layout:fixed; }
-    table.wardTable th.name, table.wardTable td.name{ width:130px; min-width:0; max-width:none; }
-    table.wardTable th:not(.name), table.wardTable td:not(.name){ width:auto; min-width:0; }
+    table.wardTableT{ width:100%; table-layout:fixed; }
+    table.wardTableT th.name, table.wardTableT td.name{ width:70px; }
+    table.wardTableT th:not(.name), table.wardTableT td:not(.name){ width:auto; min-width:0; }
+  }
+  @media (min-width:900px){
+    .wrap.wide{ max-width: 1400px; }
   }
 </style>
 </head>
@@ -274,38 +289,45 @@ function WardView({ deptCode, month, myId }){
   if (employees === null || entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
   if (employees.length === 0) return <p className="sub" style={{marginTop:16}}>Za ta oddelek še ni dodeljenih zaposlenih.</p>;
 
+  // Dnevi v vrsticah, osebe v stolpcih - kot uradna predloga "2026 SMS
+  // RAZPORED" (posneta iz posnetkov zaslona uporabnika), ne osebe v
+  // vrsticah/dnevi v stolpcih kot prej. Z realnim mesecem (do 31 vrstic) je
+  // to tudi lažje pregledati na enem zaslonu kot 31 stolpcev.
   return (
     <div>
       <div className="wardScroller">
-        <table className="wardTable">
+        <table className="wardTable wardTableT">
           <thead>
             <tr>
-              <th className="name">Zaposleni</th>
-              {days.map(dn => (
-                <th key={dn.datum} className={dn.dan==="SO"||dn.dan==="NE" ? "weekend" : ""}>
-                  {new Date(dn.datum+"T00:00:00").getDate()}<br/>{dn.dan}
+              <th className="name">Dan</th>
+              {employees.map(z => (
+                <th key={z.id} className={z.id === myId ? "me" : ""}>
+                  <a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {employees.map(z => (
-              <tr key={z.id}>
-                <td className="name"><a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a></td>
-                {days.map(dn => {
-                  const sifra = byEmpDate[z.id + "|" + dn.datum];
-                  const cls = classify(sifra);
-                  const isMe = z.id === myId;
-                  return (
-                    <td key={dn.datum} className={"cell" + (isMe ? " me" : "")}>
-                      <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
-                        {cls==="off" ? "–" : (sifra||"").slice(0,3)}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {days.map(dn => {
+              const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+              return (
+                <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
+                  <td className="name">{new Date(dn.datum+"T00:00:00").getDate()} {dn.dan}</td>
+                  {employees.map(z => {
+                    const sifra = byEmpDate[z.id + "|" + dn.datum];
+                    const cls = classify(sifra);
+                    const isMe = z.id === myId;
+                    return (
+                      <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
+                        <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
+                          {cls==="off" ? "–" : (sifra||"").slice(0,3)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -419,10 +441,12 @@ function App(){
     }
     const byEmpDate = {};
     vnosi.forEach(r => { byEmpDate[r.employee_id + "|" + r.work_date] = r.shift_code; });
+    // Isto transponirano obliko (dnevi v vrsticah, osebe v stolpcih) kot na
+    // zaslonu (glej WardView) - usklajeno z uradno predlogo "2026 SMS RAZPORED".
     return [{
       ime: naslovOddelka,
-      glave: ["Zaposleni", ...days.map(dn => dn.datum)],
-      vrstice: zaposleni.map(z => [z.full_name, ...days.map(dn => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
+      glave: ["Datum", "Dan", ...zaposleni.map(z => z.full_name)],
+      vrstice: days.map(dn => [dn.datum, dn.dan, ...zaposleni.map(z => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
     }];
   };
 
@@ -436,7 +460,7 @@ function App(){
   const smePoOddelkih = jeKoordinator || PO_ODDELKIH_KODE.includes(profile ? profile.department_code : null);
 
   return (
-    <div className="wrap">
+    <div className={"wrap" + (view === "ward" ? " wide" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top">
