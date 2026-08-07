@@ -33,22 +33,60 @@
     .wrap{ max-width:100% !important; }
   }
 
-  /* Ležeča postavitev telefona (manifest.json orientation zdaj "any", ne
-     več zaklenjeno na pokončno) - na izrecno željo naj celoten mesec pride
-     na en zaslon, kolikor gre. "Po oddelkih": tabela dobi table-layout:fixed
-     in polno širino namesto min-širine na celico (isti vzorec kot mreža v
-     zelje.html) - vsi dnevi meseca so vidni brez vodoravnega drsenja.
-     "Moj razpored": tedni se razporedijo v 2 stolpca namesto enega pod
-     drugim, da je na širšem, nižjem zaslonu manj navpičnega drsenja. */
-  @media (orientation: landscape){
+  /* "Moj razpored" na zaslonu ostane en stolpec pod drugim (nespremenjeno,
+     ne glede na obračanje zaslona) - razred "pdfCols" se doda samo tik pred
+     klicem PrintFit.natisni (glej App spodaj) in odstrani po tiskanju
+     ("afterprint"), da so tedni v PDF izvozu razporejeni v več stolpcih in
+     cel mesec pride na eno stran. Namenoma NI znotraj @media print zgoraj:
+     PrintFit.natisni izmeri scrollHeight elementa PRED klicem window.print()
+     (torej pred aktivacijo @media print), zato mora biti postavitev že
+     spremenjena OB MERJENJU, ne šele med dejanskim tiskanjem. */
+  #printMy.pdfCols .weeksGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
+
+  /* "Po oddelkih" — tabela postavljena kot uradna predloga "2026 SMS
+     RAZPORED": dnevi v vrsticah (stolpec "Dan" je zdaj samo datum, ne ime
+     osebe), osebe v stolpcih glave. Vikend obarva celo vrstico (kot v
+     predlogi), ne posamezne celice; lastni stolpec (bralec sam) je rahlo
+     poudarjen. */
+  table.wardTableT td.name, table.wardTableT th.name{ width:64px; min-width:0; text-align:center; white-space:nowrap; }
+  table.wardTableT tbody tr.weekend td{ background: rgba(201,113,63,.08); }
+  table.wardTableT thead th.me{ background: rgba(var(--accent-rgb),.15); }
+
+  /* Namizje (širši zaslon) IN ležeča postavitev telefona (manifest.json
+     orientation zdaj "any", ne več zaklenjeno na pokončno) - na izrecno
+     željo naj bo cela preglednica "Po oddelkih" prek celega zaslona in cel
+     mesec viden brez vodoravnega drsenja: tabela dobi table-layout:fixed in
+     polno širino namesto naravne širine na celico (isti vzorec kot mreža v
+     zelje.html). Na ozkem pokončnem telefonu ostane naravna širina +
+     vodoravno drsenje (fiksna postavitev bi tam stisnila stolpce oseb na
+     neberljivo majhno). "Moj razpored" ostane nespremenjen ne glede na
+     zaslon - glej "pdfCols" zgoraj za PDF izvoz. */
+  @media (min-width:900px), (orientation: landscape){
     .wardScroller{ overflow-x:visible; }
-    table.wardTable{ width:100%; table-layout:fixed; }
-    table.wardTable th.name, table.wardTable td.name{ width:130px; min-width:0; max-width:none; }
-    table.wardTable th:not(.name), table.wardTable td:not(.name){ width:auto; min-width:0; }
-    .weeksGrid{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+    table.wardTableT{ width:100%; table-layout:fixed; }
+    table.wardTableT th.name, table.wardTableT td.name{ width:70px; }
+    table.wardTableT th:not(.name), table.wardTableT td:not(.name){ width:auto; min-width:0; }
   }
-  @media (orientation: landscape) and (min-width:700px){
-    .weeksGrid{ grid-template-columns:1fr 1fr 1fr; }
+  @media (min-width:900px){
+    .wrap.wide{ max-width: 1400px; }
+  }
+
+  /* NZV — dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
+     uradni predlogi "Letni dopusti in omejitve za NZV". Manjše pisave, ker
+     je stolpcev veliko (17 enot + Dežurstvo); celica prikaže polno ime
+     osebe, ki to enoto ta dan pokriva (ne ročno kodirane kratice iz
+     predloge - zanesljive samodejne kratice iz "full_name" niso izvedljive
+     brez ločenega polja za priimek). */
+  table.wardTableNzv th, table.wardTableNzv td{ font-size:10.5px; padding:5px 3px; }
+  table.wardTableNzv td.name{ width:64px; min-width:0; text-align:center; white-space:nowrap; font-size:11px; }
+  table.wardTableNzv td.enotaCell{ text-align:center; white-space:normal; word-break:break-word; }
+  table.wardTableNzv th.dez, table.wardTableNzv td.dez{ background: rgba(179,64,42,.07); font-weight:700; }
+  table.wardTableNzv tbody tr.weekend td{ background: rgba(201,113,63,.08); }
+  @media (min-width:900px), (orientation: landscape){
+    table.wardTableNzv{ width:100%; table-layout:fixed; }
+    table.wardTableNzv td.name{ width:60px; }
+    table.wardTableNzv th:not(.name):not(.dez), table.wardTableNzv td.enotaCell:not(.dez){ width:auto; min-width:0; }
+    table.wardTableNzv th.dez, table.wardTableNzv td.dez{ width:90px; }
   }
 </style>
 </head>
@@ -222,36 +260,10 @@ function WardView({ deptCode, month, myId }){
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
-  const jeVodje = deptCode === "NZV";
 
   useEffect(() => {
     let cancelled = false;
     setEmployees(null); setEntries(null);
-
-    // "NZV" ni pravi oddelek v profiles.department_code (nosilci
-    // oddelkov obdržijo svoj lasten negovalni oddelek kot profil) - seznam
-    // enot, ki jih pokrivajo, pride iz lead_departments, osebe/vnosi pa iz
-    // schedule_entries za te enote (objavi jih NZV zavihek v admin.html).
-    if (jeVodje) {
-      client.from("lead_departments").select("department_code").then(({ data }) => {
-        const kode = [...new Set((data || []).map(d => d.department_code).filter(Boolean))];
-        if (!kode.length) { if (!cancelled) { setEmployees([]); setEntries([]); } return; }
-        client.from("schedule_entries").select("employee_id, work_date, shift_code, profiles(full_name)")
-          .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
-          .then(({ data }) => {
-            if (cancelled) return;
-            const byEmp = new Map();
-            (data || []).forEach(r => { if (r.profiles && !byEmp.has(r.employee_id)) byEmp.set(r.employee_id, r.profiles.full_name); });
-            const zaposleni = [...byEmp.entries()]
-              .map(([id, full_name]) => ({ id, full_name }))
-              .sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
-            setEmployees(zaposleni);
-            setEntries((data || []).map(r => ({ employee_id: r.employee_id, work_date: r.work_date, shift_code: r.shift_code })));
-          });
-      });
-      return () => { cancelled = true; };
-    }
-
     client.from("profiles").select("id, full_name").eq("department_code", deptCode).order("full_name")
       .then(({ data }) => { if (!cancelled) setEmployees(data || []); });
     client.from("schedule_entries").select("employee_id, work_date, shift_code")
@@ -269,38 +281,45 @@ function WardView({ deptCode, month, myId }){
   if (employees === null || entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
   if (employees.length === 0) return <p className="sub" style={{marginTop:16}}>Za ta oddelek še ni dodeljenih zaposlenih.</p>;
 
+  // Dnevi v vrsticah, osebe v stolpcih - kot uradna predloga "2026 SMS
+  // RAZPORED" (posneta iz posnetkov zaslona uporabnika), ne osebe v
+  // vrsticah/dnevi v stolpcih kot prej. Z realnim mesecem (do 31 vrstic) je
+  // to tudi lažje pregledati na enem zaslonu kot 31 stolpcev.
   return (
     <div>
       <div className="wardScroller">
-        <table className="wardTable">
+        <table className="wardTable wardTableT">
           <thead>
             <tr>
-              <th className="name">Zaposleni</th>
-              {days.map(dn => (
-                <th key={dn.datum} className={dn.dan==="SO"||dn.dan==="NE" ? "weekend" : ""}>
-                  {new Date(dn.datum+"T00:00:00").getDate()}<br/>{dn.dan}
+              <th className="name">Dan</th>
+              {employees.map(z => (
+                <th key={z.id} className={z.id === myId ? "me" : ""}>
+                  <a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {employees.map(z => (
-              <tr key={z.id}>
-                <td className="name"><a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a></td>
-                {days.map(dn => {
-                  const sifra = byEmpDate[z.id + "|" + dn.datum];
-                  const cls = classify(sifra);
-                  const isMe = z.id === myId;
-                  return (
-                    <td key={dn.datum} className={"cell" + (isMe ? " me" : "")}>
-                      <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
-                        {cls==="off" ? "–" : (sifra||"").slice(0,3)}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {days.map(dn => {
+              const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+              return (
+                <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
+                  <td className="name">{new Date(dn.datum+"T00:00:00").getDate()} {dn.dan}</td>
+                  {employees.map(z => {
+                    const sifra = byEmpDate[z.id + "|" + dn.datum];
+                    const cls = classify(sifra);
+                    const isMe = z.id === myId;
+                    return (
+                      <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
+                        <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
+                          {cls==="off" ? "–" : (sifra||"").slice(0,3)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -311,6 +330,79 @@ function WardView({ deptCode, month, myId }){
         <span className="li"><span className="dot" style={{background:"var(--h12)"}}></span>12-urna</span>
         <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>LD / KPU / prosto</span>
       </div>
+    </div>
+  );
+}
+
+// NZV: dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe kot pri
+// WardView) - po uradni predlogi "Letni dopusti in omejitve za NZV". Celica
+// = kdo pokriva to enoto ta dan (schedule_entries.department_code je še
+// vedno lahko ena od teh starih kod - glej supabase/schema.sql sekcija 23,
+// namenoma niso izbrisane iz departments prav zaradi te uporabe). Ločeno
+// od WardView, ker gre za popolnoma drugačno obliko (enote, ne osebe).
+const NZV_ENOTE = [
+  ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
+  ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
+  ["SA", "SA"], ["URGENCA", "URGENCA"], ["U2", "U2"],
+];
+
+function NzvView({ month }){
+  const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "ime, ime2" }
+  const { startISO, endISO } = monthRange(month);
+  const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPodatki(null);
+    const kode = [...NZV_ENOTE.map(([k]) => k), "DEZ"];
+    client.from("schedule_entries").select("department_code, work_date, profiles(full_name)")
+      .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const m = {};
+        (data || []).forEach(r => {
+          if (!r.profiles) return;
+          const key = r.department_code + "|" + r.work_date;
+          m[key] = m[key] ? m[key] + ", " + r.profiles.full_name : r.profiles.full_name;
+        });
+        setPodatki(m);
+      });
+    return () => { cancelled = true; };
+  }, [startISO, endISO]);
+
+  if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
+
+  return (
+    <div>
+      <div className="wardScroller">
+        <table className="wardTable wardTableNzv">
+          <thead>
+            <tr>
+              <th className="name">Dan</th>
+              {NZV_ENOTE.map(([koda, naziv]) => <th key={koda}>{naziv}</th>)}
+              <th className="dez">Dežurstvo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {days.map(dn => {
+              const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+              return (
+                <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
+                  <td className="name">{new Date(dn.datum+"T00:00:00").getDate()} {dn.dan}</td>
+                  {NZV_ENOTE.map(([koda]) => (
+                    <td key={koda} className="enotaCell">{podatki[koda + "|" + dn.datum] || ""}</td>
+                  ))}
+                  <td className="enotaCell dez">{podatki["DEZ|" + dn.datum] || ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint" style={{marginTop:10}}>
+        Prikazuje, kdo pokriva katero enoto posamezen dan — iz objavljenega razporeda (Generator → NZV →
+        Vodstvena pokritost/Dežurstva). Prazna celica pomeni, da za ta dan/enoto (še) ni objavljenega vnosa.
+      </p>
     </div>
   );
 }
@@ -390,34 +482,45 @@ function App(){
     }
 
     // view === "ward"
-    const naslovOddelka = (depts.find(d => d.code === wardCode) || {}).name || wardCode;
-    let zaposleni, vnosi;
     if (wardCode === "NZV") {
-      const { data: ld } = await client.from("lead_departments").select("department_code");
-      const kode = [...new Set((ld || []).map(d => d.department_code).filter(Boolean))];
-      const { data } = kode.length
-        ? await client.from("schedule_entries").select("employee_id, work_date, shift_code, profiles(full_name)")
-            .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
-        : { data: [] };
-      const byEmp = new Map();
-      (data || []).forEach(r => { if (r.profiles && !byEmp.has(r.employee_id)) byEmp.set(r.employee_id, r.profiles.full_name); });
-      zaposleni = [...byEmp.entries()].map(([id, full_name]) => ({ id, full_name })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
-      vnosi = data || [];
-    } else {
-      const [{ data: profili }, { data }] = await Promise.all([
-        client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
-        client.from("schedule_entries").select("employee_id, work_date, shift_code")
-          .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
-      ]);
-      zaposleni = profili || [];
-      vnosi = data || [];
+      // Isto obliko (dnevi v vrsticah, ENOTE v stolpcih) kot na zaslonu -
+      // glej NzvView - usklajeno z uradno predlogo "Letni dopusti in
+      // omejitve za NZV".
+      const kode = [...NZV_ENOTE.map(([k]) => k), "DEZ"];
+      const { data } = await client.from("schedule_entries").select("department_code, work_date, profiles(full_name)")
+        .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO);
+      const m = {};
+      (data || []).forEach(r => {
+        if (!r.profiles) return;
+        const key = r.department_code + "|" + r.work_date;
+        m[key] = m[key] ? m[key] + ", " + r.profiles.full_name : r.profiles.full_name;
+      });
+      return [{
+        ime: "NZV",
+        glave: ["Datum", "Dan", ...NZV_ENOTE.map(([, naziv]) => naziv), "Dežurstvo"],
+        vrstice: days.map(dn => [
+          dn.datum, dn.dan,
+          ...NZV_ENOTE.map(([koda]) => m[koda + "|" + dn.datum] || ""),
+          m["DEZ|" + dn.datum] || "",
+        ]),
+      }];
     }
+
+    // Isto transponirano obliko (dnevi v vrsticah, osebe v stolpcih) kot na
+    // zaslonu (glej WardView) - usklajeno z uradno predlogo "2026 SMS RAZPORED".
+    const naslovOddelka = (depts.find(d => d.code === wardCode) || {}).name || wardCode;
+    const [{ data: profili }, { data }] = await Promise.all([
+      client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
+      client.from("schedule_entries").select("employee_id, work_date, shift_code")
+        .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
+    ]);
+    const zaposleni = profili || [];
     const byEmpDate = {};
-    vnosi.forEach(r => { byEmpDate[r.employee_id + "|" + r.work_date] = r.shift_code; });
+    (data || []).forEach(r => { byEmpDate[r.employee_id + "|" + r.work_date] = r.shift_code; });
     return [{
       ime: naslovOddelka,
-      glave: ["Zaposleni", ...days.map(dn => dn.datum)],
-      vrstice: zaposleni.map(z => [z.full_name, ...days.map(dn => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
+      glave: ["Datum", "Dan", ...zaposleni.map(z => z.full_name)],
+      vrstice: days.map(dn => [dn.datum, dn.dan, ...zaposleni.map(z => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
     }];
   };
 
@@ -431,7 +534,7 @@ function App(){
   const smePoOddelkih = jeKoordinator || PO_ODDELKIH_KODE.includes(profile ? profile.department_code : null);
 
   return (
-    <div className="wrap">
+    <div className={"wrap" + (view === "ward" ? " wide" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout/>
       <header className="top">
@@ -478,6 +581,17 @@ function App(){
                 label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
                 onClick: () => {
                   const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
+                  // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
+                  // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
+                  // "afterprint", da se živ zaslon nikoli ne spremeni.
+                  if (view === "my" && el) {
+                    el.classList.add("pdfCols");
+                    const pocistiPoTiskanju = () => {
+                      el.classList.remove("pdfCols");
+                      window.removeEventListener("afterprint", pocistiPoTiskanju);
+                    };
+                    window.addEventListener("afterprint", pocistiPoTiskanju);
+                  }
                   PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
                 },
               }}
@@ -487,7 +601,11 @@ function App(){
       </header>
 
       {view==="my" && <MyScheduleView userId={session.user.id} month={month} />}
-      {view==="ward" && wardCode && <WardView deptCode={wardCode} month={month} myId={session.user.id} />}
+      {view==="ward" && wardCode && (
+        wardCode === "NZV"
+          ? <NzvView month={month} />
+          : <WardView deptCode={wardCode} month={month} myId={session.user.id} />
+      )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 
       {showInstall && (
