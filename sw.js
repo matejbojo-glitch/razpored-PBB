@@ -43,8 +43,10 @@
 // prilagoditev index.html) — cache-first, zato dvig verzije. manifest.json
 // se ob tem tudi na novo prenese (orientation: "any" namesto zaklenjeno na
 // pokončno, da telefon lahko obrne zaslon).
+// v17: import-utils.js popravek normalizirajDatum (datumi s presledki po
+// pikah, "1. 9. 2026") — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v16';
+const CACHE = 'razpored-pbb-v17';
 const ASSETS = [
   './',
   './index.html',

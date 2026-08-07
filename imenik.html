@@ -382,6 +382,28 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setKoordinatorBusy(false); }
   };
 
+  // Parafa (profiles.parafa) — kratka oznaka (npr. "BOJ"), ki jo stran
+  // "Razpored" → NZV prikaže namesto polnega imena v celicah (po vzoru
+  // uradne predloge "Letni dopusti in omejitve za NZV"). Na profiles (ne
+  // profile_hr_details), ker jo mora videti vsak prijavljen - glej
+  // schema.sql sekcija 24. Če prazna, index.html sam izpelje grobo
+  // privzeto iz priimka - to polje jo lahko ročno popravi/precizira.
+  const [parafa, setParafa] = useState(oseba.parafa || "");
+  const [parafaBusy, setParafaBusy] = useState(false);
+  const [parafaMsg, setParafaMsg] = useState(null);
+  const shraniParafo = async () => {
+    setParafaBusy(true); setParafaMsg(null);
+    try {
+      const vrednost = parafa.trim().toUpperCase() || null;
+      const { error } = await client.from("profiles").update({ parafa: vrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setParafa(vrednost || "");
+      setParafaMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setParafaMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setParafaBusy(false); }
+  };
+
   const [hr, setHr] = useState(null); // null = še ni naloženo
   const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
   const [hrBusy, setHrBusy] = useState(false);
@@ -625,6 +647,21 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
                   Ta oseba je koordinator za menjave
                 </label>
                 {koordinatorMsg && <p className={koordinatorMsg.ok ? "okMsg" : "err"}>{koordinatorMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Parafa za razpored NZV (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Kratka oznaka (2-4 črke, npr. "BOJ"), ki jo stran "Razpored" → NZV prikaže v celicah namesto polnega
+                  imena, po vzoru uradne predloge. Če pustiš prazno, aplikacija sama izpelje grobo privzeto oznako iz
+                  priimka.
+                </p>
+                <div className="field" style={{marginTop:0}}>
+                  <input type="text" value={parafa} maxLength={4} placeholder="npr. BOJ"
+                    onChange={e => setParafa(e.target.value.toUpperCase())} style={{maxWidth:120}} />
+                </div>
+                <button className="submitBtn" onClick={shraniParafo} disabled={parafaBusy}>{parafaBusy ? "Shranjujem …" : "Shrani"}</button>
+                {parafaMsg && <p className={parafaMsg.ok ? "okMsg" : "err"}>{parafaMsg.text}</p>}
               </div>
             </React.Fragment>
           )}
@@ -1219,7 +1256,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data, error }) => {
         if (error) {

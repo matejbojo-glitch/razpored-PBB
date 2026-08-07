@@ -22,8 +22,8 @@
   @media print{
     table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
     table.wardTable thead th{ background:#f2f2f2 !important; }
-    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
-      zoom: var(--print-scale, 1); }
+    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important; }
+    .wardPrintArea{ zoom: var(--print-scale, 1); }
     table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
     table.wardTable tr{ break-inside:avoid; page-break-inside:avoid; }
     #printMy{ zoom: var(--print-scale, 1); }
@@ -112,6 +112,42 @@ const { client } = RazporedAuth;
 
 const DAN_IME = { PO:"ponedeljek", TO:"torek", SR:"sreda", ČE:"četrtek", PE:"petek", SO:"sobota", NE:"nedelja" };
 const DNI = ["PO","TO","SR","ČE","PE","SO","NE"];
+const MESECI = ["Januar","Februar","Marec","April","Maj","Junij","Julij","Avgust","September","Oktober","November","December"];
+
+// Datum kot v uradnih predlogah ("1. 9. 2026", brez vodilnih ničel) namesto
+// ISO - samo za PRIKAZ/izvoz na tej strani; interno (poizvedbe, ključi) se
+// še vedno povsod uporablja ISO "YYYY-MM-DD".
+function datumSlo(iso){
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d}. ${m}. ${y}`;
+}
+
+// Kratko ime za prikaz na "Po oddelkih" (samo TA stran - full_name se nikjer
+// drugje v aplikaciji ne skrajša), po vzoru uradne predloge "2026 SMS
+// RAZPORED" ("DŽINIĆ A."): PRIIMEK (lahko iz več besed, npr. "Mavri
+// Tratnik") + presledek + prva črka IMENA (zadnja beseda) + piko. full_name
+// je v aplikaciji dosledno shranjen kot "Priimek Ime" (glej npr.
+// DEZURNI_OSNOVA_DO_31_8_2026 v admin.html).
+function priimekZacetnica(fullName){
+  const deli = (fullName || "").trim().split(/\s+/);
+  if (deli.length < 2) return (fullName || "").toUpperCase();
+  const ime = deli[deli.length - 1];
+  const priimek = deli.slice(0, -1).join(" ");
+  return `${priimek} ${ime[0]}.`.toUpperCase();
+}
+
+// Parafa za NZV celice (po vzoru "Letni dopusti in omejitve za NZV" -
+// "BOJ", "DŽA" ipd.) - uporabi ročno nastavljeno profiles.parafa (Imenik),
+// sicer groba samodejna privzeta vrednost (prve 3 črke priimka), ki jo
+// admin lahko ročno popravi, če se dve osebi ujemata.
+function autoParafa(fullName){
+  const deli = (fullName || "").trim().split(/\s+/);
+  const priimek = deli.length > 1 ? deli.slice(0, -1).join("") : (deli[0] || "");
+  return priimek.slice(0, 3).toUpperCase();
+}
+function parafaOd(profil){
+  return (profil && profil.parafa) ? profil.parafa : autoParafa(profil ? profil.full_name : "");
+}
 const DELOVNI_ČAS = {
   "dopoldan": "05.50–14.00",
   "popoldan": "13.50–21.00",
@@ -256,7 +292,45 @@ function MyScheduleView({ userId, month }){
   );
 }
 
-function WardView({ deptCode, month, myId }){
+// Skupen "podpisni" blok pod tabelo na "Po oddelkih" - po vzoru uradnih
+// predlog (Datum zadnje spremembe + Pregledal in odobril + Pripravil/-a).
+// "Zadnja sprememba" in "Pregledal in odobril" (koordinator - profiles.
+// is_koordinator, glej schema.sql) sta izpeljana iz resničnih podatkov;
+// "Pripravil/-a" se izpiše samo za trenutno prijavljenega admina (edino
+// ime, ki ga lahko zanesljivo poznamo - v aplikaciji ni polja "kdo je
+// pripravil ta razpored").
+function RazporedPodpisi({ entries, myProfile }){
+  const [koordinator, setKoordinator] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("profiles").select("full_name").eq("is_koordinator", true).limit(1).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setKoordinator(data || null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const zadnja = useMemo(() => {
+    if (!entries || !entries.length) return null;
+    return entries.reduce((max, e) => (e.updated_at && (!max || e.updated_at > max)) ? e.updated_at : max, null);
+  }, [entries]);
+
+  return (
+    <div className="card" style={{marginTop:10, fontSize:13}}>
+      <p style={{margin:"0 0 6px"}}>
+        <b>Zadnja sprememba v razporedu:</b>{" "}
+        {zadnja ? new Date(zadnja).toLocaleString("sl-SI", {day:"numeric", month:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit"}) : "ni podatka"}
+      </p>
+      {myProfile && myProfile.role === "admin" && (
+        <p style={{margin:"0 0 6px"}}><b>Pripravil/-a:</b> {myProfile.full_name}</p>
+      )}
+      {koordinator && (
+        <p style={{margin:0}}><b>Pregledal in odobril:</b> {koordinator.full_name}</p>
+      )}
+    </div>
+  );
+}
+
+function WardView({ deptCode, month, myId, myProfile }){
   const [employees, setEmployees] = useState(null);
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
@@ -265,9 +339,9 @@ function WardView({ deptCode, month, myId }){
   useEffect(() => {
     let cancelled = false;
     setEmployees(null); setEntries(null);
-    client.from("profiles").select("id, full_name").eq("department_code", deptCode).order("full_name")
+    client.from("profiles").select("id, full_name, role").eq("department_code", deptCode).order("full_name")
       .then(({ data }) => { if (!cancelled) setEmployees(data || []); });
-    client.from("schedule_entries").select("employee_id, work_date, shift_code")
+    client.from("schedule_entries").select("employee_id, work_date, shift_code, updated_at")
       .eq("department_code", deptCode).gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data }) => { if (!cancelled) setEntries(data || []); });
     return () => { cancelled = true; };
@@ -285,9 +359,10 @@ function WardView({ deptCode, month, myId }){
   // Dnevi v vrsticah, osebe v stolpcih - kot uradna predloga "2026 SMS
   // RAZPORED" (posneta iz posnetkov zaslona uporabnika), ne osebe v
   // vrsticah/dnevi v stolpcih kot prej. Z realnim mesecem (do 31 vrstic) je
-  // to tudi lažje pregledati na enem zaslonu kot 31 stolpcev.
+  // to tudi lažje pregledati na enem zaslonu kot 31 stolpcev. Druga vrstica
+  // glave (vloga SMS/TZN ali DMS/DZN) je po vzoru iste predloge.
   return (
-    <div>
+    <div className="wardPrintArea">
       <div className="wardScroller">
         <table className="wardTable wardTableT">
           <thead>
@@ -295,8 +370,14 @@ function WardView({ deptCode, month, myId }){
               <th className="name">Dan</th>
               {employees.map(z => (
                 <th key={z.id} className={z.id === myId ? "me" : ""}>
-                  <a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{z.full_name}</a>
+                  <a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{priimekZacetnica(z.full_name)}</a>
                 </th>
+              ))}
+            </tr>
+            <tr className="vloga">
+              <th className="name"></th>
+              {employees.map(z => (
+                <th key={z.id} className={z.id === myId ? "me" : ""}>{z.role === "user" ? "SMS / TZN" : "DMS / DZN"}</th>
               ))}
             </tr>
           </thead>
@@ -305,7 +386,7 @@ function WardView({ deptCode, month, myId }){
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
               return (
                 <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
-                  <td className="name">{new Date(dn.datum+"T00:00:00").getDate()} {dn.dan}</td>
+                  <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
                   {employees.map(z => {
                     const sifra = byEmpDate[z.id + "|" + dn.datum];
                     const cls = classify(sifra);
@@ -331,6 +412,7 @@ function WardView({ deptCode, month, myId }){
         <span className="li"><span className="dot" style={{background:"var(--h12)"}}></span>12-urna</span>
         <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>LD / KPU / prosto</span>
       </div>
+      <RazporedPodpisi entries={entries} myProfile={myProfile} />
     </div>
   );
 }
@@ -344,27 +426,40 @@ function WardView({ deptCode, month, myId }){
 const NZV_ENOTE = [
   ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
   ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
-  ["SA", "SA"], ["URGENCA", "URGENCA"], ["U2", "U2"],
+  ["URGENCA", "URGENCA"], ["U2", "U2"],
 ];
+// "SA" nima nobenega samodejnega generatorja (za razliko od ostalih enot) -
+// v uradni predlogi je razdeljena na dva stolpca (dopoldan/popoldan), zato
+// tu isto razdelimo po vsebini shift_code (glej razvrstiSA spodaj), namesto
+// da bi uvajali dva nova department_code (SA ostaja ena sama koda v bazi).
+function razvrstiSA(sifra){
+  const t = (sifra || "").toLowerCase();
+  if (t.includes("pop")) return "SAPOP";
+  return "SADOP"; // privzeto dopoldan, če ni prepoznano drugače
+}
 
-function NzvView({ month }){
-  const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "ime, ime2" }
+function NzvView({ month, myProfile }){
+  const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "parafa, parafa2" }
+  const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
 
   useEffect(() => {
     let cancelled = false;
-    setPodatki(null);
-    const kode = [...NZV_ENOTE.map(([k]) => k), "DEZ"];
-    client.from("schedule_entries").select("department_code, work_date, profiles(full_name)")
+    setPodatki(null); setEntries(null);
+    const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
+    client.from("schedule_entries").select("department_code, work_date, shift_code, updated_at, profiles(full_name, parafa)")
       .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data }) => {
         if (cancelled) return;
+        setEntries(data || []);
         const m = {};
         (data || []).forEach(r => {
           if (!r.profiles) return;
-          const key = r.department_code + "|" + r.work_date;
-          m[key] = m[key] ? m[key] + ", " + r.profiles.full_name : r.profiles.full_name;
+          const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
+          const key = koda + "|" + r.work_date;
+          const parafa = parafaOd(r.profiles);
+          m[key] = m[key] ? m[key] + ", " + parafa : parafa;
         });
         setPodatki(m);
       });
@@ -373,14 +468,16 @@ function NzvView({ month }){
 
   if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
+  const stolpci = [...NZV_ENOTE, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"]];
+
   return (
-    <div>
+    <div className="wardPrintArea">
       <div className="wardScroller">
         <table className="wardTable wardTableNzv">
           <thead>
             <tr>
               <th className="name">Dan</th>
-              {NZV_ENOTE.map(([koda, naziv]) => <th key={koda}>{naziv}</th>)}
+              {stolpci.map(([koda, naziv]) => <th key={koda}>{naziv}</th>)}
               <th className="dez">Dežurstvo</th>
             </tr>
           </thead>
@@ -389,8 +486,8 @@ function NzvView({ month }){
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
               return (
                 <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
-                  <td className="name">{new Date(dn.datum+"T00:00:00").getDate()} {dn.dan}</td>
-                  {NZV_ENOTE.map(([koda]) => (
+                  <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
+                  {stolpci.map(([koda]) => (
                     <td key={koda} className="enotaCell">{podatki[koda + "|" + dn.datum] || ""}</td>
                   ))}
                   <td className="enotaCell dez">{podatki["DEZ|" + dn.datum] || ""}</td>
@@ -401,9 +498,12 @@ function NzvView({ month }){
         </table>
       </div>
       <p className="hint" style={{marginTop:10}}>
-        Prikazuje, kdo pokriva katero enoto posamezen dan — iz objavljenega razporeda (Generator → NZV →
-        Vodstvena pokritost/Dežurstva). Prazna celica pomeni, da za ta dan/enoto (še) ni objavljenega vnosa.
+        Celice prikazujejo parafe (Imenik → admin lahko nastavi natančno parafo osebe; brez nastavitve aplikacija
+        sama izpelje grobo privzeto iz priimka). Prikazuje, kdo pokriva katero enoto posamezen dan — iz objavljenega
+        razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). Prazna celica pomeni, da za ta dan/enoto (še) ni
+        objavljenega vnosa.
       </p>
+      <RazporedPodpisi entries={entries} myProfile={myProfile} />
     </div>
   );
 }
@@ -429,15 +529,23 @@ async function shraniZapiseRazporeda(zapisi){
   }
 }
 
+// Samo prava ISO oblika šteje za "vrstico s podatki" - podpisne vrstice na
+// dnu izvoza ("Zadnja sprememba:", "Pripravil/-a:" …) imajo v prvem
+// stolpcu besedilo, ki ga normalizirajDatum() vrne nespremenjeno (ni
+// prepoznana oblika), zato golo "if (!datum)" ne bi zadostovalo za
+// preskok teh vrstic pri uvozu.
+const ISO_DATUM_RX = /^\d{4}-\d{2}-\d{2}$/;
+
 async function uvoziMojRazpored(url, myId, deptCode){
   if (!deptCode) throw new Error("Nimaš nastavljenega oddelka v profilu (Imenik) — uvoz zahteva primarni oddelek.");
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["datum", "dan", "izmena"], ["datum"]);
   const zapisi = objekti
-    .filter(o => o.datum)
+    .map(o => ({ ...o, datum: window.ImportUtils.normalizirajDatum(o.datum) }))
+    .filter(o => ISO_DATUM_RX.test(o.datum))
     .map(o => ({
       employee_id: myId, department_code: deptCode,
-      work_date: window.ImportUtils.normalizirajDatum(o.datum),
+      work_date: o.datum,
       shift_code: o.izmena === "Prosto" ? "" : o.izmena,
     }));
   if (!zapisi.length) throw new Error("Ni najdenih vrstic z datumom (pričakovana glava: Datum, Dan, Izmena).");
@@ -445,22 +553,38 @@ async function uvoziMojRazpored(url, myId, deptCode){
   return `Uvoženih ${zapisi.length} dni.`;
 }
 
+// Glava stolpcev je kratko ime "Priimek X." (glej priimekZacetnica) - enako
+// kot ta stran izvozi, NE polno ime. Če se dve osebi ujemata na isto kratko
+// ime (redko, a mogoče - npr. dva "Novak A."), ju je z golim kratkim
+// imenom nemogoče razločiti, zato tak stolpec preskočimo in ga javimo kot
+// neujemanje, namesto da bi tvegali napačno osebo.
+function kratkaImenaMapa(profili){
+  const m = {};
+  const podvojena = new Set();
+  (profili || []).forEach(p => {
+    const kratko = priimekZacetnica(p.full_name).toUpperCase();
+    if (kratko in m) { podvojena.add(kratko); } else { m[kratko] = p.id; }
+  });
+  podvojena.forEach(k => delete m[k]);
+  return { poKratkem: m, podvojena };
+}
+
 async function uvoziOddelek(url, wardCode){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
   const imena = vrsteVrstic[0].slice(2); // po Datum, Dan
-  if (!imena.length) throw new Error("V glavi ni najti nobene osebe (pričakovano: Datum, Dan, [imena oseb …]).");
+  if (!imena.length) throw new Error("V glavi ni najti nobene osebe (pričakovano: Datum, Dan, [Priimek Z. …]).");
   const { data: profili } = await client.from("profiles").select("id, full_name");
-  const poImenu = {};
-  (profili || []).forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
+  const { poKratkem, podvojena } = kratkaImenaMapa(profili);
   const neujemanja = new Set();
+  podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   const zapisi = [];
   for (let r = 1; r < vrsteVrstic.length; r++) {
     const vrstica = vrsteVrstic[r];
     const datum = window.ImportUtils.normalizirajDatum(vrstica[0]);
-    if (!datum) continue;
+    if (!ISO_DATUM_RX.test(datum)) continue; // preskoči vrstico vloge (SMS/TZN …) in podpisne vrstice na dnu
     imena.forEach((ime, idx) => {
-      const id = poImenu[(ime || "").trim().toUpperCase()];
+      const id = poKratkem[(ime || "").trim().toUpperCase()];
       if (!id) { if (ime) neujemanja.add(ime); return; }
       const sifra = (vrstica[2 + idx] || "").trim();
       zapisi.push({ employee_id: id, department_code: wardCode, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
@@ -474,33 +598,43 @@ async function uvoziOddelek(url, wardCode){
 async function uvoziNzv(url){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const stolpci = vrsteVrstic[0].slice(2); // po Datum, Dan: enote + "Dežurstvo"
-  const nazivVKodo = { "Dežurstvo": "DEZ" };
+  const stolpci = vrsteVrstic[0].slice(2); // po Datum, Dan: enote + "SA DOP"/"SA POP" + "Dežurstvo"
+  const nazivVKodo = { "Dežurstvo": "DEZ", "SA DOP": "SADOP", "SA POP": "SAPOP" };
   NZV_ENOTE.forEach(([koda, naziv]) => { nazivVKodo[naziv] = koda; });
-  const { data: profili } = await client.from("profiles").select("id, full_name");
-  const poImenu = {};
-  (profili || []).forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
+  const { data: profili } = await client.from("profiles").select("id, full_name, parafa");
+  const poParafi = {};
+  const podvojene = new Set();
+  (profili || []).forEach(p => {
+    const parafa = parafaOd(p).toUpperCase();
+    if (parafa in poParafi) { podvojene.add(parafa); } else { poParafi[parafa] = p.id; }
+  });
+  podvojene.forEach(k => delete poParafi[k]);
   const neujemanja = new Set();
+  podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
   const zapisi = [];
   for (let r = 1; r < vrsteVrstic.length; r++) {
     const vrstica = vrsteVrstic[r];
     const datum = window.ImportUtils.normalizirajDatum(vrstica[0]);
-    if (!datum) continue;
+    if (!ISO_DATUM_RX.test(datum)) continue;
     stolpci.forEach((naziv, idx) => {
-      const koda = nazivVKodo[naziv];
-      if (!koda) return;
+      const virKoda = nazivVKodo[naziv];
+      if (!virKoda) return;
       const vsebina = (vrstica[2 + idx] || "").trim();
       if (!vsebina) return;
-      vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(ime => {
-        const id = poImenu[ime.toUpperCase()];
-        if (!id) { neujemanja.add(ime); return; }
-        zapisi.push({ employee_id: id, department_code: koda, work_date: datum, shift_code: koda === "DEZ" ? "DEŽURSTVO" : "PRISOTEN" });
+      // SA DOP/SA POP pišeta isto department_code "SA", ločeno samo prek
+      // shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda.
+      const koda = virKoda === "SADOP" ? "SA" : virKoda === "SAPOP" ? "SA" : virKoda;
+      const sifra = virKoda === "SADOP" ? "dopoldan" : virKoda === "SAPOP" ? "popoldan" : (koda === "DEZ" ? "DEŽURSTVO" : "PRISOTEN");
+      vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
+        const id = poParafi[parafa.toUpperCase()];
+        if (!id) { neujemanja.add(parafa); return; }
+        zapisi.push({ employee_id: id, department_code: koda, work_date: datum, shift_code: sifra });
       });
     });
   }
   if (!zapisi.length) throw new Error("Ni najdenih uporabnih vrstic (preveri obliko Datum/Dan v prvih dveh stolpcih).");
   await shraniZapiseRazporeda(zapisi);
-  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "");
+  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja parafe: ${[...neujemanja].join(", ")}.` : "");
 }
 
 function UvozIzSheets({ profile, wardCode, myId, onUvozeno }){
@@ -602,6 +736,22 @@ function App(){
   // neposredno nad izrisano tabelo/kartico, tu pa gre za surove podatke
   // (glave+vrstice), zato ju je treba znova prebrati - isti poizvedbi kot
   // MyScheduleView/WardView, samo na zahtevo namesto stalno v komponenti.
+  // Podpisne vrstice na dnu izvoza (Zadnja sprememba/Pregledal in
+  // odobril/Pripravil) - isti podatki kot RazporedPodpisi na zaslonu, samo
+  // kot dodatne vrstice v podatkih namesto ločenega HTML bloka, po vzoru
+  // uradnih predlog. Prva celica vsake vrstice je namenoma prazna (uvoz jo
+  // prepozna kot ne-datumsko vrstico in jo preskoči - glej ISO_DATUM_RX).
+  const podpisneVrstice = async (entries, stolpcev) => {
+    const prazno = new Array(stolpcev).fill("");
+    const zadnja = (entries || []).reduce((max, e) => (e.updated_at && (!max || e.updated_at > max)) ? e.updated_at : max, null);
+    const { data: koord } = await client.from("profiles").select("full_name").eq("is_koordinator", true).limit(1).maybeSingle();
+    const vrstice = [];
+    vrstice.push(["Zadnja sprememba:", zadnja ? new Date(zadnja).toLocaleString("sl-SI") : "ni podatka", ...prazno.slice(2)]);
+    if (profile && profile.role === "admin") vrstice.push(["Pripravil/-a:", profile.full_name, ...prazno.slice(2)]);
+    if (koord) vrstice.push(["Pregledal in odobril:", koord.full_name, ...prazno.slice(2)]);
+    return vrstice;
+  };
+
   const pripraviIzvoz = async () => {
     const { startISO, endISO } = monthRange(month);
     const days = daysInRange(startISO, endISO);
@@ -612,41 +762,51 @@ function App(){
       return [{
         ime: "Moj razpored",
         glave: ["Datum", "Dan", "Izmena"],
-        vrstice: days.map(dn => [dn.datum, dn.dan, shiftLabel(byDate[dn.datum])]),
+        vrstice: days.map(dn => [datumSlo(dn.datum), dn.dan, shiftLabel(byDate[dn.datum])]),
       }];
     }
 
     // view === "ward"
     if (wardCode === "NZV") {
-      // Isto obliko (dnevi v vrsticah, ENOTE v stolpcih) kot na zaslonu -
+      // Isto obliko (dnevi v vrsticah, ENOTE v stolpcih, parafe namesto
+      // polnih imen, SA razdeljena na dopoldan/popoldan) kot na zaslonu -
       // glej NzvView - usklajeno z uradno predlogo "Letni dopusti in
       // omejitve za NZV".
-      const kode = [...NZV_ENOTE.map(([k]) => k), "DEZ"];
-      const { data } = await client.from("schedule_entries").select("department_code, work_date, profiles(full_name)")
+      const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
+      const { data } = await client.from("schedule_entries").select("department_code, work_date, shift_code, updated_at, profiles(full_name, parafa)")
         .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO);
       const m = {};
       (data || []).forEach(r => {
         if (!r.profiles) return;
-        const key = r.department_code + "|" + r.work_date;
-        m[key] = m[key] ? m[key] + ", " + r.profiles.full_name : r.profiles.full_name;
+        const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
+        const key = koda + "|" + r.work_date;
+        const parafa = parafaOd(r.profiles);
+        m[key] = m[key] ? m[key] + ", " + parafa : parafa;
       });
+      const stolpci = [...NZV_ENOTE, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"]];
       return [{
         ime: "NZV",
-        glave: ["Datum", "Dan", ...NZV_ENOTE.map(([, naziv]) => naziv), "Dežurstvo"],
-        vrstice: days.map(dn => [
-          dn.datum, dn.dan,
-          ...NZV_ENOTE.map(([koda]) => m[koda + "|" + dn.datum] || ""),
-          m["DEZ|" + dn.datum] || "",
-        ]),
+        glave: ["Datum", "Dan", ...stolpci.map(([, naziv]) => naziv), "Dežurstvo"],
+        vrstice: [
+          ...days.map(dn => [
+            datumSlo(dn.datum), dn.dan,
+            ...stolpci.map(([koda]) => m[koda + "|" + dn.datum] || ""),
+            m["DEZ|" + dn.datum] || "",
+          ]),
+          ...(await podpisneVrstice(data, stolpci.length + 3)),
+        ],
       }];
     }
 
-    // Isto transponirano obliko (dnevi v vrsticah, osebe v stolpcih) kot na
-    // zaslonu (glej WardView) - usklajeno z uradno predlogo "2026 SMS RAZPORED".
+    // Isto transponirano obliko (dnevi v vrsticah, osebe v stolpcih glave -
+    // kratka imena "Priimek X." kot na zaslonu) kot na zaslonu (glej
+    // WardView) - usklajeno z uradno predlogo "2026 SMS RAZPORED". Druga
+    // vrstica podatkov (prazen Datum/Dan) je vloga vsake osebe (SMS/TZN ali
+    // DMS/DZN), po vzoru iste predloge.
     const naslovOddelka = (depts.find(d => d.code === wardCode) || {}).name || wardCode;
     const [{ data: profili }, { data }] = await Promise.all([
-      client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
-      client.from("schedule_entries").select("employee_id, work_date, shift_code")
+      client.from("profiles").select("id, full_name, role").eq("department_code", wardCode).order("full_name"),
+      client.from("schedule_entries").select("employee_id, work_date, shift_code, updated_at")
         .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
     ]);
     const zaposleni = profili || [];
@@ -654,8 +814,12 @@ function App(){
     (data || []).forEach(r => { byEmpDate[r.employee_id + "|" + r.work_date] = r.shift_code; });
     return [{
       ime: naslovOddelka,
-      glave: ["Datum", "Dan", ...zaposleni.map(z => z.full_name)],
-      vrstice: days.map(dn => [dn.datum, dn.dan, ...zaposleni.map(z => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
+      glave: ["Datum", "Dan", ...zaposleni.map(z => priimekZacetnica(z.full_name))],
+      vrstice: [
+        ["", "", ...zaposleni.map(z => z.role === "user" ? "SMS / TZN" : "DMS / DZN")],
+        ...days.map(dn => [datumSlo(dn.datum), dn.dan, ...zaposleni.map(z => shiftLabel(byEmpDate[z.id + "|" + dn.datum]))]),
+        ...(await podpisneVrstice(data, zaposleni.length + 2)),
+      ],
     }];
   };
 
@@ -705,9 +869,18 @@ function App(){
           </div>
         )}
         <div className="field no-print">
-          <label htmlFor="mm">Mesec</label>
+          <label htmlFor="mmSel">Mesec</label>
           <div style={{display:"flex", gap:8, alignItems:"center"}}>
-            <input id="mm" type="month" value={month} onChange={e => setMonth(e.target.value)} style={{flex:1, minWidth:0}} />
+            <select id="mmSel" value={Number(month.split("-")[1])}
+              onChange={e => setMonth(month.split("-")[0] + "-" + String(e.target.value).padStart(2,"0"))}
+              style={{flex:"1 1 auto", minWidth:0}}>
+              {MESECI.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+            </select>
+            <select id="ySel" value={Number(month.split("-")[0])}
+              onChange={e => setMonth(e.target.value + "-" + month.split("-")[1])}
+              style={{flex:"0 0 auto", minWidth:0}}>
+              {Array.from({length:5}, (_, i) => new Date().getFullYear() - 1 + i).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
             <RazporedIzvoz
               compact
               naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
@@ -715,7 +888,7 @@ function App(){
               pdf={{
                 label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
                 onClick: () => {
-                  const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
+                  const el = view === "ward" ? document.querySelector(".wardPrintArea") : document.getElementById("printMy");
                   // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
                   // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
                   // "afterprint", da se živ zaslon nikoli ne spremeni.
@@ -745,8 +918,8 @@ function App(){
       {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month} />}
       {view==="ward" && wardCode && (
         wardCode === "NZV"
-          ? <NzvView key={"nzv" + reloadKey} month={month} />
-          : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} />
+          ? <NzvView key={"nzv" + reloadKey} month={month} myProfile={profile} />
+          : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} myProfile={profile} />
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 

@@ -230,7 +230,10 @@ window.ImportUtils = (function () {
     const t = (s || "").toString().trim();
     if (!t) return "";
     if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
-    const m = t.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/);
+    // Presledki po pikah ("1. 9. 2026") - tako realni Google Sheets datumi
+    // (npr. "2026 SMS RAZPORED") običajno zapišejo datum, za razliko od
+    // strogo "1.9.2026" brez presledkov.
+    const m = t.match(/^(\d{1,2})\s*[.\/]\s*(\d{1,2})\s*[.\/]\s*(\d{4})$/);
     if (m) {
       const [, d, mo, y] = m;
       return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
