@@ -33,22 +33,27 @@
     .wrap{ max-width:100% !important; }
   }
 
+  /* "Moj razpored" na zaslonu ostane en stolpec pod drugim (nespremenjeno,
+     ne glede na obračanje zaslona) - razred "pdfCols" se doda samo tik pred
+     klicem PrintFit.natisni (glej App spodaj) in odstrani po tiskanju
+     ("afterprint"), da so tedni v PDF izvozu razporejeni v več stolpcih in
+     cel mesec pride na eno stran. Namenoma NI znotraj @media print zgoraj:
+     PrintFit.natisni izmeri scrollHeight elementa PRED klicem window.print()
+     (torej pred aktivacijo @media print), zato mora biti postavitev že
+     spremenjena OB MERJENJU, ne šele med dejanskim tiskanjem. */
+  #printMy.pdfCols .weeksGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
+
   /* Ležeča postavitev telefona (manifest.json orientation zdaj "any", ne
-     več zaklenjeno na pokončno) - na izrecno željo naj celoten mesec pride
-     na en zaslon, kolikor gre. "Po oddelkih": tabela dobi table-layout:fixed
+     več zaklenjeno na pokončno) - "Po oddelkih" tabela dobi table-layout:fixed
      in polno širino namesto min-širine na celico (isti vzorec kot mreža v
-     zelje.html) - vsi dnevi meseca so vidni brez vodoravnega drsenja.
-     "Moj razpored": tedni se razporedijo v 2 stolpca namesto enega pod
-     drugim, da je na širšem, nižjem zaslonu manj navpičnega drsenja. */
+     zelje.html) - vsi dnevi meseca so vidni brez vodoravnega drsenja. "Moj
+     razpored" na zaslonu OSTANE nespremenjen (en stolpec) ne glede na
+     obračanje zaslona - glej "pdfCols" zgoraj za PDF izvoz. */
   @media (orientation: landscape){
     .wardScroller{ overflow-x:visible; }
     table.wardTable{ width:100%; table-layout:fixed; }
     table.wardTable th.name, table.wardTable td.name{ width:130px; min-width:0; max-width:none; }
     table.wardTable th:not(.name), table.wardTable td:not(.name){ width:auto; min-width:0; }
-    .weeksGrid{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
-  }
-  @media (orientation: landscape) and (min-width:700px){
-    .weeksGrid{ grid-template-columns:1fr 1fr 1fr; }
   }
 </style>
 </head>
@@ -478,6 +483,17 @@ function App(){
                 label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
                 onClick: () => {
                   const el = view === "ward" ? document.querySelector(".wardScroller") : document.getElementById("printMy");
+                  // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
+                  // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
+                  // "afterprint", da se živ zaslon nikoli ne spremeni.
+                  if (view === "my" && el) {
+                    el.classList.add("pdfCols");
+                    const pocistiPoTiskanju = () => {
+                      el.classList.remove("pdfCols");
+                      window.removeEventListener("afterprint", pocistiPoTiskanju);
+                    };
+                    window.addEventListener("afterprint", pocistiPoTiskanju);
+                  }
                   PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
                 },
               }}
