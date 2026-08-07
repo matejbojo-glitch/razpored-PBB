@@ -2321,3 +2321,52 @@ alter table public.employee_wishes add constraint employee_wishes_department_cod
 --     priimka (glej autoParafa()) - to polje jo lahko ročno popravi.
 -- ---------------------------------------------------------------------
 alter table public.profiles add column if not exists parafa text;
+
+-- ---------------------------------------------------------------------
+-- 25) Realni podpisi pod razporedom ("Pripravil/-a" + "Pregledal in
+--     odobril", po vzoru uradnih predlog) in dva ločena datuma - "Datum
+--     objave" (prvič objavljen) in "Zadnja sprememba" (kasneje urejano).
+--
+--     a) profiles.job_title - naziv delovnega mesta za podpis (npr.
+--        "dipl. zn., Strokovni vodja V"), NAMENOMA na profiles (ne
+--        profile_hr_details.position_name, ki ima ožjo RLS vidljivost -
+--        samo lastnik/admin) - vsi prijavljeni morajo videti podpis pod
+--        katerimkoli razporedom, ne samo svojim. Admin ureja v Imeniku.
+--     b) schedule_entries.created_by/updated_by - kdo je zapis prvič
+--        objavil / nazadnje uredil, samodejno prek sprožilca spodaj (ne
+--        prek aplikacijske kode - velja za VSE poti pisanja, tudi
+--        obstoječi generator v admin.html, ne samo za nov uvoz).
+--     c) schedule_entries_touch() sprožilec TUDI popravi pravi hrošč:
+--        "updated_at" ima privzeto "now()", kar velja SAMO ob INSERT (ne
+--        ob UPDATE/upsert-conflict) - brez sprožilca bi "Zadnja
+--        sprememba" v index.html vedno kazala prvi vnos, nikoli poznejši
+--        popravek.
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists job_title text;
+
+alter table public.schedule_entries add column if not exists created_by uuid references public.profiles (id);
+alter table public.schedule_entries add column if not exists updated_by uuid references public.profiles (id);
+
+create or replace function public.schedule_entries_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if TG_OP = 'INSERT' then
+    new.created_by := auth.uid();
+  else
+    new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
+    new.created_by := old.created_by;
+  end if;
+  new.updated_at := now();
+  new.updated_by := auth.uid();
+  return new;
+end;
+$$;
+
+drop trigger if exists schedule_entries_touch on public.schedule_entries;
+create trigger schedule_entries_touch
+  before insert or update on public.schedule_entries
+  for each row execute function public.schedule_entries_touch();
