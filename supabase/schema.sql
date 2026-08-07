@@ -2308,3 +2308,16 @@ update public.employee_wishes set department_code = 'NZV' where department_code 
 alter table public.employee_wishes drop constraint if exists employee_wishes_department_code_check;
 alter table public.employee_wishes add constraint employee_wishes_department_code_check
   check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'FLEXI', 'NZV'));
+
+-- ---------------------------------------------------------------------
+-- 24) profiles.parafa — kratka 2-4 črkovna parafa (npr. "BOJ", "DŽA"),
+--     kot jo uporablja uradna predloga "Letni dopusti in omejitve za NZV"
+--     namesto polnega imena v celicah. NAMENOMA na profiles (ne
+--     profile_hr_details), ker mora biti vidna VSEM prijavljenim, ne
+--     samo lastniku/adminu - profile_hr_details ima ožjo RLS vidljivost
+--     (glej opombo pri tej tabeli), profiles pa že ima "vsi vidijo"
+--     (profiles_select), isto kot is_koordinator zgoraj. Admin ureja v
+--     Imeniku; če prazna, index.html izpelje grobo privzeto parafo iz
+--     priimka (glej autoParafa()) - to polje jo lahko ročno popravi.
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists parafa text;
