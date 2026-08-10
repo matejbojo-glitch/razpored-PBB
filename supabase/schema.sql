@@ -2435,3 +2435,197 @@ drop trigger if exists schedule_entries_audit on public.schedule_entries;
 create trigger schedule_entries_audit
   after insert or update or delete on public.schedule_entries
   for each row execute function public.schedule_entries_audit();
+
+-- ---------------------------------------------------------------------
+-- 27) Potisna obvestila (Web Push) — nadgradnja obstoječega
+--     "obveščanja samo znotraj aplikacije" (sekcija 5) v pravo potisno
+--     obvestilo na telefon, brez SMS-stroškov in brez trgovin z
+--     aplikacijami (PWA + Web Push, deluje na Androidu in iOS 16.4+, na
+--     iPhonu SAMO, če je aplikacija nameščena na domači zaslon).
+--
+--     Zasnova namenoma NE pošilja push-a neposredno iz sprožilca:
+--     notifications tabela je EDINI vir resnice ("kaj je treba povedati"),
+--     Edge Function posiljaj-push pa jo občasno prebere in odpošlje
+--     (push_sent_at označi poslano). Prednost: obvestilo v aplikaciji in
+--     push nikoli ne razideta, izpad pošiljanja pa ne izgubi sporočila —
+--     ob naslednjem zagonu se enostavno pošlje.
+--
+--     "kljuc" je neobvezen idempotenčni ključ: opomniki (pg_cron spodaj)
+--     se lahko poganjajo večkrat na dan, pa bo vsak opomnik vstavljen
+--     natanko enkrat. Ker je unikatni indeks DELEN (samo kjer kljuc ni
+--     null), mora "on conflict" ponoviti isti pogoj - brez tega ga
+--     Postgres ne prepozna in stavek pade z napako.
+-- ---------------------------------------------------------------------
+alter table public.notifications add column if not exists title text;
+alter table public.notifications add column if not exists url text;
+alter table public.notifications add column if not exists push_sent_at timestamptz;
+alter table public.notifications add column if not exists kljuc text;
+
+create unique index if not exists notifications_kljuc_idx on public.notifications (kljuc) where kljuc is not null;
+create index if not exists notifications_push_pending_idx on public.notifications (created_at) where push_sent_at is null;
+
+-- Naročnine brskalnikov (en zapis = ena naprava/brskalnik ene osebe).
+-- Uporabnik jih ureja sam (vklop/izklop v Nastavitvah); Edge Function
+-- bere prek service_role ključa in zato zaobide RLS.
+create table if not exists public.push_subscriptions (
+  id bigint generated always as identity primary key,
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  last_ok_at timestamptz
+);
+create index if not exists push_subscriptions_profile_idx on public.push_subscriptions (profile_id);
+
+alter table public.push_subscriptions enable row level security;
+drop policy if exists push_subscriptions_own on public.push_subscriptions;
+create policy push_subscriptions_own on public.push_subscriptions
+  for all to authenticated
+  using (profile_id = auth.uid())
+  with check (profile_id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 27a) Obvestila ob spremembi statusa MENJAVE (obrazci)
+--
+--      Obstoječi notify_swap_status_change (sekcija 5) visi na ukinjeni
+--      swap_requests tabeli in se torej nikoli več ne sproži — obrazci
+--      sistem doslej NI pisal obvestil. To je popravek te vrzeli, ne
+--      samo dodatek za push.
+-- ---------------------------------------------------------------------
+create or replace function public.obvesti_ob_spremembi_obrazca()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  vlagatelj text;
+  naslov text;
+  sporocilo text;
+begin
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  select full_name into vlagatelj from public.profiles where id = new.vlagatelj_id;
+
+  if new.status = 'caka_sodelavca' then
+    naslov := 'Predlog menjave čaka tvojo potrditev';
+    sporocilo := coalesce(vlagatelj, 'Sodelavec') || ' ti je poslal predlog menjave. Odpri stran Menjava.';
+    if new.sodelavec_id is not null then
+      insert into public.notifications (user_id, message, title, url)
+      values (new.sodelavec_id, sporocilo, naslov, 'obrazec.html');
+    end if;
+
+  elsif new.status = 'caka_vodjo' then
+    naslov := 'Menjava čaka tvojo odobritev';
+    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka odobritev neposrednega vodje.';
+    if new.vodja_id is not null then
+      insert into public.notifications (user_id, message, title, url)
+      values (new.vodja_id, sporocilo, naslov, 'obrazec.html');
+    end if;
+
+  elsif new.status = 'caka_koordinatorja' then
+    naslov := 'Menjava čaka koordinatorja';
+    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka končno potrditev koordinatorja.';
+    insert into public.notifications (user_id, message, title, url)
+    select p.id, sporocilo, naslov, 'obrazec.html'
+    from public.profiles p where p.is_koordinator;
+
+  elsif new.status in ('zakljucen', 'zavrnjen', 'preklican') then
+    naslov := case new.status
+      when 'zakljucen' then 'Menjava je odobrena'
+      when 'zavrnjen' then 'Menjava je zavrnjena'
+      else 'Menjava je preklicana'
+    end;
+    sporocilo := case new.status
+      when 'zakljucen' then 'Predlog menjave je bil dokončno odobren — razpored je posodobljen.'
+      when 'zavrnjen' then 'Predlog menjave je bil zavrnjen.' || coalesce(' Razlog: ' || new.razlog_zavrnitve, '')
+      else 'Predlog menjave je bil preklican.'
+    end;
+    insert into public.notifications (user_id, message, title, url)
+    select x.uid, sporocilo, naslov, 'obrazec.html'
+    from (select new.vlagatelj_id as uid union select new.sodelavec_id) x
+    where x.uid is not null;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_obrazec_status_change on public.obrazci;
+create trigger on_obrazec_status_change
+  after update of status on public.obrazci
+  for each row execute function public.obvesti_ob_spremembi_obrazca();
+
+-- ---------------------------------------------------------------------
+-- 27b) Obvestilo ob OBJAVI mesečnega razporeda — kliče ga admin.html po
+--      uspešni objavi (ne sprožilec na schedule_entries: objava je na
+--      tisoče vrstic naenkrat, kar bi pomenilo tisoče obvestil namesto
+--      enega na osebo).
+-- ---------------------------------------------------------------------
+create or replace function public.obvesti_o_objavi_razporeda(p_start date, p_end date, p_oddelek text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  st integer;
+begin
+  if not public.current_role_is('admin') then
+    raise exception 'Samo administrator lahko pošlje obvestilo o objavi razporeda.';
+  end if;
+
+  insert into public.notifications (user_id, message, title, url, kljuc)
+  select distinct se.employee_id,
+         'Objavljen je razpored za obdobje ' || to_char(p_start, 'DD.MM.YYYY') || ' – ' || to_char(p_end, 'DD.MM.YYYY') || '.',
+         'Nov razpored je objavljen',
+         'index.html',
+         'razpored:' || se.employee_id || ':' || p_start || ':' || p_end
+  from public.schedule_entries se
+  where se.work_date between p_start and p_end
+    and (p_oddelek is null or se.department_code = p_oddelek)
+  on conflict (kljuc) where kljuc is not null do nothing;
+
+  get diagnostics st = row_count;
+  return st;
+end;
+$$;
+grant execute on function public.obvesti_o_objavi_razporeda(date, date, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 27c) Opomnik 24 ur pred nočno izmeno ali dežurstvom. Poganja ga
+--      pg_cron (glej PUSH-SETUP.md) — idempotentno prek "kljuc", zato
+--      večkratni zagon istega dne ne podvoji opomnika.
+-- ---------------------------------------------------------------------
+create or replace function public.ustvari_opomnike_za_jutri()
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  jutri date := (current_date + 1);
+  st integer;
+begin
+  insert into public.notifications (user_id, message, title, url, kljuc)
+  select se.employee_id,
+         case when lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%'
+              then 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš dežurstvo.'
+              else 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš nočno izmeno: ' || se.shift_code || '.'
+         end,
+         'Opomnik za jutrišnjo izmeno',
+         'index.html',
+         'opomnik:' || se.employee_id || ':' || jutri
+  from public.schedule_entries se
+  where se.work_date = jutri
+    and (lower(se.shift_code) like 'nočna%' or lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%')
+  on conflict (kljuc) where kljuc is not null do nothing;
+
+  get diagnostics st = row_count;
+  return st;
+end;
+$$;

@@ -167,6 +167,25 @@ const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 // imenu (profiles.full_name) — kdor se še ni registriral, se ne objavi
 // in je izpisan kot manjkajoč.
 // ---------------------------------------------------------------------
+// Po uspešni objavi obvesti vse prizadete zaposlene (obvestilo v
+// aplikaciji + potisno obvestilo na telefon, glej schema.sql sekcija 27).
+// Namenoma NE prekine objave, če obveščanje spodleti - razpored je takrat
+// že objavljen in to je pomembnejše od obvestila; napako samo vrnemo, da
+// jo klicatelj lahko pokaže.
+async function obvestiOObjavi(rows, deptCode){
+  const datumi = rows.map(r => r.datum).filter(Boolean).sort();
+  if (!datumi.length) return null;
+  try {
+    const { error } = await client.rpc("obvesti_o_objavi_razporeda", {
+      p_start: datumi[0], p_end: datumi[datumi.length - 1], p_oddelek: deptCode || null,
+    });
+    if (error) throw error;
+    return null;
+  } catch (e) {
+    return e.message || String(e);
+  }
+}
+
 async function publishScheduleRows(deptCode, rows){
   const imena = [...new Set(rows.map(r => r.ime))];
   const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code").in("full_name", imena);
@@ -187,7 +206,8 @@ async function publishScheduleRows(deptCode, rows){
     const { error } = await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
     if (error) oddelekNapaka = error.message;
   }
-  return { objavljeno: vrstice.length, manjkajo, oddelekNapaka };
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, deptCode) : null;
+  return { objavljeno: vrstice.length, manjkajo, oddelekNapaka, obvestilaNapaka };
 }
 
 // Kot publishScheduleRows, a vsaka vrstica nosi SVOJ department_code
@@ -206,7 +226,8 @@ async function publishLeadScheduleRows(rows){
     const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
     if (error) throw error;
   }
-  return { objavljeno: vrstice.length, manjkajo };
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, null) : null;
+  return { objavljeno: vrstice.length, manjkajo, obvestilaNapaka };
 }
 
 // ---------------------------------------------------------------------
@@ -809,8 +830,8 @@ function KalupTab(){
           rows.push({ ime, datum: dn.datum, sifra });
         });
       });
-      const { objavljeno, manjkajo, oddelekNapaka } = await publishScheduleRows(rezultat.koda, rows);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") });
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -1143,8 +1164,8 @@ function DezurstvaTab(){
     setPublishBusy(true); setPublishMsg(null);
     try {
       const rows = rezultat.razpored.filter(r => r.zaposleni).map(r => ({ ime: r.zaposleni, datum: r.datum, sifra: "DEŽURSTVO" }));
-      const { objavljeno, manjkajo, oddelekNapaka } = await publishScheduleRows("DEZ", rows);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") });
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows("DEZ", rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -1437,8 +1458,8 @@ function VodjeTab(){
     if (!rezultat) return;
     setPublishBusy(true); setPublishMsg(null);
     try {
-      const { objavljeno, manjkajo } = await publishLeadScheduleRows(rezultat.objavaVrstice);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "") });
+      const { objavljeno, manjkajo, obvestilaNapaka } = await publishLeadScheduleRows(rezultat.objavaVrstice);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
