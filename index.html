@@ -165,7 +165,7 @@ const DELOVNI_ČAS = {
 function classify(sifra){
   const t = (sifra || "").toLowerCase();
   if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
-  if (t.startsWith("ld")) return "off";
+  if (t.startsWith("ld")) return "ld"; // letni dopust - lastna (zelena) barva, ločeno od KPU/prostega (sivo)
   if (t.startsWith("kpu")) return "off";
   if (t.startsWith("prisoten")) return "dop"; // pogled "Vodje" - na svojem oddelku (ni odsoten)
   if (t.includes("nočna12")) return "h12";
@@ -175,7 +175,7 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", dez:"#B3402A" };
+const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", ld:"#2F6B4A", dez:"#B3402A" };
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
@@ -412,7 +412,7 @@ function WardView({ deptCode, month, myId }){
                     const isMe = z.id === myId;
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
-                        <span className="swatch" style={{background: BARVE[cls] + "33", color: "var(--text)"}} title={sifra}>
+                        <span className={"swatch swatch-" + cls} title={sifra}>
                           {cls==="off" ? "–" : (sifra||"").slice(0,3)}
                         </span>
                       </td>
@@ -429,7 +429,8 @@ function WardView({ deptCode, month, myId }){
         <span className="li"><span className="dot" style={{background:"var(--pop)"}}></span>Popoldan</span>
         <span className="li"><span className="dot" style={{background:"var(--noc)"}}></span>Nočna</span>
         <span className="li"><span className="dot" style={{background:"var(--h12)"}}></span>12-urna</span>
-        <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>LD / KPU / prosto</span>
+        <span className="li"><span className="dot" style={{background:"var(--ld)"}}></span>Letni dopust (LD)</span>
+        <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>KPU / prosto</span>
       </div>
       <RazporedPodpisi entries={entries} />
     </div>
@@ -516,12 +517,12 @@ function NzvView({ month }){
           </tbody>
         </table>
       </div>
-      <p className="hint" style={{marginTop:10}}>
+      <InfoToggle>
         Celice prikazujejo parafe (Imenik → admin lahko nastavi natančno parafo osebe; brez nastavitve aplikacija
         sama izpelje grobo privzeto iz priimka). Prikazuje, kdo pokriva katero enoto posamezen dan — iz objavljenega
         razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). Prazna celica pomeni, da za ta dan/enoto (še) ni
         objavljenega vnosa.
-      </p>
+      </InfoToggle>
       <RazporedPodpisi entries={entries} />
     </div>
   );
@@ -743,6 +744,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
   const [url, setUrl] = useState(() => { try { return localStorage.getItem(kljucUvoza(kontekst)) || ""; } catch (e) { return ""; } });
   const [busy, setBusy] = useState(null); // "moj" | "oddelek" | null
   const [msg, setMsg] = useState(null);
+  const [odprto, setOdprto] = useState(false);
 
   useEffect(() => {
     setMsg(null);
@@ -773,28 +775,49 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
     }
   };
 
+  // Privzeto strnjeno (samo gumb) - napredna, redkeje uporabljena funkcija
+  // (samo admin), da ne zaseda prostora na glavnem zaslonu.
   return (
-    <div className="card no-print" style={{ marginTop: 10 }}>
-      <div className="field" style={{ marginTop: 0 }}>
-        <label htmlFor="gsUrl">
-          Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
-        </label>
-        <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => spremeniUrl(e.target.value)} />
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="dlBtn" type="button" disabled={!!busy} onClick={() => nalozi("moj")}>
-          {busy === "moj" ? "Uvažam …" : "📥 Uvozi Moj razpored"}
-        </button>
-        <button className="dlBtn" type="button" disabled={!!busy || !wardCode} onClick={() => nalozi("oddelek")}>
-          {busy === "oddelek" ? "Uvažam …" : "📥 Uvozi " + (wardCode === "NZV" ? "NZV" : "Oddelki")}
-        </button>
-      </div>
-      <p className="hint" style={{marginTop:6}}>
-        Uvozi samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
-        povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
-        gumb/oddelek si zapomni svojo zadnjo povezavo posebej.
-      </p>
-      {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
+    <div className="no-print" style={{ marginTop: 10 }}>
+      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
+        📥 Uvoz iz Google Sheets {odprto ? "▴" : "▾"}
+      </button>
+      {odprto && (
+        <div className="card" style={{ marginTop: 8 }}>
+          <div className="field" style={{ marginTop: 0 }}>
+            <label htmlFor="gsUrl">
+              Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
+            </label>
+            <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => spremeniUrl(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="dlBtn" type="button" disabled={!!busy} onClick={() => nalozi("moj")}>
+              {busy === "moj" ? "Uvažam …" : "📥 Uvozi Moj razpored"}
+            </button>
+            <button className="dlBtn" type="button" disabled={!!busy || !wardCode} onClick={() => nalozi("oddelek")}>
+              {busy === "oddelek" ? "Uvažam …" : "📥 Uvozi " + (wardCode === "NZV" ? "NZV" : "Oddelki")}
+            </button>
+          </div>
+          <p className="hint" style={{marginTop:6}}>
+            Uvozi samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
+            povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
+            gumb/oddelek si zapomni svojo zadnjo povezavo posebej.
+          </p>
+          {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Zložljiva pomoč - dolgo pojasnjevalno besedilo skrito za "?" gumbom,
+// da glavni zaslon ostane čist (namesto vedno vidnega odstavka).
+function InfoToggle({ children }){
+  const [odprto, setOdprto] = useState(false);
+  return (
+    <div className="no-print" style={{ marginTop: 10, display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <button type="button" className="infoToggle" aria-expanded={odprto} aria-label="Pomoč" onClick={() => setOdprto(o => !o)}>?</button>
+      {odprto && <div className="infoPanel hint" style={{ margin: 0 }}>{children}</div>}
     </div>
   );
 }
