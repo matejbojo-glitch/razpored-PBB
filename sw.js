@@ -45,8 +45,11 @@
 // pokončno, da telefon lahko obrne zaslon).
 // v17: import-utils.js popravek normalizirajDatum (datumi s presledki po
 // pikah, "1. 9. 2026") — cache-first, zato dvig verzije.
+// v18: theme.css dobi barvno kodirane značke za izmene (swatch-*, nov --ld
+// zelena za letni dopust) + zložljiva pomoč (.infoToggle/.infoPanel) —
+// cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v17';
+const CACHE = 'razpored-pbb-v18';
 const ASSETS = [
   './',
   './index.html',
