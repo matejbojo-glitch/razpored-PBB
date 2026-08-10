@@ -1997,6 +1997,223 @@ function NzvTab(){
   );
 }
 
+// ---------------------------------------------------------------------
+// Plače: zbirni izvoz ur za obračun (redno delo/nočne ure/nedelje/
+// prazniki/dežurstva), po vzoru urne legende iz uradnega delovnika (glej
+// DELOVNI_ČAS v index.html). NAMENOMA konzervativen pri dežurstvih: samo
+// ŠTEVILO dežurstev, ne ur - uradna shema dežurstvenih ur je odvisna od
+// dneva v tednu/praznika (delavnik 15.30-07.00, vikend/praznik 24h) in te
+// aplikacija (še) ne modelira natančno, zato bi izmišljena ura pomenila
+// napačen podatek pri obračunu plač - raje jasna vrzel kot tiha napaka.
+// Prazniki se NE prepišejo ročno, ampak izračunajo (velika noč po Meeus/
+// Jones/Butcher algoritmu), da se izognemo napaki pri ročno vtipkanem
+// datumu premičnega praznika.
+// ---------------------------------------------------------------------
+const TRAJANJE_UR = {
+  "dopoldan": 8 + 10/60,
+  "popoldan": 7 + 10/60,
+  "popoldan do 19": 5 + 10/60,
+  "popoldan do 19h": 5 + 10/60,
+  "NOČNA": 9 + 10/60,
+  "NOČNA od 19": 11 + 10/60,
+  "NOČNA od 19h": 11 + 10/60,
+  "NOČNA12": 12 + 10/60,
+  "DNEVNA12": 12 + 10/60,
+};
+function jeNocnaSifra(sifra){ return (sifra || "").toLowerCase().startsWith("nočna"); }
+function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
+
+function velikaNoc(leto){
+  const a = leto % 19, b = Math.floor(leto / 100), c = leto % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mesec = Math.floor((h + l - 7 * m + 114) / 31), dan = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(leto, mesec - 1, dan));
+}
+function slovenskiPrazniki(leto){
+  const vn = velikaNoc(leto);
+  const vnPon = new Date(vn); vnPon.setUTCDate(vn.getUTCDate() + 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const p = String(leto);
+  return new Set([
+    p + "-01-01", p + "-01-02", p + "-02-08", iso(vnPon), p + "-04-27",
+    p + "-05-01", p + "-05-02", p + "-06-25", p + "-08-15", p + "-10-31",
+    p + "-11-01", p + "-12-25", p + "-12-26",
+  ]);
+}
+function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; }
+
+function PlaceTab(){
+  const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
+  const [vrstice, setVrstice] = useState(null); // null = ni naloženo
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  const nalozi = async () => {
+    setBusy(true); setNapaka(null); setVrstice(null);
+    try {
+      const [leto, mesec] = obdobje.split("-").map(Number);
+      const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
+      const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
+      const prazniki = slovenskiPrazniki(leto);
+      const [{ data: entries, error }, { data: profili }] = await Promise.all([
+        client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
+        client.from("profiles").select("id, full_name"),
+      ]);
+      if (error) throw error;
+      const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+      const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
+      const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
+      (entries || []).forEach(r => {
+        if (jeDezurstvoSifra(r.shift_code)) {
+          const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+          z.dezurstva += 1;
+          return;
+        }
+        const ure = TRAJANJE_UR[r.shift_code];
+        if (!ure) return; // LD/KPU/prosto/neznana koda - ni dejansko delo
+        const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+        if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
+        if (jeNedelja(r.work_date)) z.nedelje += ure;
+        if (prazniki.has(r.work_date)) z.prazniki += ure;
+      });
+      const zaokrozi = (n) => Math.round(n * 10) / 10;
+      const rezultat = Object.keys(zbir).map(id => ({
+        employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
+        redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
+        nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
+        dezurstva: zbir[id].dezurstva,
+      })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
+      setVrstice(rezultat);
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="section">Zbirni izvoz ur za obračun plač</h2>
+      <p className="hint">
+        Osnutek za računovodstvo - preveri pred oddajo. "Dežurstva" je namenoma prikazano kot ŠTEVILO (ne ur), ker
+        se dežurstvene ure razlikujejo glede na dan v tednu/praznik in tega izvoz (še) ne izračunava natančno.
+        Nočne/nedeljske/praznične ure se lahko prekrivajo (isto uro lahko šteje v več stolpcih hkrati, kot ločeni
+        dodatki) - to je namerno, ne napaka seštevanja.
+      </p>
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="placeObdobje">Mesec</label>
+            <input id="placeObdobje" type="month" value={obdobje} onChange={e => setObdobje(e.target.value)} />
+          </div>
+          <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
+        </div>
+        {napaka && <p className="err">{napaka}</p>}
+        {vrstice && vrstice.length > 0 && (
+          <RazporedIzvoz
+            naslov={"place-" + obdobje}
+            pripravi={() => [{
+              ime: "Plače",
+              glave: ["Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              vrstice: vrstice.map(r => [r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
+            }]}
+          />
+        )}
+        {vrstice && vrstice.length === 0 && <p className="hint">Za ta mesec ni objavljenega razporeda.</p>}
+        {vrstice && vrstice.length > 0 && (
+          <div className="tableScroller" style={{marginTop:10}}>
+            <table className="fairTable">
+              <thead>
+                <tr><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+              </thead>
+              <tbody>
+                {vrstice.map(r => (
+                  <tr key={r.employee_id}>
+                    <td style={{textAlign:"left"}}>{r.full_name}</td>
+                    <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Revizijska sled: kdo, kdaj in kaj je spremenil v razporedu
+// (schedule_entries_log - glej schema.sql sekcija 26, piše ga izključno
+// sprožilec ob vsakem vpisu/spremembi/izbrisu shift_code/department_code,
+// ne aplikacijska koda - velja za VSE poti pisanja).
+// ---------------------------------------------------------------------
+function AuditLogTab(){
+  const [vnosi, setVnosi] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [iskanje, setIskanje] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("schedule_entries_log").select("*").order("changed_at", { ascending: false }).limit(300)
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        if (error) { setNapaka(error.message); setVnosi([]); return; }
+        const { data: profili } = await client.from("profiles").select("id, full_name");
+        const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+        setVnosi((data || []).map(v => ({
+          ...v,
+          zaposleni: imePoId[v.employee_id] || v.employee_id,
+          urednik: imePoId[v.changed_by] || "(neznano)",
+        })));
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtrirani = useMemo(() => {
+    if (!vnosi) return [];
+    const s = iskanje.trim().toLowerCase();
+    if (!s) return vnosi;
+    return vnosi.filter(v => (v.zaposleni || "").toLowerCase().includes(s) || (v.urednik || "").toLowerCase().includes(s) || (v.department_code || "").toLowerCase().includes(s));
+  }, [vnosi, iskanje]);
+
+  const AKCIJA_NAZIV = { insert: "Nov vnos", update: "Sprememba", delete: "Izbris" };
+
+  return (
+    <div>
+      <h2 className="section">Revizijska sled</h2>
+      <p className="hint">Zadnjih 300 sprememb v razporedu (schedule_entries) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
+      <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
+      {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
+      {vnosi === null ? <p className="hint">Nalagam …</p> : (
+        <div className="tableScroller" style={{marginTop:10}}>
+          <table className="fairTable">
+            <thead>
+              <tr><th>Ko</th><th>Kdo</th><th>Kaj</th><th>Zaposleni</th><th>Oddelek</th><th>Datum</th><th>Iz → V</th></tr>
+            </thead>
+            <tbody>
+              {filtrirani.map(v => (
+                <tr key={v.id}>
+                  <td style={{whiteSpace:"nowrap"}}>{new Date(v.changed_at).toLocaleString("sl-SI")}</td>
+                  <td>{v.urednik}</td>
+                  <td>{AKCIJA_NAZIV[v.action] || v.action}</td>
+                  <td style={{textAlign:"left"}}>{v.zaposleni}</td>
+                  <td>{v.department_code}</td>
+                  <td>{v.work_date}</td>
+                  <td>{(v.old_shift_code || "prosto") + " → " + (v.new_shift_code || "prosto")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtrirani.length === 0 && <p className="hint">Brez rezultatov.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App({ ogled, profil }){
   const [tab, setTab] = useState("kalup");
   return (
@@ -2011,6 +2228,8 @@ function App({ ogled, profil }){
           <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
           <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
+          <button role="tab" aria-selected={tab==="place"} onClick={() => setTab("place")}>Plače</button>
+          <button role="tab" aria-selected={tab==="revizija"} onClick={() => setTab("revizija")}>Revizija</button>
         </div>
       </header>
 
@@ -2018,6 +2237,8 @@ function App({ ogled, profil }){
       {tab==="nzv" && <NzvTab/>}
       {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
+      {tab==="place" && <PlaceTab/>}
+      {tab==="revizija" && <AuditLogTab/>}
 
       <footer className="foot no-print">
         <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>

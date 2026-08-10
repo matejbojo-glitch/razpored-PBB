@@ -48,8 +48,10 @@
 // v18: theme.css dobi barvno kodirane značke za izmene (swatch-*, nov --ld
 // zelena za letni dopust) + zložljiva pomoč (.infoToggle/.infoPanel) —
 // cache-first, zato dvig verzije.
+// v19: export-buttons.js dobi nov neobvezen "ical" prop (izvoz osebnega
+// razporeda v .ics za "Moj razpored") — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v18';
+const CACHE = 'razpored-pbb-v19';
 const ASSETS = [
   './',
   './index.html',

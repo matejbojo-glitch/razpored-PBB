@@ -2370,3 +2370,68 @@ drop trigger if exists schedule_entries_touch on public.schedule_entries;
 create trigger schedule_entries_touch
   before insert or update on public.schedule_entries
   for each row execute function public.schedule_entries_touch();
+
+-- ---------------------------------------------------------------------
+-- 26) schedule_entries_log — revizijska sled (audit log): kdo, kdaj in
+--     kaj je spremenil v razporedu. Ločena append-only tabela (ne
+--     "zgodovina v isti vrstici" kot created_by/updated_by zgoraj, ki
+--     hrani samo TRENUTNO stanje) - vsak dejanski vpis/sprememba/izbris
+--     shift_code ali department_code doda svojo vrstico, prejšnji vpisi
+--     se nikoli ne prepišejo. Piše izključno sprožilec (security definer),
+--     nobenih insert/update/delete politik za navadne uporabnike - vidi
+--     (in torej lahko piše prek trigger-ja) samo admin prek obstoječe
+--     schedule_write_admin politike na schedule_entries sami.
+-- ---------------------------------------------------------------------
+create table if not exists public.schedule_entries_log (
+  id bigint generated always as identity primary key,
+  entry_id bigint,
+  employee_id uuid,
+  department_code text,
+  work_date date,
+  old_shift_code text,
+  new_shift_code text,
+  action text not null check (action in ('insert', 'update', 'delete')),
+  changed_by uuid references public.profiles (id),
+  changed_at timestamptz not null default now()
+);
+create index if not exists schedule_entries_log_date_idx on public.schedule_entries_log (work_date);
+create index if not exists schedule_entries_log_emp_idx on public.schedule_entries_log (employee_id, work_date);
+
+alter table public.schedule_entries_log enable row level security;
+drop policy if exists schedule_entries_log_select_admin on public.schedule_entries_log;
+create policy schedule_entries_log_select_admin on public.schedule_entries_log
+  for select to authenticated using (public.current_role_is('admin'));
+
+create or replace function public.schedule_entries_audit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if TG_OP = 'DELETE' then
+    insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+    values (old.id, old.employee_id, old.department_code, old.work_date, old.shift_code, null, 'delete', auth.uid());
+    return old;
+  elsif TG_OP = 'UPDATE' then
+    -- samo, če se je dejansko kaj vidnega spremenilo (ne vsak "ping" upsert
+    -- z istimi vrednostmi - schedule_entries_touch zgoraj tako ali tako
+    -- vedno posodobi updated_at/updated_by, kar bi sicer napolnilo dnevnik
+    -- z nič-spremembami).
+    if old.shift_code is distinct from new.shift_code or old.department_code is distinct from new.department_code then
+      insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+      values (new.id, new.employee_id, new.department_code, new.work_date, old.shift_code, new.shift_code, 'update', auth.uid());
+    end if;
+    return new;
+  else
+    insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+    values (new.id, new.employee_id, new.department_code, new.work_date, null, new.shift_code, 'insert', auth.uid());
+    return new;
+  end if;
+end;
+$$;
+
+drop trigger if exists schedule_entries_audit on public.schedule_entries;
+create trigger schedule_entries_audit
+  after insert or update or delete on public.schedule_entries
+  for each row execute function public.schedule_entries_audit();
