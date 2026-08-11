@@ -389,7 +389,8 @@ async function nalozizDezurniKader(startISO){
 }
 
 function classify(sifra){
-  const t=(sifra||"").toLowerCase();
+  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
+  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("ld")) return "off";
   if (t.startsWith("kpu")) return "off";
   if (t.includes("nočna12")) return "h12";
@@ -403,11 +404,11 @@ const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:
 
 // Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" — tu ju
-// razdelimo, ker dnevna12 (SO/NE, 07-19) šteje k DOPOLDNE pokritosti,
-// nočna12 pa k PONOCI.
+// razdelimo, ker dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
+// 07:00-19:00) pokrivata dan in štejeta k DOPOLDNE, nočna12 pa k PONOCI.
 function shiftBucket(sifra){
-  const t=(sifra||"").toLowerCase();
-  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomoč drugje" || !t) return null;
+  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
+  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomočdrugje" || !t) return null;
   if (t.includes("nočna12")) return "PONOCI";
   if (t.includes("dnevna12")) return "DOPOLDNE";
   if (t.startsWith("nočna")) return "PONOCI";

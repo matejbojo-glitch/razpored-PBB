@@ -90,8 +90,12 @@
 // (Nastavitve → Koledar) — cache-first, zato dvig verzije.
 // v31: uvodna kartica na Razporedu (namestitev na domači zaslon + vklop
 // obvestil) — spremenjena index.html in theme.css, zato dvig verzije.
+// v32: ločeni dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
+// 07:00-19:00) — spremenjeni delovni-cas.js, dashboard-core.js,
+// index.html in admin.html. Brez dviga bi zaposleni še naprej videli
+// stare ure.
 
-const CACHE = 'razpored-pbb-v31';
+const CACHE = 'razpored-pbb-v32';
 const ASSETS = [
   './',
   './index.html',

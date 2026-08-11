@@ -161,7 +161,8 @@ DELOVNI_ČAS["KPU"] = "koriščenje prostih ur";
 DELOVNI_ČAS["LD"] = "letni dopust";
 
 function classify(sifra){
-  const t = (sifra || "").toLowerCase();
+  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
+  const t = (sifra || "").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
   if (t.startsWith("ld")) return "ld"; // letni dopust - lastna (zelena) barva, ločeno od KPU/prostega (sivo)
   if (t.startsWith("kpu")) return "off";

@@ -23,9 +23,10 @@
   // nočno 12-urno izmeno od dnevne 12-urne, ker se za pravičnost štejeta
   // različno (nočna šteje med nočne ure, dnevna ne).
   function classifyForStats(sifra) {
-    var t = (sifra || "").toLowerCase();
+    // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
+    var t = (sifra || "").toLowerCase().replace(/\s+/g, "");
     if (t.indexOf("nočna") !== -1) return "noc"; // zajame NOČNA, NOČNA12, NOČNA od 19 ...
-    if (t.indexOf("dnevna12") !== -1) return "dnevna12";
+    if (t.indexOf("dnevna12") !== -1) return "dnevna12"; // tudi DNEVNA12F (flexi 07-19)
     if (t.indexOf("dopoldan") !== -1) return "dop";
     if (t.indexOf("popoldan") !== -1) return "pop";
     return "off"; // LD, KPU, prazno
