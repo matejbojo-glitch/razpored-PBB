@@ -2337,11 +2337,12 @@ function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; 
 function PlaceTab(){
   const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const [vrstice, setVrstice] = useState(null); // null = ni naloženo
+  const [neznane, setNeznane] = useState([]); // šifre izmen, ki jih obračun ne pozna
   const [busy, setBusy] = useState(false);
   const [napaka, setNapaka] = useState(null);
 
   const nalozi = async () => {
-    setBusy(true); setNapaka(null); setVrstice(null);
+    setBusy(true); setNapaka(null); setVrstice(null); setNeznane([]);
     try {
       const [leto, mesec] = obdobje.split("-").map(Number);
       const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
@@ -2361,6 +2362,7 @@ function PlaceTab(){
         matPoId[p.id] = (hr && hr.employee_code) || "";
       });
       const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
+      const neznaneKode = {}; // koda -> [imena], glej razlago v zanki spodaj
       const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
       (entries || []).forEach(r => {
         if (jeDezurstvoSifra(r.shift_code)) {
@@ -2369,7 +2371,18 @@ function PlaceTab(){
           return;
         }
         const ure = TRAJANJE_UR[r.shift_code];
-        if (!ure) return; // LD/KPU/prosto/neznana koda - ni dejansko delo
+        if (!ure) {
+          // LD/KPU/BS/prosto pravilno NE štejejo kot delo. NEZNANE kode pa so
+          // druga stvar: doslej so tiho izpadle iz obračuna, kar pomeni
+          // neplačano izmeno, ki je nihče ne opazi. Zbiramo jih, da se
+          // izpišejo - tiho izgubljanje ur je hujše od napačnega seštevka,
+          // ker se ne pozna nikjer.
+          const s = (r.shift_code || "").trim();
+          if (s && !window.DelovniCas.NI_DELO.includes(s)) {
+            (neznaneKode[s] = neznaneKode[s] || []).push(imePoId[r.employee_id] || r.employee_id);
+          }
+          return;
+        }
         const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
         if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
         if (jeNedelja(r.work_date)) z.nedelje += ure;
@@ -2384,6 +2397,11 @@ function PlaceTab(){
         dezurstva: zbir[id].dezurstva,
       })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
       setVrstice(rezultat);
+      setNeznane(Object.keys(neznaneKode).sort().map(k => ({
+        koda: k,
+        koliko: neznaneKode[k].length,
+        osebe: Array.from(new Set(neznaneKode[k])).sort((a, b) => a.localeCompare(b, "sl")),
+      })));
     } catch (e) {
       setNapaka(e.message || String(e));
     } finally {
@@ -2409,6 +2427,26 @@ function PlaceTab(){
           <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
         </div>
         {napaka && <p className="err">{napaka}</p>}
+        {neznane.length > 0 && (
+          <div className="warnBox" style={{marginTop:10, borderColor:"var(--danger)"}}>
+            <div className="t">
+              ⚠ Neprepoznane šifre izmen: {neznane.length} — te ure NISO v obračunu
+            </div>
+            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
+              {neznane.map(n => (
+                <li key={n.koda} style={{fontSize:12.5, marginBottom:3}}>
+                  <b>{n.koda}</b> — {n.koliko}× ({n.osebe.slice(0, 4).join(", ")}
+                  {n.osebe.length > 4 ? " in še " + (n.osebe.length - 4) : ""})
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Obračun pozna samo šifre iz <code>delovni-cas.js</code>. Zgornje niso med njimi, zato se
+              ne štejejo nikamor — če gre za resnično delo, je izmena neplačana. Preveri, ali je šifra
+              napačno zapisana (npr. presledek ali velika/mala črka), ali pa je treba dodati nov tip izmene.
+            </p>
+          </div>
+        )}
         {vrstice && vrstice.some(r => !r.employee_code) && (
           <div className="warnBox" style={{marginTop:10}}>
             <div className="t">
