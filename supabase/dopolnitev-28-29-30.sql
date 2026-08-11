@@ -1,0 +1,321 @@
+-- =====================================================================
+-- Razpored PBB — DOPOLNITEV SHEME (sekcije 28, 29, 30)
+--
+-- Kaj doda:
+--   28) Revizijska sled sprememb PRAVIC (kdo je komu dal/vzel dostop)
+--   29) Živa koledarska naročnina (razpored v telefonski koledar)
+--   30) Izbira kanalov obveščanja po osebi (e-pošta / telefon / SMS)
+--
+-- KAKO POGNATI:
+--   Supabase → SQL Editor → New query → prilepi VSE spodaj → Run.
+--
+-- Varno je pognati večkrat: vse je pisano tako, da se ob ponovnem zagonu
+-- nič ne podvoji in nič ne izbriše (create table if not exists,
+-- create or replace, drop policy if exists ...).
+--
+-- NIČESAR ne briše in NE spreminja obstoječih podatkov.
+-- =====================================================================
+
+
+-- ---------------------------------------------------------------------
+-- 28) profiles_log — revizijska sled SPREMEMB PRAVIC (RBAC audit).
+--
+--     Sekcija 26 zgoraj revidira razpored (kdo je komu spremenil izmeno).
+--     Kdo je komu podelil ali odvzel PRAVICE, pa doslej ni bilo nikjer
+--     zabeleženo — administrator lahko v Generator → Uporabniki komurkoli
+--     nastavi vlogo "admin", in po tem dejanju ni ostalo nobene sledi.
+--     Za "pravno skladnost in varnost podatkov" je to večja vrzel od
+--     revizije razporeda: brez nje ni mogoče odgovoriti na vprašanje
+--     "kdo je tej osebi omogočil dostop do kadrovskih podatkov in kdaj".
+--
+--     Beležijo se samo štiri polja, ki dejansko določajo pravice:
+--       role            — admin / vodja / user
+--       department_code — kateri oddelek vodja vidi in ureja
+--       vodja_id        — komu je oseba podrejena (veriga odobritev)
+--       is_koordinator  — enostopenjska odobritev menjav
+--     Ostala polja (ime, e-pošta, parafa, naziv) niso varnostno
+--     relevantna in bi dnevnik samo napolnila.
+--
+--     Enak vzorec kot schedule_entries_log: append-only, piše izključno
+--     sprožilec (security definer), bere samo admin.
+-- ---------------------------------------------------------------------
+create table if not exists public.profiles_log (
+  id bigint generated always as identity primary key,
+  profile_id uuid,
+  profile_name text,
+  polje text not null check (polje in ('role', 'department_code', 'vodja_id', 'is_koordinator')),
+  stara_vrednost text,
+  nova_vrednost text,
+  action text not null check (action in ('insert', 'update', 'delete')),
+  changed_by uuid references public.profiles (id),
+  changed_by_name text,
+  changed_at timestamptz not null default now()
+);
+create index if not exists profiles_log_profile_idx on public.profiles_log (profile_id, changed_at desc);
+create index if not exists profiles_log_cas_idx on public.profiles_log (changed_at desc);
+
+alter table public.profiles_log enable row level security;
+drop policy if exists profiles_log_select_admin on public.profiles_log;
+create policy profiles_log_select_admin on public.profiles_log
+  for select to authenticated using (public.current_role_is('admin'));
+
+create or replace function public.profiles_audit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  akter_ime text;
+  akter uuid;
+begin
+  akter := auth.uid();
+  -- Ime akterja se zapiše ob dejanju in se pozneje NE osvežuje: če se
+  -- oseba pozneje preimenuje ali izbriše, mora dnevnik še vedno brati
+  -- tako, kot je bilo ob dogodku.
+  select p.full_name into akter_ime from public.profiles p where p.id = akter;
+
+  if TG_OP = 'DELETE' then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (old.id, old.full_name, 'role', old.role, null, 'delete', akter, akter_ime);
+    return old;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    -- Ob registraciji je vloga vedno privzeta ('user'); vpiše se samo, če
+    -- je račun nastal že z višjo vlogo (npr. prek uvoza).
+    if new.role is distinct from 'user' then
+      insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+      values (new.id, new.full_name, 'role', null, new.role, 'insert', akter, akter_ime);
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE: po eno vrstico na vsako dejansko spremenjeno polje, da je
+  -- dnevnik berljiv brez razbiranja, kaj se je v vrstici spremenilo.
+  if old.role is distinct from new.role then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'role', old.role, new.role, 'update', akter, akter_ime);
+  end if;
+  if old.department_code is distinct from new.department_code then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
+  end if;
+  if old.vodja_id is distinct from new.vodja_id then
+    -- Zapiše se IME vodje, ne uuid — dnevnik mora biti berljiv brez
+    -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
+    -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
+    -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
+    -- prazno, torej kot sprememba, ki se ni zgodila.
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'vodja_id',
+            coalesce((select p.full_name from public.profiles p where p.id = old.vodja_id), old.vodja_id::text),
+            coalesce((select p.full_name from public.profiles p where p.id = new.vodja_id), new.vodja_id::text),
+            'update', akter, akter_ime);
+  end if;
+  if old.is_koordinator is distinct from new.is_koordinator then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'is_koordinator', old.is_koordinator::text, new.is_koordinator::text, 'update', akter, akter_ime);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_audit on public.profiles;
+create trigger profiles_audit
+  after insert or update or delete on public.profiles
+  for each row execute function public.profiles_audit();
+
+-- ---------------------------------------------------------------------
+-- 29) Živa koledarska naročnina (iCal subscription).
+--
+--     Doslej je bil izvoz .ics ENKRATEN prenos: kar si prenesel, je v
+--     telefonu obtičalo takšno, kot je bilo — sprememba razporeda se v
+--     koledarju ni poznala. Tu se doda naslov, na katerega se koledar
+--     naroči in ga sam občasno osveži.
+--
+--     ZAKAJ LOČENA TABELA IN NE STOLPEC V profiles:
+--     politika profiles_select je "for select to authenticated using
+--     (true)" — vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
+--     žeton živel tam, bi vsak zaposleni videl žetone vseh sodelavcev in
+--     se lahko naročil na njihov razpored. Zato svoja tabela, kjer
+--     politika omeji branje na lastnika vrstice.
+--
+--     Žeton je nosilni podatek (kdor ga ima, vidi razpored te osebe brez
+--     prijave — koledarski odjemalci se ne znajo prijaviti), zato:
+--       * 32 naključnih bajtov iz pgcrypto (ne uuid, ki je deloma
+--         predvidljiv in se ponekod izpisuje v naslovih),
+--       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje —
+--         admin razpored že vidi v aplikaciji,
+--       * zamenljiv z eno potezo (koledar_token_ponastavi), s čimer
+--         prejšnja povezava takoj neha delovati.
+-- ---------------------------------------------------------------------
+create table if not exists public.calendar_tokens (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  token text not null unique,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+alter table public.calendar_tokens enable row level security;
+-- Samo lastnik. Brez insert/update/delete politik — vse gre prek
+-- security definer funkcij spodaj.
+drop policy if exists calendar_tokens_own on public.calendar_tokens;
+create policy calendar_tokens_own on public.calendar_tokens
+  for select to authenticated using (profile_id = auth.uid());
+
+-- Vrne obstoječi žeton prijavljene osebe ali ga ob prvem klicu ustvari.
+create or replace function public.koledar_token()
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  select token into v_token from public.calendar_tokens where profile_id = auth.uid();
+  if v_token is not null then
+    return v_token;
+  end if;
+  v_token := encode(gen_random_bytes(32), 'hex');
+  insert into public.calendar_tokens (profile_id, token) values (auth.uid(), v_token)
+  on conflict (profile_id) do update set token = excluded.token
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+-- Zamenja žeton — prejšnja povezava takoj preneha delovati (za primer,
+-- ko je bila povezava pomotoma deljena).
+create or replace function public.koledar_token_ponastavi()
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  v_token := encode(gen_random_bytes(32), 'hex');
+  insert into public.calendar_tokens (profile_id, token, created_at, last_used_at)
+  values (auth.uid(), v_token, now(), null)
+  on conflict (profile_id) do update
+    set token = excluded.token, created_at = now(), last_used_at = null
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+-- Uporabi jo IZKLJUČNO robna funkcija "koledar" s service_role ključem:
+-- iz žetona dobi osebo in njen razpored. Ni dosegljiva navadnemu
+-- (authenticated) uporabniku, ker bi sicer lahko kdorkoli z ugibanjem
+-- žetona bral tuje razporede prek RPC.
+create or replace function public.koledar_razpored(p_token text, p_od date, p_do date)
+returns table (full_name text, work_date date, shift_code text)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_profile uuid;
+begin
+  select ct.profile_id into v_profile from public.calendar_tokens ct where ct.token = p_token;
+  if v_profile is null then
+    return; -- neveljaven žeton: prazen rezultat, brez namiga, ali obstaja
+  end if;
+  update public.calendar_tokens set last_used_at = now() where profile_id = v_profile;
+  return query
+    select p.full_name, se.work_date, se.shift_code
+    from public.schedule_entries se
+    join public.profiles p on p.id = se.employee_id
+    where se.employee_id = v_profile
+      and se.work_date between p_od and p_do
+      and coalesce(se.shift_code, '') <> ''
+    order by se.work_date;
+end;
+$$;
+
+revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 30) notification_settings — kanali obveščanja po osebi.
+--
+--     Doslej je bilo obveščanje vse-ali-nič in vezano na NAPRAVO: potisna
+--     obvestila si vklopil na telefonu (push_subscriptions), drugih poti
+--     ni bilo. Tu se doda izbira po OSEBI: e-pošta, potisno obvestilo in
+--     (pozneje) SMS, vsak posebej.
+--
+--     Zakaj privzeto vklopljena e-pošta in potisno obvestilo: kdor si
+--     potisnih ni vklopil na nobeni napravi, brez e-pošte ne bi izvedel
+--     ničesar. Prazna vrstica (osebe, ki nastavitev ni odprla) se zato
+--     obravnava kot "oboje vklopljeno" - glej coalesce v robni funkciji.
+--
+--     SMS je pripravljen kot zastavica, a ga nič še ne pošilja: zahteva
+--     plačljivega ponudnika. Dokler ga ni, vklop ne naredi ničesar in je
+--     v vmesniku tako tudi označen - raje vidna neaktivna možnost kot
+--     tiho neizpolnjena obljuba.
+-- ---------------------------------------------------------------------
+create table if not exists public.notification_settings (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  email_enabled boolean not null default true,
+  push_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  -- Vrste dogodkov; obe privzeto vklopljeni.
+  opomnik_izmene boolean not null default true,
+  sprememba_razporeda boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.notification_settings enable row level security;
+
+drop policy if exists notif_settings_select on public.notification_settings;
+create policy notif_settings_select on public.notification_settings
+  for select to authenticated
+  using (profile_id = auth.uid() or public.current_role_is('admin'));
+
+drop policy if exists notif_settings_upsert on public.notification_settings;
+create policy notif_settings_upsert on public.notification_settings
+  for insert to authenticated with check (profile_id = auth.uid());
+
+drop policy if exists notif_settings_update on public.notification_settings;
+create policy notif_settings_update on public.notification_settings
+  for update to authenticated
+  using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+
+-- Sled o dostavi po e-pošti; push_sent_at (sekcija 27) že obstaja.
+alter table public.notifications add column if not exists email_sent_at timestamptz;
+create index if not exists notifications_email_pending_idx
+  on public.notifications (created_at) where email_sent_at is null;
+
+-- Robna funkcija potrebuje e-pošto in nastavitve prejemnikov v enem
+-- klicu. profiles.email je berljiv vsem prijavljenim, a funkcija teče s
+-- service_role - ta pogled je tu zato, da je poizvedba na enem mestu in
+-- da se ne pošilja osebam, ki so kanal izklopile.
+create or replace function public.prejemniki_obvestil(p_ids uuid[])
+returns table (
+  profile_id uuid,
+  email text,
+  full_name text,
+  email_enabled boolean,
+  push_enabled boolean
+)
+language sql
+security definer
+set search_path = public, pg_temp
+as $$
+  select p.id, p.email, p.full_name,
+         coalesce(ns.email_enabled, true),
+         coalesce(ns.push_enabled, true)
+  from public.profiles p
+  left join public.notification_settings ns on ns.profile_id = p.id
+  where p.id = any(p_ids);
+$$;
+
+revoke all on function public.prejemniki_obvestil(uuid[]) from public, anon, authenticated;
