@@ -3,6 +3,12 @@
 Dokument odgovarja na vprašanje "ali in kako preiti na Prisma shemo". Ni izvedba;
 je podlaga za odločitev. Vse številke spodaj so prešteti iz repozitorija, ne ocenjene.
 
+> **Posodobitev:** Možnost A (§5) je izvedena — glej [`prisma/`](prisma/) v korenu
+> repozitorija. `prisma/schema.prisma` je preverjen proti resnični kopiji baze
+> (`prisma migrate diff` vrne prazno razliko), aplikacija pa ga ne uporablja —
+> brskalnik še naprej dela naravnost s Supabase, RLS ostaja edina avtorizacija.
+> Podrobnosti in navodila v [`prisma/README.md`](prisma/README.md).
+
 ---
 
 ## 1. Kje smo danes
