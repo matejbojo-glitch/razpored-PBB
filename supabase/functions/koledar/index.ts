@@ -30,9 +30,24 @@
 //   supabase functions deploy koledar --no-verify-jwt
 // ---------------------------------------------------------------------
 import { createClient } from "npm:@supabase/supabase-js@2";
-import "../../../delovni-cas.js";
+// POZOR: uvoz mora ostati ZNOTRAJ supabase/functions/ — "supabase functions
+// deploy" naloži samo to drevo, zato uvoz datoteke iz korena repozitorija
+// (../../../delovni-cas.js) pri namestitvi odpove z "Module not found".
+// _shared/delovni-cas.js je zato bajt-za-bajt kopija korenske datoteke;
+// skripte/preveri-delovni-cas.mjs javi, če se razideta.
+import "../_shared/delovni-cas.js";
 
 const DelovniCas = (globalThis as any).DelovniCas;
+
+// Če se modul ne naloži, se raje ustavimo takoj z jasnim sporočilom, kot da
+// bi vrnili koledar z napačnimi urami — tiho napačen razpored je hujši od
+// nedelujoče naročnine.
+if (!DelovniCas || typeof DelovniCas.podatkiIzmene !== "function") {
+  throw new Error(
+    "delovni-cas.js se ni naložil (globalThis.DelovniCas manjka). " +
+    "Preveri, da je supabase/functions/_shared/delovni-cas.js prisoten.",
+  );
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
