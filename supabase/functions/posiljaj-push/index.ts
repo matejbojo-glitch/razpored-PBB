@@ -24,6 +24,13 @@ const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:razpored@pb-begunje.si";
 const PUSH_CRON_SECRET = Deno.env.get("PUSH_CRON_SECRET") ?? "";
 
+// E-pošta je NEOBVEZNA: dokler RESEND_API_KEY ni nastavljen, se e-pošta
+// preprosto ne pošilja, potisna obvestila pa delujejo naprej. Tako je
+// mogoče ponudnika dodati pozneje brez spreminjanja kode.
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "Razpored PBB <razpored@pb-begunje.si>";
+const APP_URL = (Deno.env.get("APP_URL") ?? "https://razpored.netlify.app").replace(/\/$/, "");
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -56,10 +63,13 @@ Deno.serve(async (req: Request) => {
   const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const mejaCasa = new Date(Date.now() - NAJSTAREJSE_URE * 3600 * 1000).toISOString();
 
+  // Vzamemo obvestila, ki jim manjka VSAJ EDEN od kanalov. Push in e-pošta
+  // se označujeta ločeno (push_sent_at / email_sent_at), zato lahko eno
+  // uspe in drugo ostane za naslednji krog, ne da bi se karkoli podvojilo.
   const { data: obvestila, error: napakaBranja } = await db
     .from("notifications")
-    .select("id, user_id, message, title, url")
-    .is("push_sent_at", null)
+    .select("id, user_id, message, title, url, push_sent_at, email_sent_at")
+    .or("push_sent_at.is.null,email_sent_at.is.null")
     .gte("created_at", mejaCasa)
     .order("created_at", { ascending: true })
     .limit(NAJVEC_NA_KLIC);
@@ -90,11 +100,75 @@ Deno.serve(async (req: Request) => {
     poOsebi.set(n.profile_id, seznam);
   }
 
+  // Kanali po osebi (sekcija 30). Kdor nastavitve ni odprl, ima oboje
+  // vklopljeno — brez tega bi molk pomenil, da ne izve ničesar.
+  const { data: prejemniki } = await db.rpc("prejemniki_obvestil", { p_ids: idjiPrejemnikov });
+  const nastavitve = new Map<string, { email: string | null; email_enabled: boolean; push_enabled: boolean }>();
+  for (const p of prejemniki ?? []) {
+    nastavitve.set(p.profile_id, {
+      email: p.email,
+      email_enabled: p.email_enabled,
+      push_enabled: p.push_enabled,
+    });
+  }
+
   let poslanih = 0;
+  let poslanihEpost = 0;
   const mrtveNarocnine: number[] = [];
   const zivaNarocnine: number[] = [];
+  const epostaOpravljeno: number[] = [];
+  const pushOpravljeno: number[] = [];
 
   for (const o of obvestila) {
+    const kanali = nastavitve.get(o.user_id) ?? { email: null, email_enabled: true, push_enabled: true };
+
+    // --- e-pošta ---
+    if (o.email_sent_at === null) {
+      if (!kanali.email_enabled || !kanali.email || !RESEND_API_KEY) {
+        // Izklopljen kanal, manjkajoč naslov ali nenastavljen ponudnik:
+        // označimo kot opravljeno, sicer bi obvestilo v vsakem krogu znova
+        // poskušalo in vrsta se ne bi nikoli spraznila.
+        epostaOpravljeno.push(o.id);
+      } else {
+        try {
+          const odgovor = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: EMAIL_FROM,
+              to: [kanali.email],
+              subject: o.title ?? "Razpored PBB",
+              text: `${o.message}\n\n${APP_URL}/${o.url ?? "index.html"}\n\n` +
+                `— Razpored PBB, Psihiatrična bolnišnica Begunje\n` +
+                `Obveščanje po e-pošti lahko izklopiš v Nastavitvah.`,
+            }),
+          });
+          if (odgovor.ok) {
+            poslanihEpost++;
+            epostaOpravljeno.push(o.id);
+          } else {
+            // 4xx pomeni trajno napako (napačen naslov, zavrnjena domena) —
+            // označimo, da ne blokira vrste. 5xx/omrežje pustimo za naslednjič.
+            const status = odgovor.status;
+            console.error("Resend:", status, await odgovor.text());
+            if (status >= 400 && status < 500) epostaOpravljeno.push(o.id);
+          }
+        } catch (e) {
+          console.error("Napaka pri e-pošti:", (e as Error).message);
+        }
+      }
+    }
+
+    // --- potisno obvestilo ---
+    if (o.push_sent_at !== null) continue; // v tem svežnju je bilo samo zaradi e-pošte
+    // Označimo tudi, kadar oseba potisnih noče ali nima naprave — sicer bi
+    // obvestilo ostalo v vrsti za vedno.
+    pushOpravljeno.push(o.id);
+    if (!kanali.push_enabled) continue;
+
     const seznam = poOsebi.get(o.user_id) ?? [];
     const vsebina = JSON.stringify({
       naslov: o.title ?? "Razpored PBB",
@@ -121,10 +195,17 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Obvestila označimo kot obdelana tudi, če oseba nima nobene naprave —
-  // sicer bi jih vsak zagon znova poskušal poslati v prazno.
-  await db.from("notifications").update({ push_sent_at: new Date().toISOString() })
-    .in("id", obvestila.map((o) => o.id));
+  // Vsak kanal se označi LOČENO in samo za tiste vrstice, ki jih je ta
+  // zagon dejansko obdelal. Prej se je push_sent_at postavil čez cel
+  // sveženj — zdaj bi to pomenilo, da obvestilo, ki je v svežnju le zaradi
+  // manjkajoče e-pošte, po nesreči obvelja za "push poslan".
+  const zdaj = new Date().toISOString();
+  if (pushOpravljeno.length) {
+    await db.from("notifications").update({ push_sent_at: zdaj }).in("id", pushOpravljeno);
+  }
+  if (epostaOpravljeno.length) {
+    await db.from("notifications").update({ email_sent_at: zdaj }).in("id", epostaOpravljeno);
+  }
 
   if (mrtveNarocnine.length) {
     await db.from("push_subscriptions").delete().in("id", mrtveNarocnine);
@@ -138,6 +219,8 @@ Deno.serve(async (req: Request) => {
     JSON.stringify({
       obdelanih: obvestila.length,
       poslanih,
+      poslanihEpost,
+      epostaNastavljena: !!RESEND_API_KEY,
       odstranjenihNarocnin: mrtveNarocnine.length,
     }),
     { headers: { "content-type": "application/json" } },

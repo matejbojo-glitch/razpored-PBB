@@ -912,10 +912,11 @@ function App(){
       if (!res) return;
       setAuth(res);
       const dept = res.profile ? res.profile.department_code : null;
-      const jeKoordinator = res.profile && (res.profile.role === "admin" || res.profile.role === "vodja");
-      // Navaden zaposleni je zaklenjen na svoj oddelek (če ta sploh spada med
-      // PO_ODDELKIH_KODE) - admin/vodja lahko brskata po vseh, tudi po NZV.
-      setWardCode(jeKoordinator ? dept : (PO_ODDELKIH_KODE.includes(dept) ? dept : null));
+      // Razpored je viden vsem zaposlenim za VSE oddelke (dogovorjeno) - enako,
+      // kot že velja v bazi (schedule_select: "to authenticated using (true)").
+      // Privzeto se odpre svoj oddelek, preklop na katerega koli drugega pa je
+      // prost; kdor oddelka nima, začne na prvem v seznamu.
+      setWardCode(PO_ODDELKIH_KODE.includes(dept) ? dept : PO_ODDELKIH_KODE[0]);
       RazporedAuth.unreadNotificationCount(res.session.user.id).then(setUnread);
     });
   }, []);
@@ -1054,11 +1055,9 @@ function App(){
   if (!auth) return null; // requireAuth preusmeri, če ni prijave
 
   const { session, profile } = auth;
-  const jeKoordinator = profile && (profile.role === "admin" || profile.role === "vodja");
-  // Navaden zaposleni sme "Po oddelkih" videti SAMO, če njegov lasten oddelek
-  // sploh spada med PO_ODDELKIH_KODE (ostali oddelki tu niso na voljo) -
-  // admin/vodja vidita zavihek vedno, saj lahko brskata po vseh (tudi NZV).
-  const smePoOddelkih = jeKoordinator || PO_ODDELKIH_KODE.includes(profile ? profile.department_code : null);
+  // "Po oddelkih" je odprt vsem prijavljenim, za vse oddelke. Pravice za
+  // pisanje (generiranje, objava) in odobritve ostajajo nespremenjene - te
+  // še naprej ločuje vloga, tako v vmesniku kot v RLS politikah.
 
   return (
     <div className={"wrap" + (view === "ward" ? " wide" : "")}>
@@ -1076,24 +1075,16 @@ function App(){
 
         <div className="segmented no-print" role="tablist">
           <button role="tab" aria-selected={view==="my"} onClick={() => setView("my")}>Moj razpored</button>
-          {smePoOddelkih && (
-            <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
-          )}
+          <button role="tab" aria-selected={view==="ward"} onClick={() => setView("ward")}>Po oddelkih</button>
         </div>
 
-        {view==="ward" && smePoOddelkih && (
+        {view==="ward" && (
           <div className="field no-print">
             <label htmlFor="wd">Oddelek</label>
-            {jeKoordinator ? (
-              <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
-                <option value="" disabled>Izberi oddelek …</option>
-                {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-              </select>
-            ) : (
-              <select id="wd" value={wardCode || ""} disabled>
-                <option value={wardCode || ""}>{(depts.find(d => d.code === wardCode) || {}).name || wardCode}</option>
-              </select>
-            )}
+            <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
+              <option value="" disabled>Izberi oddelek …</option>
+              {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+            </select>
           </div>
         )}
         <div className="field no-print">

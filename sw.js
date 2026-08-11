@@ -64,8 +64,29 @@
 // v23: nov skupni delovni-cas.js (edini vir resnice o urah izmen +
 // preverjanje delovnopravnih pravil) — cache-first, zato dvig verzije in
 // vpis v precache.
+// v24: Generator (Kalup) — delovnopravne kršitve zdaj obarvajo tudi
+// posamezne celice v mreži (rdeč/oranžen rob + opomba na hover), ne samo
+// povzetek zgoraj — cache-first, zato dvig verzije.
+// v25: zavihek "Uporabniki" (admin.html) prenovljen na kartični prikaz
+// (isti vzorec kot Imenik) namesto vodoravno-drseče tabele — bolj
+// uporabno na mobilnem — cache-first, zato dvig verzije.
+// v26: Faza 1 (skladnost) — revizija sprememb pravic (Revizija → Pravice
+// in dostopi), delovnopravno opozorilo pri menjavi (obrazec.html zdaj
+// nalaga delovni-cas.js) in "Po oddelkih" odprt vsem zaposlenim za vse
+// oddelke — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v23';
+// v27: Faza 2 — živa koledarska naročnina (Nastavitve → Koledar), nova
+// robna funkcija "koledar" in RazporedAuth.SUPABASE_URL v supabase-client.js
+// — cache-first, zato dvig verzije.
+
+// v28: Faza 3 — matična številka v zbirnem izvozu ur za plače (računovodstvo
+// in Kadris osebo prepoznata po njej, ne po imenu) + opozorilo na osebe, ki
+// je še nimajo — cache-first, zato dvig verzije.
+
+// v29: Faza 2 — izbira kanalov obveščanja po osebi (Nastavitve → Kam naj
+// pridejo obvestila) in dostava po e-pošti — cache-first, zato dvig verzije.
+
+const CACHE = 'razpored-pbb-v29';
 const ASSETS = [
   './',
   './index.html',

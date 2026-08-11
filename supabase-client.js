@@ -155,6 +155,10 @@
 
   root.RazporedAuth = {
     client: client,
+    // Potreben za sestavo naslova robnih funkcij (npr. koledarska naročnina
+    // v nastavitve.html); anon ključ tam ni potreben, ker se ta funkcija
+    // avtorizira z lastnim žetonom v naslovu.
+    SUPABASE_URL: SUPABASE_URL,
     ROLE_LABEL: ROLE_LABEL,
     getSessionAndProfile: getSessionAndProfile,
     requireAuth: requireAuth,

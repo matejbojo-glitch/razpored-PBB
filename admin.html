@@ -110,6 +110,29 @@
   .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; }
   .pill.ok{ background: rgba(76,140,99,.16); color: var(--ok); }
 
+  /* Kartica osebe (Uporabniki) — isti vzorec kot v imenik.html, da je
+     urejanje vlog/oddelkov na mobilnem enako uporabno kot povsod drugod
+     (sklad namesto vodoravno-drseče tabele). */
+  .person{ display:flex; align-items:flex-start; gap:10px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .person:last-child{ border-bottom:0; }
+  .person .av{ width:36px; height:36px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:var(--muted); flex:0 0 auto; }
+  .person .info{ flex:1; min-width:0; }
+  .person .name{ display:block; font-weight:700; font-size:14px; color:var(--text); text-decoration:none; }
+  .person .name:hover{ text-decoration:underline; }
+  .person .meta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .uporabnikPolja{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  @media (max-width: 560px){ .uporabnikPolja{ grid-template-columns:1fr; } }
+
+  /* Revizija pravic: vpis kot kartica, ne vrstica tabele — najpomembnejši
+     podatek (kaj se je spremenilo in ali gre za povišanje) mora biti viden
+     brez vodoravnega drsenja na telefonu. */
+  .revVnos{ padding:10px 0; border-bottom:1px solid var(--line); }
+  .revVnos:last-child{ border-bottom:0; }
+  .revGlava{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:14px; }
+  .revSprememba{ font-size:13px; margin-top:3px; }
+  .revNoga{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+
   .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
   .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
@@ -701,20 +724,14 @@ function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
   );
 }
 
-function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
   const opozorila = rezultat.opozorila || [];
 
   // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
-  // v tednu) — preverjena nad DEJANSKIM razporedom, torej vključno z
-  // ročnimi popravki celic, ne samo nad surovim izhodom generatorja.
-  const krsitve = useMemo(() => {
-    const vnosi = [];
-    rezultat.staff.forEach(z => {
-      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
-    });
-    return window.DelovniCas.preveriPravila(vnosi);
-  }, [rezultat, celica]);
+  // v tednu) — krsitve prihajajo od zunaj (KalupTab), izračunane nad
+  // DEJANSKIM razporedom (vključno z ročnimi popravki celic), tako da jih
+  // lahko ista izračunana lista pobarva tudi v mreži spodaj, ne samo tu.
   const pov = window.DelovniCas.povzetek(krsitve);
   const [prikaziKrsitve, setPrikaziKrsitve] = useState(false);
 
@@ -980,6 +997,29 @@ function KalupTab(){
     setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
   };
 
+  // Delovnopravne kršitve (počitek med izmenama, zaporedne nočne, prost dan v
+  // tednu) — izračunane enkrat tu nad DEJANSKIM razporedom (torej vključno z
+  // ročnimi popravki celic), da isti seznam napaja tako povzetek v
+  // StatusPravil kot obarvanje posameznih celic v mreži spodaj.
+  const krsitve = useMemo(() => {
+    if (!rezultat) return [];
+    const vnosi = [];
+    rezultat.staff.forEach(z => {
+      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
+    });
+    return window.DelovniCas.preveriPravila(vnosi);
+  }, [rezultat, celica]);
+  // "oseba|datum" -> najhujša kršitev na tej celici (kritično prekrije opozorilo).
+  const krsitveMap = useMemo(() => {
+    const m = new Map();
+    krsitve.forEach(k => {
+      const key = k.oseba + "|" + k.datum;
+      const obstojeca = m.get(key);
+      if (!obstojeca || (k.resnost === "kriticno" && obstojeca.resnost !== "kriticno")) m.set(key, k);
+    });
+    return m;
+  }, [krsitve]);
+
   const izvoziCSV = () => {
     if (!rezultat) return;
     const glava = ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)];
@@ -1107,7 +1147,7 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
-          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} />
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} />
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
@@ -1143,12 +1183,17 @@ function KalupTab(){
                     <td className="name">{z.ime}</td>
                     {rezultat.dnevi.map(dn => {
                       const sifra = celica(z, dn); const cls = classify(sifra);
+                      const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
+                      const obroba = krsitev
+                        ? (krsitev.resnost === "kriticno" ? "2px solid var(--danger)" : "2px solid #C9713F")
+                        : "1px solid var(--line)";
+                      const naslov = krsitev ? `${sifra} — ${krsitev.sporocilo}` : sifra;
                       return (
                         <td key={dn.datum}>
                           <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
-                            title={sifra}
+                            title={naslov}
                             style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
-                              border:"1px solid var(--line)", borderRadius:6, fontSize:13, padding:"3px 2px"}} />
+                              border:obroba, borderRadius:6, fontSize:13, padding:"3px 2px"}} />
                         </td>
                       );
                     })}
@@ -1749,6 +1794,12 @@ function VodjeTab(){
   );
 }
 
+// Ista logika kot initials() v imenik.html — tu podvojena, ker ni skupnega
+// JS modula med statičnimi stranmi.
+function initialsAdmin(ime){
+  return (ime || "?").trim().split(/\s+/).slice(0,2).map(s => s[0]).join("").toUpperCase();
+}
+
 // ---------------------------------------------------------------------
 // Ista logika kot imenaSeUjemata v zelje.html (vreča besed, vrstni red ni
 // pomemben) — tu podvojena, ker ni skupnega JS modula med statičnimi stranmi.
@@ -1902,31 +1953,35 @@ function UporabnikiTab(){
           <h3 style={{fontSize:13, fontWeight:800, color:"var(--muted)", textTransform:"uppercase", letterSpacing:".03em", margin:"0 0 6px"}}>
             {imeOddelka[k] || k} <span style={{fontWeight:400, textTransform:"none"}}>({skupine[k].length})</span>
           </h3>
-          <div className="card" style={{overflowX:"auto"}}>
-            <table className="roster">
-              <thead><tr><th>Ime</th><th>Vloga</th><th>Oddelek / ekipa</th><th></th></tr></thead>
-              <tbody>
-                {skupine[k].map(p => (
-                  <tr key={p.id}>
-                    <td><a href={"imenik.html?id=" + p.id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{p.full_name}</a></td>
-                    <td>
-                      <div style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
-                        <span className={"pill " + (p.role === "admin" ? "danger" : p.role === "vodja" ? "warn" : "muted")}>
-                          {VLOGA_NAZIV[p.role] || p.role}
-                        </span>
-                        <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
-                          <option value="user">Zaposleni</option>
-                          <option value="vodja">Vodja ekipe</option>
-                          <option value="admin">Administrator</option>
-                        </select>
-                      </div>
-                    </td>
-                    <td><OddelekSelect p={p} /></td>
-                    <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="card">
+            {skupine[k].map(p => (
+              <div className="person" key={p.id}>
+                <div className="av">{initialsAdmin(p.full_name)}</div>
+                <div className="info">
+                  <a className="name" href={"imenik.html?id=" + p.id}>{p.full_name}</a>
+                  <div className="meta">
+                    <span className={"pill " + (p.role === "admin" ? "danger" : p.role === "vodja" ? "warn" : "muted")}>
+                      {VLOGA_NAZIV[p.role] || p.role}
+                    </span>
+                    {status[p.id] && <span>{status[p.id]}</span>}
+                  </div>
+                  <div className="uporabnikPolja">
+                    <div className="field">
+                      <label>Vloga</label>
+                      <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                        <option value="user">Zaposleni</option>
+                        <option value="vodja">Vodja ekipe</option>
+                        <option value="admin">Administrator</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Oddelek / ekipa</label>
+                      <OddelekSelect p={p} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -2282,11 +2337,12 @@ function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; 
 function PlaceTab(){
   const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const [vrstice, setVrstice] = useState(null); // null = ni naloženo
+  const [neznane, setNeznane] = useState([]); // šifre izmen, ki jih obračun ne pozna
   const [busy, setBusy] = useState(false);
   const [napaka, setNapaka] = useState(null);
 
   const nalozi = async () => {
-    setBusy(true); setNapaka(null); setVrstice(null);
+    setBusy(true); setNapaka(null); setVrstice(null); setNeznane([]);
     try {
       const [leto, mesec] = obdobje.split("-").map(Number);
       const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
@@ -2294,11 +2350,19 @@ function PlaceTab(){
       const prazniki = slovenskiPrazniki(leto);
       const [{ data: entries, error }, { data: profili }] = await Promise.all([
         client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
-        client.from("profiles").select("id, full_name"),
+        // Matična številka je ključ, po katerem osebo prepozna računovodstvo
+        // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
+        client.from("profiles").select("id, full_name, profile_hr_details(employee_code)"),
       ]);
       if (error) throw error;
-      const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+      const imePoId = {}, matPoId = {};
+      (profili || []).forEach(p => {
+        imePoId[p.id] = p.full_name;
+        const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+        matPoId[p.id] = (hr && hr.employee_code) || "";
+      });
       const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
+      const neznaneKode = {}; // koda -> [imena], glej razlago v zanki spodaj
       const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
       (entries || []).forEach(r => {
         if (jeDezurstvoSifra(r.shift_code)) {
@@ -2307,7 +2371,18 @@ function PlaceTab(){
           return;
         }
         const ure = TRAJANJE_UR[r.shift_code];
-        if (!ure) return; // LD/KPU/prosto/neznana koda - ni dejansko delo
+        if (!ure) {
+          // LD/KPU/BS/prosto pravilno NE štejejo kot delo. NEZNANE kode pa so
+          // druga stvar: doslej so tiho izpadle iz obračuna, kar pomeni
+          // neplačano izmeno, ki je nihče ne opazi. Zbiramo jih, da se
+          // izpišejo - tiho izgubljanje ur je hujše od napačnega seštevka,
+          // ker se ne pozna nikjer.
+          const s = (r.shift_code || "").trim();
+          if (s && !window.DelovniCas.NI_DELO.includes(s)) {
+            (neznaneKode[s] = neznaneKode[s] || []).push(imePoId[r.employee_id] || r.employee_id);
+          }
+          return;
+        }
         const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
         if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
         if (jeNedelja(r.work_date)) z.nedelje += ure;
@@ -2316,11 +2391,17 @@ function PlaceTab(){
       const zaokrozi = (n) => Math.round(n * 10) / 10;
       const rezultat = Object.keys(zbir).map(id => ({
         employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
+        employee_code: matPoId[id] || "",
         redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
         nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
         dezurstva: zbir[id].dezurstva,
       })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
       setVrstice(rezultat);
+      setNeznane(Object.keys(neznaneKode).sort().map(k => ({
+        koda: k,
+        koliko: neznaneKode[k].length,
+        osebe: Array.from(new Set(neznaneKode[k])).sort((a, b) => a.localeCompare(b, "sl")),
+      })));
     } catch (e) {
       setNapaka(e.message || String(e));
     } finally {
@@ -2346,13 +2427,45 @@ function PlaceTab(){
           <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
         </div>
         {napaka && <p className="err">{napaka}</p>}
+        {neznane.length > 0 && (
+          <div className="warnBox" style={{marginTop:10, borderColor:"var(--danger)"}}>
+            <div className="t">
+              ⚠ Neprepoznane šifre izmen: {neznane.length} — te ure NISO v obračunu
+            </div>
+            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
+              {neznane.map(n => (
+                <li key={n.koda} style={{fontSize:12.5, marginBottom:3}}>
+                  <b>{n.koda}</b> — {n.koliko}× ({n.osebe.slice(0, 4).join(", ")}
+                  {n.osebe.length > 4 ? " in še " + (n.osebe.length - 4) : ""})
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Obračun pozna samo šifre iz <code>delovni-cas.js</code>. Zgornje niso med njimi, zato se
+              ne štejejo nikamor — če gre za resnično delo, je izmena neplačana. Preveri, ali je šifra
+              napačno zapisana (npr. presledek ali velika/mala črka), ali pa je treba dodati nov tip izmene.
+            </p>
+          </div>
+        )}
+        {vrstice && vrstice.some(r => !r.employee_code) && (
+          <div className="warnBox" style={{marginTop:10}}>
+            <div className="t">
+              ⚠ Brez matične številke: {vrstice.filter(r => !r.employee_code).length} oseb
+            </div>
+            <p className="hint" style={{margin:"6px 0 0"}}>
+              Računovodstvo in Kadris osebo prepoznata po matični številki, ne po imenu. Te vrstice bo treba
+              povezati ročno. Številko vpiši v Imeniku (klikni "manjka" v razpredelnici spodaj), nato znova
+              pritisni "Izračunaj".
+            </p>
+          </div>
+        )}
         {vrstice && vrstice.length > 0 && (
           <RazporedIzvoz
             naslov={"place-" + obdobje}
             pripravi={() => [{
               ime: "Plače",
-              glave: ["Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
-              vrstice: vrstice.map(r => [r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
+              glave: ["Matična številka", "Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              vrstice: vrstice.map(r => [r.employee_code, r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
             }]}
           />
         )}
@@ -2361,11 +2474,14 @@ function PlaceTab(){
           <div className="tableScroller" style={{marginTop:10}}>
             <table className="fairTable">
               <thead>
-                <tr><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+                <tr><th>Mat. št.</th><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
               </thead>
               <tbody>
                 {vrstice.map(r => (
                   <tr key={r.employee_id}>
+                    <td>{r.employee_code
+                      ? r.employee_code
+                      : <a href={"imenik.html?id=" + r.employee_id} className="pill danger" style={{textDecoration:"none"}}>manjka</a>}</td>
                     <td style={{textAlign:"left"}}>{r.full_name}</td>
                     <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
                   </tr>
@@ -2380,12 +2496,119 @@ function PlaceTab(){
 }
 
 // ---------------------------------------------------------------------
+// Revizijska sled sprememb PRAVIC (profiles_log - schema.sql sekcija 28).
+// Ločena od revizije razporeda spodaj, ker odgovarja na drugo vprašanje:
+// ne "kdo je komu spremenil izmeno", ampak "kdo je komu podelil ali
+// odvzel dostop". Tudi tu piše izključno sprožilec v bazi.
+// ---------------------------------------------------------------------
+const POLJE_NAZIV = {
+  role: "Vloga",
+  department_code: "Oddelek",
+  vodja_id: "Nadrejeni",
+  is_koordinator: "Koordinator menjav",
+};
+// Povišanje pravic je varnostno pomembnejše od znižanja - v dolgem
+// seznamu mora izstopati.
+const VLOGA_MOC = { user: 0, vodja: 1, admin: 2 };
+function jePovisanje(v){
+  if (v.polje === "role") return (VLOGA_MOC[v.nova_vrednost] ?? -1) > (VLOGA_MOC[v.stara_vrednost] ?? -1);
+  if (v.polje === "is_koordinator") return v.nova_vrednost === "true";
+  return false;
+}
+
+function RevizijaPravic(){
+  const [vnosi, setVnosi] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [iskanje, setIskanje] = useState("");
+  const [samoPovisanja, setSamoPovisanja] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("profiles_log").select("*").order("changed_at", { ascending: false }).limit(300)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { setNapaka(error.message); setVnosi([]); return; }
+        setVnosi(data || []);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtrirani = useMemo(() => {
+    if (!vnosi) return [];
+    const s = iskanje.trim().toLowerCase();
+    return vnosi.filter(v => {
+      if (samoPovisanja && !jePovisanje(v)) return false;
+      if (!s) return true;
+      return (v.profile_name || "").toLowerCase().includes(s)
+        || (v.changed_by_name || "").toLowerCase().includes(s);
+    });
+  }, [vnosi, iskanje, samoPovisanja]);
+
+  const povisanjSkupaj = useMemo(() => (vnosi || []).filter(jePovisanje).length, [vnosi]);
+  const AKCIJA_NAZIV = { insert: "Nov račun", update: "Sprememba", delete: "Izbris računa" };
+  const prikaz = (x) => (x === null || x === undefined || x === "") ? "—" : (x === "true" ? "da" : x === "false" ? "ne" : x);
+
+  return (
+    <div>
+      <p className="hint">
+        Zadnjih 300 sprememb pravic (vloga, oddelek, nadrejeni, koordinator). Piše samodejno sprožilec v bazi —
+        iz aplikacije tega ni mogoče izklopiti ali popraviti za nazaj. Vpisi o razporedu so v drugem pogledu zgoraj.
+      </p>
+      <div style={{display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap", marginBottom:10}}>
+        <div className="field" style={{flex:1, minWidth:200}}>
+          <input type="text" placeholder="Išči po osebi ali uredniku …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
+        </div>
+        <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, paddingBottom:8}}>
+          <input type="checkbox" checked={samoPovisanja} onChange={e => setSamoPovisanja(e.target.checked)} />
+          Samo povišanja pravic{povisanjSkupaj ? " (" + povisanjSkupaj + ")" : ""}
+        </label>
+      </div>
+      {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
+      {vnosi === null ? <p className="hint">Nalagam …</p> : (
+        <div className="card">
+          {filtrirani.length === 0 && <p className="hint" style={{margin:0}}>Brez rezultatov.</p>}
+          {filtrirani.map(v => (
+            <div className="revVnos" key={v.id}>
+              <div className="revGlava">
+                <b>{v.profile_name || v.profile_id}</b>
+                {jePovisanje(v) && <span className="pill danger">povišanje</span>}
+                {v.action !== "update" && <span className="pill muted">{AKCIJA_NAZIV[v.action] || v.action}</span>}
+              </div>
+              <div className="revSprememba">
+                {POLJE_NAZIV[v.polje] || v.polje}: {prikaz(v.stara_vrednost)} → <b>{prikaz(v.nova_vrednost)}</b>
+              </div>
+              <div className="revNoga">
+                {new Date(v.changed_at).toLocaleString("sl-SI")} · spremenil: {v.changed_by_name || "(sistem)"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
 // Revizijska sled: kdo, kdaj in kaj je spremenil v razporedu
 // (schedule_entries_log - glej schema.sql sekcija 26, piše ga izključno
 // sprožilec ob vsakem vpisu/spremembi/izbrisu shift_code/department_code,
 // ne aplikacijska koda - velja za VSE poti pisanja).
 // ---------------------------------------------------------------------
 function AuditLogTab(){
+  const [pogled, setPogled] = useState("razpored");
+  return (
+    <div>
+      <h2 className="section">Revizijska sled</h2>
+      <div className="tabs no-print" role="tablist" style={{marginBottom:12}}>
+        <button role="tab" aria-selected={pogled==="razpored"} onClick={() => setPogled("razpored")}>Razpored</button>
+        <button role="tab" aria-selected={pogled==="pravice"} onClick={() => setPogled("pravice")}>Pravice in dostopi</button>
+      </div>
+      {pogled === "razpored" ? <RevizijaRazporeda/> : <RevizijaPravic/>}
+    </div>
+  );
+}
+
+function RevizijaRazporeda(){
   const [vnosi, setVnosi] = useState(null);
   const [napaka, setNapaka] = useState(null);
   const [iskanje, setIskanje] = useState("");
@@ -2418,7 +2641,6 @@ function AuditLogTab(){
 
   return (
     <div>
-      <h2 className="section">Revizijska sled</h2>
       <p className="hint">Zadnjih 300 sprememb v razporedu (schedule_entries) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
       <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
       {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
