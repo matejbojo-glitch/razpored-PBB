@@ -58,8 +58,11 @@
 // kartice, stolpčni graf, toplotna karta, časovna premica, napredkovne
 // vrstice, avatar s statusom, modalno okno, koledar na dotik) —
 // cache-first, zato dvig verzije.
+// v22: prenova Generatorja (nadzorna plošča "Generiraj takoj", zložljivi
+// razdelki, značke vlog, vrstice napredka) — theme.css spet spremenjen
+// (prikaz pravil kot bloka), zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v21';
+const CACHE = 'razpored-pbb-v22';
 const ASSETS = [
   './',
   './index.html',

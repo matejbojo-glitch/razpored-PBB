@@ -68,6 +68,13 @@
     letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
   table.roster tr:last-child td{ border-bottom:0; }
+  /* Prvi stolpec (ime/datum) ostane viden pri vodoravnem drsenju - te tabele
+     imajo stolpec na teden, zato se na telefonu vedno drsi. Neprozorno
+     ozadje, da vsebina pod njim ne presveti. */
+  table.roster th:first-child, table.roster td:first-child{
+    position:sticky; left:0; z-index:1; background:var(--surface);
+  }
+  table.roster thead th:first-child{ z-index:2; background:var(--surface-2); }
   .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:12px;
     font-weight:800; padding:9px 11px; min-height:40px; border-radius:8px; cursor:pointer; white-space:nowrap; }
   .weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#2A1608; }
@@ -268,6 +275,29 @@ async function nalozizOmejitve(startISO, endISO){
   const map = {};
   (data || []).forEach(r => { (map[r.full_name] = map[r.full_name] || []).push(r.work_date); });
   return map;
+}
+
+// Letni dopust (Razpredelnica Želje, leave_entries.kind="ld") za dani
+// razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
+// Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
+// dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
+// izpraznil cel teden rotacije.
+async function nalozizLdTedne(startISO, endISO, tedni){
+  const { data } = await client.from("leave_entries").select("full_name, work_date")
+    .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
+  const stetje = {}; // "ime|ponedeljek" -> stevilo dni LD
+  (data || []).forEach(r => {
+    const d = new Date(r.work_date + "T00:00:00Z");
+    const zamik = (d.getUTCDay() + 6) % 7;          // 0 = ponedeljek
+    d.setUTCDate(d.getUTCDate() - zamik);
+    const mo = d.toISOString().slice(0, 10);
+    if (!tedni.includes(mo)) return;
+    const k = r.full_name + "|" + mo;
+    stetje[k] = (stetje[k] || 0) + 1;
+  });
+  const out = {};
+  Object.keys(stetje).forEach(k => { if (stetje[k] >= 3) out[k] = "LD"; });
+  return out;
 }
 
 // Dežurni kader DMS/DZN — ZAPRTA zgodovina do 31. 8. 2026 (iz uradnega
@@ -645,6 +675,31 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
 
 // Vizualni povzetek pravil namesto dolgih besedilnih pojasnil:
 // [✓] izpolnjeno · [!] manjše opozorilo · [✗] kritična kršitev.
+// Zložljiv razdelek - dolga pojasnila in napredne nastavitve so privzeto
+// skrita, da je na vrhu vidno samo bistvo (izberi → generiraj → rezultat).
+// Slovenska sklanjatev: 1 teden, 2 tedna, 3-4 tedni, 5+ tednov.
+function tedniBesedilo(n){
+  const d = n % 10, s = n % 100;
+  if (s >= 11 && s <= 14) return n + " tednov";
+  if (d === 1) return n + " teden";
+  if (d === 2) return n + " tedna";
+  if (d === 3 || d === 4) return n + " tedni";
+  return n + " tednov";
+}
+
+function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
+  const [odprto, setOdprto] = useState(!!privzetoOdprto);
+  return (
+    <div className="zlozljiv no-print">
+      <button type="button" className="glava" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
+        <span>{naslov}{opis && <span className="hint" style={{display:"block", margin:0, fontWeight:600}}>{opis}</span>}</span>
+        <span className="puscica">▾</span>
+      </button>
+      {odprto && <div className="vsebina">{children}</div>}
+    </div>
+  );
+}
+
 function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
   const opozorila = rezultat.opozorila || [];
@@ -772,6 +827,7 @@ function KalupTab(){
   // "ime|monday" -> "LD" (letni dopust) | "POMOC" (začasno pomaga drugemu
   // oddelku, ni na voljo za svoj kalup) | undefined (navadna rotacija).
   const [tedenskoStanje, setTedenskoStanje] = useState({});
+  const [samodejnoLdSt, setSamodejnoLdSt] = useState(0); // koliko tednov LD je bilo samodejno prebranih iz baze
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -839,13 +895,24 @@ function KalupTab(){
   const generiraj = async () => {
     setGenBusy(true);
     try {
-      const omejitveMap = await nalozizOmejitve(startISO, endISO);
+      // "Generiraj takoj": vse iz baze naenkrat - omejitve IN letni dopust.
+      // Ročno nastavljeni tedni (klik v razpredelnici spodaj) imajo prednost
+      // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
+      // odločitve koordinatorja.
+      const [omejitveMap, samodejniLd] = await Promise.all([
+        nalozizOmejitve(startISO, endISO),
+        nalozizLdTedne(startISO, endISO, tedni),
+      ]);
+      const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
+      setTedenskoStanje(zdruzenoStanje);
+      setSamodejnoLdSt(Object.keys(samodejniLd).filter(k => tedenskoStanje[k] == null).length);
+
       const staff = staffList.map(([ime, defLetter]) => ({
         ime,
         startLetter: letters[ime] || defLetter,
         hsuffix: meta.hsuffix,
-        dopustTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "LD"),
-        pomocTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "POMOC"),
+        dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
+        pomocTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "POMOC"),
         omejitve: omejitveMap[ime] || [],
       }));
       const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
@@ -917,22 +984,33 @@ function KalupTab(){
 
   return (
     <div>
-      <h2 className="section">1 · Oddelek in mesec</h2>
-      <div className="deptRow">
-        {Object.keys(WARDS_META).map(k => (
-          <button key={k} className="deptBtn" aria-pressed={k===koda} onClick={() => { setKoda(k); setRezultat(null); }}>{k}</button>
-        ))}
-      </div>
-      <div className="row" style={{marginTop:10}}>
+      {/* Nadzorna plošča: oddelek + mesec + generiranje na enem mestu.
+          Vse ostalo (kvote, kalup po zaposlenih) je spodaj v zložljivih
+          razdelkih - generiranje samo po sebi ne potrebuje nobenega od njih,
+          ker želje/dopust/omejitve prebere naravnost iz baze. */}
+      <div className="orodjaVrh no-print">
         <div className="field">
-          <label htmlFor="mm">Mesec</label>
+          <label htmlFor="odd">Oddelek</label>
+          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k} — {WARDS_META[k].naziv}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="mm">Mesec in leto</label>
           <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
         </div>
+        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
+          {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
+        </button>
       </div>
+      <p className="hint no-print">
+        Ob kliku se želje, letni dopust in omejitve preberejo naravnost iz baze — vmesnih potrditev ni.
+        Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
+      </p>
 
       {!staffList ? <p className="hint">Nalagam osebje …</p> : (
       <React.Fragment>
-      <h2 className="section">2 · Predlog prednosti za prost teden</h2>
+      <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti — neobvezno">
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
         <input ref={kvoteFileRef} type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}}
@@ -945,8 +1023,10 @@ function KalupTab(){
       </div>
       <PrednostniPanel staff={staffList} stanje={tedenskoStanje} tedni={tedni} kvote={kvote} setKvote={setKvote}
         onPredlagaj={(ime, teden) => predlagajLD(ime, teden)} />
+      </Zlozljivo>
 
-      <h2 className="section">3 · Kalup in dopust po zaposlenih</h2>
+      <Zlozljivo naslov="Kalup in dopust po zaposlenih"
+        opis={samodejnoLdSt > 0 ? `Iz baze samodejno prebran dopust: ${tedniBesedilo(samodejnoLdSt)} — po potrebi popravi` : "Ročni popravki rotacije in dopusta — neobvezno"}>
       <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da med LD (letni dopust), POM (začasna pomoč drugemu oddelku — cilj oddelek osebo za ta teden doda ročno) in navadno rotacijo kroži. Rumene omejitve (Razpredelnica Želje) generator samodejno pokrije z nadomestilom, če je kdo na oddelku ta dan prost — sicer opozori spodaj.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
@@ -979,7 +1059,9 @@ function KalupTab(){
         </table>
       </div>
 
-      <button className="genBtn" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "Generiraj razpored"}</button>
+      </Zlozljivo>
+
+      <button className="genBtn no-print" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "⚡ Generiraj takoj"}</button>
       </React.Fragment>
       )}
 
@@ -1642,6 +1724,11 @@ function imenaSeUjemataAdmin(a, b){
 // ponastavijo na "Zaposleni", tudi ne pri množičnem ponastavljanju spodaj.
 const STALNI_ADMINI = ["ALUKIĆ DINO", "BOJIĆ MATEJ", "DŽAMASTAGIĆ DENIS"];
 
+// Barvne značke vlog: administrator izstopa (rdeče), vodja poudarjeno
+// (zlato), zaposleni nevtralno - da je v dolgem seznamu na prvi pogled
+// vidno, kdo ima povišane pravice.
+const VLOGA_NAZIV = { user: "Zaposleni", vodja: "Vodja", admin: "Administrator" };
+
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
@@ -1784,11 +1871,16 @@ function UporabnikiTab(){
                   <tr key={p.id}>
                     <td><a href={"imenik.html?id=" + p.id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{p.full_name}</a></td>
                     <td>
-                      <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
-                        <option value="user">Zaposleni</option>
-                        <option value="vodja">Vodja ekipe</option>
-                        <option value="admin">Administrator</option>
-                      </select>
+                      <div style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
+                        <span className={"pill " + (p.role === "admin" ? "danger" : p.role === "vodja" ? "warn" : "muted")}>
+                          {VLOGA_NAZIV[p.role] || p.role}
+                        </span>
+                        <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                          <option value="user">Zaposleni</option>
+                          <option value="vodja">Vodja ekipe</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                      </div>
                     </td>
                     <td><OddelekSelect p={p} /></td>
                     <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
@@ -1969,6 +2061,7 @@ function DopustTab(){
   };
 
   const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
+  const maxDnevi = Math.max(1, ...filtrirano.map(r => Number(r.dnevi) || 0));
   const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
   const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
 
@@ -2061,7 +2154,15 @@ function DopustTab(){
                     <tr key={r.id}>
                       <td>{r.full_name}</td>
                       <td>{r.employee_code}</td>
-                      <td><strong>{r.dnevi}</strong></td>
+                      <td style={{minWidth:120}}>
+                        <strong>{r.dnevi}</strong>
+                        {/* Vrstica napredka je relativna glede na NAJVEČJE stanje v
+                            tem mesecu - kvota po osebi (annual_leave_total) v tem
+                            izvozu ni na voljo, zato bi bil odstotek izmišljen. */}
+                        <div className="bar" title={`${r.dnevi} dni · najvišje stanje ta mesec: ${maxDnevi}`}>
+                          <i style={{width: (maxDnevi > 0 ? 100 * Number(r.dnevi) / maxDnevi : 0) + "%"}}></i>
+                        </div>
+                      </td>
                       <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
                       <td>{r.profile_id ? "povezan" : "ni računa"}</td>
                     </tr>

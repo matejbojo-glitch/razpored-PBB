@@ -523,8 +523,10 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 }
 .pravilo:last-child{ border-bottom:0; }
 .pravilo .besedilo{ flex:1; min-width:0; }
-.pravilo .naslov{ font-weight:700; }
-.pravilo .opis{ color: var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
+/* naslov in opis morata biti bloka - kot inline span-a bi se besedili
+   zlepili v eno vrstico ("Nepokrite izmene12 vrzeli ...") */
+.pravilo .naslov{ display:block; font-weight:700; }
+.pravilo .opis{ display:block; color: var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
 
 /* ---------- KPI kartice (Statistika) ---------- */
 .kpiMreza{
