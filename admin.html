@@ -610,6 +610,82 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
   );
 }
 
+// Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
+// tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
+// podvajanja logike).
+function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
+  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
+    const v = minimumi[b];
+    return v && (v.min_dms || v.min_sms || v.min_flexi);
+  });
+  const vrzeli = [];
+  if (imaMinimume) {
+    rezultat.dnevi.forEach(dn => {
+      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
+        const v = minimumi[b];
+        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
+        if (!minVsota) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, primanjkljaj: minVsota - dejansko });
+      });
+    });
+  } else {
+    rezultat.dnevi.forEach(dn => {
+      const dejansko = rezultat.staff.filter(z => {
+        const v = celica(z, dn);
+        return v && v !== "LD" && v !== "POMOČ DRUGJE";
+      }).length;
+      const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
+      const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
+      if (prag - dejansko > 0) vrzeli.push({ datum: dn.datum, primanjkljaj: prag - dejansko });
+    });
+  }
+  return { vrzeli, imaMinimume };
+}
+
+// Vizualni povzetek pravil namesto dolgih besedilnih pojasnil:
+// [✓] izpolnjeno · [!] manjše opozorilo · [✗] kritična kršitev.
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
+  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+  const opozorila = rezultat.opozorila || [];
+
+  const pravila = [
+    vrzeli.length === 0
+      ? { stanje: "ok", naslov: "Pokritost izmen", opis: imaMinimume
+          ? "Vsak dan dosega nastavljene minimume po izmenah."
+          : "Vsak dan dosega pričakovano zasedbo kalupa." }
+      : { stanje: "kriticno", naslov: "Nepokrite izmene", opis:
+          `${vrzeli.length} ${vrzeli.length === 1 ? "vrzel" : "vrzeli"} v pokritosti — glej razdelek "Pokritost po dnevih" spodaj.` },
+
+    opozorila.length === 0
+      ? { stanje: "ok", naslov: "Želje in omejitve", opis: "Vse vnesene omejitve so samodejno pokrite z nadomestilom." }
+      : { stanje: "opozorilo", naslov: "Omejitve brez nadomestila", opis:
+          `${opozorila.length} ${opozorila.length === 1 ? "omejitev" : "omejitev"} ni bilo mogoče samodejno pokriti — potreben ročen pregled.` },
+
+    imaMinimume
+      ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
+      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah zgoraj." },
+
+    { stanje: "ok", naslov: "Obseg razporeda", opis: `${rezultat.staff.length} zaposlenih × ${rezultat.dnevi.length} dni.` },
+  ];
+
+  const IKONA = { ok: "✓", opozorilo: "!", kriticno: "✗" };
+
+  return (
+    <div className="card no-print">
+      {pravila.map(pr => (
+        <div className="pravilo" key={pr.naslov}>
+          <span className={"statusIkona " + pr.stanje}>{IKONA[pr.stanje]}</span>
+          <span className="besedilo">
+            <span className="naslov">{pr.naslov}</span>
+            <span className="opis">{pr.opis}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
   const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
     const v = minimumi[b];
@@ -910,6 +986,7 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} />
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>

@@ -54,8 +54,12 @@
 // sw.js dobi 'push'/'notificationclick' poslušalca. Dvig verzije je tu
 // nujen tudi zato, da se nov service worker sploh namesti (brez tega stari
 // SW brez push poslušalca ostane aktiven in obvestila ne bi delovala).
+// v21: prenova UI/UX — theme.css dobi skupne kartične gradnike (KPI
+// kartice, stolpčni graf, toplotna karta, časovna premica, napredkovne
+// vrstice, avatar s statusom, modalno okno, koledar na dotik) —
+// cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v20';
+const CACHE = 'razpored-pbb-v21';
 const ASSETS = [
   './',
   './index.html',

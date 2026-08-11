@@ -498,3 +498,191 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 
 /* logotip na prijavnih straneh */
 .logo{ height:46px; width:auto; display:block; margin:0 auto 14px; filter: drop-shadow(var(--shadow-sm)); }
+
+/* ============================================================
+   PRENOVA UI/UX — skupni kartični gradniki
+   Uporabljajo jih vsi moduli (Generator, Razpored, Menjava,
+   Imenik, Statistika, Želje). Barvna paleta ostaja nespremenjena
+   (olivno zelena + topli bež), spremeni se samo postavitev:
+   iz goste tabele v kartice, značke in vizualne pokazatelje.
+   ============================================================ */
+
+/* ---------- statusne ikone pravil (✓ / ! / ✗) ---------- */
+.statusIkona{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%; font-size:12px; font-weight:800;
+  flex:0 0 auto; color:#fff; line-height:1;
+}
+.statusIkona.ok{ background: var(--ok); }
+.statusIkona.opozorilo{ background: #C9942F; }
+.statusIkona.kritično, .statusIkona.kriticno{ background: var(--danger); }
+
+.pravilo{
+  display:flex; align-items:flex-start; gap:10px; padding:10px 0;
+  border-bottom:1px solid var(--line); font-size:13px;
+}
+.pravilo:last-child{ border-bottom:0; }
+.pravilo .besedilo{ flex:1; min-width:0; }
+.pravilo .naslov{ font-weight:700; }
+.pravilo .opis{ color: var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
+
+/* ---------- KPI kartice (Statistika) ---------- */
+.kpiMreza{
+  display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px; margin-top:14px;
+}
+.kpiKarta{
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding:14px; box-shadow: var(--shadow-xs);
+}
+.kpiKarta .oznaka{
+  font-size:11px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.04em;
+}
+.kpiKarta .vrednost{
+  font-size:26px; font-weight:800; margin-top:6px; line-height:1.1;
+  font-variant-numeric: tabular-nums; color: var(--accent-2);
+}
+.kpiKarta .pod{ font-size:11.5px; color: var(--muted); margin-top:4px; }
+
+/* ---------- vodoravni stolpčni graf (brez zunanje knjižnice) ---------- */
+.grafVrstica{ display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12.5px; }
+.grafVrstica .ime{
+  flex:0 0 132px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;
+}
+.grafVrstica .stolpec{ flex:1; height:16px; background: var(--surface-2); border-radius:4px; overflow:hidden; }
+.grafVrstica .stolpec i{ display:block; height:100%; border-radius:4px; background: var(--accent); }
+.grafVrstica .stolpec i.nad{ background: var(--danger); }
+.grafVrstica .stolpec i.pod{ background: var(--noc); }
+.grafVrstica .st{
+  flex:0 0 46px; text-align:right; font-weight:700; font-variant-numeric: tabular-nums;
+}
+@media (max-width:520px){ .grafVrstica .ime{ flex-basis:96px; } }
+
+/* ---------- toplotna karta (obremenjenost) ---------- */
+.heatVrstica{ display:flex; align-items:center; gap:8px; padding:3px 0; }
+.heatVrstica .ime{
+  flex:0 0 132px; font-size:12px; font-weight:600; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+}
+.heatCelice{ display:flex; gap:2px; flex:1; flex-wrap:nowrap; overflow-x:auto; }
+.heatCelica{
+  width:15px; height:15px; border-radius:3px; flex:0 0 auto;
+  background: var(--surface-2); position:relative;
+}
+.heatLegenda{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); margin-top:10px; }
+.heatLegenda .vzorec{ width:14px; height:14px; border-radius:3px; }
+
+/* ---------- časovna premica (status zahtevka) ---------- */
+.premica{ display:flex; align-items:flex-start; margin:14px 0 4px; }
+.premica .korak{ flex:1; text-align:center; position:relative; min-width:0; }
+.premica .korak::before{
+  content:""; position:absolute; top:13px; left:-50%; width:100%; height:2px;
+  background: var(--line); z-index:0;
+}
+.premica .korak:first-child::before{ display:none; }
+.premica .korak.koncan::before, .premica .korak.aktiven::before{ background: var(--accent); }
+.premica .pika{
+  width:28px; height:28px; border-radius:50%; margin:0 auto 6px; position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;
+  background: var(--surface); border:2px solid var(--line); color: var(--muted);
+}
+.premica .korak.koncan .pika{ background: var(--ok); border-color: var(--ok); color:#fff; }
+.premica .korak.aktiven .pika{
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb),.20);
+}
+.premica .korak.zavrnjen .pika{ background: var(--danger); border-color: var(--danger); color:#fff; }
+.premica .oznaka{ font-size:11px; font-weight:700; color: var(--muted); line-height:1.3; padding:0 2px; }
+.premica .korak.aktiven .oznaka, .premica .korak.koncan .oznaka{ color: var(--text); }
+
+/* ---------- napredkovna vrstica z oznako (dopust) ---------- */
+.napredek{ margin-top:10px; }
+.napredek .vrh{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
+.napredek .vrh .lbl{ color: var(--muted); font-weight:600; }
+.napredek .vrh .val{ font-weight:800; font-variant-numeric: tabular-nums; }
+.napredek .tir{ height:9px; border-radius:5px; background: var(--surface-2); overflow:hidden; }
+.napredek .tir i{ display:block; height:100%; border-radius:5px; background: var(--accent); transition: width var(--slow) var(--ease); }
+.napredek .tir i.veliko{ background: var(--ok); }
+.napredek .tir i.malo{ background: var(--danger); }
+
+/* ---------- avatar z barvnim statusom prisotnosti ---------- */
+.avatarStatus{ position:relative; flex:0 0 auto; }
+.avatarStatus .pika{
+  position:absolute; right:-1px; bottom:-1px; width:11px; height:11px; border-radius:50%;
+  border:2px solid var(--surface);
+}
+.avatarStatus .pika.delo{ background: var(--ok); }
+.avatarStatus .pika.dopust{ background: var(--ld); }
+.avatarStatus .pika.bolniska{ background: var(--pop); }
+.avatarStatus .pika.prosto{ background: var(--off); }
+.avatarStatus .pika.dezurstvo{ background: var(--danger); }
+
+/* ---------- modalno okno (navodila, uvoz, pomoč) ---------- */
+.modalOzadje{
+  position:fixed; inset:0; background: rgba(var(--text-rgb),.45); z-index:60;
+  display:flex; align-items:flex-end; justify-content:center; padding:0;
+  animation: modalPojav var(--fast) var(--ease);
+}
+@media (min-width:640px){ .modalOzadje{ align-items:center; padding:24px; } }
+@keyframes modalPojav{ from{ opacity:0 } to{ opacity:1 } }
+.modalOkno{
+  background: var(--surface); width:100%; max-width:560px; max-height:86vh; overflow-y:auto;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding:18px;
+  box-shadow: var(--shadow-lg); border:1px solid var(--line);
+}
+@media (min-width:640px){ .modalOkno{ border-radius: var(--radius-lg); } }
+.modalGlava{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:12px;
+}
+.modalGlava h3{ margin:0; font-size:16px; font-weight:800; }
+.modalZapri{
+  border:0; background: var(--surface-2); color: var(--text); width:30px; height:30px;
+  border-radius:50%; font-size:16px; cursor:pointer; line-height:1; flex:0 0 auto;
+}
+.modalZapri:hover{ background: var(--line); }
+
+/* ---------- koledar na dotik (Želje, mobilno) ---------- */
+.koledar{ display:grid; grid-template-columns: repeat(7, 1fr); gap:4px; margin-top:10px; }
+.koledar .glavaDan{
+  text-align:center; font-size:10.5px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; padding:4px 0;
+}
+.koledar .dan{
+  aspect-ratio:1; border:1px solid var(--line); border-radius:8px; background: var(--surface);
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700;
+  cursor:pointer; user-select:none; -webkit-user-select:none; color: var(--text);
+  padding:0; font-family:inherit; touch-action: manipulation;
+}
+.koledar .dan:disabled{ opacity:.35; cursor:default; }
+.koledar .dan.prazen{ border:0; background:none; cursor:default; }
+.koledar .dan.vikend{ color: var(--pop); }
+.koledar .dan.izbran-ld{ background: var(--ld); border-color: var(--ld); color:#fff; }
+.koledar .dan.izbran-omejitev{ background: #E8C766; border-color:#D9B44A; color: var(--text); }
+.koledar .dan.izbran-bs{ background: var(--dop); border-color: var(--dop); color:#fff; }
+.koledar .dan.izbran-sti{ background: var(--h12); border-color: var(--h12); color:#fff; }
+.koledar .dan.danes{ box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* ---------- zložljiv razdelek ---------- */
+.zlozljiv > .glava{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+  background:none; border:0; padding:12px 0; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:800; color: var(--text); text-align:left;
+}
+.zlozljiv > .glava .puscica{ color: var(--muted); font-size:12px; transition: transform var(--fast) var(--ease); }
+.zlozljiv > .glava[aria-expanded="true"] .puscica{ transform: rotate(180deg); }
+.zlozljiv > .vsebina{ padding-bottom:12px; }
+
+/* ---------- lepljiva orodna vrstica (Generator) ---------- */
+.orodjaVrh{
+  display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding:12px; box-shadow: var(--shadow-xs); margin-top:14px;
+}
+.orodjaVrh .field{ margin:0; flex:1 1 130px; min-width:0; }
+.orodjaVrh .field label{ font-size:11px; }
+.orodjaDno{
+  display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;
+  padding-top:12px; border-top:1px solid var(--line);
+}

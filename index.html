@@ -845,15 +845,21 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
     }
   };
 
-  // Privzeto strnjeno (samo gumb) - napredna, redkeje uporabljena funkcija
-  // (samo admin), da ne zaseda prostora na glavnem zaslonu.
+  // Napredna, redkeje uporabljena funkcija (samo admin) - v modalnem oknu,
+  // da glavni zaslon ostane čist (na telefonu se odpre z dna).
   return (
     <div className="no-print" style={{ marginTop: 10 }}>
-      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
-        📥 Uvoz iz Google Sheets {odprto ? "▴" : "▾"}
+      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(true)}>
+        📥 Uvoz iz Google Sheets
       </button>
       {odprto && (
-        <div className="card" style={{ marginTop: 8 }}>
+        <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz iz Google Sheets"
+          onClick={e => { if (e.target === e.currentTarget) setOdprto(false); }}>
+        <div className="modalOkno">
+          <div className="modalGlava">
+            <h3>📥 Uvoz iz Google Sheets</h3>
+            <button type="button" className="modalZapri" aria-label="Zapri" onClick={() => setOdprto(false)}>✕</button>
+          </div>
           <div className="field" style={{ marginTop: 0 }}>
             <label htmlFor="gsUrl">
               Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
@@ -874,6 +880,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
             gumb/oddelek si zapomni svojo zadnjo povezavo posebej.
           </p>
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
+        </div>
         </div>
       )}
     </div>

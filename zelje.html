@@ -483,6 +483,109 @@ function UrediSheet({ ime: imeProp, kandidati, dan, dowLabel, mesecLbl, trenutna
 // Pogled "Po dnevih" — en dan naenkrat, kartice namesto ozke mreže; misljen
 // za telefon ("hitro preverjanje na poti"), a deluje povsod. Urejanje gre
 // prek UrediSheet zgoraj.
+// Koledar na dotik za SVOJE vnose (telefon). Mesečna mreža 7x5/6, tap
+// nastavi izbrano vrsto, ponoven tap na isti dan jo odstrani. Za daljši
+// dopust je tu še "obseg": tapneš prvi in zadnji dan, vmesni se izpolnijo
+// naenkrat (masovni vnos brez 14 posamičnih tapov).
+function MojKoledar({ view, mojeIme, trenutnaVrednost, smemUrejati, nastaviCelico }){
+  const [pero, setPero] = useState("ld");
+  const [obsegOd, setObsegOd] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const nd = danovVMesecu(view.year, view.month);
+  const smem = smemUrejati(mojeIme);
+  // Ponedeljek kot prvi stolpec (slovenska navada), zato zamik (dow+6)%7.
+  const prviDow = (new Date(view.year, view.month, 1).getDay() + 6) % 7;
+  const danes = new Date();
+  const danesISO = `${danes.getFullYear()}-${String(danes.getMonth()+1).padStart(2,"0")}-${String(danes.getDate()).padStart(2,"0")}`;
+
+  const nastavi = async (dnevi, vrednost) => {
+    setBusy(true);
+    try {
+      for (const d of dnevi) await nastaviCelico(mojeIme, isoZa(view.year, view.month, d), vrednost);
+    } finally { setBusy(false); }
+  };
+
+  const tap = (d) => {
+    if (!smem || busy) return;
+    const iso = isoZa(view.year, view.month, d);
+    const trenutno = trenutnaVrednost(mojeIme, iso);
+
+    // -1 = "obseg je vklopljen, a prvi dan še ni izbran"
+    if (obsegOd === -1) { setObsegOd(d); return; }
+    if (obsegOd != null) {
+      const od = Math.min(obsegOd, d), doo = Math.max(obsegOd, d);
+      const dnevi = [];
+      for (let x = od; x <= doo; x++) dnevi.push(x);
+      setObsegOd(null);
+      nastavi(dnevi, pero);
+      return;
+    }
+    // Ponoven tap na dan z isto vrsto = brisanje.
+    nastavi([d], trenutno === pero ? null : pero);
+  };
+
+  const celice = [];
+  for (let i = 0; i < prviDow; i++) celice.push(<div key={"p"+i} className="dan prazen"></div>);
+  for (let d = 1; d <= nd; d++) {
+    const iso = isoZa(view.year, view.month, d);
+    const val = trenutnaVrednost(mojeIme, iso);
+    const dow = (new Date(view.year, view.month, d).getDay() + 6) % 7;
+    const razredi = ["dan"];
+    if (dow >= 5) razredi.push("vikend");
+    if (val) razredi.push("izbran-" + val);
+    if (iso === danesISO) razredi.push("danes");
+    if (obsegOd === d) razredi.push("danes");
+    celice.push(
+      <button key={d} type="button" className={razredi.join(" ")} disabled={!smem || busy}
+        onClick={() => tap(d)}
+        title={val ? PEN_META[val].label : "brez vnosa"}>
+        {d}
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <div className="card no-print">
+        <label className="eyebrow">Kaj vpisujem</label>
+        <div style={{display:"flex", gap:6, flexWrap:"wrap", marginTop:6}}>
+          {Object.keys(PEN_META).map(k => (
+            <button key={k} type="button" className="pill" aria-pressed={pero === k}
+              style={{
+                cursor:"pointer",
+                border: "1px solid " + (pero === k ? "var(--text)" : "var(--line)"),
+                background: PEN_META[k].barva,
+                color: "#2B2712", fontWeight: pero === k ? 800 : 600,
+              }}
+              onClick={() => { setPero(k); setObsegOd(null); }}>
+              {PEN_META[k].label}
+            </button>
+          ))}
+        </div>
+        <div style={{display:"flex", gap:8, marginTop:10, flexWrap:"wrap", alignItems:"center"}}>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={!smem}
+            onClick={() => setObsegOd(obsegOd == null ? -1 : null)}>
+            {obsegOd == null ? "📆 Označi obseg (od–do)" : "✕ Prekliči obseg"}
+          </button>
+          {obsegOd === -1 && <span className="hint" style={{margin:0}}>Tapni PRVI dan obsega …</span>}
+          {obsegOd > 0 && <span className="hint" style={{margin:0}}>Tapni ZADNJI dan obsega …</span>}
+        </div>
+        <p className="hint" style={{marginBottom:0}}>
+          Tap na dan vpiše izbrano vrsto, ponoven tap na isti dan jo odstrani.
+          {!smem && " Urejanje za tvoje ime tu ni mogoče (rok je pretekel ali ime ni prepoznano)."}
+        </p>
+      </div>
+
+      <div className="koledar">
+        {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <div key={d} className="glavaDan">{d}</div>)}
+        {celice}
+      </div>
+      {busy && <p className="hint">Shranjujem …</p>}
+    </div>
+  );
+}
+
 function DnevniPogled({ view, vsiLjudje, trenutnaVrednost, smemUrejati, nastaviCelico }){
   const nd = danovVMesecu(view.year, view.month);
   const [dan, setDan] = useState(() => Math.min(new Date().getDate(), nd));
@@ -872,7 +975,8 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       )}
       <div className="viewToggle no-print">
         <button aria-pressed={nacin==="mreza"} onClick={() => setNacin("mreza")}>🗓 Mreža (cel mesec)</button>
-        <button aria-pressed={nacin==="dnevi"} onClick={() => setNacin("dnevi")}>📱 Po dnevih (za telefon)</button>
+        <button aria-pressed={nacin==="dnevi"} onClick={() => setNacin("dnevi")}>📱 Po dnevih</button>
+        <button aria-pressed={nacin==="koledar"} onClick={() => setNacin("koledar")}>✍️ Moj koledar</button>
       </div>
 
       {nacin==="mreza" && (
@@ -918,6 +1022,13 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
 
       {nacin==="dnevi" && (
         <DnevniPogled view={view} vsiLjudje={vsiLjudje} trenutnaVrednost={trenutnaVrednost} smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
+      )}
+
+      {nacin==="koledar" && (
+        myFullName
+          ? <MojKoledar view={view} mojeIme={myFullName} trenutnaVrednost={trenutnaVrednost}
+              smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
+          : <p className="hint">Tvojega imena ni bilo mogoče prebrati iz profila, zato osebnega koledarja ni mogoče prikazati.</p>
       )}
 
       {nacin==="mreza" && (
