@@ -121,6 +121,17 @@ const { client } = RazporedAuth;
 // nedotaknjeni, dokler jih admin ročno ne popravi spodaj.
 const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
+// "DEZ" ni oddelek, ampak ČLANSTVO v dežurnem krogu — nosi ga lahko kdor
+// koli poleg svojega domačega oddelka. Zato ga zgornji seznam namenoma ne
+// vsebuje, dodeljiv pa mora ostati: admin.html (Dežurstva) bere članstvo
+// prav iz njega, in ko je bil izbirnik omejen na 8 kod, dežurnega kadra ni
+// bilo več mogoče nikjer dodati — na seznamu so ostali samo tisti, ki so
+// kodo nosili od prej. NZV ga ne more nadomestiti: NZV so vsi vodje in
+// administratorji, dežurstvo pa jih opravlja le del.
+const CLANSTVO_ODDELKI = ["DEZ"];
+const VSI_DODELJIVI = [...RAZPORED_ODDELKI, ...CLANSTVO_ODDELKI];
+const jeClanstvo = (code) => CLANSTVO_ODDELKI.includes(code);
+
 // Napredkovna vrstica za dopust: preostanek glede na letno kvoto.
 // Barva je pomenska, ne okrasna - malo preostanka je rdeče (nevarnost
 // izgube/nakopičenja), veliko preostanka zeleno.
@@ -338,7 +349,10 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     if (!novOddelek || oddelkiOsebe.includes(novOddelek)) return;
     setOddBusy(true); setOddMsg(null);
     try {
-      if (!primarni) {
+      // Članstvo (DEZ) ne sme postati primarni oddelek niti takrat, ko
+      // oseba še nima nobenega — primarni poganja generator kalupa in
+      // "Enota" v Dežurstvih, dežurstvo pa ni domači oddelek nikogar.
+      if (!primarni && !jeClanstvo(novOddelek)) {
         const { error } = await client.from("profiles").update({ department_code: novOddelek }).eq("id", oseba.id);
         if (error) throw error;
         setPrimarni(novOddelek);
@@ -661,11 +675,16 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
 
           <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator razporeda</h2>
           <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              »Dežurni kader (DMS/DZN)« ni domači oddelek, ampak članstvo v dežurnem krogu — dodajte ga
+              <b> poleg</b> domačega oddelka. Šele s tem se oseba pojavi v Generator → Dežurstva. Vsi vodje
+              (NZV) niso dežurni; dežurstvo opravlja le del njih.
+            </p>
             {oddelkiOsebe.length === 0 && <p className="empty">Ni dodanih oddelkov.</p>}
             {oddelkiOsebe.map((k, i) => (
               <div className="rowline" key={k}>
                 <div className="val">{i === 0 && "★ "}{(oddelki.find(o => o.code === k) || {}).name || k}</div>
-                {i > 0 && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
+                {i > 0 && !jeClanstvo(k) && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
                 <button className="iconBtn" disabled={oddBusy} onClick={() => odstraniOddelek(k)}>Odstrani</button>
               </div>
             ))}
@@ -1384,7 +1403,7 @@ function App(){
           dept_codes: (o.profile_departments || []).slice().sort((a, b) => a.sort_order - b.sort_order).map(d => d.department_code),
         })));
       });
-    client.from("departments").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
+    client.from("departments").select("code, name").in("code", VSI_DODELJIVI).order("code")
       .then(({ data }) => setOddelki(data || []));
     client.from("contact_imports_public").select("*").is("linked_profile_id", null).order("full_name")
       .then(({ data }) => {

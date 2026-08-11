@@ -95,7 +95,11 @@
 // index.html in admin.html. Brez dviga bi zaposleni še naprej videli
 // stare ure.
 
-const CACHE = 'razpored-pbb-v32';
+// v33: "DEZ" je spet dodeljiv v Imeniku (kot članstvo, ne domači oddelek)
+// in Dežurstva javijo, koga od 14 manjka — spremenjena imenik.html in
+// admin.html.
+
+const CACHE = 'razpored-pbb-v33';
 const ASSETS = [
   './',
   './index.html',
