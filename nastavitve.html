@@ -236,13 +236,18 @@ function Obvestila({ myId }){
 // ---------------------------------------------------------------------
 function Kanali({ myId, email }){
   const [n, setN] = useState(null);
+  const [nedosegljivo, setNedosegljivo] = useState(false);
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     client.from("notification_settings").select("*").eq("profile_id", myId).maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        // Če tabele še ni (sekcija 30 sheme še ni pognana), ne kaži stikal:
+        // videti bi bila delujoča, shranjevanje pa bi vsakič javilo napako.
+        // Bolje odkrito povedati, da nastavitev še ni na voljo.
+        if (error) { setNedosegljivo(true); return; }
         setN(data || { email_enabled: true, push_enabled: true, sms_enabled: false });
       });
     return () => { cancelled = true; };
@@ -262,6 +267,16 @@ function Kanali({ myId, email }){
     else setMsg({ ok:true, text:"Shranjeno." });
   };
 
+  if (nedosegljivo) {
+    return (
+      <div className="card">
+        <p className="hint" style={{margin:0}}>
+          Izbira kanalov še ni na voljo — v bazi manjka zadnja dopolnitev sheme. Do takrat obvestila delujejo
+          kot doslej: potisno obvestilo na napravah, kjer si ga vklopil zgoraj.
+        </p>
+      </div>
+    );
+  }
   if (n === null) return <div className="card"><p className="hint" style={{margin:0}}>Nalagam …</p></div>;
 
   const Vrstica = ({ polje, naslov, opis, onemogoceno }) => (
@@ -311,11 +326,18 @@ function Koledar(){
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
+  const [nedosegljivo, setNedosegljivo] = useState(false);
+
   // Beremo samo stanje, ne žetona - ta se naloži šele na klik.
   useEffect(() => {
     let cancelled = false;
     client.from("calendar_tokens").select("enabled").maybeSingle()
-      .then(({ data }) => { if (!cancelled) setVklopljeno(data ? data.enabled : false); });
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        // Tabele še ni (sekcija 29 sheme ni pognana) - glej razlago pri Kanali.
+        if (error) { setNedosegljivo(true); return; }
+        setVklopljeno(data ? data.enabled : false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -361,6 +383,17 @@ function Koledar(){
   // webcal:// odpre koledarsko aplikacijo neposredno (iOS, macOS, Outlook);
   // Google Koledar potrebuje https naslov, prilepljen v "Dodaj po naslovu URL".
   const webcal = url.replace(/^https?:\/\//, "webcal://");
+
+  if (nedosegljivo) {
+    return (
+      <div className="card">
+        <p className="hint" style={{margin:0}}>
+          Koledarska naročnina še ni na voljo — v bazi manjka zadnja dopolnitev sheme. Do takrat lahko razpored
+          preneseš kot datoteko: Razpored → izvoz → .ics (enkraten posnetek, ki se ne osvežuje sam).
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
