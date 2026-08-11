@@ -67,8 +67,11 @@
 // v24: Generator (Kalup) — delovnopravne kršitve zdaj obarvajo tudi
 // posamezne celice v mreži (rdeč/oranžen rob + opomba na hover), ne samo
 // povzetek zgoraj — cache-first, zato dvig verzije.
+// v25: zavihek "Uporabniki" (admin.html) prenovljen na kartični prikaz
+// (isti vzorec kot Imenik) namesto vodoravno-drseče tabele — bolj
+// uporabno na mobilnem — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v24';
+const CACHE = 'razpored-pbb-v25';
 const ASSETS = [
   './',
   './index.html',
