@@ -86,7 +86,10 @@
 // v29: Faza 2 — izbira kanalov obveščanja po osebi (Nastavitve → Kam naj
 // pridejo obvestila) in dostava po e-pošti — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v29';
+// v30: koledarska naročnina — vklop/izklop sinhronizacije po osebi
+// (Nastavitve → Koledar) — cache-first, zato dvig verzije.
+
+const CACHE = 'razpored-pbb-v30';
 const ASSETS = [
   './',
   './index.html',
