@@ -83,7 +83,10 @@
 // in Kadris osebo prepoznata po njej, ne po imenu) + opozorilo na osebe, ki
 // je še nimajo — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v28';
+// v29: Faza 2 — izbira kanalov obveščanja po osebi (Nastavitve → Kam naj
+// pridejo obvestila) in dostava po e-pošti — cache-first, zato dvig verzije.
+
+const CACHE = 'razpored-pbb-v29';
 const ASSETS = [
   './',
   './index.html',

@@ -2856,3 +2856,79 @@ end;
 $$;
 
 revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 30) notification_settings — kanali obveščanja po osebi.
+--
+--     Doslej je bilo obveščanje vse-ali-nič in vezano na NAPRAVO: potisna
+--     obvestila si vklopil na telefonu (push_subscriptions), drugih poti
+--     ni bilo. Tu se doda izbira po OSEBI: e-pošta, potisno obvestilo in
+--     (pozneje) SMS, vsak posebej.
+--
+--     Zakaj privzeto vklopljena e-pošta in potisno obvestilo: kdor si
+--     potisnih ni vklopil na nobeni napravi, brez e-pošte ne bi izvedel
+--     ničesar. Prazna vrstica (osebe, ki nastavitev ni odprla) se zato
+--     obravnava kot "oboje vklopljeno" - glej coalesce v robni funkciji.
+--
+--     SMS je pripravljen kot zastavica, a ga nič še ne pošilja: zahteva
+--     plačljivega ponudnika. Dokler ga ni, vklop ne naredi ničesar in je
+--     v vmesniku tako tudi označen - raje vidna neaktivna možnost kot
+--     tiho neizpolnjena obljuba.
+-- ---------------------------------------------------------------------
+create table if not exists public.notification_settings (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  email_enabled boolean not null default true,
+  push_enabled boolean not null default true,
+  sms_enabled boolean not null default false,
+  -- Vrste dogodkov; obe privzeto vklopljeni.
+  opomnik_izmene boolean not null default true,
+  sprememba_razporeda boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.notification_settings enable row level security;
+
+drop policy if exists notif_settings_select on public.notification_settings;
+create policy notif_settings_select on public.notification_settings
+  for select to authenticated
+  using (profile_id = auth.uid() or public.current_role_is('admin'));
+
+drop policy if exists notif_settings_upsert on public.notification_settings;
+create policy notif_settings_upsert on public.notification_settings
+  for insert to authenticated with check (profile_id = auth.uid());
+
+drop policy if exists notif_settings_update on public.notification_settings;
+create policy notif_settings_update on public.notification_settings
+  for update to authenticated
+  using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+
+-- Sled o dostavi po e-pošti; push_sent_at (sekcija 27) že obstaja.
+alter table public.notifications add column if not exists email_sent_at timestamptz;
+create index if not exists notifications_email_pending_idx
+  on public.notifications (created_at) where email_sent_at is null;
+
+-- Robna funkcija potrebuje e-pošto in nastavitve prejemnikov v enem
+-- klicu. profiles.email je berljiv vsem prijavljenim, a funkcija teče s
+-- service_role - ta pogled je tu zato, da je poizvedba na enem mestu in
+-- da se ne pošilja osebam, ki so kanal izklopile.
+create or replace function public.prejemniki_obvestil(p_ids uuid[])
+returns table (
+  profile_id uuid,
+  email text,
+  full_name text,
+  email_enabled boolean,
+  push_enabled boolean
+)
+language sql
+security definer
+set search_path = public, pg_temp
+as $$
+  select p.id, p.email, p.full_name,
+         coalesce(ns.email_enabled, true),
+         coalesce(ns.push_enabled, true)
+  from public.profiles p
+  left join public.notification_settings ns on ns.profile_id = p.id
+  where p.id = any(p_ids);
+$$;
+
+revoke all on function public.prejemniki_obvestil(uuid[]) from public, anon, authenticated;

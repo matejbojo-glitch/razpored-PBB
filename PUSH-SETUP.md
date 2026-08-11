@@ -157,3 +157,67 @@ Nastavitve → Obvestila → "🔔 Vklopi obvestila na tej napravi".
 | `curl` vrne `500` z "Manjkata VAPID…" | Skrivnosti niso nastavljene ali funkcija po nastavitvi ni bila znova objavljena. |
 | Obvestila se ne pojavijo, `obdelanih` pa raste | Uporabnik na tej napravi ni vklopil obvestil (ni vrstice v `push_subscriptions`). |
 | Vse deluje, a obvestil ni po menjavi | Preveri, da je bila pognana sekcija 27 SQL-a (sprožilec `on_obrazec_status_change`). |
+
+---
+
+# E-pošta in izbira kanalov (Faza 2)
+
+Od različice s sekcijo 30 vsak zaposleni sam izbere kanale v
+**Nastavitve → Kam naj pridejo obvestila**: e-pošta, telefon (potisno
+obvestilo) in SMS. Nastavitev je po OSEBI; gumb v razdelku "Obvestila" nad
+njo pa še naprej velja po NAPRAVI (potisna obvestila je treba vklopiti na
+vsakem telefonu posebej).
+
+E-pošta je **neobvezna**. Dokler `RESEND_API_KEY` ni nastavljen, se e-pošta
+ne pošilja, potisna obvestila pa delujejo naprej — ponudnika je torej mogoče
+dodati pozneje brez spreminjanja kode.
+
+## Vklop e-pošte
+
+1. Odpri račun pri ponudniku (koda uporablja [Resend](https://resend.com);
+   brezplačni paket zadošča za nekaj tisoč sporočil na mesec).
+2. Potrdi domeno, s katere se bo pošiljalo (Resend: Domains -> Add).
+   Brez potrjene domene gredo sporočila v neželeno pošto ali pa so zavrnjena.
+3. V Supabase -> Edge Functions -> Secrets dodaj:
+
+   | Ključ | Primer | Obvezen |
+   |---|---|---|
+   | `RESEND_API_KEY` | `re_...` | da |
+   | `EMAIL_FROM` | `Razpored PBB <razpored@pb-begunje.si>` | ne |
+   | `APP_URL` | `https://razpored.netlify.app` | ne |
+
+4. Ponovno namesti funkcijo:
+
+   ```bash
+   supabase functions deploy posiljaj-push
+   ```
+
+5. Preveri v odgovoru funkcije: `"epostaNastavljena": true` in
+   `"poslanihEpost"` večje od 0, ko je kaj za poslati.
+
+> Če boste zamenjali ponudnika: koda kliče Resendov API. Za drugega
+> ponudnika je treba zamenjati en `fetch` klic v `posiljaj-push/index.ts`
+> (naslov, glave in polja `from`/`to`/`subject`/`text`); vsa ostala logika
+> — kdo želi e-pošto, kaj je že poslano, kaj se ponovi — ostane enaka.
+
+## Kako se kanala obnašata
+
+- Vsak kanal se označi **ločeno** (`push_sent_at`, `email_sent_at`), zato
+  eden lahko uspe in drugi ostane za naslednji krog — brez podvajanja.
+- Kdor nastavitev ni odprl, ima e-pošto in potisna obvestila **vklopljena**.
+  Molk ne sme pomeniti, da človek ne izve za spremembo razporeda.
+- Izklopljen kanal, manjkajoč naslov ali nenastavljen ponudnik se označijo
+  kot opravljeni, sicer bi obvestilo ostalo v vrsti za vedno.
+- Trajne napake ponudnika (4xx — napačen naslov, nepotrjena domena) se
+  označijo; začasne (5xx, omrežje) se poskusijo znova.
+
+## SMS
+
+Zastavica `sms_enabled` obstaja in se shrani, **pošiljanja pa še ni** —
+zahteva plačljivega ponudnika (Twilio ipd.). V vmesniku je možnost vidna, a
+neaktivna in tako tudi označena. Ko bo ponudnik izbran, se doda po istem
+vzorcu kot e-pošta: ključ v Secrets in ena veja v `posiljaj-push`.
+
+Opomba: potisno obvestilo na telefon je za zaposlenega praktično enako
+uporabno kot SMS in je brezplačno — SMS ima smisel predvsem za tiste, ki
+aplikacije ne namestijo na domači zaslon.
