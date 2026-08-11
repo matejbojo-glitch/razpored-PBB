@@ -221,3 +221,26 @@ vzorcu kot e-pošta: ključ v Secrets in ena veja v `posiljaj-push`.
 Opomba: potisno obvestilo na telefon je za zaposlenega praktično enako
 uporabno kot SMS in je brezplačno — SMS ima smisel predvsem za tiste, ki
 aplikacije ne namestijo na domači zaslon.
+
+---
+
+## Pripravljen urnik: `supabase/urnik-obvestil.sql`
+
+Namesto ročnega sestavljanja ukazov iz razdelka 5 je v repozitoriju
+`supabase/urnik-obvestil.sql` z **že vstavljenim** ID projekta. Vanj je treba
+vpisati samo skrivnost `PUSH_CRON_SECRET` (oziroma uporabiti tisto, ki je v
+datoteki že zapisana) in ga pognati v SQL Editorju.
+
+Datoteka je varna za večkratni zagon: obe opravili najprej odstrani, šele nato
+ustvari — sicer bi se ob ponovnem zagonu podvojili in obvestila bi šla dvakrat.
+
+**Brez tega urnika obveščanje ne deluje.** Robna funkcija je le naložena,
+klical pa je ne bi nihče: obvestila bi se zapisovala v bazo in bila vidna v
+aplikaciji, na telefon pa ne bi prišla nikoli.
+
+### Opomba o uri
+
+`pg_cron` teče v UTC. Opravilo `opomniki-izmene` je nastavljeno na 15:00 UTC,
+kar je 17.00 po poletnem času (CEST) in 16.00 pozimi (CET). Za točno 17.00 vse
+leto bi bilo treba urnik dvakrat letno prestaviti; pri opomniku dan prej ena
+ura razlike ni pomembna.
