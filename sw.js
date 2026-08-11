@@ -61,8 +61,11 @@
 // v22: prenova Generatorja (nadzorna plošča "Generiraj takoj", zložljivi
 // razdelki, značke vlog, vrstice napredka) — theme.css spet spremenjen
 // (prikaz pravil kot bloka), zato dvig verzije.
+// v23: nov skupni delovni-cas.js (edini vir resnice o urah izmen +
+// preverjanje delovnopravnih pravil) — cache-first, zato dvig verzije in
+// vpis v precache.
 
-const CACHE = 'razpored-pbb-v22';
+const CACHE = 'razpored-pbb-v23';
 const ASSETS = [
   './',
   './index.html',
@@ -89,6 +92,7 @@ const ASSETS = [
   './supabase-client.js',
   './nav.js',
   './push-client.js',
+  './delovni-cas.js',
   './xlsx.core.min.js',
   './import-utils.js',
   './export-utils.js',

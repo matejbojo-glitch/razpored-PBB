@@ -102,6 +102,7 @@
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
+<script src="delovni-cas.js"></script>
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
@@ -148,19 +149,15 @@ function autoParafa(fullName){
 function parafaOd(profil){
   return (profil && profil.parafa) ? profil.parafa : autoParafa(profil ? profil.full_name : "");
 }
-const DELOVNI_ČAS = {
-  "dopoldan": "05.50–14.00",
-  "popoldan": "13.50–21.00",
-  "popoldan do 19": "13.50–19.00",
-  "popoldan do 19h": "13.50–19.00",
-  "NOČNA": "20.50–06.00",
-  "NOČNA od 19": "18.50–06.00",
-  "NOČNA od 19h": "18.50–06.00",
-  "NOČNA12": "17.50–06.00",
-  "DNEVNA12": "05.50–18.00",
-  "KPU": "koriščenje prostih ur",
-  "LD": "letni dopust",
-};
+// Prikaz ur izmene pride iz skupnega delovni-cas.js (edini vir resnice) —
+// prej je bila ista tabela zapisana še enkrat tu in še enkrat v admin.html.
+const DELOVNI_ČAS = Object.fromEntries(
+  Object.entries(window.DelovniCas.IZMENE)
+    .filter(([, v]) => v.ure != null) // brez dežurstva: ure so odvisne od dneva v tednu
+    .map(([k, v]) => [k, v.zacetek.replace(":", ".") + "\u2013" + v.konec.replace(":", ".")])
+);
+DELOVNI_ČAS["KPU"] = "koriščenje prostih ur";
+DELOVNI_ČAS["LD"] = "letni dopust";
 
 function classify(sifra){
   const t = (sifra || "").toLowerCase();
