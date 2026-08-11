@@ -148,6 +148,7 @@
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
 <script src="generator-core.js"></script>
+<script src="delovni-cas.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
@@ -704,6 +705,19 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
   const opozorila = rezultat.opozorila || [];
 
+  // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
+  // v tednu) — preverjena nad DEJANSKIM razporedom, torej vključno z
+  // ročnimi popravki celic, ne samo nad surovim izhodom generatorja.
+  const krsitve = useMemo(() => {
+    const vnosi = [];
+    rezultat.staff.forEach(z => {
+      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
+    });
+    return window.DelovniCas.preveriPravila(vnosi);
+  }, [rezultat, celica]);
+  const pov = window.DelovniCas.povzetek(krsitve);
+  const [prikaziKrsitve, setPrikaziKrsitve] = useState(false);
+
   const pravila = [
     vrzeli.length === 0
       ? { stanje: "ok", naslov: "Pokritost izmen", opis: imaMinimume
@@ -721,6 +735,13 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
       ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
       : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah zgoraj." },
 
+    pov.kriticnih > 0
+      ? { stanje: "kriticno", naslov: "Delovnopravne kršitve", opis:
+          `${pov.kriticnih} kritičnih${pov.opozoril ? ` in ${pov.opozoril} opozoril` : ""} (počitek med izmenama, zaporedne nočne, prost dan v tednu).` }
+      : pov.opozoril > 0
+        ? { stanje: "opozorilo", naslov: "Delovnopravna opozorila", opis: `${pov.opozoril} opozoril — brez kritičnih kršitev.` }
+        : { stanje: "ok", naslov: "Delovnopravna pravila", opis: "Počitek med izmenama, zaporedne nočne in prost dan v tednu so v mejah." },
+
     { stanje: "ok", naslov: "Obseg razporeda", opis: `${rezultat.staff.length} zaposlenih × ${rezultat.dnevi.length} dni.` },
   ];
 
@@ -737,6 +758,24 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
           </span>
         </div>
       ))}
+
+      {krsitve.length > 0 && (
+        <div style={{marginTop:10}}>
+          <button type="button" className="btn btn-ghost btn-sm" aria-expanded={prikaziKrsitve}
+            onClick={() => setPrikaziKrsitve(o => !o)}>
+            {prikaziKrsitve ? "Skrij" : "Pokaži"} seznam kršitev ({krsitve.length})
+          </button>
+          {prikaziKrsitve && (
+            <ul className="hint" style={{marginTop:8, paddingLeft:18}}>
+              {krsitve.map((k, i) => (
+                <li key={i} style={{marginBottom:4, color: k.resnost === "kriticno" ? "var(--danger)" : "var(--text)"}}>
+                  <b>{k.oseba}</b> — {k.sporocilo}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -2208,18 +2247,15 @@ function NzvTab(){
 // Jones/Butcher algoritmu), da se izognemo napaki pri ročno vtipkanem
 // datumu premičnega praznika.
 // ---------------------------------------------------------------------
-const TRAJANJE_UR = {
-  "dopoldan": 8 + 10/60,
-  "popoldan": 7 + 10/60,
-  "popoldan do 19": 5 + 10/60,
-  "popoldan do 19h": 5 + 10/60,
-  "NOČNA": 9 + 10/60,
-  "NOČNA od 19": 11 + 10/60,
-  "NOČNA od 19h": 11 + 10/60,
-  "NOČNA12": 12 + 10/60,
-  "DNEVNA12": 12 + 10/60,
-};
-function jeNocnaSifra(sifra){ return (sifra || "").toLowerCase().startsWith("nočna"); }
+// Trajanje in vrsta izmene prideta iz skupnega delovni-cas.js (edini vir
+// resnice) — prej je bila ista tabela zapisana še enkrat tu in še enkrat v
+// index.html, kar bi se ob spremembi urnika zlahka razšlo.
+const TRAJANJE_UR = Object.fromEntries(
+  Object.entries(window.DelovniCas.IZMENE)
+    .filter(([, v]) => v.ure != null)
+    .map(([k, v]) => [k, v.ure])
+);
+function jeNocnaSifra(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return !!(i && i.nocna); }
 function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
 
 function velikaNoc(leto){
