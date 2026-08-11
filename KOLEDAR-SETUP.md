@@ -98,3 +98,26 @@ Ponujeno je okno **60 dni nazaj in 400 dni naprej**.
 - Prva osvežitev pri Googlu lahko traja tudi nekaj ur; to ni napaka namestitve.
 - Sprememba razporeda se v koledarju pokaže ob naslednji osvežitvi odjemalca,
   ne takoj. Za takojšnje obveščanje so potisna obvestila (`PUSH-SETUP.md`).
+
+---
+
+## Opomba o `delovni-cas.js`
+
+`supabase functions deploy` naloži **samo drevo `supabase/functions/`**. Robna
+funkcija zato ne more uvoziti datoteke iz korena repozitorija — namestitev bi
+odpovedala z "Module not found".
+
+Zato je v `supabase/functions/_shared/delovni-cas.js` **bajt-za-bajt kopija**
+korenske datoteke. Ob vsaki spremembi ur izmen je treba osvežiti obe:
+
+```bash
+cp delovni-cas.js supabase/functions/_shared/
+node skripte/preveri-delovni-cas.mjs      # mora izpisati OK
+supabase functions deploy koledar --no-verify-jwt
+```
+
+Skripta `preveri-delovni-cas.mjs` javi razhajanje in vrne izhodno kodo 1 —
+razhajanje bi pomenilo, da koledar zaposlenim kaže druge ure kot aplikacija.
+
+Funkcija ima tudi varovalko: če se modul ne naloži, se ustavi z jasno napako,
+namesto da bi vrnila koledar z napačnimi urami.
