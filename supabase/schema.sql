@@ -2769,6 +2769,11 @@ create table if not exists public.calendar_tokens (
   created_at timestamptz not null default now(),
   last_used_at timestamptz
 );
+-- Stikalo za vklop/izklop sinhronizacije. Ločeno od brisanja žetona:
+-- izklop naj povezavo USTAVI, ne pa pozabi — kdor jo pozneje spet vklopi,
+-- naj mu ni treba znova urejati koledarja na telefonu. Ob izklopu vir
+-- vrne 404, enako kot pri neveljavnem žetonu.
+alter table public.calendar_tokens add column if not exists enabled boolean not null default true;
 
 alter table public.calendar_tokens enable row level security;
 -- Samo lastnik. Brez insert/update/delete politik — vse gre prek
@@ -2799,6 +2804,31 @@ begin
   on conflict (profile_id) do update set token = excluded.token
   returning token into v_token;
   return v_token;
+end;
+$$;
+
+-- Vklop/izklop sinhronizacije. Žeton se pri izklopu OHRANI, da po
+-- ponovnem vklopu ista povezava spet deluje in koledarja na telefonu ni
+-- treba znova nastavljati. Kdor želi povezavo dokončno razveljaviti,
+-- uporabi koledar_token_ponastavi().
+create or replace function public.koledar_sinhronizacija(p_vklop boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_stanje boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  -- Če vrstice še ni in se vklaplja, jo ustvarimo z novim žetonom.
+  insert into public.calendar_tokens (profile_id, token, enabled)
+  values (auth.uid(), encode(gen_random_bytes(32), 'hex'), p_vklop)
+  on conflict (profile_id) do update set enabled = excluded.enabled
+  returning enabled into v_stanje;
+  return v_stanje;
 end;
 $$;
 
@@ -2839,9 +2869,13 @@ as $$
 declare
   v_profile uuid;
 begin
-  select ct.profile_id into v_profile from public.calendar_tokens ct where ct.token = p_token;
+  -- "and ct.enabled" pomeni, da izklopljena sinhronizacija izgleda
+  -- popolnoma enako kot neveljaven žeton — brez namiga, ali oseba obstaja.
+  select ct.profile_id into v_profile
+  from public.calendar_tokens ct
+  where ct.token = p_token and ct.enabled;
   if v_profile is null then
-    return; -- neveljaven žeton: prazen rezultat, brez namiga, ali obstaja
+    return; -- neveljaven žeton ali izklopljena sinhronizacija
   end if;
   update public.calendar_tokens set last_used_at = now() where profile_id = v_profile;
   return query

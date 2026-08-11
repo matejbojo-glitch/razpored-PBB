@@ -306,9 +306,31 @@ function Kanali({ myId, email }){
 // ---------------------------------------------------------------------
 function Koledar(){
   const [token, setToken] = useState(null);
+  const [vklopljeno, setVklopljeno] = useState(null); // null = še ne vem
   const [prikazi, setPrikazi] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  // Beremo samo stanje, ne žetona - ta se naloži šele na klik.
+  useEffect(() => {
+    let cancelled = false;
+    client.from("calendar_tokens").select("enabled").maybeSingle()
+      .then(({ data }) => { if (!cancelled) setVklopljeno(data ? data.enabled : false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const preklopiSinhronizacijo = async () => {
+    const cilj = !vklopljeno;
+    setBusy(true); setMsg(null);
+    const { data, error } = await client.rpc("koledar_sinhronizacija", { p_vklop: cilj });
+    setBusy(false);
+    if (error) { setMsg({ ok:false, text:"Napaka: " + error.message }); return; }
+    setVklopljeno(data);
+    if (!data) { setPrikazi(false); setToken(null); }
+    setMsg({ ok:true, text: data
+      ? "Sinhronizacija je vklopljena. Če si koledar že dodal, bo spet deloval sam."
+      : "Sinhronizacija je izklopljena. Povezava ne deluje več, dokler je znova ne vklopiš." });
+  };
 
   const naloziToken = async () => {
     setBusy(true); setMsg(null);
@@ -321,7 +343,7 @@ function Koledar(){
 
   const pokazi = async () => {
     const t = token || await naloziToken();
-    if (t) setPrikazi(true);
+    if (t) { setPrikazi(true); setVklopljeno(true); }
   };
 
   const ponastavi = async () => {
@@ -348,9 +370,19 @@ function Koledar(){
         dopust in dežurstvo pa sta celodnevna dogodka.
       </p>
 
+      {vklopljeno && (
+        <label className="kanalVrstica" style={{borderBottom:0, paddingTop:0}}>
+          <input type="checkbox" checked={true} disabled={busy} onChange={preklopiSinhronizacijo} />
+          <span>
+            <b>Sinhronizacija je vklopljena</b>
+            <span className="d">Odkljukaj, da jo ustaviš. Povezava se ohrani — ob ponovnem vklopu spet deluje ista.</span>
+          </span>
+        </label>
+      )}
+
       {!prikazi ? (
         <button className="submitBtn" onClick={pokazi} disabled={busy}>
-          {busy ? "Pripravljam …" : "📅 Pokaži mojo koledarsko povezavo"}
+          {busy ? "Pripravljam …" : (vklopljeno ? "📅 Pokaži mojo koledarsko povezavo" : "📅 Vklopi in pokaži povezavo")}
         </button>
       ) : (
         <React.Fragment>
@@ -365,6 +397,7 @@ function Koledar(){
             ))}>📋 Kopiraj</button>
             <a className="ghostBtn" href={webcal} style={{textDecoration:"none", textAlign:"center"}}>➕ Naroči se</a>
             <button className="ghostBtn" onClick={ponastavi} disabled={busy}>♻ Nova povezava</button>
+            <button className="ghostBtn" onClick={preklopiSinhronizacijo} disabled={busy}>⏸ Ustavi</button>
           </div>
           <details style={{marginTop:12}}>
             <summary className="hint" style={{cursor:"pointer"}}>Kako jo dodam?</summary>
