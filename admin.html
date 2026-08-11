@@ -2349,10 +2349,17 @@ function PlaceTab(){
       const prazniki = slovenskiPrazniki(leto);
       const [{ data: entries, error }, { data: profili }] = await Promise.all([
         client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
-        client.from("profiles").select("id, full_name"),
+        // Matična številka je ključ, po katerem osebo prepozna računovodstvo
+        // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
+        client.from("profiles").select("id, full_name, profile_hr_details(employee_code)"),
       ]);
       if (error) throw error;
-      const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+      const imePoId = {}, matPoId = {};
+      (profili || []).forEach(p => {
+        imePoId[p.id] = p.full_name;
+        const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+        matPoId[p.id] = (hr && hr.employee_code) || "";
+      });
       const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
       const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
       (entries || []).forEach(r => {
@@ -2371,6 +2378,7 @@ function PlaceTab(){
       const zaokrozi = (n) => Math.round(n * 10) / 10;
       const rezultat = Object.keys(zbir).map(id => ({
         employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
+        employee_code: matPoId[id] || "",
         redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
         nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
         dezurstva: zbir[id].dezurstva,
@@ -2401,13 +2409,25 @@ function PlaceTab(){
           <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
         </div>
         {napaka && <p className="err">{napaka}</p>}
+        {vrstice && vrstice.some(r => !r.employee_code) && (
+          <div className="warnBox" style={{marginTop:10}}>
+            <div className="t">
+              ⚠ Brez matične številke: {vrstice.filter(r => !r.employee_code).length} oseb
+            </div>
+            <p className="hint" style={{margin:"6px 0 0"}}>
+              Računovodstvo in Kadris osebo prepoznata po matični številki, ne po imenu. Te vrstice bo treba
+              povezati ročno. Številko vpiši v Imeniku (klikni "manjka" v razpredelnici spodaj), nato znova
+              pritisni "Izračunaj".
+            </p>
+          </div>
+        )}
         {vrstice && vrstice.length > 0 && (
           <RazporedIzvoz
             naslov={"place-" + obdobje}
             pripravi={() => [{
               ime: "Plače",
-              glave: ["Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
-              vrstice: vrstice.map(r => [r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
+              glave: ["Matična številka", "Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              vrstice: vrstice.map(r => [r.employee_code, r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
             }]}
           />
         )}
@@ -2416,11 +2436,14 @@ function PlaceTab(){
           <div className="tableScroller" style={{marginTop:10}}>
             <table className="fairTable">
               <thead>
-                <tr><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+                <tr><th>Mat. št.</th><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
               </thead>
               <tbody>
                 {vrstice.map(r => (
                   <tr key={r.employee_id}>
+                    <td>{r.employee_code
+                      ? r.employee_code
+                      : <a href={"imenik.html?id=" + r.employee_id} className="pill danger" style={{textDecoration:"none"}}>manjka</a>}</td>
                     <td style={{textAlign:"left"}}>{r.full_name}</td>
                     <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
                   </tr>

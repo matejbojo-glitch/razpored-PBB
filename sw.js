@@ -79,7 +79,11 @@
 // robna funkcija "koledar" in RazporedAuth.SUPABASE_URL v supabase-client.js
 // — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v27';
+// v28: Faza 3 — matična številka v zbirnem izvozu ur za plače (računovodstvo
+// in Kadris osebo prepoznata po njej, ne po imenu) + opozorilo na osebe, ki
+// je še nimajo — cache-first, zato dvig verzije.
+
+const CACHE = 'razpored-pbb-v28';
 const ASSETS = [
   './',
   './index.html',
