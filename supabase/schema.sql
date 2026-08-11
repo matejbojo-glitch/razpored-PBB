@@ -2738,3 +2738,121 @@ drop trigger if exists profiles_audit on public.profiles;
 create trigger profiles_audit
   after insert or update or delete on public.profiles
   for each row execute function public.profiles_audit();
+
+-- ---------------------------------------------------------------------
+-- 29) Živa koledarska naročnina (iCal subscription).
+--
+--     Doslej je bil izvoz .ics ENKRATEN prenos: kar si prenesel, je v
+--     telefonu obtičalo takšno, kot je bilo — sprememba razporeda se v
+--     koledarju ni poznala. Tu se doda naslov, na katerega se koledar
+--     naroči in ga sam občasno osveži.
+--
+--     ZAKAJ LOČENA TABELA IN NE STOLPEC V profiles:
+--     politika profiles_select je "for select to authenticated using
+--     (true)" — vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
+--     žeton živel tam, bi vsak zaposleni videl žetone vseh sodelavcev in
+--     se lahko naročil na njihov razpored. Zato svoja tabela, kjer
+--     politika omeji branje na lastnika vrstice.
+--
+--     Žeton je nosilni podatek (kdor ga ima, vidi razpored te osebe brez
+--     prijave — koledarski odjemalci se ne znajo prijaviti), zato:
+--       * 32 naključnih bajtov iz pgcrypto (ne uuid, ki je deloma
+--         predvidljiv in se ponekod izpisuje v naslovih),
+--       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje —
+--         admin razpored že vidi v aplikaciji,
+--       * zamenljiv z eno potezo (koledar_token_ponastavi), s čimer
+--         prejšnja povezava takoj neha delovati.
+-- ---------------------------------------------------------------------
+create table if not exists public.calendar_tokens (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  token text not null unique,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+alter table public.calendar_tokens enable row level security;
+-- Samo lastnik. Brez insert/update/delete politik — vse gre prek
+-- security definer funkcij spodaj.
+drop policy if exists calendar_tokens_own on public.calendar_tokens;
+create policy calendar_tokens_own on public.calendar_tokens
+  for select to authenticated using (profile_id = auth.uid());
+
+-- Vrne obstoječi žeton prijavljene osebe ali ga ob prvem klicu ustvari.
+create or replace function public.koledar_token()
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  select token into v_token from public.calendar_tokens where profile_id = auth.uid();
+  if v_token is not null then
+    return v_token;
+  end if;
+  v_token := encode(gen_random_bytes(32), 'hex');
+  insert into public.calendar_tokens (profile_id, token) values (auth.uid(), v_token)
+  on conflict (profile_id) do update set token = excluded.token
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+-- Zamenja žeton — prejšnja povezava takoj preneha delovati (za primer,
+-- ko je bila povezava pomotoma deljena).
+create or replace function public.koledar_token_ponastavi()
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  v_token := encode(gen_random_bytes(32), 'hex');
+  insert into public.calendar_tokens (profile_id, token, created_at, last_used_at)
+  values (auth.uid(), v_token, now(), null)
+  on conflict (profile_id) do update
+    set token = excluded.token, created_at = now(), last_used_at = null
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+-- Uporabi jo IZKLJUČNO robna funkcija "koledar" s service_role ključem:
+-- iz žetona dobi osebo in njen razpored. Ni dosegljiva navadnemu
+-- (authenticated) uporabniku, ker bi sicer lahko kdorkoli z ugibanjem
+-- žetona bral tuje razporede prek RPC.
+create or replace function public.koledar_razpored(p_token text, p_od date, p_do date)
+returns table (full_name text, work_date date, shift_code text)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_profile uuid;
+begin
+  select ct.profile_id into v_profile from public.calendar_tokens ct where ct.token = p_token;
+  if v_profile is null then
+    return; -- neveljaven žeton: prazen rezultat, brez namiga, ali obstaja
+  end if;
+  update public.calendar_tokens set last_used_at = now() where profile_id = v_profile;
+  return query
+    select p.full_name, se.work_date, se.shift_code
+    from public.schedule_entries se
+    join public.profiles p on p.id = se.employee_id
+    where se.employee_id = v_profile
+      and se.work_date between p_od and p_do
+      and coalesce(se.shift_code, '') <> ''
+    order by se.work_date;
+end;
+$$;
+
+revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;

@@ -67,6 +67,12 @@
   .submitBtn:disabled{ opacity:.5; cursor:default; }
   .dangerBtn{ margin-top:6px; width:100%; background: var(--danger-bg); color: var(--danger); border:1px solid var(--danger);
     padding:11px; border-radius: var(--radius-sm); font-weight:800; font-size:13.5px; cursor:pointer; }
+  /* Sekundarni gumbi (koledarska naročnina) — enak videz kot ghostBtn na
+     drugih straneh; tu jih je več v vrsti, zato ne raztezaj čez širino. */
+  .ghostBtn{ flex:1 1 auto; background: var(--surface-2); color: var(--text); border:1px solid var(--line);
+    padding:10px 12px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer;
+    font-family:inherit; }
+  .ghostBtn:disabled{ opacity:.5; cursor:default; }
 
   .okMsg{ color:var(--ok); font-size:13px; margin-top:8px; }
   .err{ color:var(--danger); font-size:13px; margin-top:8px; }
@@ -91,6 +97,16 @@ const { client } = RazporedAuth;
 
 function initials(ime){
   return (ime || "?").trim().split(/\s+/).slice(0,2).map(s => s[0]).join("").toUpperCase();
+}
+
+// Ista pomožna funkcija kot v imenik.html — tu podvojena, ker med
+// statičnimi stranmi ni skupnega JS modula.
+function copyBesedilo(txt, onDone){
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => onDone(true)).catch(() => onDone(false));
+  } else {
+    onDone(false);
+  }
 }
 
 function MojProfil({ profile, myId }){
@@ -200,6 +216,99 @@ function Obvestila({ myId }){
   );
 }
 
+// ---------------------------------------------------------------------
+// Živa koledarska naročnina. Za razliko od gumba "Prenesi .ics" na
+// razporedu (enkraten posnetek, ki v telefonu obtiči takšen, kot je bil)
+// se ta povezava sama osvežuje - ko koordinator objavi popravek, se ta
+// pokaže tudi v telefonskem koledarju.
+//
+// Povezava je nosilni podatek: kdor jo ima, vidi razpored te osebe brez
+// prijave (koledarski odjemalci se ne znajo prijaviti). Zato se privzeto
+// ne izpiše, ampak jo je treba pokazati z gumbom, in jo je mogoče
+// kadar koli zamenjati.
+// ---------------------------------------------------------------------
+function Koledar(){
+  const [token, setToken] = useState(null);
+  const [prikazi, setPrikazi] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const naloziToken = async () => {
+    setBusy(true); setMsg(null);
+    const { data, error } = await client.rpc("koledar_token");
+    setBusy(false);
+    if (error) { setMsg({ ok:false, text:"Napake pri pripravi povezave: " + error.message }); return null; }
+    setToken(data);
+    return data;
+  };
+
+  const pokazi = async () => {
+    const t = token || await naloziToken();
+    if (t) setPrikazi(true);
+  };
+
+  const ponastavi = async () => {
+    if (!confirm("Ustvarim novo povezavo? Stara takoj neha delovati in jo bo treba v koledarju zamenjati.")) return;
+    setBusy(true); setMsg(null);
+    const { data, error } = await client.rpc("koledar_token_ponastavi");
+    setBusy(false);
+    if (error) { setMsg({ ok:false, text:"Napaka: " + error.message }); return; }
+    setToken(data); setPrikazi(true);
+    setMsg({ ok:true, text:"Nova povezava je pripravljena. Stara ne deluje več." });
+  };
+
+  const osnova = (RazporedAuth.SUPABASE_URL || "").replace(/\/$/, "");
+  const url = token ? osnova + "/functions/v1/koledar?t=" + token : "";
+  // webcal:// odpre koledarsko aplikacijo neposredno (iOS, macOS, Outlook);
+  // Google Koledar potrebuje https naslov, prilepljen v "Dodaj po naslovu URL".
+  const webcal = url.replace(/^https?:\/\//, "webcal://");
+
+  return (
+    <div className="card">
+      <p className="hint" style={{marginTop:0}}>
+        Razpored lahko dodaš v telefonski koledar tako, da se osvežuje sam — ko koordinator objavi spremembo, se
+        v nekaj urah pokaže tudi v koledarju. Nočne izmene so pravilno razpotegnjene čez polnoč,
+        dopust in dežurstvo pa sta celodnevna dogodka.
+      </p>
+
+      {!prikazi ? (
+        <button className="submitBtn" onClick={pokazi} disabled={busy}>
+          {busy ? "Pripravljam …" : "📅 Pokaži mojo koledarsko povezavo"}
+        </button>
+      ) : (
+        <React.Fragment>
+          <div className="field">
+            <label htmlFor="calurl">Moja povezava (ne deli je naprej)</label>
+            <input id="calurl" type="text" readOnly value={url} onFocus={e => e.target.select()} />
+          </div>
+          <div style={{display:"flex", gap:8, flexWrap:"wrap", marginTop:8}}>
+            <button className="ghostBtn" onClick={() => copyBesedilo(url, ok => setMsg(
+              ok ? { ok:true, text:"Povezava je kopirana." }
+                 : { ok:false, text:"Kopiranje ni uspelo — označi polje in kopiraj ročno." }
+            ))}>📋 Kopiraj</button>
+            <a className="ghostBtn" href={webcal} style={{textDecoration:"none", textAlign:"center"}}>➕ Naroči se</a>
+            <button className="ghostBtn" onClick={ponastavi} disabled={busy}>♻ Nova povezava</button>
+          </div>
+          <details style={{marginTop:12}}>
+            <summary className="hint" style={{cursor:"pointer"}}>Kako jo dodam?</summary>
+            <ul className="hint" style={{margin:"6px 0 0", paddingLeft:18, lineHeight:1.7}}>
+              <li><b>iPhone / iPad:</b> pritisni "Naroči se" — koledar se odpre sam.</li>
+              <li><b>Android / Google Koledar:</b> kopiraj povezavo, nato na računalniku odpri Google Koledar →
+                Drugi koledarji → <i>Dodaj po naslovu URL</i> in jo prilepi. (V telefonski aplikaciji te možnosti ni.)</li>
+              <li><b>Outlook:</b> Koledar → Dodaj koledar → <i>Naroči se na splet</i>.</li>
+            </ul>
+          </details>
+          <p className="hint" style={{marginTop:10, marginBottom:0}}>
+            Povezava vsebuje tvoj osebni ključ — kdor jo dobi, vidi tvoj razpored brez prijave. Če si jo pomotoma
+            delil, pritisni "Nova povezava".
+          </p>
+        </React.Fragment>
+      )}
+      {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null);
 
@@ -226,6 +335,9 @@ function App(){
 
       <h2 className="section">Obvestila</h2>
       <Obvestila myId={myId} />
+
+      <h2 className="section">Koledar</h2>
+      <Koledar />
 
       <h2 className="section">Povezave</h2>
       <div className="card">

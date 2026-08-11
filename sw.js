@@ -75,7 +75,11 @@
 // nalaga delovni-cas.js) in "Po oddelkih" odprt vsem zaposlenim za vse
 // oddelke — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v26';
+// v27: Faza 2 — živa koledarska naročnina (Nastavitve → Koledar), nova
+// robna funkcija "koledar" in RazporedAuth.SUPABASE_URL v supabase-client.js
+// — cache-first, zato dvig verzije.
+
+const CACHE = 'razpored-pbb-v27';
 const ASSETS = [
   './',
   './index.html',
