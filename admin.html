@@ -68,6 +68,13 @@
     letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
   table.roster tr:last-child td{ border-bottom:0; }
+  /* Prvi stolpec (ime/datum) ostane viden pri vodoravnem drsenju - te tabele
+     imajo stolpec na teden, zato se na telefonu vedno drsi. Neprozorno
+     ozadje, da vsebina pod njim ne presveti. */
+  table.roster th:first-child, table.roster td:first-child{
+    position:sticky; left:0; z-index:1; background:var(--surface);
+  }
+  table.roster thead th:first-child{ z-index:2; background:var(--surface-2); }
   .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:12px;
     font-weight:800; padding:9px 11px; min-height:40px; border-radius:8px; cursor:pointer; white-space:nowrap; }
   .weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#2A1608; }
@@ -167,6 +174,25 @@ const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 // imenu (profiles.full_name) — kdor se še ni registriral, se ne objavi
 // in je izpisan kot manjkajoč.
 // ---------------------------------------------------------------------
+// Po uspešni objavi obvesti vse prizadete zaposlene (obvestilo v
+// aplikaciji + potisno obvestilo na telefon, glej schema.sql sekcija 27).
+// Namenoma NE prekine objave, če obveščanje spodleti - razpored je takrat
+// že objavljen in to je pomembnejše od obvestila; napako samo vrnemo, da
+// jo klicatelj lahko pokaže.
+async function obvestiOObjavi(rows, deptCode){
+  const datumi = rows.map(r => r.datum).filter(Boolean).sort();
+  if (!datumi.length) return null;
+  try {
+    const { error } = await client.rpc("obvesti_o_objavi_razporeda", {
+      p_start: datumi[0], p_end: datumi[datumi.length - 1], p_oddelek: deptCode || null,
+    });
+    if (error) throw error;
+    return null;
+  } catch (e) {
+    return e.message || String(e);
+  }
+}
+
 async function publishScheduleRows(deptCode, rows){
   const imena = [...new Set(rows.map(r => r.ime))];
   const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code").in("full_name", imena);
@@ -187,7 +213,8 @@ async function publishScheduleRows(deptCode, rows){
     const { error } = await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
     if (error) oddelekNapaka = error.message;
   }
-  return { objavljeno: vrstice.length, manjkajo, oddelekNapaka };
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, deptCode) : null;
+  return { objavljeno: vrstice.length, manjkajo, oddelekNapaka, obvestilaNapaka };
 }
 
 // Kot publishScheduleRows, a vsaka vrstica nosi SVOJ department_code
@@ -206,7 +233,8 @@ async function publishLeadScheduleRows(rows){
     const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
     if (error) throw error;
   }
-  return { objavljeno: vrstice.length, manjkajo };
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, null) : null;
+  return { objavljeno: vrstice.length, manjkajo, obvestilaNapaka };
 }
 
 // ---------------------------------------------------------------------
@@ -247,6 +275,29 @@ async function nalozizOmejitve(startISO, endISO){
   const map = {};
   (data || []).forEach(r => { (map[r.full_name] = map[r.full_name] || []).push(r.work_date); });
   return map;
+}
+
+// Letni dopust (Razpredelnica Želje, leave_entries.kind="ld") za dani
+// razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
+// Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
+// dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
+// izpraznil cel teden rotacije.
+async function nalozizLdTedne(startISO, endISO, tedni){
+  const { data } = await client.from("leave_entries").select("full_name, work_date")
+    .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
+  const stetje = {}; // "ime|ponedeljek" -> stevilo dni LD
+  (data || []).forEach(r => {
+    const d = new Date(r.work_date + "T00:00:00Z");
+    const zamik = (d.getUTCDay() + 6) % 7;          // 0 = ponedeljek
+    d.setUTCDate(d.getUTCDate() - zamik);
+    const mo = d.toISOString().slice(0, 10);
+    if (!tedni.includes(mo)) return;
+    const k = r.full_name + "|" + mo;
+    stetje[k] = (stetje[k] || 0) + 1;
+  });
+  const out = {};
+  Object.keys(stetje).forEach(k => { if (stetje[k] >= 3) out[k] = "LD"; });
+  return out;
 }
 
 // Dežurni kader DMS/DZN — ZAPRTA zgodovina do 31. 8. 2026 (iz uradnega
@@ -589,6 +640,107 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
   );
 }
 
+// Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
+// tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
+// podvajanja logike).
+function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
+  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
+    const v = minimumi[b];
+    return v && (v.min_dms || v.min_sms || v.min_flexi);
+  });
+  const vrzeli = [];
+  if (imaMinimume) {
+    rezultat.dnevi.forEach(dn => {
+      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
+        const v = minimumi[b];
+        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
+        if (!minVsota) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, primanjkljaj: minVsota - dejansko });
+      });
+    });
+  } else {
+    rezultat.dnevi.forEach(dn => {
+      const dejansko = rezultat.staff.filter(z => {
+        const v = celica(z, dn);
+        return v && v !== "LD" && v !== "POMOČ DRUGJE";
+      }).length;
+      const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
+      const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
+      if (prag - dejansko > 0) vrzeli.push({ datum: dn.datum, primanjkljaj: prag - dejansko });
+    });
+  }
+  return { vrzeli, imaMinimume };
+}
+
+// Vizualni povzetek pravil namesto dolgih besedilnih pojasnil:
+// [✓] izpolnjeno · [!] manjše opozorilo · [✗] kritična kršitev.
+// Zložljiv razdelek - dolga pojasnila in napredne nastavitve so privzeto
+// skrita, da je na vrhu vidno samo bistvo (izberi → generiraj → rezultat).
+// Slovenska sklanjatev: 1 teden, 2 tedna, 3-4 tedni, 5+ tednov.
+function tedniBesedilo(n){
+  const d = n % 10, s = n % 100;
+  if (s >= 11 && s <= 14) return n + " tednov";
+  if (d === 1) return n + " teden";
+  if (d === 2) return n + " tedna";
+  if (d === 3 || d === 4) return n + " tedni";
+  return n + " tednov";
+}
+
+function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
+  const [odprto, setOdprto] = useState(!!privzetoOdprto);
+  return (
+    <div className="zlozljiv no-print">
+      <button type="button" className="glava" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
+        <span>{naslov}{opis && <span className="hint" style={{display:"block", margin:0, fontWeight:600}}>{opis}</span>}</span>
+        <span className="puscica">▾</span>
+      </button>
+      {odprto && <div className="vsebina">{children}</div>}
+    </div>
+  );
+}
+
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
+  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+  const opozorila = rezultat.opozorila || [];
+
+  const pravila = [
+    vrzeli.length === 0
+      ? { stanje: "ok", naslov: "Pokritost izmen", opis: imaMinimume
+          ? "Vsak dan dosega nastavljene minimume po izmenah."
+          : "Vsak dan dosega pričakovano zasedbo kalupa." }
+      : { stanje: "kriticno", naslov: "Nepokrite izmene", opis:
+          `${vrzeli.length} ${vrzeli.length === 1 ? "vrzel" : "vrzeli"} v pokritosti — glej razdelek "Pokritost po dnevih" spodaj.` },
+
+    opozorila.length === 0
+      ? { stanje: "ok", naslov: "Želje in omejitve", opis: "Vse vnesene omejitve so samodejno pokrite z nadomestilom." }
+      : { stanje: "opozorilo", naslov: "Omejitve brez nadomestila", opis:
+          `${opozorila.length} ${opozorila.length === 1 ? "omejitev" : "omejitev"} ni bilo mogoče samodejno pokriti — potreben ročen pregled.` },
+
+    imaMinimume
+      ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
+      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah zgoraj." },
+
+    { stanje: "ok", naslov: "Obseg razporeda", opis: `${rezultat.staff.length} zaposlenih × ${rezultat.dnevi.length} dni.` },
+  ];
+
+  const IKONA = { ok: "✓", opozorilo: "!", kriticno: "✗" };
+
+  return (
+    <div className="card no-print">
+      {pravila.map(pr => (
+        <div className="pravilo" key={pr.naslov}>
+          <span className={"statusIkona " + pr.stanje}>{IKONA[pr.stanje]}</span>
+          <span className="besedilo">
+            <span className="naslov">{pr.naslov}</span>
+            <span className="opis">{pr.opis}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
   const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
     const v = minimumi[b];
@@ -675,6 +827,7 @@ function KalupTab(){
   // "ime|monday" -> "LD" (letni dopust) | "POMOC" (začasno pomaga drugemu
   // oddelku, ni na voljo za svoj kalup) | undefined (navadna rotacija).
   const [tedenskoStanje, setTedenskoStanje] = useState({});
+  const [samodejnoLdSt, setSamodejnoLdSt] = useState(0); // koliko tednov LD je bilo samodejno prebranih iz baze
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -742,13 +895,24 @@ function KalupTab(){
   const generiraj = async () => {
     setGenBusy(true);
     try {
-      const omejitveMap = await nalozizOmejitve(startISO, endISO);
+      // "Generiraj takoj": vse iz baze naenkrat - omejitve IN letni dopust.
+      // Ročno nastavljeni tedni (klik v razpredelnici spodaj) imajo prednost
+      // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
+      // odločitve koordinatorja.
+      const [omejitveMap, samodejniLd] = await Promise.all([
+        nalozizOmejitve(startISO, endISO),
+        nalozizLdTedne(startISO, endISO, tedni),
+      ]);
+      const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
+      setTedenskoStanje(zdruzenoStanje);
+      setSamodejnoLdSt(Object.keys(samodejniLd).filter(k => tedenskoStanje[k] == null).length);
+
       const staff = staffList.map(([ime, defLetter]) => ({
         ime,
         startLetter: letters[ime] || defLetter,
         hsuffix: meta.hsuffix,
-        dopustTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "LD"),
-        pomocTedni: tedni.filter(mo => tedenskoStanje[ime + "|" + mo] === "POMOC"),
+        dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
+        pomocTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "POMOC"),
         omejitve: omejitveMap[ime] || [],
       }));
       const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
@@ -809,8 +973,8 @@ function KalupTab(){
           rows.push({ ime, datum: dn.datum, sifra });
         });
       });
-      const { objavljeno, manjkajo, oddelekNapaka } = await publishScheduleRows(rezultat.koda, rows);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") });
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -820,22 +984,33 @@ function KalupTab(){
 
   return (
     <div>
-      <h2 className="section">1 · Oddelek in mesec</h2>
-      <div className="deptRow">
-        {Object.keys(WARDS_META).map(k => (
-          <button key={k} className="deptBtn" aria-pressed={k===koda} onClick={() => { setKoda(k); setRezultat(null); }}>{k}</button>
-        ))}
-      </div>
-      <div className="row" style={{marginTop:10}}>
+      {/* Nadzorna plošča: oddelek + mesec + generiranje na enem mestu.
+          Vse ostalo (kvote, kalup po zaposlenih) je spodaj v zložljivih
+          razdelkih - generiranje samo po sebi ne potrebuje nobenega od njih,
+          ker želje/dopust/omejitve prebere naravnost iz baze. */}
+      <div className="orodjaVrh no-print">
         <div className="field">
-          <label htmlFor="mm">Mesec</label>
+          <label htmlFor="odd">Oddelek</label>
+          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k} — {WARDS_META[k].naziv}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="mm">Mesec in leto</label>
           <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
         </div>
+        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
+          {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
+        </button>
       </div>
+      <p className="hint no-print">
+        Ob kliku se želje, letni dopust in omejitve preberejo naravnost iz baze — vmesnih potrditev ni.
+        Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
+      </p>
 
       {!staffList ? <p className="hint">Nalagam osebje …</p> : (
       <React.Fragment>
-      <h2 className="section">2 · Predlog prednosti za prost teden</h2>
+      <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti — neobvezno">
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
         <input ref={kvoteFileRef} type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}}
@@ -848,8 +1023,10 @@ function KalupTab(){
       </div>
       <PrednostniPanel staff={staffList} stanje={tedenskoStanje} tedni={tedni} kvote={kvote} setKvote={setKvote}
         onPredlagaj={(ime, teden) => predlagajLD(ime, teden)} />
+      </Zlozljivo>
 
-      <h2 className="section">3 · Kalup in dopust po zaposlenih</h2>
+      <Zlozljivo naslov="Kalup in dopust po zaposlenih"
+        opis={samodejnoLdSt > 0 ? `Iz baze samodejno prebran dopust: ${tedniBesedilo(samodejnoLdSt)} — po potrebi popravi` : "Ročni popravki rotacije in dopusta — neobvezno"}>
       <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da med LD (letni dopust), POM (začasna pomoč drugemu oddelku — cilj oddelek osebo za ta teden doda ročno) in navadno rotacijo kroži. Rumene omejitve (Razpredelnica Želje) generator samodejno pokrije z nadomestilom, če je kdo na oddelku ta dan prost — sicer opozori spodaj.</p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
@@ -882,13 +1059,16 @@ function KalupTab(){
         </table>
       </div>
 
-      <button className="genBtn" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "Generiraj razpored"}</button>
+      </Zlozljivo>
+
+      <button className="genBtn no-print" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "⚡ Generiraj takoj"}</button>
       </React.Fragment>
       )}
 
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} />
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
@@ -1143,8 +1323,8 @@ function DezurstvaTab(){
     setPublishBusy(true); setPublishMsg(null);
     try {
       const rows = rezultat.razpored.filter(r => r.zaposleni).map(r => ({ ime: r.zaposleni, datum: r.datum, sifra: "DEŽURSTVO" }));
-      const { objavljeno, manjkajo, oddelekNapaka } = await publishScheduleRows("DEZ", rows);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") });
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows("DEZ", rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -1437,8 +1617,8 @@ function VodjeTab(){
     if (!rezultat) return;
     setPublishBusy(true); setPublishMsg(null);
     try {
-      const { objavljeno, manjkajo } = await publishLeadScheduleRows(rezultat.objavaVrstice);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "") });
+      const { objavljeno, manjkajo, obvestilaNapaka } = await publishLeadScheduleRows(rezultat.objavaVrstice);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -1543,6 +1723,11 @@ function imenaSeUjemataAdmin(a, b){
 // Trije stalni administratorji (na izrecno, trajno navodilo) — nikoli se ne
 // ponastavijo na "Zaposleni", tudi ne pri množičnem ponastavljanju spodaj.
 const STALNI_ADMINI = ["ALUKIĆ DINO", "BOJIĆ MATEJ", "DŽAMASTAGIĆ DENIS"];
+
+// Barvne značke vlog: administrator izstopa (rdeče), vodja poudarjeno
+// (zlato), zaposleni nevtralno - da je v dolgem seznamu na prvi pogled
+// vidno, kdo ima povišane pravice.
+const VLOGA_NAZIV = { user: "Zaposleni", vodja: "Vodja", admin: "Administrator" };
 
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
@@ -1686,11 +1871,16 @@ function UporabnikiTab(){
                   <tr key={p.id}>
                     <td><a href={"imenik.html?id=" + p.id} style={{color:"inherit", textDecoration:"none", borderBottom:"1px dotted var(--muted)"}}>{p.full_name}</a></td>
                     <td>
-                      <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
-                        <option value="user">Zaposleni</option>
-                        <option value="vodja">Vodja ekipe</option>
-                        <option value="admin">Administrator</option>
-                      </select>
+                      <div style={{display:"flex", alignItems:"center", gap:6, flexWrap:"wrap"}}>
+                        <span className={"pill " + (p.role === "admin" ? "danger" : p.role === "vodja" ? "warn" : "muted")}>
+                          {VLOGA_NAZIV[p.role] || p.role}
+                        </span>
+                        <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                          <option value="user">Zaposleni</option>
+                          <option value="vodja">Vodja ekipe</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                      </div>
                     </td>
                     <td><OddelekSelect p={p} /></td>
                     <td style={{fontSize:11, color:"var(--muted)"}}>{status[p.id] || ""}</td>
@@ -1871,6 +2061,7 @@ function DopustTab(){
   };
 
   const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
+  const maxDnevi = Math.max(1, ...filtrirano.map(r => Number(r.dnevi) || 0));
   const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
   const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
 
@@ -1963,7 +2154,15 @@ function DopustTab(){
                     <tr key={r.id}>
                       <td>{r.full_name}</td>
                       <td>{r.employee_code}</td>
-                      <td><strong>{r.dnevi}</strong></td>
+                      <td style={{minWidth:120}}>
+                        <strong>{r.dnevi}</strong>
+                        {/* Vrstica napredka je relativna glede na NAJVEČJE stanje v
+                            tem mesecu - kvota po osebi (annual_leave_total) v tem
+                            izvozu ni na voljo, zato bi bil odstotek izmišljen. */}
+                        <div className="bar" title={`${r.dnevi} dni · najvišje stanje ta mesec: ${maxDnevi}`}>
+                          <i style={{width: (maxDnevi > 0 ? 100 * Number(r.dnevi) / maxDnevi : 0) + "%"}}></i>
+                        </div>
+                      </td>
                       <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
                       <td>{r.profile_id ? "povezan" : "ni računa"}</td>
                     </tr>
@@ -1997,6 +2196,223 @@ function NzvTab(){
   );
 }
 
+// ---------------------------------------------------------------------
+// Plače: zbirni izvoz ur za obračun (redno delo/nočne ure/nedelje/
+// prazniki/dežurstva), po vzoru urne legende iz uradnega delovnika (glej
+// DELOVNI_ČAS v index.html). NAMENOMA konzervativen pri dežurstvih: samo
+// ŠTEVILO dežurstev, ne ur - uradna shema dežurstvenih ur je odvisna od
+// dneva v tednu/praznika (delavnik 15.30-07.00, vikend/praznik 24h) in te
+// aplikacija (še) ne modelira natančno, zato bi izmišljena ura pomenila
+// napačen podatek pri obračunu plač - raje jasna vrzel kot tiha napaka.
+// Prazniki se NE prepišejo ročno, ampak izračunajo (velika noč po Meeus/
+// Jones/Butcher algoritmu), da se izognemo napaki pri ročno vtipkanem
+// datumu premičnega praznika.
+// ---------------------------------------------------------------------
+const TRAJANJE_UR = {
+  "dopoldan": 8 + 10/60,
+  "popoldan": 7 + 10/60,
+  "popoldan do 19": 5 + 10/60,
+  "popoldan do 19h": 5 + 10/60,
+  "NOČNA": 9 + 10/60,
+  "NOČNA od 19": 11 + 10/60,
+  "NOČNA od 19h": 11 + 10/60,
+  "NOČNA12": 12 + 10/60,
+  "DNEVNA12": 12 + 10/60,
+};
+function jeNocnaSifra(sifra){ return (sifra || "").toLowerCase().startsWith("nočna"); }
+function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
+
+function velikaNoc(leto){
+  const a = leto % 19, b = Math.floor(leto / 100), c = leto % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mesec = Math.floor((h + l - 7 * m + 114) / 31), dan = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(leto, mesec - 1, dan));
+}
+function slovenskiPrazniki(leto){
+  const vn = velikaNoc(leto);
+  const vnPon = new Date(vn); vnPon.setUTCDate(vn.getUTCDate() + 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const p = String(leto);
+  return new Set([
+    p + "-01-01", p + "-01-02", p + "-02-08", iso(vnPon), p + "-04-27",
+    p + "-05-01", p + "-05-02", p + "-06-25", p + "-08-15", p + "-10-31",
+    p + "-11-01", p + "-12-25", p + "-12-26",
+  ]);
+}
+function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; }
+
+function PlaceTab(){
+  const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
+  const [vrstice, setVrstice] = useState(null); // null = ni naloženo
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  const nalozi = async () => {
+    setBusy(true); setNapaka(null); setVrstice(null);
+    try {
+      const [leto, mesec] = obdobje.split("-").map(Number);
+      const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
+      const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
+      const prazniki = slovenskiPrazniki(leto);
+      const [{ data: entries, error }, { data: profili }] = await Promise.all([
+        client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
+        client.from("profiles").select("id, full_name"),
+      ]);
+      if (error) throw error;
+      const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+      const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
+      const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
+      (entries || []).forEach(r => {
+        if (jeDezurstvoSifra(r.shift_code)) {
+          const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+          z.dezurstva += 1;
+          return;
+        }
+        const ure = TRAJANJE_UR[r.shift_code];
+        if (!ure) return; // LD/KPU/prosto/neznana koda - ni dejansko delo
+        const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+        if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
+        if (jeNedelja(r.work_date)) z.nedelje += ure;
+        if (prazniki.has(r.work_date)) z.prazniki += ure;
+      });
+      const zaokrozi = (n) => Math.round(n * 10) / 10;
+      const rezultat = Object.keys(zbir).map(id => ({
+        employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
+        redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
+        nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
+        dezurstva: zbir[id].dezurstva,
+      })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
+      setVrstice(rezultat);
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="section">Zbirni izvoz ur za obračun plač</h2>
+      <p className="hint">
+        Osnutek za računovodstvo - preveri pred oddajo. "Dežurstva" je namenoma prikazano kot ŠTEVILO (ne ur), ker
+        se dežurstvene ure razlikujejo glede na dan v tednu/praznik in tega izvoz (še) ne izračunava natančno.
+        Nočne/nedeljske/praznične ure se lahko prekrivajo (isto uro lahko šteje v več stolpcih hkrati, kot ločeni
+        dodatki) - to je namerno, ne napaka seštevanja.
+      </p>
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="placeObdobje">Mesec</label>
+            <input id="placeObdobje" type="month" value={obdobje} onChange={e => setObdobje(e.target.value)} />
+          </div>
+          <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
+        </div>
+        {napaka && <p className="err">{napaka}</p>}
+        {vrstice && vrstice.length > 0 && (
+          <RazporedIzvoz
+            naslov={"place-" + obdobje}
+            pripravi={() => [{
+              ime: "Plače",
+              glave: ["Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              vrstice: vrstice.map(r => [r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
+            }]}
+          />
+        )}
+        {vrstice && vrstice.length === 0 && <p className="hint">Za ta mesec ni objavljenega razporeda.</p>}
+        {vrstice && vrstice.length > 0 && (
+          <div className="tableScroller" style={{marginTop:10}}>
+            <table className="fairTable">
+              <thead>
+                <tr><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+              </thead>
+              <tbody>
+                {vrstice.map(r => (
+                  <tr key={r.employee_id}>
+                    <td style={{textAlign:"left"}}>{r.full_name}</td>
+                    <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Revizijska sled: kdo, kdaj in kaj je spremenil v razporedu
+// (schedule_entries_log - glej schema.sql sekcija 26, piše ga izključno
+// sprožilec ob vsakem vpisu/spremembi/izbrisu shift_code/department_code,
+// ne aplikacijska koda - velja za VSE poti pisanja).
+// ---------------------------------------------------------------------
+function AuditLogTab(){
+  const [vnosi, setVnosi] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [iskanje, setIskanje] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("schedule_entries_log").select("*").order("changed_at", { ascending: false }).limit(300)
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        if (error) { setNapaka(error.message); setVnosi([]); return; }
+        const { data: profili } = await client.from("profiles").select("id, full_name");
+        const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+        setVnosi((data || []).map(v => ({
+          ...v,
+          zaposleni: imePoId[v.employee_id] || v.employee_id,
+          urednik: imePoId[v.changed_by] || "(neznano)",
+        })));
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtrirani = useMemo(() => {
+    if (!vnosi) return [];
+    const s = iskanje.trim().toLowerCase();
+    if (!s) return vnosi;
+    return vnosi.filter(v => (v.zaposleni || "").toLowerCase().includes(s) || (v.urednik || "").toLowerCase().includes(s) || (v.department_code || "").toLowerCase().includes(s));
+  }, [vnosi, iskanje]);
+
+  const AKCIJA_NAZIV = { insert: "Nov vnos", update: "Sprememba", delete: "Izbris" };
+
+  return (
+    <div>
+      <h2 className="section">Revizijska sled</h2>
+      <p className="hint">Zadnjih 300 sprememb v razporedu (schedule_entries) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
+      <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
+      {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
+      {vnosi === null ? <p className="hint">Nalagam …</p> : (
+        <div className="tableScroller" style={{marginTop:10}}>
+          <table className="fairTable">
+            <thead>
+              <tr><th>Ko</th><th>Kdo</th><th>Kaj</th><th>Zaposleni</th><th>Oddelek</th><th>Datum</th><th>Iz → V</th></tr>
+            </thead>
+            <tbody>
+              {filtrirani.map(v => (
+                <tr key={v.id}>
+                  <td style={{whiteSpace:"nowrap"}}>{new Date(v.changed_at).toLocaleString("sl-SI")}</td>
+                  <td>{v.urednik}</td>
+                  <td>{AKCIJA_NAZIV[v.action] || v.action}</td>
+                  <td style={{textAlign:"left"}}>{v.zaposleni}</td>
+                  <td>{v.department_code}</td>
+                  <td>{v.work_date}</td>
+                  <td>{(v.old_shift_code || "prosto") + " → " + (v.new_shift_code || "prosto")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtrirani.length === 0 && <p className="hint">Brez rezultatov.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App({ ogled, profil }){
   const [tab, setTab] = useState("kalup");
   return (
@@ -2011,6 +2427,8 @@ function App({ ogled, profil }){
           <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
           <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
+          <button role="tab" aria-selected={tab==="place"} onClick={() => setTab("place")}>Plače</button>
+          <button role="tab" aria-selected={tab==="revizija"} onClick={() => setTab("revizija")}>Revizija</button>
         </div>
       </header>
 
@@ -2018,6 +2436,8 @@ function App({ ogled, profil }){
       {tab==="nzv" && <NzvTab/>}
       {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
+      {tab==="place" && <PlaceTab/>}
+      {tab==="revizija" && <AuditLogTab/>}
 
       <footer className="foot no-print">
         <p><b>Modul 2 — generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>

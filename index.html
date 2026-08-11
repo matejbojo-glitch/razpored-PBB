@@ -182,6 +182,76 @@ function shiftLabel(sifra){
   return sifra;
 }
 
+// ---------------------------------------------------------------------
+// Izvoz osebnega razporeda v .ics (iCal) - za sinhronizacijo z osebnim
+// koledarjem na telefonu (Google Calendar, Apple Calendar …). Deluje
+// izključno lokalno v brskalniku (generira in prenese datoteko, brez
+// zunanje storitve/računa) - odpre se z gumbom "Uvozi" v koledarski
+// aplikaciji uporabnika, ni žive dvosmerne sinhronizacije.
+// ---------------------------------------------------------------------
+function parsirajUrniObseg(niz){
+  // "05.50–14.00" -> { start:"05:50", end:"14:00", cezPolnoc:false }
+  if (!niz || !niz.includes("–")) return null;
+  const [s, e] = niz.split("–").map(x => x.trim().replace(".", ":"));
+  if (!/^\d{2}:\d{2}$/.test(s) || !/^\d{2}:\d{2}$/.test(e)) return null;
+  return { start: s, end: e, cezPolnoc: e < s };
+}
+function icsDatumUra(iso, hhmm){
+  return iso.replace(/-/g, "") + "T" + hhmm.replace(":", "") + "00";
+}
+function dodajDni(iso, n){
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function icsPobegni(besedilo){
+  return String(besedilo || "").replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+}
+function ustvariICS(dnevi, byDate){
+  const zdaj = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const dogodki = [];
+  dnevi.forEach(dn => {
+    const sifra = byDate[dn.datum];
+    if (!sifra) return; // prost dan - ni dogodka
+    const obseg = parsirajUrniObseg(DELOVNI_ČAS[sifra]);
+    const uid = "razpored-pbb-" + dn.datum + "-" + Math.random().toString(36).slice(2, 8) + "@razpored.netlify.app";
+    if (obseg) {
+      const konecDatum = obseg.cezPolnoc ? dodajDni(dn.datum, 1) : dn.datum;
+      dogodki.push(
+        "BEGIN:VEVENT",
+        "UID:" + uid,
+        "DTSTAMP:" + zdaj,
+        "DTSTART:" + icsDatumUra(dn.datum, obseg.start),
+        "DTEND:" + icsDatumUra(konecDatum, obseg.end),
+        "SUMMARY:" + icsPobegni(shiftLabel(sifra)),
+        "END:VEVENT"
+      );
+    } else {
+      // LD/KPU/DEŽURSTVO/neznana koda - brez natančnih ur, celodnevni dogodek
+      dogodki.push(
+        "BEGIN:VEVENT",
+        "UID:" + uid,
+        "DTSTAMP:" + zdaj,
+        "DTSTART;VALUE=DATE:" + dn.datum.replace(/-/g, ""),
+        "DTEND;VALUE=DATE:" + dodajDni(dn.datum, 1).replace(/-/g, ""),
+        "SUMMARY:" + icsPobegni(shiftLabel(sifra)),
+        "END:VEVENT"
+      );
+    }
+  });
+  return [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Razpored PBB//SL", "CALSCALE:GREGORIAN",
+    ...dogodki, "END:VCALENDAR",
+  ].join("\r\n");
+}
+function prenesiICS(vsebina, ime){
+  const blob = new Blob([vsebina], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = ime; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
 function todayISO(){
   const d = new Date();
   const p = n => String(n).padStart(2,"0");
@@ -775,15 +845,21 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
     }
   };
 
-  // Privzeto strnjeno (samo gumb) - napredna, redkeje uporabljena funkcija
-  // (samo admin), da ne zaseda prostora na glavnem zaslonu.
+  // Napredna, redkeje uporabljena funkcija (samo admin) - v modalnem oknu,
+  // da glavni zaslon ostane čist (na telefonu se odpre z dna).
   return (
     <div className="no-print" style={{ marginTop: 10 }}>
-      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
-        📥 Uvoz iz Google Sheets {odprto ? "▴" : "▾"}
+      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(true)}>
+        📥 Uvoz iz Google Sheets
       </button>
       {odprto && (
-        <div className="card" style={{ marginTop: 8 }}>
+        <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz iz Google Sheets"
+          onClick={e => { if (e.target === e.currentTarget) setOdprto(false); }}>
+        <div className="modalOkno">
+          <div className="modalGlava">
+            <h3>📥 Uvoz iz Google Sheets</h3>
+            <button type="button" className="modalZapri" aria-label="Zapri" onClick={() => setOdprto(false)}>✕</button>
+          </div>
           <div className="field" style={{ marginTop: 0 }}>
             <label htmlFor="gsUrl">
               Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
@@ -804,6 +880,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
             gumb/oddelek si zapomni svojo zadnjo povezavo posebej.
           </p>
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
+        </div>
         </div>
       )}
     </div>
@@ -1057,6 +1134,16 @@ function App(){
                   PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
                 },
               }}
+              ical={view === "my" ? {
+                onClick: async () => {
+                  const { startISO, endISO } = monthRange(month);
+                  const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+                    .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
+                  const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
+                  const dnevi = daysInRange(startISO, endISO);
+                  prenesiICS(ustvariICS(dnevi, byDate), "moj-razpored-" + month + ".ics");
+                },
+              } : undefined}
             />
           </div>
         </div>

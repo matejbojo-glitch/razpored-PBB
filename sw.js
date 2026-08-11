@@ -48,8 +48,21 @@
 // v18: theme.css dobi barvno kodirane značke za izmene (swatch-*, nov --ld
 // zelena za letni dopust) + zložljiva pomoč (.infoToggle/.infoPanel) —
 // cache-first, zato dvig verzije.
+// v19: export-buttons.js dobi nov neobvezen "ical" prop (izvoz osebnega
+// razporeda v .ics za "Moj razpored") — cache-first, zato dvig verzije.
+// v20: potisna obvestila (Web Push) — nov push-client.js v precache, sam
+// sw.js dobi 'push'/'notificationclick' poslušalca. Dvig verzije je tu
+// nujen tudi zato, da se nov service worker sploh namesti (brez tega stari
+// SW brez push poslušalca ostane aktiven in obvestila ne bi delovala).
+// v21: prenova UI/UX — theme.css dobi skupne kartične gradnike (KPI
+// kartice, stolpčni graf, toplotna karta, časovna premica, napredkovne
+// vrstice, avatar s statusom, modalno okno, koledar na dotik) —
+// cache-first, zato dvig verzije.
+// v22: prenova Generatorja (nadzorna plošča "Generiraj takoj", zložljivi
+// razdelki, značke vlog, vrstice napredka) — theme.css spet spremenjen
+// (prikaz pravil kot bloka), zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v18';
+const CACHE = 'razpored-pbb-v22';
 const ASSETS = [
   './',
   './index.html',
@@ -75,6 +88,7 @@ const ASSETS = [
   './supabase-js.min.js',
   './supabase-client.js',
   './nav.js',
+  './push-client.js',
   './xlsx.core.min.js',
   './import-utils.js',
   './export-utils.js',
@@ -121,5 +135,50 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
+  );
+});
+
+// ---------------------------------------------------------------------
+// Potisna obvestila (Web Push). Vsebino pošlje Edge Function
+// posiljaj-push kot JSON { naslov, telo, url } — glej
+// supabase/functions/posiljaj-push/index.ts in PUSH-SETUP.md.
+// ---------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let podatki = {};
+  try {
+    podatki = event.data ? event.data.json() : {};
+  } catch (e) {
+    // Če vsebina ni JSON (npr. testni push iz DevTools), jo pokažemo kot golo besedilo.
+    podatki = { telo: event.data ? event.data.text() : '' };
+  }
+  const naslov = podatki.naslov || 'Razpored PBB';
+  const moznosti = {
+    body: podatki.telo || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    lang: 'sl',
+    data: { url: podatki.url || 'index.html' },
+    // Brez tega bi bilo na Androidu obvestilo tiho zavrnjeno, ker smo se
+    // naročili z userVisibleOnly:true.
+    requireInteraction: false
+  };
+  event.waitUntil(self.registration.showNotification(naslov, moznosti));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const cilj = (event.notification.data && event.notification.data.url) || 'index.html';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((seznam) => {
+      // Če je aplikacija že odprta, jo samo osvežimo na pravo stran
+      // (namesto da odpremo še eno okno/zavihek).
+      for (const odjemalec of seznam) {
+        if ('focus' in odjemalec) {
+          if ('navigate' in odjemalec) odjemalec.navigate(cilj).catch(() => {});
+          return odjemalec.focus();
+        }
+      }
+      return self.clients.openWindow(cilj);
+    })
   );
 });

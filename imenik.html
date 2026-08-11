@@ -121,6 +121,32 @@ const { client } = RazporedAuth;
 // nedotaknjeni, dokler jih admin ročno ne popravi spodaj.
 const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
+// Napredkovna vrstica za dopust: preostanek glede na letno kvoto.
+// Barva je pomenska, ne okrasna - malo preostanka je rdeče (nevarnost
+// izgube/nakopičenja), veliko preostanka zeleno.
+function DopustNapredek({ skupaj, preostanek, naDan }){
+  const kvota = Number(skupaj);
+  const ostalo = Number(preostanek);
+  if (!Number.isFinite(kvota) || kvota <= 0 || !Number.isFinite(ostalo)) return null;
+  const porabljeno = Math.max(0, kvota - ostalo);
+  const delezPorabljen = Math.min(100, Math.round(100 * porabljeno / kvota));
+  const delezOstalo = 100 - delezPorabljen;
+  const razred = delezOstalo >= 50 ? "veliko" : (delezOstalo <= 20 ? "malo" : "");
+  return (
+    <div className="napredek">
+      <div className="vrh">
+        <span className="lbl">Izkoriščen dopust{naDan ? " (na dan " + naDan + ")" : ""}</span>
+        <span className="val">{porabljeno} / {kvota} dni</span>
+      </div>
+      <div className="tir"><i className={razred} style={{width: delezPorabljen + "%"}}></i></div>
+      <div className="vrh" style={{marginTop:4, marginBottom:0}}>
+        <span className="lbl">Preostanek</span>
+        <span className="val">{ostalo} dni</span>
+      </div>
+    </div>
+  );
+}
+
 function initials(ime){
   return (ime || "?").trim().split(/\s+/).slice(0,2).map(s => s[0]).join("").toUpperCase();
 }
@@ -161,7 +187,37 @@ function PhoneRow({ phone }){
 // Iskalno polje + seznam oseb — uporabno tudi kot vgradljiva komponenta
 // na drugih straneh, če jo bomo kdaj želeli ponovno uporabiti.
 // ---------------------------------------------------------------------
+// Status prisotnosti DANES, izpeljan iz objavljenega razporeda
+// (schedule_entries). Namenoma samo iz enega vira - "prosto" pomeni tudi
+// "za danes ni objavljenega vnosa", kar je za pogled v imeniku dovolj
+// natančno in se ne more razhajati z razporedom.
+function statusPrisotnosti(sifra){
+  const t = (sifra || "").toLowerCase();
+  if (!t) return { koda: "prosto", naziv: "Ni v razporedu" };
+  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return { koda: "dezurstvo", naziv: "Dežurstvo" };
+  if (t.startsWith("ld")) return { koda: "dopust", naziv: "Letni dopust" };
+  if (t.startsWith("bs")) return { koda: "bolniska", naziv: "Bolniška" };
+  if (t.startsWith("kpu")) return { koda: "prosto", naziv: "KPU / prosto" };
+  return { koda: "delo", naziv: sifra };
+}
+
 function Seznam({ osebe, oddelki, onOdpri }){
+  // Današnje izmene za barvni status ob avatarju.
+  const [danes, setDanes] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    const d = new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    client.from("schedule_entries").select("employee_id, shift_code").eq("work_date", iso)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const m = {};
+        (data || []).forEach(r => { m[r.employee_id] = r.shift_code; });
+        setDanes(m);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const [q, setQ] = useState("");
   // Oddelčni filter (spustni seznam) — brez njega je seznam vseh ~70+ ljudi
   // ena dolga, nerazčlenjena vrsta, ki jo je težko pregledati.
@@ -213,11 +269,21 @@ function Seznam({ osebe, oddelki, onOdpri }){
           ]),
         }]}
       />
+      <div className="legend no-print" style={{marginTop:10}}>
+        <span className="li"><span className="dot" style={{background:"var(--ok)"}}></span>na delu</span>
+        <span className="li"><span className="dot" style={{background:"var(--danger)"}}></span>dežurstvo</span>
+        <span className="li"><span className="dot" style={{background:"var(--ld)"}}></span>dopust</span>
+        <span className="li"><span className="dot" style={{background:"var(--pop)"}}></span>bolniška</span>
+        <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>prosto / ni v razporedu</span>
+      </div>
       <div className="card">
         {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
         {filtrirano.map(o => (
           <button key={o.id} className="person" onClick={() => onOdpri(o.id)}>
-            <div className="av">{initials(o.full_name)}</div>
+            <div className="avatarStatus">
+              <div className="av">{initials(o.full_name)}</div>
+              {(() => { const st = statusPrisotnosti(danes[o.id]); return <span className={"pika " + st.koda} title={st.naziv}></span>; })()}
+            </div>
             <div className="info">
               <div className="name">{o.full_name}</div>
               <div className="meta">
@@ -540,6 +606,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + hr.leave_balance_asof + ")" : ""}</div>
             </div>
           )}
+          <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
           <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki — vidni samo tebi (admin) in tej osebi."}</p>
         </div>
       )}
@@ -765,6 +832,7 @@ function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
               <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + hr.leave_balance_asof + ")" : ""}</div>
             </div>
           )}
+          <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
           <p className="hint" style={{marginTop:8, marginBottom:0}}>HR podatki — vidni samo adminu.</p>
         </div>
       )}

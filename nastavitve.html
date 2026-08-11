@@ -83,6 +83,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="push-client.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect } = React;
@@ -136,6 +137,69 @@ function MojProfil({ profile, myId }){
   );
 }
 
+// Potisna obvestila na TEJ napravi (vsak telefon/brskalnik se vklopi
+// posebej — naročnina je vezana na napravo, ne na račun). Glej
+// push-client.js in PUSH-SETUP.md.
+function Obvestila({ myId }){
+  const [stanje, setStanje] = useState(null); // null = še preverjam
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    RazporedPush.stanje().then(setStanje);
+  }, []);
+
+  const preklopi = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      if (stanje === "vklopljeno") {
+        await RazporedPush.izklopi();
+        setStanje("izklopljeno");
+        setMsg({ ok:true, text:"Potisna obvestila so izklopljena na tej napravi." });
+      } else {
+        await RazporedPush.vklopi(myId);
+        setStanje("vklopljeno");
+        setMsg({ ok:true, text:"Vklopljeno. Ta naprava bo odslej prejemala obvestila." });
+      }
+    } catch (e) {
+      setMsg({ ok:false, text: e.message || String(e) });
+    } finally { setBusy(false); }
+  };
+
+  if (stanje === null) return <div className="card"><p className="hint" style={{margin:0}}>Preverjam …</p></div>;
+
+  if (stanje === "nepodprto") {
+    return (
+      <div className="card">
+        <p className="hint" style={{margin:0}}>
+          Ta brskalnik ne podpira potisnih obvestil. Na iPhonu delujejo šele, ko aplikacijo dodaš na domači zaslon
+          (Deli → "Dodaj na začetni zaslon"), na Androidu pa v Chromu ali nameščeni aplikaciji.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <p className="hint" style={{marginTop:0}}>
+        Obvestilo dobiš, ko je objavljen nov razpored, ko se premakne tvoja menjava, in kot opomnik dan pred nočno
+        izmeno ali dežurstvom. Velja samo za to napravo — na drugem telefonu vklopi posebej.
+      </p>
+      {stanje === "zavrnjeno" ? (
+        <p className="err" style={{margin:0}}>
+          Obvestila so blokirana v nastavitvah brskalnika za to stran. Odblokiraj jih tam (ikona ključavnice ob
+          naslovu strani), nato osveži to stran.
+        </p>
+      ) : (
+        <button className="submitBtn" onClick={preklopi} disabled={busy}>
+          {busy ? "Trenutek …" : (stanje === "vklopljeno" ? "🔕 Izklopi obvestila na tej napravi" : "🔔 Vklopi obvestila na tej napravi")}
+        </button>
+      )}
+      {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null);
 
@@ -159,6 +223,9 @@ function App(){
 
       <h2 className="section">Moj profil</h2>
       {profile ? <MojProfil profile={profile} myId={myId} /> : <p className="hint">Nalagam …</p>}
+
+      <h2 className="section">Obvestila</h2>
+      <Obvestila myId={myId} />
 
       <h2 className="section">Povezave</h2>
       <div className="card">

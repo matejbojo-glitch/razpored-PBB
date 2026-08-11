@@ -121,6 +121,15 @@
           busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"
         )
       );
+      if (props.ical) {
+        postavke.push(
+          e(
+            "button",
+            { key: "ical", className: "dlMenuItem", type: "button", onClick: function () { setOdprto(false); props.ical.onClick(); } },
+            "📅 " + (props.ical.label || "Izvozi v koledar (.ics)")
+          )
+        );
+      }
 
       return e(
         "div",

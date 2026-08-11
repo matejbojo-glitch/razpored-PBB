@@ -306,13 +306,18 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               <div className="field"><label htmlFor="pr2">Prihod (neobvezno)</label><input id="pr2" type="time" value={prihod} onChange={e => setPrihod(e.target.value)} /></div>
               <div className="field"><label htmlFor="od2">Odhod (neobvezno)</label><input id="od2" type="time" value={odhod} onChange={e => setOdhod(e.target.value)} /></div>
             </div>
-            <div className="field"><label htmlFor="rz">Razlog</label><textarea id="rz" value={razlog} onChange={e => setRazlog(e.target.value)} placeholder="npr. kasnejši prihod, nadomestni prihod zaradi odsotnosti razporejenega delavca" /></div>
+            <div className="field">
+              <label htmlFor="rz">Razlog</label>
+              <textarea id="rz" value={razlog} onChange={e => setRazlog(e.target.value)} placeholder="npr. kasnejši prihod, nadomestni prihod zaradi odsotnosti razporejenega delavca" />
+              <HitriRazlog vrednost={razlog} naVnos={setRazlog} />
+            </div>
           </React.Fragment>
         )}
 
         <div className="field">
-          <label htmlFor="op">Opomba (neobvezno)</label>
+          <label htmlFor="op">{vrsta === "menjava_sluzbe" ? "Razlog menjave (neobvezno)" : "Opomba (neobvezno)"}</label>
           <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
+          {vrsta === "menjava_sluzbe" && <HitriRazlog vrednost={opomba} naVnos={setOpomba} />}
         </div>
         {jeDezurstvo && (
           <p className="hint" style={{marginTop:-6}}>
@@ -380,30 +385,81 @@ function CakaName({ rows, onOdloceno }){
   );
 }
 
+// Pogosti razlogi za menjavo/evidentiranje - hitra izbira namesto tipkanja
+// na telefonu. Izbira samo VPIŠE besedilo v polje, ki ga je nato mogoče
+// dopolniti ali povsem prepisati (ni zaklenjen seznam).
+const HITRI_RAZLOGI = [
+  "Nadomeščanje sodelavca",
+  "Študijske obveznosti",
+  "Osebni razlogi",
+  "Zdravstveni razlog",
+  "Družinske obveznosti",
+  "Uskladitev prevoza",
+];
+
+function HitriRazlog({ vrednost, naVnos }){
+  return (
+    <div style={{display:"flex", gap:6, flexWrap:"wrap", marginTop:6}}>
+      {HITRI_RAZLOGI.map(r => (
+        <button key={r} type="button" className="pill"
+          style={{cursor:"pointer", border:"1px solid var(--line)"}}
+          onClick={() => naVnos(vrednost && vrednost.trim() ? vrednost.trim() + ", " + r.toLowerCase() : r)}>
+          + {r}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Casovnica({ obrazec, dnevnik }){
   // Menjava dežurstva preskoči korak "Neposredni vodja" (glej
   // obrazec_potrdi_sodelavec v supabase/schema.sql) - v časovnici se zato
   // sploh ne prikaže, da ne izgleda kot "čaka", čeprav do tja nikoli ne pride.
   const koraki = [
-    { stopnja: 1, naslov: "Oddano" },
-    ...(obrazec.vrsta === "menjava_sluzbe" ? [{ stopnja: 2, naslov: "Sodelavec" }] : []),
-    ...(obrazec.je_dezurstvo ? [] : [{ stopnja: 3, naslov: "Neposredni vodja" }]),
-    { stopnja: 4, naslov: obrazec.je_dezurstvo ? "Koordinator (Denis Džamastagić)" : "Koordinator" },
+    { stopnja: 1, naslov: "Oddano", kratko: "Oddano" },
+    ...(obrazec.vrsta === "menjava_sluzbe" ? [{ stopnja: 2, naslov: "Sodelavec", kratko: "Sodelavec" }] : []),
+    ...(obrazec.je_dezurstvo ? [] : [{ stopnja: 3, naslov: "Neposredni vodja", kratko: "Vodja" }]),
+    { stopnja: 4, naslov: obrazec.je_dezurstvo ? "Koordinator (Denis Džamastagić)" : "Koordinator", kratko: "Koordinator" },
   ];
+  // Prvi korak brez vnosa v dnevniku je "aktiven" (tam zahtevek trenutno
+  // stoji) - vsi za njim so šele v prihodnosti.
+  const koncan = koraki.filter(k => dnevnik.some(d => d.stopnja === k.stopnja)).length;
+  const jeZavrnjen = dnevnik.some(d => d.dejanje.includes("ZAVRNIL"));
+
   return (
-    <ul className="timeline">
-      {koraki.map(k => {
-        const vnos = dnevnik.find(d => d.stopnja === k.stopnja);
-        const zavrnjen = vnos && vnos.dejanje.includes("ZAVRNIL");
-        return (
-          <li key={k.stopnja} className={vnos ? (zavrnjen ? "rejected" : "done") : "pending"}>
-            <span className="dot"></span>
-            <div className="step">{k.naslov}{vnos ? (zavrnjen ? " — zavrnjeno" : " — potrjeno") : " — čaka"}</div>
-            {vnos && <div className="meta">{vnos.ime_ob_dejanju} ({vnos.vloga_ob_dejanju}) · {fmtCas(vnos.cas)}{vnos.opomba ? " · " + vnos.opomba : ""}</div>}
-          </li>
-        );
-      })}
-    </ul>
+    <div>
+      {/* Vodoravna časovna premica - stanje na prvi pogled. Podroben
+          dnevnik (kdo/kdaj/opomba) ostaja pod njo. */}
+      <div className="premica">
+        {koraki.map((k, i) => {
+          const vnos = dnevnik.find(d => d.stopnja === k.stopnja);
+          const zavrnjen = vnos && vnos.dejanje.includes("ZAVRNIL");
+          const razred = zavrnjen ? "zavrnjen"
+            : vnos ? "koncan"
+            : (i === koncan && !jeZavrnjen) ? "aktiven" : "";
+          return (
+            <div key={k.stopnja} className={"korak " + razred}>
+              <div className="pika">{zavrnjen ? "✗" : vnos ? "✓" : (i === koncan && !jeZavrnjen) ? "●" : i + 1}</div>
+              <div className="oznaka">{k.kratko || k.naslov}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <ul className="timeline">
+        {koraki.map(k => {
+          const vnos = dnevnik.find(d => d.stopnja === k.stopnja);
+          const zavrnjen = vnos && vnos.dejanje.includes("ZAVRNIL");
+          return (
+            <li key={k.stopnja} className={vnos ? (zavrnjen ? "rejected" : "done") : "pending"}>
+              <span className="dot"></span>
+              <div className="step">{k.naslov}{vnos ? (zavrnjen ? " — zavrnjeno" : " — potrjeno") : " — čaka"}</div>
+              {vnos && <div className="meta">{vnos.ime_ob_dejanju} ({vnos.vloga_ob_dejanju}) · {fmtCas(vnos.cas)}{vnos.opomba ? " · " + vnos.opomba : ""}</div>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
