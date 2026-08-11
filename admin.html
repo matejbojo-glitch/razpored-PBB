@@ -701,20 +701,14 @@ function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
   );
 }
 
-function StatusPravil({ rezultat, celica, pragPopravki, minimumi }){
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
   const opozorila = rezultat.opozorila || [];
 
   // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
-  // v tednu) — preverjena nad DEJANSKIM razporedom, torej vključno z
-  // ročnimi popravki celic, ne samo nad surovim izhodom generatorja.
-  const krsitve = useMemo(() => {
-    const vnosi = [];
-    rezultat.staff.forEach(z => {
-      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
-    });
-    return window.DelovniCas.preveriPravila(vnosi);
-  }, [rezultat, celica]);
+  // v tednu) — krsitve prihajajo od zunaj (KalupTab), izračunane nad
+  // DEJANSKIM razporedom (vključno z ročnimi popravki celic), tako da jih
+  // lahko ista izračunana lista pobarva tudi v mreži spodaj, ne samo tu.
   const pov = window.DelovniCas.povzetek(krsitve);
   const [prikaziKrsitve, setPrikaziKrsitve] = useState(false);
 
@@ -980,6 +974,29 @@ function KalupTab(){
     setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
   };
 
+  // Delovnopravne kršitve (počitek med izmenama, zaporedne nočne, prost dan v
+  // tednu) — izračunane enkrat tu nad DEJANSKIM razporedom (torej vključno z
+  // ročnimi popravki celic), da isti seznam napaja tako povzetek v
+  // StatusPravil kot obarvanje posameznih celic v mreži spodaj.
+  const krsitve = useMemo(() => {
+    if (!rezultat) return [];
+    const vnosi = [];
+    rezultat.staff.forEach(z => {
+      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
+    });
+    return window.DelovniCas.preveriPravila(vnosi);
+  }, [rezultat, celica]);
+  // "oseba|datum" -> najhujša kršitev na tej celici (kritično prekrije opozorilo).
+  const krsitveMap = useMemo(() => {
+    const m = new Map();
+    krsitve.forEach(k => {
+      const key = k.oseba + "|" + k.datum;
+      const obstojeca = m.get(key);
+      if (!obstojeca || (k.resnost === "kriticno" && obstojeca.resnost !== "kriticno")) m.set(key, k);
+    });
+    return m;
+  }, [krsitve]);
+
   const izvoziCSV = () => {
     if (!rezultat) return;
     const glava = ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)];
@@ -1107,7 +1124,7 @@ function KalupTab(){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat — {rezultat.naziv}, {rezultat.mesec}</h2>
-          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} />
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} />
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
@@ -1143,12 +1160,17 @@ function KalupTab(){
                     <td className="name">{z.ime}</td>
                     {rezultat.dnevi.map(dn => {
                       const sifra = celica(z, dn); const cls = classify(sifra);
+                      const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
+                      const obroba = krsitev
+                        ? (krsitev.resnost === "kriticno" ? "2px solid var(--danger)" : "2px solid #C9713F")
+                        : "1px solid var(--line)";
+                      const naslov = krsitev ? `${sifra} — ${krsitev.sporocilo}` : sifra;
                       return (
                         <td key={dn.datum}>
                           <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
-                            title={sifra}
+                            title={naslov}
                             style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
-                              border:"1px solid var(--line)", borderRadius:6, fontSize:13, padding:"3px 2px"}} />
+                              border:obroba, borderRadius:6, fontSize:13, padding:"3px 2px"}} />
                         </td>
                       );
                     })}

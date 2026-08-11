@@ -64,8 +64,11 @@
 // v23: nov skupni delovni-cas.js (edini vir resnice o urah izmen +
 // preverjanje delovnopravnih pravil) — cache-first, zato dvig verzije in
 // vpis v precache.
+// v24: Generator (Kalup) — delovnopravne kršitve zdaj obarvajo tudi
+// posamezne celice v mreži (rdeč/oranžen rob + opomba na hover), ne samo
+// povzetek zgoraj — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v23';
+const CACHE = 'razpored-pbb-v24';
 const ASSETS = [
   './',
   './index.html',
