@@ -70,8 +70,12 @@
 // v25: zavihek "Uporabniki" (admin.html) prenovljen na kartični prikaz
 // (isti vzorec kot Imenik) namesto vodoravno-drseče tabele — bolj
 // uporabno na mobilnem — cache-first, zato dvig verzije.
+// v26: Faza 1 (skladnost) — revizija sprememb pravic (Revizija → Pravice
+// in dostopi), delovnopravno opozorilo pri menjavi (obrazec.html zdaj
+// nalaga delovni-cas.js) in "Po oddelkih" odprt vsem zaposlenim za vse
+// oddelke — cache-first, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v25';
+const CACHE = 'razpored-pbb-v26';
 const ASSETS = [
   './',
   './index.html',

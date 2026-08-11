@@ -2629,3 +2629,112 @@ begin
   return st;
 end;
 $$;
+
+-- ---------------------------------------------------------------------
+-- 28) profiles_log — revizijska sled SPREMEMB PRAVIC (RBAC audit).
+--
+--     Sekcija 26 zgoraj revidira razpored (kdo je komu spremenil izmeno).
+--     Kdo je komu podelil ali odvzel PRAVICE, pa doslej ni bilo nikjer
+--     zabeleženo — administrator lahko v Generator → Uporabniki komurkoli
+--     nastavi vlogo "admin", in po tem dejanju ni ostalo nobene sledi.
+--     Za "pravno skladnost in varnost podatkov" je to večja vrzel od
+--     revizije razporeda: brez nje ni mogoče odgovoriti na vprašanje
+--     "kdo je tej osebi omogočil dostop do kadrovskih podatkov in kdaj".
+--
+--     Beležijo se samo štiri polja, ki dejansko določajo pravice:
+--       role            — admin / vodja / user
+--       department_code — kateri oddelek vodja vidi in ureja
+--       vodja_id        — komu je oseba podrejena (veriga odobritev)
+--       is_koordinator  — enostopenjska odobritev menjav
+--     Ostala polja (ime, e-pošta, parafa, naziv) niso varnostno
+--     relevantna in bi dnevnik samo napolnila.
+--
+--     Enak vzorec kot schedule_entries_log: append-only, piše izključno
+--     sprožilec (security definer), bere samo admin.
+-- ---------------------------------------------------------------------
+create table if not exists public.profiles_log (
+  id bigint generated always as identity primary key,
+  profile_id uuid,
+  profile_name text,
+  polje text not null check (polje in ('role', 'department_code', 'vodja_id', 'is_koordinator')),
+  stara_vrednost text,
+  nova_vrednost text,
+  action text not null check (action in ('insert', 'update', 'delete')),
+  changed_by uuid references public.profiles (id),
+  changed_by_name text,
+  changed_at timestamptz not null default now()
+);
+create index if not exists profiles_log_profile_idx on public.profiles_log (profile_id, changed_at desc);
+create index if not exists profiles_log_cas_idx on public.profiles_log (changed_at desc);
+
+alter table public.profiles_log enable row level security;
+drop policy if exists profiles_log_select_admin on public.profiles_log;
+create policy profiles_log_select_admin on public.profiles_log
+  for select to authenticated using (public.current_role_is('admin'));
+
+create or replace function public.profiles_audit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  akter_ime text;
+  akter uuid;
+begin
+  akter := auth.uid();
+  -- Ime akterja se zapiše ob dejanju in se pozneje NE osvežuje: če se
+  -- oseba pozneje preimenuje ali izbriše, mora dnevnik še vedno brati
+  -- tako, kot je bilo ob dogodku.
+  select p.full_name into akter_ime from public.profiles p where p.id = akter;
+
+  if TG_OP = 'DELETE' then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (old.id, old.full_name, 'role', old.role, null, 'delete', akter, akter_ime);
+    return old;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    -- Ob registraciji je vloga vedno privzeta ('user'); vpiše se samo, če
+    -- je račun nastal že z višjo vlogo (npr. prek uvoza).
+    if new.role is distinct from 'user' then
+      insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+      values (new.id, new.full_name, 'role', null, new.role, 'insert', akter, akter_ime);
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE: po eno vrstico na vsako dejansko spremenjeno polje, da je
+  -- dnevnik berljiv brez razbiranja, kaj se je v vrstici spremenilo.
+  if old.role is distinct from new.role then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'role', old.role, new.role, 'update', akter, akter_ime);
+  end if;
+  if old.department_code is distinct from new.department_code then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
+  end if;
+  if old.vodja_id is distinct from new.vodja_id then
+    -- Zapiše se IME vodje, ne uuid — dnevnik mora biti berljiv brez
+    -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
+    -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
+    -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
+    -- prazno, torej kot sprememba, ki se ni zgodila.
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'vodja_id',
+            coalesce((select p.full_name from public.profiles p where p.id = old.vodja_id), old.vodja_id::text),
+            coalesce((select p.full_name from public.profiles p where p.id = new.vodja_id), new.vodja_id::text),
+            'update', akter, akter_ime);
+  end if;
+  if old.is_koordinator is distinct from new.is_koordinator then
+    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'is_koordinator', old.is_koordinator::text, new.is_koordinator::text, 'update', akter, akter_ime);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_audit on public.profiles;
+create trigger profiles_audit
+  after insert or update or delete on public.profiles
+  for each row execute function public.profiles_audit();

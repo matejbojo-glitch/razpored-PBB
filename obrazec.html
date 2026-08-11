@@ -110,6 +110,7 @@
 <script src="react.production.min.js"></script>
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
+<script src="delovni-cas.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
@@ -211,6 +212,59 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     (mojaIzmena || "").toLowerCase().startsWith("dežurstvo")
     || (izbranSodelavec && (izbranSodelavec.njihova_izmena || "").toLowerCase().startsWith("dežurstvo"))
   );
+
+  // Delovnopravno preverjanje menjave (ZDR-1) — generator je te omejitve
+  // upošteval, ročna menjava pa jih je doslej lahko tiho podrla: npr.
+  // popoldanska izmena zamenjana za jutranjo naslednji dan pomeni manj kot
+  // 12 h počitka. Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
+  const [krsitve, setKrsitve] = useState(null);
+  useEffect(() => {
+    if (vrsta !== "menjava_sluzbe" || !izbranSodelavec || !datum || !window.DelovniCas){
+      setKrsitve(null);
+      return;
+    }
+    let cancelled = false;
+    const dodaj = (iso, n) => {
+      const d = new Date(iso + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    // Okno ±3 dni okoli obeh datumov zajame vsa pravila, ki jih preverjamo
+    // (počitek med izmenama, zaporedne nočne, prost dan v oknu 7 dni).
+    const dnevi = [datum, izbranSodelavec.njihov_datum].sort();
+    const od = dodaj(dnevi[0], -3), doo = dodaj(dnevi[dnevi.length - 1], 3);
+    const jaz = myId, on = izbranSodelavec.profile_id;
+
+    client.from("schedule_entries")
+      .select("employee_id, work_date, shift_code")
+      .in("employee_id", [jaz, on])
+      .gte("work_date", od).lte("work_date", doo)
+      .then(({ data, error }) => {
+        if (cancelled || error) { if (!cancelled) setKrsitve(null); return; }
+        const mojeIme = (profil && profil.full_name) || "Ti";
+        const njegovoIme = izbranSodelavec.full_name;
+        // Mreža oseba|datum -> šifra, da uveljavitev menjave PREPIŠE
+        // obstoječi vnos namesto da bi mu dodala drugega. Dvojni vnos za
+        // isti dan bi pravila brala kot dve izmeni in javil izmišljeno
+        // kršitev počitka.
+        const mreza = {};
+        const kljuc = (oseba, dan) => oseba + "|" + dan;
+        (data || []).forEach(r => {
+          const oseba = r.employee_id === jaz ? mojeIme : njegovoIme;
+          mreza[kljuc(oseba, r.work_date)] = { oseba, datum: r.work_date, sifra: r.shift_code };
+        });
+        // Uveljavi menjavo: moja izmena gre njemu, njegova pride meni.
+        mreza[kljuc(mojeIme, datum)] = { oseba: mojeIme, datum, sifra: "" };
+        mreza[kljuc(njegovoIme, izbranSodelavec.njihov_datum)] =
+          { oseba: njegovoIme, datum: izbranSodelavec.njihov_datum, sifra: "" };
+        mreza[kljuc(mojeIme, izbranSodelavec.njihov_datum)] =
+          { oseba: mojeIme, datum: izbranSodelavec.njihov_datum, sifra: izbranSodelavec.njihova_izmena };
+        mreza[kljuc(njegovoIme, datum)] =
+          { oseba: njegovoIme, datum, sifra: mojaIzmena || "" };
+        setKrsitve(window.DelovniCas.preveriPravila(Object.values(mreza)));
+      });
+    return () => { cancelled = true; };
+  }, [vrsta, datum, izbranSodelavec, mojaIzmena, myId, profil]);
 
   const oddaj = async () => {
     setErr(null);
@@ -324,6 +378,24 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
             🔁 Menjava dežurstva: po potrditvi sodelavca gre predlog naravnost h koordinatorju
             (Denis Džamastagić), brez vmesnega koraka pri vodji.
           </p>
+        )}
+        {krsitve && krsitve.length > 0 && (
+          <div className="warnBox" style={{marginTop:4}}>
+            <div className="t">
+              ⚠ Ta menjava bi kršila delovnopravna pravila ({krsitve.length})
+            </div>
+            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
+              {krsitve.map((k, i) => (
+                <li key={i} style={{fontSize:12.5, marginBottom:2}}>
+                  <b>{k.oseba}</b> ({fmtDatum(k.datum)}): {k.sporocilo}
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Menjavo lahko vseeno oddaš — opozorilo si bosta ogledala še vodja in koordinator,
+              ki menjavo potrdita ali zavrneta.
+            </p>
+          </div>
         )}
         <button className="submitBtn" onClick={oddaj} disabled={busy}>{busy ? "Oddajam …" : "Oddaj obrazec"}</button>
         {err && <p className="err">{err}</p>}
