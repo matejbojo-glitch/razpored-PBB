@@ -88,8 +88,10 @@
 
 // v30: koledarska naročnina — vklop/izklop sinhronizacije po osebi
 // (Nastavitve → Koledar) — cache-first, zato dvig verzije.
+// v31: uvodna kartica na Razporedu (namestitev na domači zaslon + vklop
+// obvestil) — spremenjena index.html in theme.css, zato dvig verzije.
 
-const CACHE = 'razpored-pbb-v30';
+const CACHE = 'razpored-pbb-v31';
 const ASSETS = [
   './',
   './index.html',
