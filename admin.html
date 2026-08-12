@@ -351,6 +351,21 @@ const DEZURNI_OSNOVA_DO_31_8_2026 = {
   "TRPIN SAŠA": { stevilo:8, zadnje:"2026-08-27" },
 };
 
+// Zgornji slovar je ključen po "PRIIMEK IME" z velikimi črkami (tako je
+// zapisan uradni seznam dežurstev). profiles.full_name pa je lahko zapisan
+// drugače — "Dino Alukić" namesto "ALUKIĆ DINO". Iskanje po točnem ključu
+// bi v takem primeru tiho vrnilo nič in osebi ponastavilo zgodovino na 0
+// dežurstev; generator pravičnosti bi ji nato naložil preveč dežurstev,
+// pri čemer bi bil zaslon videti povsem normalen. Zato se išče po vreči
+// besed v velikih črkah — isto pravilo kot imenaSeUjemataAdmin, le
+// predračunano v slovar, ker tu iščemo in ne primerjamo dveh imen.
+function kljucImena(s){
+  return (s || "").trim().toUpperCase().replace(/\s+/g, " ").split(" ").sort().join(" ");
+}
+const DEZURNI_OSNOVA_PO_KLJUCU = Object.fromEntries(
+  Object.entries(DEZURNI_OSNOVA_DO_31_8_2026).map(([ime, v]) => [kljucImena(ime), v])
+);
+
 // Vrne polni začetni roster za DezurstvaTab: članstvo iz profiles (primarni
 // department_code ali profile_departments "DEZ" — nekdo je lahko hkrati na
 // svojem oddelku IN v dežurnem kadru), stevilo/zadnje = zaprta osnova do
@@ -373,7 +388,7 @@ async function nalozizDezurniKader(startISO){
   });
   return dezurni.map(p => {
     const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
-    const osnova = DEZURNI_OSNOVA_DO_31_8_2026[p.full_name] || { stevilo:0, zadnje:null };
+    const osnova = DEZURNI_OSNOVA_PO_KLJUCU[kljucImena(p.full_name)] || { stevilo:0, zadnje:null };
     const ziv = odZivih[p.id] || { stevilo:0, zadnje:null };
     return {
       ime: p.full_name, enota: p.department_code || "?",
@@ -1237,8 +1252,10 @@ function KalupTab(){
 // in razporeda bi delal videti pravilno, le nad premajhnim krogom, zato
 // bi prisotni dobili preveč dežurstev.
 function ManjkajociDezurni({ roster }){
-  const naSeznamu = new Set((roster || []).map(r => r.ime));
-  const manjkajo = Object.keys(DEZURNI_OSNOVA_DO_31_8_2026).filter(ime => !naSeznamu.has(ime));
+  // Prav tako po vreči besed, ne po točnem zapisu — sicer bi vsak, ki je v
+  // Imeniku zapisan kot "Ime Priimek", padel med "manjkajoče".
+  const naSeznamu = new Set((roster || []).map(r => kljucImena(r.ime)));
+  const manjkajo = Object.keys(DEZURNI_OSNOVA_DO_31_8_2026).filter(ime => !naSeznamu.has(kljucImena(ime)));
   if (!manjkajo.length) return null;
   return (
     <div className="card no-print" style={{marginBottom:12, borderLeft:"4px solid #C9713F"}}>

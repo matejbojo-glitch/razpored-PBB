@@ -99,7 +99,10 @@
 // in Dežurstva javijo, koga od 14 manjka — spremenjena imenik.html in
 // admin.html.
 
-const CACHE = 'razpored-pbb-v33';
+// v34: neprosojna lepljiva glava (prekrivanje besedila) in enako široke
+// vrstice Imenika — spremenjene imenik/zelje/obrazec/nastavitve/admin.
+
+const CACHE = 'razpored-pbb-v34';
 const ASSETS = [
   './',
   './index.html',
