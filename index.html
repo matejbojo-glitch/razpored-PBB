@@ -813,12 +813,16 @@ async function uvoziNzv(url, ciljniMesec){
 // lepiti.
 function kljucUvoza(kontekst){ return "razpored-uvoz-url-" + (kontekst || "my"); }
 
-function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
+// Odpiranje NI notranje stanje te komponente: sprožilna ikona živi v
+// fiksni vrstici ikon zgoraj desno (RazporedLogout "pred"), sama pa mora
+// ostati zunaj nje, ker je ta vrstica z-index kontekst — modalno okno v
+// njej bi se stackalo skupaj z njo. Zato "odprto"/"naZapri" prideta od
+// strani, tu pa se izriše samo okno.
+function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZapri }){
   const kontekst = wardCode || "my";
   const [url, setUrl] = useState(() => { try { return localStorage.getItem(kljucUvoza(kontekst)) || ""; } catch (e) { return ""; } });
   const [busy, setBusy] = useState(null); // "moj" | "oddelek" | null
   const [msg, setMsg] = useState(null);
-  const [odprto, setOdprto] = useState(false);
 
   useEffect(() => {
     setMsg(null);
@@ -851,18 +855,15 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
 
   // Napredna, redkeje uporabljena funkcija (samo admin) - v modalnem oknu,
   // da glavni zaslon ostane čist (na telefonu se odpre z dna).
+  if (!odprto) return null;
   return (
-    <div className="no-print" style={{ marginTop: 10 }}>
-      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(true)}>
-        📥 Uvoz iz Google Sheets
-      </button>
-      {odprto && (
+    <div className="no-print">
         <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz iz Google Sheets"
-          onClick={e => { if (e.target === e.currentTarget) setOdprto(false); }}>
+          onClick={e => { if (e.target === e.currentTarget) naZapri(); }}>
         <div className="modalOkno">
           <div className="modalGlava">
             <h3>📥 Uvoz iz Google Sheets</h3>
-            <button type="button" className="modalZapri" aria-label="Zapri" onClick={() => setOdprto(false)}>✕</button>
+            <button type="button" className="modalZapri" aria-label="Zapri" onClick={naZapri}>✕</button>
           </div>
           <div className="field" style={{ marginTop: 0 }}>
             <label htmlFor="gsUrl">
@@ -886,7 +887,6 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
         </div>
         </div>
-      )}
     </div>
   );
 }
@@ -1041,6 +1041,9 @@ function App(){
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
+  // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
+  // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
+  const [uvozOdprt, setUvozOdprt] = useState(false);
 
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
@@ -1196,7 +1199,11 @@ function App(){
   return (
     <div className={"wrap" + (view === "ward" ? " wide" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
-      <RazporedLogout/>
+      <RazporedLogout pred={profile && profile.role === "admin" ? (
+        <button type="button" className="rpIconBtn" title="Uvoz iz Google Sheets"
+          aria-label="Uvoz iz Google Sheets" aria-haspopup="dialog" aria-expanded={uvozOdprt}
+          onClick={() => setUvozOdprt(true)}>📥</button>
+      ) : null}/>
       <header className="top">
         <div className="wordmark">
           <img className="logoSmall" src="logo-pbb.png" alt="" />
@@ -1277,6 +1284,8 @@ function App(){
         myId={session.user.id}
         month={month}
         onUvozeno={() => setReloadKey(k => k + 1)}
+        odprto={uvozOdprt}
+        naZapri={() => setUvozOdprt(false)}
       />
 
       {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month} />}

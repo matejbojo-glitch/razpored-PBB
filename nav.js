@@ -146,13 +146,19 @@
   // nastavitve (⚙️, link na nastavitve.html) in odjava (🚪). Ohranjeno ime
   // "RazporedLogout" (klicano na vseh straneh) — zdaj izriše oba gumba
   // skupaj, da ni treba spreminjati vsake strani posebej.
-  function RazporedLogout() {
+  //
+  // props.pred (neobvezno): dodatna ikona, ki jo posamezna stran postavi
+  // PRED nastavitve — npr. uvoz na Razporedu. Namenoma prek propa in ne
+  // trdo zapisano sem: ikona je smiselna samo na eni strani in samo za
+  // administratorja, ta funkcija pa teče na vseh straneh za vse vloge.
+  function RazporedLogout(props) {
     ensureStyle();
     var trenutna = (location.pathname.split("/").pop() || "").toLowerCase();
     var naNastavitvah = trenutna === "nastavitve.html";
     return e(
       "div",
       { className: "rpTopIcons" },
+      (props && props.pred) || null,
       e(
         "a",
         {

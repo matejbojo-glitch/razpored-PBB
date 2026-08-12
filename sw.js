@@ -105,7 +105,11 @@
 // v35: enoten zapis imen "Priimek Ime" — spremenjeni login/imenik/admin/
 // index (naslovi stolpcev, polje ob registraciji, komentar pri parafi).
 
-const CACHE = 'razpored-pbb-v35';
+// v36: uvoz iz Google Sheets se odpre z ikono 📥 v vrstici zgoraj desno
+// (poleg ⚙ in 🚪) namesto z gumbom pod izbirnikom meseca — spremenjena
+// index.html in nav.js (nav.js je cache-first, zato je dvig nujen).
+
+const CACHE = 'razpored-pbb-v36';
 const ASSETS = [
   './',
   './index.html',
