@@ -120,7 +120,11 @@
 // na vsaki strani našteje, kaj je tam mogoče uvoziti. Želje dobijo uvoz
 // iz Google Sheets. Spremenjeni export-buttons.js in strani.
 
-const CACHE = 'razpored-pbb-v38';
+// v39: Želje je mogoče uvoziti s fotografije razpredelnice — bere se
+// BARVA celice (ne besedilo), mrežo določi uporabnik z dotikom štirih
+// vogalov. Spremenjena zelje.html.
+
+const CACHE = 'razpored-pbb-v39';
 const ASSETS = [
   './',
   './index.html',

@@ -384,6 +384,287 @@ function najdiOsebo(vsiLjudje, uvozenoIme){
 
 // Barva celice -> stabilen ključ za preslikavo (ARGB hex; bela/brez polnila
 // se šteje kot "brez odsotnosti ta dan", ne kot barva za preslikavo).
+// ---------------------------------------------------------------------
+// Branje razpredelnice želja s FOTOGRAFIJE
+//
+// V tej razpredelnici je podatek BARVA celice, ne besedilo (rdeča = dopust,
+// rumena = omejitev ...). Prepoznavanje besedila (OCR) bi tu bralo skoraj
+// prazne celice, zato se bere barva — enako kot pri barvnem Excelu iz
+// Kadrisa, le da vir ni datoteka, ampak slika.
+//
+// Mreže NE iščemo samodejno: uporabnik se dotakne štirih vogalov barvnega
+// dela, kar zanesljivo pokrije tudi zamaknjeno ali rahlo zavrteno sliko.
+// Samodejno iskanje črt bi na fotografiji z gubami, senco in odsevom
+// odpovedalo prav takrat, ko bi bilo najbolj potrebno.
+//
+// Imen NE beremo s slike — vsako vrstico admin poveže z osebo iz seznama.
+// Napačno prebrano ime bi odsotnost pripisalo napačni osebi.
+// ---------------------------------------------------------------------
+
+// Bilinearna preslikava enotskega kvadrata na štirikotnik (u,v v 0..1).
+function tockaVMrezi(vogali, u, v) {
+  const [tl, tr, br, bl] = vogali;
+  return {
+    x: (1-u)*(1-v)*tl.x + u*(1-v)*tr.x + u*v*br.x + (1-u)*v*bl.x,
+    y: (1-u)*(1-v)*tl.y + u*(1-v)*tr.y + u*v*br.y + (1-u)*v*bl.y,
+  };
+}
+
+// Mediana po kanalu je odpornejša od povprečja: robovi celic, mrežne črte
+// in besedilo v celici bi povprečje potegnili proti sivi.
+function vzorciBarvo(ctx, cx, cy, r) {
+  const x0 = Math.max(0, Math.round(cx - r)), y0 = Math.max(0, Math.round(cy - r));
+  const w = Math.max(1, Math.round(r * 2)), h = Math.max(1, Math.round(r * 2));
+  const d = ctx.getImageData(x0, y0, w, h).data;
+  const R = [], G = [], B = [];
+  for (let i = 0; i < d.length; i += 4) { R.push(d[i]); G.push(d[i+1]); B.push(d[i+2]); }
+  const med = a => { a.sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+  return { r: med(R), g: med(G), b: med(B) };
+}
+
+// Bela/svetlo siva celica = "ta dan ni odsotnosti". Prag je namenoma blag,
+// ker je fotografija papirja skoraj vedno rahlo rumenkasta ali siva.
+function jePrazna({ r, g, b }) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  return max > 200 && (max - min) < 28;
+}
+
+function vRazdaljo(a, b) {
+  return Math.sqrt((a.r-b.r)**2 + (a.g-b.g)**2 + (a.b-b.b)**2);
+}
+function razdaljaTock(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function hexIzRgb({ r, g, b }) {
+  return "FF" + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, "0").toUpperCase()).join("");
+}
+function rgbIzKljuca(barva) {
+  const hex = barva.length === 8 ? barva.slice(2) : barva;
+  return { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) };
+}
+
+// Fotografija iste rdeče v 30 celicah da 30 rahlo različnih vrednosti. Če
+// bi vsako zaokrožili posebej, bi admin dobil v potrditev desetine "novih
+// barv" namesto štirih. Zato se najprej združijo v skupine (požrešno, po
+// razdalji), šele središče skupine pa gre v preslikavo.
+function zdruziBarve(rgbji, prag) {
+  const skupine = [];
+  const pripadnost = rgbji.map(rgb => {
+    let i = skupine.findIndex(s => vRazdaljo(rgb, s.sredisce) <= prag);
+    if (i === -1) { skupine.push({ sredisce: { ...rgb }, n: 1 }); i = skupine.length - 1; }
+    else {
+      const s = skupine[i];
+      s.sredisce.r = (s.sredisce.r * s.n + rgb.r) / (s.n + 1);
+      s.sredisce.g = (s.sredisce.g * s.n + rgb.g) / (s.n + 1);
+      s.sredisce.b = (s.sredisce.b * s.n + rgb.b) / (s.n + 1);
+      s.n++;
+    }
+    return i;
+  });
+  return { skupine, pripadnost };
+}
+
+// Fotografirana barva nikoli ni natanko enaka shranjeni. Zato se najprej
+// poskusi ujeti na že znano barvo iz absence_color_map (v polmeru PRAG) —
+// brez tega bi admin isto rdečo določal znova ob vsaki fotografiji.
+const PRAG_UJEMANJA = 60;
+function kljucBarve(rgb, barvnaMapa) {
+  let najboljsi = null, najblizje = Infinity;
+  Object.keys(barvnaMapa || {}).forEach(k => {
+    if (k.indexOf("theme:") === 0) return;
+    const d = vRazdaljo(rgb, rgbIzKljuca(k));
+    if (d < najblizje) { najblizje = d; najboljsi = k; }
+  });
+  if (najboljsi && najblizje <= PRAG_UJEMANJA) return najboljsi;
+  // Nova barva: zaokroži, da dve skoraj enaki celici ne dasta dveh ključev.
+  const kv = v => Math.min(255, Math.round(v / 16) * 16);
+  return hexIzRgb({ r: kv(rgb.r), g: kv(rgb.g), b: kv(rgb.b) });
+}
+
+// Modalno okno: slika -> 4 vogali -> stevilo vrstic -> vzorcenje -> imena.
+// Rezultat je ISTA oblika kot pri barvnem Excelu ([{imeRaw, zaznamki}]),
+// zato od tam naprej tece ze obstojeci predogled in potrjevanje barv.
+function FotoUvoz({ odprto, naZapri, leto, mesec, vsiLjudje, barvnaMapa, naVrstice }) {
+  const [slika, setSlika] = React.useState(null);
+  const [vogali, setVogali] = React.useState([]);
+  const [stVrstic, setStVrstic] = React.useState(10);
+  const [prebrano, setPrebrano] = React.useState(null); // [[kljuc|null, ...], ...]
+  const [imena, setImena] = React.useState([]);
+  const [napaka, setNapaka] = React.useState(null);
+  const platnoRef = React.useRef(null);
+  const skritoRef = React.useRef(null);
+  const dni = danovVMesecu(leto, mesec);
+
+  React.useEffect(() => {
+    if (!odprto) { setSlika(null); setVogali([]); setPrebrano(null); setImena([]); setNapaka(null); }
+  }, [odprto]);
+
+  const naloziSliko = (file) => {
+    if (!file) return;
+    setNapaka(null);
+    const img = new Image();
+    img.onload = () => { setSlika(img); setVogali([]); setPrebrano(null); };
+    img.onerror = () => setNapaka("Slike ni bilo mogoče odpreti.");
+    img.src = URL.createObjectURL(file);
+  };
+
+  // Izris slike + oznak vogalov + predvidene mreze.
+  React.useEffect(() => {
+    const c = platnoRef.current;
+    if (!c || !slika) return;
+    const sirina = Math.min(c.parentElement.clientWidth || 340, 340);
+    const merilo = sirina / slika.width;
+    c.width = sirina; c.height = Math.round(slika.height * merilo);
+    const ctx = c.getContext("2d");
+    ctx.drawImage(slika, 0, 0, c.width, c.height);
+    const vD = vogali.map(v => ({ x: v.x * merilo, y: v.y * merilo }));
+    ctx.lineWidth = 2; ctx.strokeStyle = "#B3402A"; ctx.fillStyle = "#B3402A";
+    vD.forEach((v, i) => {
+      ctx.beginPath(); ctx.arc(v.x, v.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(String(i + 1), v.x, v.y + 4); ctx.fillStyle = "#B3402A";
+    });
+    if (vD.length === 4) {
+      ctx.beginPath(); ctx.moveTo(vD[0].x, vD[0].y);
+      vD.slice(1).forEach(v => ctx.lineTo(v.x, v.y)); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = "rgba(179,64,42,.45)"; ctx.lineWidth = 1;
+      for (let i = 1; i < stVrstic; i++) {
+        const a = tockaVMrezi(vD, 0, i / stVrstic), b = tockaVMrezi(vD, 1, i / stVrstic);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      for (let j = 1; j < dni; j++) {
+        const a = tockaVMrezi(vD, j / dni, 0), b = tockaVMrezi(vD, j / dni, 1);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    }
+  }, [slika, vogali, stVrstic, dni]);
+
+  const klikNaPlatno = (ev) => {
+    if (!slika || vogali.length >= 4) return;
+    const c = platnoRef.current, r = c.getBoundingClientRect();
+    const merilo = slika.width / c.width;
+    setVogali(v => [...v, { x: (ev.clientX - r.left) * merilo, y: (ev.clientY - r.top) * merilo }]);
+  };
+
+  const preberi = () => {
+    if (vogali.length !== 4 || !slika) return;
+    setNapaka(null);
+    const c = skritoRef.current;
+    c.width = slika.width; c.height = slika.height;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(slika, 0, 0);
+    // Polmer vzorca: petina manjse stranice celice, da se ne dotakne robov.
+    const sirinaCelice = razdaljaTock(vogali[0], vogali[1]) / dni;
+    const visinaCelice = razdaljaTock(vogali[0], vogali[3]) / stVrstic;
+    const polmer = Math.max(2, Math.min(sirinaCelice, visinaCelice) * 0.2);
+    // 1. prehod: vzorči vse celice.
+    const vzorci = [], mesta = [];
+    for (let i = 0; i < stVrstic; i++) {
+      for (let j = 0; j < dni; j++) {
+        const p = tockaVMrezi(vogali, (j + 0.5) / dni, (i + 0.5) / stVrstic);
+        const rgb = vzorciBarvo(ctx, p.x, p.y, polmer);
+        if (!jePrazna(rgb)) { vzorci.push(rgb); mesta.push([i, j]); }
+      }
+    }
+    // 2. prehod: združi podobne odtenke, šele središča preslikaj v ključe.
+    const { skupine, pripadnost } = zdruziBarve(vzorci, PRAG_UJEMANJA);
+    const kljuci = skupine.map(sk => kljucBarve(sk.sredisce, barvnaMapa));
+    const mreza = Array.from({ length: stVrstic }, () => new Array(dni).fill(null));
+    mesta.forEach(([i, j], k) => { mreza[i][j] = kljuci[pripadnost[k]]; });
+    setPrebrano(mreza);
+    setImena(new Array(stVrstic).fill(""));
+  };
+
+  const potrdi = () => {
+    const vrstice = [];
+    prebrano.forEach((vrsta, i) => {
+      if (!imena[i]) return;
+      const zaznamki = [];
+      vrsta.forEach((barva, j) => { if (barva) zaznamki.push({ dan: j + 1, barva }); });
+      if (zaznamki.length) vrstice.push({ imeRaw: imena[i], zaznamki });
+    });
+    if (!vrstice.length) { setNapaka("Nobena vrstica ni povezana z osebo (ali pa nobena nima barv)."); return; }
+    naVrstice(vrstice);
+    naZapri();
+  };
+
+  if (!odprto) return null;
+  return (
+    <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz s fotografije"
+      onClick={e => { if (e.target === e.currentTarget) naZapri(); }}>
+      <div className="modalOkno">
+        <div className="modalGlava">
+          <h3>📷 Želje s fotografije</h3>
+          <button type="button" className="modalZapri" aria-label="Zapri" onClick={naZapri}>✕</button>
+        </div>
+
+        {!slika && (
+          <div>
+            <label className="submitBtn" style={{display:"block", textAlign:"center", cursor:"pointer"}}>
+              Izberi ali posnemi fotografijo
+              <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                onChange={e => { naloziSliko(e.target.files[0]); e.target.value = ""; }} />
+            </label>
+            <p className="hint">
+              Fotografiraj samo <b>barvni del</b> razpredelnice, čim bolj od zgoraj. Stolpci so dnevi
+              ({MESECI_SL[mesec]} {leto} jih ima {dni}), vrstice so osebe.
+            </p>
+          </div>
+        )}
+
+        {slika && (
+          <div>
+            <canvas ref={platnoRef} onClick={klikNaPlatno}
+              style={{width:"100%", borderRadius:8, border:"1px solid var(--line)", cursor: vogali.length<4 ? "crosshair" : "default"}} />
+            <canvas ref={skritoRef} style={{display:"none"}} />
+            <p className="hint" style={{marginTop:8}}>
+              {vogali.length < 4
+                ? `Dotakni se vogala št. ${vogali.length + 1} barvnega dela — po vrsti: zgoraj levo, zgoraj desno, spodaj desno, spodaj levo.`
+                : `Mreža ${stVrstic} × ${dni}. Če se črte ne ujemajo z razpredelnico, popravi število vrstic ali vogale.`}
+            </p>
+            <div style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
+              <button className="iconBtn" type="button" onClick={() => { setVogali([]); setPrebrano(null); }}>Ponastavi vogale</button>
+              {vogali.length === 4 && (
+                <React.Fragment>
+                  <label className="hint" style={{margin:0}}>Vrstic (oseb):</label>
+                  <button className="iconBtn" type="button" onClick={() => setStVrstic(n => Math.max(1, n-1))}>−</button>
+                  <b>{stVrstic}</b>
+                  <button className="iconBtn" type="button" onClick={() => setStVrstic(n => n+1)}>+</button>
+                  <button className="submitBtn" type="button" style={{flex:"1 1 100%"}} onClick={preberi}>Preberi barve</button>
+                </React.Fragment>
+              )}
+            </div>
+          </div>
+        )}
+
+        {prebrano && (
+          <div style={{marginTop:12, borderTop:"1px solid var(--line)", paddingTop:12}}>
+            <p className="hint" style={{marginTop:0}}>
+              Vsaki vrstici določi osebo. Vrstice brez osebe se ne uvozijo.
+            </p>
+            {prebrano.map((vrsta, i) => (
+              <div key={i} style={{display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap"}}>
+                <div style={{display:"flex", gap:1, flex:"1 1 100%"}}>
+                  {vrsta.map((b, j) => (
+                    <span key={j} title={"dan " + (j+1)} style={{flex:1, height:14, borderRadius:2,
+                      background: b ? barvaCSS(b) : "var(--surface-2)", border:"1px solid var(--line)"}} />
+                  ))}
+                </div>
+                <select value={imena[i]} style={{flex:"1 1 auto"}}
+                  onChange={e => setImena(a => { const n = a.slice(); n[i] = e.target.value; return n; })}>
+                  <option value="">— vrstica {i+1}: izberi osebo —</option>
+                  {vsiLjudje.map(o => <option key={o.ime} value={o.ime}>{o.ime}</option>)}
+                </select>
+              </div>
+            ))}
+            <button className="submitBtn" type="button" onClick={potrdi}>Naprej na predogled</button>
+          </div>
+        )}
+
+        {napaka && <p className="err" style={{marginTop:8}}>{napaka}</p>}
+      </div>
+    </div>
+  );
+}
+
 function barvaKljuc(fill){
   if (!fill || fill.type !== "pattern" || fill.pattern === "none") return null;
   const c = fill.fgColor;
@@ -682,6 +963,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   const [barvniBusy, setBarvniBusy] = useState(false);
   const [barvniMsg, setBarvniMsg] = useState(null);
   const [barvniPredogled, setBarvniPredogled] = useState(null);
+  const [fotoOdprt, setFotoOdprt] = useState(false);
   const [izbireBarv, setIzbireBarv] = useState({});
 
   const rokPretekel = useMemo(() => {
@@ -839,6 +1121,23 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     }
   };
 
+  // Fotografija se steka v ISTI predogled kot barvni Excel — od tod naprej
+  // je pot enaka (nove barve, ujemanje oseb, potrditev).
+  const vrsticeIzFoto = (vrstice) => {
+    const barveVSliki = new Set();
+    vrstice.forEach(v => v.zaznamki.forEach(z => barveVSliki.add(z.barva)));
+    const barveNove = [...barveVSliki].filter(b => !barvnaMapa[b]);
+    const neujemanja = [];
+    let steviloUjemanj = 0;
+    vrstice.forEach(v => { if (najdiOsebo(vsiLjudje, v.imeRaw)) steviloUjemanj++; else neujemanja.push(v.imeRaw); });
+    setBarvniPredogled({
+      vrstice, leto: view.year, mesec: view.month,
+      barveNove, neujemanja, steviloOseb: vrstice.length, steviloUjemanj,
+    });
+    setIzbireBarv({});
+    setBarvniMsg(`Prebranih ${vrstice.length} vrstic s fotografije — preveri predogled spodaj pred potrditvijo.`);
+  };
+
   const potrdiBarvniUvoz = async () => {
     if (!barvniPredogled) return;
     const { vrstice, leto, mesec, barveNove, neujemanja } = barvniPredogled;
@@ -957,6 +1256,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
           <RazporedUvozVir ikona="📄" naziv="Želje iz datoteke"
             opis="CSV / Excel / JSON — ime, dopust, omejitve"
             onClick={() => uvozRef.current && uvozRef.current.click()} />
+          <RazporedUvozVir ikona="📷" naziv="Želje s fotografije"
+            opis={barvnaMapa ? `barve celic — v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
+            onemogocen={!barvnaMapa}
+            onClick={() => setFotoOdprt(true)} />
           <RazporedUvozVir ikona="📅" naziv="Barvni koledar (Kadris)"
             opis={barvnaMapa ? `Excel — barva celice je vrsta odsotnosti; uvozi v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
             onemogocen={!barvnaMapa}
@@ -973,6 +1276,15 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
           {uvozMsg && <p className="hint" style={{margin:0}}>{uvozMsg}</p>}
         </div>
       )}
+      <FotoUvoz
+        odprto={fotoOdprt}
+        naZapri={() => setFotoOdprt(false)}
+        leto={view.year}
+        mesec={view.month}
+        vsiLjudje={vsiLjudje}
+        barvnaMapa={barvnaMapa}
+        naVrstice={vrsticeIzFoto}
+      />
       {jeAdmin && (
         <div className="card no-print" style={{marginBottom:10}}>
           <input ref={barvniRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
