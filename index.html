@@ -98,6 +98,7 @@
 <script src="babel.min.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
+<script src="push-client.js"></script>
 <script src="nav.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -160,7 +161,8 @@ DELOVNI_ČAS["KPU"] = "koriščenje prostih ur";
 DELOVNI_ČAS["LD"] = "letni dopust";
 
 function classify(sifra){
-  const t = (sifra || "").toLowerCase();
+  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
+  const t = (sifra || "").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
   if (t.startsWith("ld")) return "ld"; // letni dopust - lastna (zelena) barva, ločeno od KPU/prostega (sivo)
   if (t.startsWith("kpu")) return "off";
@@ -896,6 +898,135 @@ function InfoToggle({ children }){
   );
 }
 
+// ---------------------------------------------------------------------
+// Uvodni nagovor ob prvih odprtjih: namestitev na domači zaslon in vklop
+// obvestil.
+//
+// Zakaj sploh: potisna obvestila na iPhonu delujejo IZKLJUČNO, če je
+// aplikacija dodana na domači zaslon in odprta od tam. Safari dogodka
+// "beforeinstallprompt" nikoli ne sproži, zato uporabnik iPhona brez tega
+// ne dobi nobenega namiga — obvestil preprosto ne bo, brez napake in brez
+// pojasnila. Ob uvedbi za celotno ekipo bi to pomenilo, da bi velik del
+// mislil, da obveščanje ne dela, čeprav dela.
+//
+// Kartica se pokaže SAMO, kadar je še kaj za storiti, in jo je mogoče
+// zapreti; zaprtje si zapomnimo. Kdor je vse uredil, je nikoli ne vidi.
+// ---------------------------------------------------------------------
+const UVOD_ZAPRT = "razpored-uvod-zaprt";
+
+function jeIOS(){
+  // iPad z novejšim iPadOS se predstavlja kot Mac, zato še preverba na dotik.
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+function jeSamostojna(){
+  return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+    || navigator.standalone === true;
+}
+
+function Uvod({ myId, deferredPrompt, naNamesti }){
+  const [zaprt, setZaprt] = useState(() => {
+    try { return localStorage.getItem(UVOD_ZAPRT) === "1"; } catch (e) { return false; }
+  });
+  const [pushStanje, setPushStanje] = useState(null); // null = še preverjam
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  useEffect(() => {
+    if (window.RazporedPush) RazporedPush.stanje().then(setPushStanje);
+    else setPushStanje("nepodprto");
+  }, []);
+
+  const zapri = () => {
+    setZaprt(true);
+    try { localStorage.setItem(UVOD_ZAPRT, "1"); } catch (e) { /* zasebni način */ }
+  };
+
+  const vklopiObvestila = async () => {
+    setBusy(true); setNapaka(null);
+    try {
+      await RazporedPush.vklopi(myId);
+      setPushStanje("vklopljeno");
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally { setBusy(false); }
+  };
+
+  if (zaprt || pushStanje === null) return null;
+
+  const samostojna = jeSamostojna();
+  const ios = jeIOS();
+  // Na iPhonu je namestitev POGOJ za obvestila, zato dokler ni nameščena,
+  // gumba za obvestila sploh ne ponujamo - vodil bi v tiho napako.
+  const kaziNamestitev = !samostojna && (ios || !!deferredPrompt);
+  const kaziObvestila = pushStanje === "izklopljeno" && (!ios || samostojna);
+  const kaziBlokirano = pushStanje === "zavrnjeno";
+
+  if (!kaziNamestitev && !kaziObvestila && !kaziBlokirano) return null;
+
+  return (
+    <div className="uvodKarta no-print">
+      <button className="uvodZapri" onClick={zapri} aria-label="Zapri">×</button>
+      <div className="uvodNaslov">Da ti razpored pride na telefon</div>
+
+      {kaziNamestitev && (
+        <div className="uvodKorak">
+          <div className="uvodStevilka">1</div>
+          <div>
+            <b>Dodaj na domači zaslon</b>
+            {ios ? (
+              <div className="uvodOpis">
+                V Safariju pritisni <b>Deli</b> (kvadratek s puščico navzgor) → <b>Dodaj na začetni zaslon</b> →
+                <b> Dodaj</b>. Nato aplikacijo odpri s te ikone.
+                <div style={{marginTop:4}}>Na iPhonu je to <b>nujno</b> — brez tega obvestila ne delujejo.</div>
+              </div>
+            ) : (
+              <div className="uvodOpis">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
+            )}
+            {!ios && deferredPrompt && (
+              <button className="uvodGumb" onClick={naNamesti}>Namesti</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {kaziObvestila && (
+        <div className="uvodKorak">
+          <div className="uvodStevilka">{kaziNamestitev ? 2 : 1}</div>
+          <div>
+            <b>Vklopi obvestila</b>
+            <div className="uvodOpis">
+              Obvestilo dobiš ob objavi novega razporeda, ob premiku tvoje menjave in kot opomnik dan pred
+              nočno izmeno ali dežurstvom. Velja za to napravo.
+            </div>
+            <button className="uvodGumb" onClick={vklopiObvestila} disabled={busy}>
+              {busy ? "Trenutek …" : "🔔 Vklopi obvestila"}
+            </button>
+            {napaka && <div className="uvodOpis" style={{color:"var(--danger)"}}>{napaka}</div>}
+          </div>
+        </div>
+      )}
+
+      {kaziBlokirano && (
+        <div className="uvodKorak">
+          <div className="uvodStevilka">!</div>
+          <div>
+            <b>Obvestila so blokirana</b>
+            <div className="uvodOpis">
+              Brskalnik jih je za to stran zavrnil. Odblokiraj jih prek ikone ključavnice ob naslovu strani,
+              nato osveži.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="uvodOpis" style={{marginTop:10}}>
+        Kadar koli pozneje: <b>Nastavitve → Obvestila</b>.
+      </div>
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null); // { session, profile }
   const [depts, setDepts] = useState([]);
@@ -904,7 +1035,6 @@ function App(){
   const [wardCode, setWardCode] = useState(null);
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showInstall, setShowInstall] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
 
   useEffect(() => {
@@ -935,7 +1065,7 @@ function App(){
     if ("serviceWorker" in navigator){
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
-    const onPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowInstall(true); };
+    const onPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener("beforeinstallprompt", onPrompt);
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
@@ -945,7 +1075,6 @@ function App(){
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
-    setShowInstall(false);
   };
 
   // Excel/Google Sheets izvoz — kliče ga kompaktni ikonski meni ob polju
@@ -1153,15 +1282,7 @@ function App(){
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
 
-      {showInstall && (
-        <div className="installBar no-print">
-          <div>
-            <div className="t">Namesti na domači zaslon</div>
-            <div className="s">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={install}>Namesti</button>
-        </div>
-      )}
+      <Uvod myId={session.user.id} deferredPrompt={deferredPrompt} naNamesti={install} />
 
       <footer className="foot">
         <p><b>Razpored PBB</b> — prijavljen dostop. Za spremembe ali zamenjave uporabi "Menjava" spodaj.</p>

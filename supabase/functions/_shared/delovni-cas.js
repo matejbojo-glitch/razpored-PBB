@@ -26,14 +26,16 @@
     "NOČNA od 19":      { zacetek: "18:50", konec: "06:00", ure: 11 + 10/60, nocna: true },
     "NOČNA od 19h":     { zacetek: "18:50", konec: "06:00", ure: 11 + 10/60, nocna: true },
     "NOČNA12":          { zacetek: "17:50", konec: "06:00", ure: 12 + 10/60, nocna: true },
-    // DNEVNA12: ohranjene TOČNO obstoječe vrednosti iz aplikacije
-    // (05:50-18:00, obračun 12 h). Ura se ujema z vzorcem 10-minutne
-    // predaje kot pri vseh ostalih izmenah (18:00 -> NOČNA12 ob 17:50),
-    // uradna legenda pa na enem mestu navaja "Dnevna 12: 07:00-19:00".
-    // Razlike NAMENOMA ne popravljam sam - gre za dejanski delovni čas,
-    // ki ga mora potrditi kadrovska. Opomba: 05:50-18:00 je 12 h 10 min,
-    // obračun pa uporablja 12 h (tako je bilo tudi doslej).
-    "DNEVNA12":         { zacetek: "05:50", konec: "18:00", ure: 12,         nocna: false },
+    // Dnevni 12-urni izmeni sta DVE in nista izmenljivi:
+    //   DNEVNA12  05:50-18:00 - oddelčna (10-minutna predaja kot pri vseh
+    //             ostalih izmenah: ob 18:00 prevzame NOČNA12 ob 17:50),
+    //             zato dejansko traja 12 h 10 min.
+    //   DNEVNA12F 07:00-19:00 - flexi ("F"), točno 12 h, brez predaje.
+    // Doslej je obstajala samo prva, obračunana na 12 h namesto 12 h 10 min;
+    // uradna legenda pa je pod enim samim imenom "Dnevna 12" navajala ure
+    // druge (07:00-19:00). Od tod dolgotrajno neujemanje 12,00 : 12,17.
+    "DNEVNA12":         { zacetek: "05:50", konec: "18:00", ure: 12 + 10/60, nocna: false },
+    "DNEVNA12F":        { zacetek: "07:00", konec: "19:00", ure: 12,         nocna: false },
     // Dežurstvo: med tednom 15:30-07:00, ob vikendih/praznikih 24 h
     // (07:00-07:00). Tu je zapisana samo delavniška varianta in BREZ ur -
     // vikend varianta bi zahtevala logiko po dnevu v tednu, ki je
@@ -66,14 +68,27 @@
     NAGLA_OKVARA_SREDSTEV: "Nagla okvara delovnih sredstev",
   };
 
+  // Razpored se uvaža iz Google Sheets, kjer isto izmeno kdo zapiše
+  // "DNEVNA12F", kdo "DNEVNA 12 F" in kdo z malimi črkami. Iskanje zato
+  // teče po ključu brez presledkov in v malih črkah — sicer bi se
+  // neujemajoč zapis tiho obravnaval kot "ni izmena" in bi izpadel iz
+  // obračuna ur in iz preverjanja počitka.
+  function kljuc(s) { return (s || "").toLowerCase().replace(/\s+/g, ""); }
+
+  var INDEKS = {};
+  Object.keys(IZMENE).forEach(function (k) { INDEKS[kljuc(k)] = k; });
+  var NI_DELO_INDEKS = {};
+  NI_DELO.forEach(function (k) { NI_DELO_INDEKS[kljuc(k)] = true; });
+
   function jeDelo(sifra) {
-    var s = (sifra || "").trim();
-    if (NI_DELO.indexOf(s) !== -1) return false;
-    return !!IZMENE[s];
+    var k = kljuc(sifra);
+    if (NI_DELO_INDEKS[k]) return false;
+    return !!INDEKS[k];
   }
 
   function podatkiIzmene(sifra) {
-    return IZMENE[(sifra || "").trim()] || null;
+    var kanonicna = INDEKS[kljuc(sifra)];
+    return kanonicna ? IZMENE[kanonicna] : null;
   }
 
   // "HH:MM" -> minute od polnoči
@@ -224,6 +239,7 @@
   root.DelovniCas = {
     IZMENE: IZMENE,
     NI_DELO: NI_DELO,
+    kljuc: kljuc,
     PRIVZETA_PRAVILA: PRIVZETA_PRAVILA,
     RAZLOGI_IZJEME: RAZLOGI_IZJEME,
     jeDelo: jeDelo,

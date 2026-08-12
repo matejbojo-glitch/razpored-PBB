@@ -25,6 +25,10 @@
   .wrap{ max-width: 640px; margin:0 auto; padding: 0 16px 60px; }
   :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
 
+  /* Ozadje mora biti NEPROSOJNO. Prej je bilo linear-gradient(... , transparent),
+     zato je vsebina, ki je pri drsenju zašla pod spodnjih 22 % glave, prosvetila
+     skozi njeno lastno besedilo (ime prijavljenega se je prekrivalo z besedilom
+     strani). Mehak prehod je zdaj ločen element POD glavo. */
   header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 78%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
   .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -54,7 +58,13 @@
   .pill.user{ background: var(--ok-bg); color: var(--ok); }
   .pill.pending{ background: var(--surface-2); color: var(--muted); }
 
-  .person{ display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line); }
+  /* width/box-sizing sta nujna, ne okrasna: vrstice seznama so <button>,
+     ta pa se privzeto oži po vsebini (width:auto = shrink-to-fit) tudi kot
+     display:flex. Brez tega je bila vsaka vrstica druge širine — desni
+     robovi so se lomili v "stopnice", ker je širina sledila dolžini imena
+     in števila oddelkov. */
+  .person{ display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);
+    width:100%; box-sizing:border-box; }
   .person:last-child{ border-bottom:0; }
   .person .av{ width:36px; height:36px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
     display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--accent-2); flex:0 0 auto; }
@@ -120,6 +130,17 @@ const { client } = RazporedAuth;
 // več za NOVO dodeljevanje — obstoječi profili s staro kodo ostanejo
 // nedotaknjeni, dokler jih admin ročno ne popravi spodaj.
 const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+
+// "DEZ" ni oddelek, ampak ČLANSTVO v dežurnem krogu — nosi ga lahko kdor
+// koli poleg svojega domačega oddelka. Zato ga zgornji seznam namenoma ne
+// vsebuje, dodeljiv pa mora ostati: admin.html (Dežurstva) bere članstvo
+// prav iz njega, in ko je bil izbirnik omejen na 8 kod, dežurnega kadra ni
+// bilo več mogoče nikjer dodati — na seznamu so ostali samo tisti, ki so
+// kodo nosili od prej. NZV ga ne more nadomestiti: NZV so vsi vodje in
+// administratorji, dežurstvo pa jih opravlja le del.
+const CLANSTVO_ODDELKI = ["DEZ"];
+const VSI_DODELJIVI = [...RAZPORED_ODDELKI, ...CLANSTVO_ODDELKI];
+const jeClanstvo = (code) => CLANSTVO_ODDELKI.includes(code);
 
 // Napredkovna vrstica za dopust: preostanek glede na letno kvoto.
 // Barva je pomenska, ne okrasna - malo preostanka je rdeče (nevarnost
@@ -338,7 +359,10 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     if (!novOddelek || oddelkiOsebe.includes(novOddelek)) return;
     setOddBusy(true); setOddMsg(null);
     try {
-      if (!primarni) {
+      // Članstvo (DEZ) ne sme postati primarni oddelek niti takrat, ko
+      // oseba še nima nobenega — primarni poganja generator kalupa in
+      // "Enota" v Dežurstvih, dežurstvo pa ni domači oddelek nikogar.
+      if (!primarni && !jeClanstvo(novOddelek)) {
         const { error } = await client.from("profiles").update({ department_code: novOddelek }).eq("id", oseba.id);
         if (error) throw error;
         setPrimarni(novOddelek);
@@ -661,11 +685,16 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
 
           <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator razporeda</h2>
           <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              »Dežurni kader (DMS/DZN)« ni domači oddelek, ampak članstvo v dežurnem krogu — dodajte ga
+              <b> poleg</b> domačega oddelka. Šele s tem se oseba pojavi v Generator → Dežurstva. Vsi vodje
+              (NZV) niso dežurni; dežurstvo opravlja le del njih.
+            </p>
             {oddelkiOsebe.length === 0 && <p className="empty">Ni dodanih oddelkov.</p>}
             {oddelkiOsebe.map((k, i) => (
               <div className="rowline" key={k}>
                 <div className="val">{i === 0 && "★ "}{(oddelki.find(o => o.code === k) || {}).name || k}</div>
-                {i > 0 && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
+                {i > 0 && !jeClanstvo(k) && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
                 <button className="iconBtn" disabled={oddBusy} onClick={() => odstraniOddelek(k)}>Odstrani</button>
               </div>
             ))}
@@ -1384,7 +1413,7 @@ function App(){
           dept_codes: (o.profile_departments || []).slice().sort((a, b) => a.sort_order - b.sort_order).map(d => d.department_code),
         })));
       });
-    client.from("departments").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
+    client.from("departments").select("code, name").in("code", VSI_DODELJIVI).order("code")
       .then(({ data }) => setOddelki(data || []));
     client.from("contact_imports_public").select("*").is("linked_profile_id", null).order("full_name")
       .then(({ data }) => {

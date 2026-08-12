@@ -351,6 +351,21 @@ const DEZURNI_OSNOVA_DO_31_8_2026 = {
   "TRPIN SAŠA": { stevilo:8, zadnje:"2026-08-27" },
 };
 
+// Zgornji slovar je ključen po "PRIIMEK IME" z velikimi črkami (tako je
+// zapisan uradni seznam dežurstev). profiles.full_name pa je lahko zapisan
+// drugače — "Dino Alukić" namesto "ALUKIĆ DINO". Iskanje po točnem ključu
+// bi v takem primeru tiho vrnilo nič in osebi ponastavilo zgodovino na 0
+// dežurstev; generator pravičnosti bi ji nato naložil preveč dežurstev,
+// pri čemer bi bil zaslon videti povsem normalen. Zato se išče po vreči
+// besed v velikih črkah — isto pravilo kot imenaSeUjemataAdmin, le
+// predračunano v slovar, ker tu iščemo in ne primerjamo dveh imen.
+function kljucImena(s){
+  return (s || "").trim().toUpperCase().replace(/\s+/g, " ").split(" ").sort().join(" ");
+}
+const DEZURNI_OSNOVA_PO_KLJUCU = Object.fromEntries(
+  Object.entries(DEZURNI_OSNOVA_DO_31_8_2026).map(([ime, v]) => [kljucImena(ime), v])
+);
+
 // Vrne polni začetni roster za DezurstvaTab: članstvo iz profiles (primarni
 // department_code ali profile_departments "DEZ" — nekdo je lahko hkrati na
 // svojem oddelku IN v dežurnem kadru), stevilo/zadnje = zaprta osnova do
@@ -373,7 +388,7 @@ async function nalozizDezurniKader(startISO){
   });
   return dezurni.map(p => {
     const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
-    const osnova = DEZURNI_OSNOVA_DO_31_8_2026[p.full_name] || { stevilo:0, zadnje:null };
+    const osnova = DEZURNI_OSNOVA_PO_KLJUCU[kljucImena(p.full_name)] || { stevilo:0, zadnje:null };
     const ziv = odZivih[p.id] || { stevilo:0, zadnje:null };
     return {
       ime: p.full_name, enota: p.department_code || "?",
@@ -389,7 +404,8 @@ async function nalozizDezurniKader(startISO){
 }
 
 function classify(sifra){
-  const t=(sifra||"").toLowerCase();
+  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
+  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("ld")) return "off";
   if (t.startsWith("kpu")) return "off";
   if (t.includes("nočna12")) return "h12";
@@ -403,11 +419,11 @@ const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:
 
 // Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" — tu ju
-// razdelimo, ker dnevna12 (SO/NE, 07-19) šteje k DOPOLDNE pokritosti,
-// nočna12 pa k PONOCI.
+// razdelimo, ker dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
+// 07:00-19:00) pokrivata dan in štejeta k DOPOLDNE, nočna12 pa k PONOCI.
 function shiftBucket(sifra){
-  const t=(sifra||"").toLowerCase();
-  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomoč drugje" || !t) return null;
+  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
+  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomočdrugje" || !t) return null;
   if (t.includes("nočna12")) return "PONOCI";
   if (t.includes("dnevna12")) return "DOPOLDNE";
   if (t.startsWith("nočna")) return "PONOCI";
@@ -1230,6 +1246,32 @@ function KalupTab(){
 // skupno število dežurstev vidno samo znotraj rezultata generiranja
 // ("4 · Pravičnost — novo stanje" spodaj), ne pa kadarkoli, brez generiranja.
 // Uporabi isti roster.stevilo, ki ga nalozizDezurniKader že računa živo.
+// Dežurni krog šteje 14 ljudi (zaprta zgodovina jan.-avg. 2026). Če jih
+// je na seznamu manj, je vzrok vedno isti: manjka jim članstvo "DEZ" v
+// Imeniku. Brez tega opozorila je to tiha napaka — generator pravičnosti
+// in razporeda bi delal videti pravilno, le nad premajhnim krogom, zato
+// bi prisotni dobili preveč dežurstev.
+function ManjkajociDezurni({ roster }){
+  // Prav tako po vreči besed, ne po točnem zapisu — sicer bi vsak, ki je v
+  // Imeniku zapisan kot "Ime Priimek", padel med "manjkajoče".
+  const naSeznamu = new Set((roster || []).map(r => kljucImena(r.ime)));
+  const manjkajo = Object.keys(DEZURNI_OSNOVA_DO_31_8_2026).filter(ime => !naSeznamu.has(kljucImena(ime)));
+  if (!manjkajo.length) return null;
+  return (
+    <div className="card no-print" style={{marginBottom:12, borderLeft:"4px solid #C9713F"}}>
+      <p style={{marginTop:0, fontWeight:600}}>
+        ⚠ Na seznamu je {(roster || []).length} od 14 dežurnih — manjka {manjkajo.length}
+      </p>
+      <p className="hint" style={{marginTop:0}}>{manjkajo.join(" · ")}</p>
+      <p className="hint" style={{marginBottom:0}}>
+        Tem osebam v <b>Imeniku</b> med oddelke dodajte še »Dežurni kader (DMS/DZN)« — <b>poleg</b> domačega
+        oddelka, ne namesto njega. Za vseh 14 naenkrat poženite <code>supabase/dezurni-kader.sql</code>.
+        Dokler manjkajo, generator razdeli dežurstva samo med prisotne in jim jih naloži preveč.
+      </p>
+    </div>
+  );
+}
+
 function PravicnostPregled({ roster }){
   const povprecje = roster.length ? roster.reduce((s, z) => s + (Number(z.stevilo) || 0), 0) / roster.length : 0;
   const maxStevilo = Math.max(1, ...roster.map(z => Number(z.stevilo) || 0));
@@ -1424,6 +1466,7 @@ function DezurstvaTab(){
       <p className="hint no-print">Članstvo (kdo je dežurni kader) pride živo iz Imenika (oddelek "DEZ"). Število in datum zadnjega dežurstva se izračunata samodejno: zaprta zgodovina do 31. 8. 2026 + vse, kar je od takrat objavljeno v Supabase — po potrebi ju spodaj ročno popravite samo za to generiranje. Dopust/omejitve pridejo iz razpredelnice Želje in se ob spremembi meseca počistijo (znova jih uvozite ali osvežite spodaj). "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni nastavljen v Imeniku. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek — sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" in "Prost dan"/"Samo med tednom" so privzeto iz Imenika (HR podatki), tu jih lahko za to generiranje spremenite.</p>
       {!roster ? <p className="hint no-print">Nalagam dežurni kader …</p> : (
       <React.Fragment>
+      <ManjkajociDezurni roster={roster} />
       <PravicnostPregled roster={roster} />
       <div className="card no-print" style={{marginBottom:12}}>
         <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
