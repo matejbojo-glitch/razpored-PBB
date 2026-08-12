@@ -1196,14 +1196,58 @@ function App(){
   // pisanje (generiranje, objava) in odobritve ostajajo nespremenjene - te
   // še naprej ločuje vloga, tako v vmesniku kot v RLS politikah.
 
+  // Izvoz je ikona v isti fiksni vrstici kot uvoz/nastavitve/odjava, zato
+  // je element definiran tu in podan navzdol — prej je stal v vrstici z
+  // izbirnikom meseca in ji jemal širino.
+  const izvozniGumb = (
+        <RazporedIzvoz
+          compact
+          naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
+          pripravi={pripraviIzvoz}
+          pdf={{
+            label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
+            onClick: () => {
+              const el = view === "ward" ? document.querySelector(".wardPrintArea") : document.getElementById("printMy");
+              // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
+              // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
+              // "afterprint", da se živ zaslon nikoli ne spremeni.
+              if (view === "my" && el) {
+                el.classList.add("pdfCols");
+                const pocistiPoTiskanju = () => {
+                  el.classList.remove("pdfCols");
+                  window.removeEventListener("afterprint", pocistiPoTiskanju);
+                };
+                window.addEventListener("afterprint", pocistiPoTiskanju);
+              }
+              PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
+            },
+          }}
+          ical={view === "my" ? {
+            onClick: async () => {
+              const { startISO, endISO } = monthRange(month);
+              const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+                .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
+              const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
+              const dnevi = daysInRange(startISO, endISO);
+              prenesiICS(ustvariICS(dnevi, byDate), "moj-razpored-" + month + ".ics");
+            },
+          } : undefined}
+        />
+  );
+
   return (
     <div className={"wrap" + (view === "ward" ? " wide" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
-      <RazporedLogout pred={profile && profile.role === "admin" ? (
-        <button type="button" className="rpIconBtn" title="Uvoz iz Google Sheets"
-          aria-label="Uvoz iz Google Sheets" aria-haspopup="dialog" aria-expanded={uvozOdprt}
-          onClick={() => setUvozOdprt(true)}>📥</button>
-      ) : null}/>
+      <RazporedLogout pred={
+        <React.Fragment>
+          {profile && profile.role === "admin" && (
+            <button type="button" className="rpIconBtn" title="Uvoz iz Google Sheets"
+              aria-label="Uvoz iz Google Sheets" aria-haspopup="dialog" aria-expanded={uvozOdprt}
+              onClick={() => setUvozOdprt(true)}>📥</button>
+          )}
+          {izvozniGumb}
+        </React.Fragment>
+      }/>
       <header className="top">
         <div className="wordmark">
           <img className="logoSmall" src="logo-pbb.png" alt="" />
@@ -1241,39 +1285,6 @@ function App(){
               style={{flex:"0 0 auto", minWidth:0}}>
               {Array.from({length:5}, (_, i) => new Date().getFullYear() - 1 + i).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <RazporedIzvoz
-              compact
-              naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
-              pripravi={pripraviIzvoz}
-              pdf={{
-                label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
-                onClick: () => {
-                  const el = view === "ward" ? document.querySelector(".wardPrintArea") : document.getElementById("printMy");
-                  // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
-                  // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
-                  // "afterprint", da se živ zaslon nikoli ne spremeni.
-                  if (view === "my" && el) {
-                    el.classList.add("pdfCols");
-                    const pocistiPoTiskanju = () => {
-                      el.classList.remove("pdfCols");
-                      window.removeEventListener("afterprint", pocistiPoTiskanju);
-                    };
-                    window.addEventListener("afterprint", pocistiPoTiskanju);
-                  }
-                  PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
-                },
-              }}
-              ical={view === "my" ? {
-                onClick: async () => {
-                  const { startISO, endISO } = monthRange(month);
-                  const { data } = await client.from("schedule_entries").select("work_date, shift_code")
-                    .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
-                  const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
-                  const dnevi = daysInRange(startISO, endISO);
-                  prenesiICS(ustvariICS(dnevi, byDate), "moj-razpored-" + month + ".ics");
-                },
-              } : undefined}
-            />
           </div>
         </div>
       </header>

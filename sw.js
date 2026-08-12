@@ -105,9 +105,10 @@
 // v35: enoten zapis imen "Priimek Ime" — spremenjeni login/imenik/admin/
 // index (naslovi stolpcev, polje ob registraciji, komentar pri parafi).
 
-// v36: uvoz iz Google Sheets se odpre z ikono 📥 v vrstici zgoraj desno
-// (poleg ⚙ in 🚪) namesto z gumbom pod izbirnikom meseca — spremenjena
-// index.html in nav.js (nav.js je cache-first, zato je dvig nujen).
+// v36: uvoz (📥) in izvoz (⬇) na Razporedu sta se preselila v vrstico
+// ikon zgoraj desno (poleg ⚙ in 🚪) — prej sta zasedala vrstico pod
+// izbirnikom meseca. Spremenjeni index.html in nav.js (nav.js je
+// cache-first, zato je dvig verzije nujen).
 
 const CACHE = 'razpored-pbb-v36';
 const ASSETS = [

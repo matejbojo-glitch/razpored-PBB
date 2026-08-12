@@ -70,6 +70,12 @@
       ".rpIconBtn:active{ transform:translateY(0) scale(.94); box-shadow:0 1px 4px rgba(43,39,18,0.12); }" +
       ".rpIconBtn.logout:hover{ background:#FBEAE6; color:#B3402A; border-color:#F0C9BE; }" +
       ".rpIconBtn.settings.active{ background:#F2EEDF; color:#2B2712; border-color:#A79448; }" +
+      // Izvozni gumb (export-buttons.js, "compact") je lahko postavljen v to
+      // vrstico prek "pred" — ima svojo obliko, zato tu dobi enak videz kot
+      // sosedi, sicer bi izstopal z drugim ozadjem in brez sence.
+      ".rpTopIcons .dlIconBtn{ background:rgba(255,255,255,0.96); border-color:#E1D9C2; color:#6E5F2A;" +
+      " box-shadow:0 2px 8px rgba(43,39,18,0.10); }" +
+      ".rpTopIcons .dlIconBtn:hover{ background:#F2EEDF; }" +
       "@media print{ .rpTopIcons{ display:none !important; } }" +
       ".rpOgledTrak{ position:fixed; top:0; left:0; right:0; z-index:100; background:#B3402A; color:#fff;" +
       " display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;" +
