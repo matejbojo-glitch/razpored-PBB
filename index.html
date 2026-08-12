@@ -142,6 +142,11 @@ function priimekZacetnica(fullName){
 // "BOJ", "DŽA" ipd.) - uporabi ročno nastavljeno profiles.parafa (Imenik),
 // sicer groba samodejna privzeta vrednost (prve 3 črke priimka), ki jo
 // admin lahko ročno popravi, če se dve osebi ujemata.
+// PREDPOSTAVKA: full_name je zapisan kot "Priimek Ime" (tako je povsod v
+// aplikaciji), zato je priimek VSE RAZEN zadnje besede — s tem so zajeti
+// tudi dvobesedni priimki ("Mavri Tratnik Magdalena" -> "MAV"). Dokler so
+// bili nekateri zapisani obratno, je ta funkcija zanje vračala prve tri
+// črke OSEBNEGA imena ("Aldin Gazibara" -> "ALD" namesto "GAZ").
 function autoParafa(fullName){
   const deli = (fullName || "").trim().split(/\s+/);
   const priimek = deli.length > 1 ? deli.slice(0, -1).join("") : (deli[0] || "");

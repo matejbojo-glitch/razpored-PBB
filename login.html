@@ -105,7 +105,7 @@ function App(){
         if (error) throw error;
         location.replace(nextPage());
       } else {
-        if (!fullName.trim()) throw new Error("Vnesi ime in priimek (enako kot v razporedu).");
+        if (!fullName.trim()) throw new Error("Vnesi priimek in ime (enako kot v razporedu, npr. Rozman Anka).");
         const { data, error } = await client.auth.signUp({
           email, password, options: { data: { full_name: fullName.trim() } },
         });
@@ -147,8 +147,12 @@ function App(){
         <form onSubmit={submit}>
           {mode==="signup" && (
             <div className="field">
-              <label htmlFor="fn">Ime in priimek</label>
-              <input id="fn" type="text" required placeholder="npr. ROZMAN A." value={fullName} onChange={e => setFullName(e.target.value)} />
+              {/* Vrstni red je pomemben, ne kozmetičen: cela aplikacija
+                  zapisuje "Priimek Ime" (imenik se po tem razvršča, parafa
+                  za razpored se vzame iz prvega dela). Prej je polje vabilo
+                  k "Ime in priimek" — od tod mešanica obeh zapisov. */}
+              <label htmlFor="fn">Priimek in ime</label>
+              <input id="fn" type="text" required placeholder="npr. Rozman Anka" value={fullName} onChange={e => setFullName(e.target.value)} />
             </div>
           )}
           {mode !== "set-password" && (
