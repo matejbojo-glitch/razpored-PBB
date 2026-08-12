@@ -110,7 +110,13 @@
 // izbirnikom meseca. Spremenjeni index.html in nav.js (nav.js je
 // cache-first, zato je dvig verzije nujen).
 
-const CACHE = 'razpored-pbb-v36';
+// v37: izvoz je na VSEH straneh v vrstici ikon zgoraj desno (register
+// izvoznih virov v export-buttons.js), uvoz zna prebrati še .json/.jsonl/
+// .gsheet in pri slikah/Wordu pove, zakaj ne gre. Spremenjeni
+// export-buttons.js, import-utils.js, nav.js in vse strani —
+// prvi trije so cache-first, zato je dvig verzije nujen.
+
+const CACHE = 'razpored-pbb-v37';
 const ASSETS = [
   './',
   './index.html',

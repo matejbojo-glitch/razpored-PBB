@@ -678,7 +678,7 @@ function App(){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
-      <RazporedLogout/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top no-print">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Menjava</span></div>
         <p className="sub">Menjave izmen in evidentiranje prisotnosti · {profile ? profile.full_name : ""}</p>
@@ -702,7 +702,8 @@ function App(){
           {zavihek === "moji" && (
             <React.Fragment>
               <MojiObrazci rows={moji} onOdpri={setOdprt} />
-              <RazporedIzvoz
+              <RazporedIzvozVir
+                naziv="Moji obrazci"
                 naslov="moji-obrazci"
                 pripravi={() => [{
                   ime: "Obrazci",
@@ -721,7 +722,8 @@ function App(){
               <p className="hint no-print">Vse menjave izmen (ne ročno evidentiranje/drugo) za tekoči mesec, vidne vsem.</p>
               <MenjaveMeseca rows={mesec} />
               {mesec && mesec.length > 0 && (
-                <RazporedIzvoz
+                <RazporedIzvozVir
+                  naziv="Menjave meseca"
                   naslov="menjave-meseca"
                   pripravi={() => [{
                     ime: "Menjave",

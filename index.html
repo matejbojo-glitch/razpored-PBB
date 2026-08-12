@@ -1199,9 +1199,9 @@ function App(){
   // Izvoz je ikona v isti fiksni vrstici kot uvoz/nastavitve/odjava, zato
   // je element definiran tu in podan navzdol — prej je stal v vrstici z
   // izbirnikom meseca in ji jemal širino.
-  const izvozniGumb = (
-        <RazporedIzvoz
-          compact
+  const izvozniVir = (
+        <RazporedIzvozVir
+          naziv={view === "ward" ? (wardCode === "NZV" ? "NZV" : "Oddelek " + (wardCode || "")) : "Moj razpored"}
           naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
           pripravi={pripraviIzvoz}
           pdf={{
@@ -1245,7 +1245,7 @@ function App(){
               aria-label="Uvoz iz Google Sheets" aria-haspopup="dialog" aria-expanded={uvozOdprt}
               onClick={() => setUvozOdprt(true)}>📥</button>
           )}
-          {izvozniGumb}
+          <RazporedOrodja/>
         </React.Fragment>
       }/>
       <header className="top">
@@ -1289,6 +1289,7 @@ function App(){
         </div>
       </header>
 
+      {izvozniVir}
       <UvozIzSheets
         profile={profile}
         wardCode={view === "my" ? null : wardCode}

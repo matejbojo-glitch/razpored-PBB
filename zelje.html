@@ -924,7 +924,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       </p>
       {jeAdmin && (
         <div className="card no-print" style={{marginBottom:10}}>
-          <input ref={uvozRef} type="file" accept=".csv,text/csv,.xlsx,.xls,.pdf" style={{display:"none"}}
+          <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
             onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
           <button className="submitBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
             {uvozBusy ? "Nalagam …" : "📤 Množičen uvoz dopusta/omejitev (CSV/Excel/PDF)"}
@@ -1012,7 +1012,8 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       </div>
 
       {nacin==="mreza" && (
-        <RazporedIzvoz
+        <RazporedIzvozVir
+          naziv="Želje"
           naslov={`zelje-${view.year}-${String(view.month+1).padStart(2,"0")}`}
           pripravi={() => [{
             ime: MESECI_SL[view.month] + " " + view.year,
@@ -1335,7 +1336,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
