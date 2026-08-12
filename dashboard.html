@@ -346,6 +346,8 @@ function SmsTab({ baseline, onUpdate }){
       </div>
       <RazporedIzvozVir
         naziv="SMS / TZN"
+        dodatno={[{ label: "Prenesi posodobljeno osnovo (JSON)",
+                    onClick: () => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki }) }]}
         naslov={`pravicnost-sms-${baseline.obdobje}`}
         pripravi={() => [{
           ime: "SMS-TZN",
@@ -353,7 +355,7 @@ function SmsTab({ baseline, onUpdate }){
           vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.delo, z.nocne, z.nedpraz, z.vikend, z.ld, z.kpu]),
         }]}
       />
-      <button className="dlBtn no-print" onClick={() => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+      {/* Izvozi so v meniju ikone ⬇ zgoraj desno. */}
     </div>
   );
 }
@@ -439,6 +441,8 @@ function DezTab({ baseline, onUpdate }){
       <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
       <RazporedIzvozVir
         naziv="Dežurstva"
+        dodatno={[{ label: "Prenesi posodobljeno osnovo (JSON)",
+                    onClick: () => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki }) }]}
         naslov={`pravicnost-dezurstva-${baseline.obdobje}`}
         pripravi={() => [{
           ime: "Dežurstva",
@@ -446,7 +450,7 @@ function DezTab({ baseline, onUpdate }){
           vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.dezurstva, z.ure, z.redi, z.nzv]),
         }]}
       />
-      <button className="dlBtn no-print" onClick={() => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki })}>⬇ Prenesi posodobljeno osnovo</button>
+
     </div>
   );
 }
@@ -519,7 +523,11 @@ function App({ role, ogled, profil }){
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
           <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
         </div>
-        <button className="dlBtn no-print" onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
+        <RazporedIzvozVir
+          naziv="Cela stran"
+          pdf={{ label: "Izvozi v PDF (A4 pokončno)",
+                 onClick: () => PrintFit.natisni(null, { orientacija:"portrait" }) }}
+        />
       </header>
 
       {!data && <p className="hint">Nalagam osnovne podatke …</p>}
