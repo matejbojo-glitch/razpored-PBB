@@ -1240,14 +1240,18 @@ function App(){
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout pred={
         <React.Fragment>
-          {profile && profile.role === "admin" && (
-            <button type="button" className="rpIconBtn" title="Uvoz iz Google Sheets"
-              aria-label="Uvoz iz Google Sheets" aria-haspopup="dialog" aria-expanded={uvozOdprt}
-              onClick={() => setUvozOdprt(true)}>📥</button>
-          )}
+          <RazporedUvozIkona/>
           <RazporedOrodja/>
         </React.Fragment>
       }/>
+      {profile && profile.role === "admin" && (
+        <RazporedUvozVir
+          ikona="📗"
+          naziv="Razpored iz Google Sheets"
+          opis={view === "ward" ? (wardCode === "NZV" ? "NZV" : "oddelek " + (wardCode || "—")) : "Moj razpored"}
+          onClick={() => setUvozOdprt(true)}
+        />
+      )}
       <header className="top">
         <div className="wordmark">
           <img className="logoSmall" src="logo-pbb.png" alt="" />

@@ -1108,6 +1108,9 @@ function KalupTab(){
       <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti — neobvezno">
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite "Predlagaj teden", da za izbrano osebo označite naslednji prosti teden spodaj — potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
+        <RazporedUvozVir ikona="🏖" naziv="Kvote letnega dopusta"
+          opis="CSV / Excel — mat. št. in dnevi"
+          onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()} />
         <input ref={kvoteFileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziKvote(e.target.files[0]); e.target.value = ""; }} />
         <button className="dlBtn" disabled={kvoteUvozBusy} onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()}>
@@ -1470,6 +1473,9 @@ function DezurstvaTab(){
       <ManjkajociDezurni roster={roster} />
       <PravicnostPregled roster={roster} />
       <div className="card no-print" style={{marginBottom:12}}>
+        <RazporedUvozVir ikona="📄" naziv="Omejitve za dežurstva"
+          opis="CSV / Excel / PDF — ime, dopust, omejitve"
+          onClick={() => uvozRef.current && uvozRef.current.click()} />
         <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
         <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
@@ -1972,6 +1978,9 @@ function UporabnikiTab(){
         trenutnem (primarnem) oddelku — premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
       </p>
       <div className="card" style={{marginBottom:14}}>
+        <RazporedUvozVir ikona="📄" naziv="Omejitve za NZV"
+          opis="CSV / Excel — ime, dopust, omejitve"
+          onClick={() => uvozRef.current && uvozRef.current.click()} />
         <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziVlogeOddelke(e.target.files[0]); e.target.value = ""; }} />
         <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
@@ -2214,6 +2223,9 @@ function DopustTab(){
         v Imeniku pri posamezni osebi (najnovejši mesec).
       </p>
       <div className="card no-print">
+        <RazporedUvozVir ikona="🏖" naziv="Stanje dopusta (Kadris)"
+          opis="CSV / Excel — mat. št., leto, mesec, dnevi"
+          onClick={() => fileRef.current && fileRef.current.click()} />
         <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
         <button className="dlBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
@@ -2723,7 +2735,7 @@ function App({ ogled, profil }){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout pred={<RazporedOrodja/>}/>
+      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>

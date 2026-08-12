@@ -744,12 +744,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   // ista oblika kot v admin.html DezurstvaTab: ime,dopust,omejitve (datumi v
   // enem polju ločeni s podpičjem). Piše neposredno v Supabase (leave_entries),
   // zato ga takoj vidijo vsi uporabniki, ne samo lokalni generator.
-  const uvoziDatoteko = async (file) => {
-    if (!file) return;
-    setUvozBusy(true); setUvozMsg(null);
-    try {
-      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+  // Skupno jedro za vse tri poti do istega uvoza (datoteka, Google Sheets,
+  // prilepljeno besedilo) — da se oblika stolpcev in zapis v bazo ne
+  // razidejo med njimi.
+  const uvoziVrstice = async (vrsteVrstic, izvor) => {
       const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","dopust","omejitve"], ["ime","full_name"]);
       const zapisi = [];
       objekti.forEach(o => {
@@ -762,11 +760,41 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
           zapisi.push({ full_name: ime, work_date: iso, kind: "omejitev", created_by: myId });
         });
       });
-      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic (pričakovano: ime,dopust,omejitve)."); return; }
+      if (!zapisi.length) { setUvozMsg("Ni uporabnih vrstic (pričakovano: ime,dopust,omejitve)."); return; }
       const { error } = await RazporedAuth.client.from("leave_entries").upsert(zapisi, { onConflict: "full_name,work_date" });
       if (error) throw error;
-      setUvozMsg(`Uvoženih ${zapisi.length} vnosov iz "${file.name}".`);
+      setUvozMsg(`Uvoženih ${zapisi.length} vnosov iz "${izvor}".`);
       nalozi();
+  };
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip, url } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      // .gsheet je bližnjica z Google Drive: ni podatek, ampak povezava.
+      if (tip === "gsheet") { await uvoziIzSheets(url); return; }
+      await uvoziVrstice(vrsteVrstic, file.name);
+    } catch (e) {
+      setUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  // Uvoz iz Google Sheets po povezavi — ista oblika stolpcev kot pri
+  // datoteki. Preglednica mora biti deljena kot "vsak s povezavo lahko
+  // ogleda" (brez OAuth drugače ni berljiva).
+  const uvoziIzSheets = async (predlogaUrl) => {
+    const shranjena = predlogaUrl || (() => { try { return localStorage.getItem("zelje-uvoz-url") || ""; } catch (e) { return ""; } })();
+    const url = predlogaUrl || window.prompt("Povezava do Google preglednice z željami (deljena kot \"vsak s povezavo lahko ogleda\"):", shranjena);
+    if (!url) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      try { localStorage.setItem("zelje-uvoz-url", url); } catch (e) {}
+      const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+      await uvoziVrstice(vrsteVrstic, "Google Sheets");
     } catch (e) {
       setUvozMsg("Napaka: " + (e.message || String(e)));
     } finally {
@@ -923,32 +951,35 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
           : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
       </p>
       {jeAdmin && (
+        <React.Fragment>
+          <RazporedUvozVir ikona="📗" naziv="Želje iz Google Sheets"
+            opis="dopust in omejitve po povezavi" onClick={() => uvoziIzSheets(null)} />
+          <RazporedUvozVir ikona="📄" naziv="Želje iz datoteke"
+            opis="CSV / Excel / JSON — ime, dopust, omejitve"
+            onClick={() => uvozRef.current && uvozRef.current.click()} />
+          <RazporedUvozVir ikona="📅" naziv="Barvni koledar (Kadris)"
+            opis={barvnaMapa ? `Excel — barva celice je vrsta odsotnosti; uvozi v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
+            onemogocen={!barvnaMapa}
+            onClick={() => barvniRef.current && barvniRef.current.click()} />
+        </React.Fragment>
+      )}
+      {jeAdmin && (
         <div className="card no-print" style={{marginBottom:10}}>
           <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
             onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
-          <button className="submitBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
-            {uvozBusy ? "Nalagam …" : "📤 Množičen uvoz dopusta/omejitev (CSV/Excel/PDF)"}
-          </button>
-          <p className="hint" style={{marginTop:8, marginBottom:0}}>
-            Oblika: <code>ime,dopust,omejitve</code> (datumi ločeni s podpičjem, npr. <code>2026-09-01;2026-09-02</code>).
-            Piše neposredno v razpredelnico (Supabase) — takoj vidno vsem.
-          </p>
-          {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+          {/* Sprozilec je v meniju ikone 📥 zgoraj desno; tu ostaneta samo
+              skrito polje za datoteko in izpis rezultata. */}
+          {uvozBusy && <p className="hint" style={{margin:0}}>Nalagam …</p>}
+          {uvozMsg && <p className="hint" style={{margin:0}}>{uvozMsg}</p>}
         </div>
       )}
       {jeAdmin && (
         <div className="card no-print" style={{marginBottom:10}}>
           <input ref={barvniRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
             onChange={e => { uvoziBarvniExcel(e.target.files[0]); e.target.value = ""; }} />
-          <button className="submitBtn" disabled={barvniBusy || !barvnaMapa} onClick={() => barvniRef.current && barvniRef.current.click()}>
-            {barvniBusy ? "Nalagam …" : `📅 Uvoz barvnega koledarja (Kadris) — v ${MESECI_SL[view.month]} ${view.year}`}
-          </button>
-          <p className="hint" style={{marginTop:8, marginBottom:0}}>
-            Vrstica z dnevi 1–31 se poišče sama, prvi stolpec je ime osebe (Priimek Ime). Barva celice določa vrsto
-            odsotnosti — nove barve admin ob prvem uvozu enkrat določi spodaj, potem si jih aplikacija zapomni.
-            Uvozi se v TRENUTNO prikazani mesec — po potrebi najprej preklopi mesec zgoraj/spodaj.
-          </p>
-          {barvniMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{barvniMsg}</p>}
+          {/* Sprozilec je v meniju ikone 📥 zgoraj desno. */}
+          {barvniBusy && <p className="hint" style={{margin:0}}>Nalagam …</p>}
+          {barvniMsg && <p className="hint" style={{margin:0}}>{barvniMsg}</p>}
 
           {barvniPredogled && (
             <div style={{marginTop:12, borderTop:"1px solid var(--line)", paddingTop:12}}>
@@ -1336,7 +1367,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout pred={<RazporedOrodja/>}/>
+      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>

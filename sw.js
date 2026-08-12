@@ -116,7 +116,11 @@
 // export-buttons.js, import-utils.js, nav.js in vse strani —
 // prvi trije so cache-first, zato je dvig verzije nujen.
 
-const CACHE = 'razpored-pbb-v37';
+// v38: uvoz dobi svojo ikono 📥 z menijem (isti register kot izvoz) —
+// na vsaki strani našteje, kaj je tam mogoče uvoziti. Želje dobijo uvoz
+// iz Google Sheets. Spremenjeni export-buttons.js in strani.
+
+const CACHE = 'razpored-pbb-v38';
 const ASSETS = [
   './',
   './index.html',
