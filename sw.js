@@ -105,7 +105,26 @@
 // v35: enoten zapis imen "Priimek Ime" — spremenjeni login/imenik/admin/
 // index (naslovi stolpcev, polje ob registraciji, komentar pri parafi).
 
-const CACHE = 'razpored-pbb-v35';
+// v36: uvoz (📥) in izvoz (⬇) na Razporedu sta se preselila v vrstico
+// ikon zgoraj desno (poleg ⚙ in 🚪) — prej sta zasedala vrstico pod
+// izbirnikom meseca. Spremenjeni index.html in nav.js (nav.js je
+// cache-first, zato je dvig verzije nujen).
+
+// v37: izvoz je na VSEH straneh v vrstici ikon zgoraj desno (register
+// izvoznih virov v export-buttons.js), uvoz zna prebrati še .json/.jsonl/
+// .gsheet in pri slikah/Wordu pove, zakaj ne gre. Spremenjeni
+// export-buttons.js, import-utils.js, nav.js in vse strani —
+// prvi trije so cache-first, zato je dvig verzije nujen.
+
+// v38: uvoz dobi svojo ikono 📥 z menijem (isti register kot izvoz) —
+// na vsaki strani našteje, kaj je tam mogoče uvoziti. Želje dobijo uvoz
+// iz Google Sheets. Spremenjeni export-buttons.js in strani.
+
+// v39: Želje je mogoče uvoziti s fotografije razpredelnice — bere se
+// BARVA celice (ne besedilo), mrežo določi uporabnik z dotikom štirih
+// vogalov. Spremenjena zelje.html.
+
+const CACHE = 'razpored-pbb-v39';
 const ASSETS = [
   './',
   './index.html',

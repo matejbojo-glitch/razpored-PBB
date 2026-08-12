@@ -813,12 +813,16 @@ async function uvoziNzv(url, ciljniMesec){
 // lepiti.
 function kljucUvoza(kontekst){ return "razpored-uvoz-url-" + (kontekst || "my"); }
 
-function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
+// Odpiranje NI notranje stanje te komponente: sprožilna ikona živi v
+// fiksni vrstici ikon zgoraj desno (RazporedLogout "pred"), sama pa mora
+// ostati zunaj nje, ker je ta vrstica z-index kontekst — modalno okno v
+// njej bi se stackalo skupaj z njo. Zato "odprto"/"naZapri" prideta od
+// strani, tu pa se izriše samo okno.
+function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZapri }){
   const kontekst = wardCode || "my";
   const [url, setUrl] = useState(() => { try { return localStorage.getItem(kljucUvoza(kontekst)) || ""; } catch (e) { return ""; } });
   const [busy, setBusy] = useState(null); // "moj" | "oddelek" | null
   const [msg, setMsg] = useState(null);
-  const [odprto, setOdprto] = useState(false);
 
   useEffect(() => {
     setMsg(null);
@@ -851,18 +855,15 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
 
   // Napredna, redkeje uporabljena funkcija (samo admin) - v modalnem oknu,
   // da glavni zaslon ostane čist (na telefonu se odpre z dna).
+  if (!odprto) return null;
   return (
-    <div className="no-print" style={{ marginTop: 10 }}>
-      <button type="button" className="btn btn-ghost btn-sm" aria-expanded={odprto} onClick={() => setOdprto(true)}>
-        📥 Uvoz iz Google Sheets
-      </button>
-      {odprto && (
+    <div className="no-print">
         <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz iz Google Sheets"
-          onClick={e => { if (e.target === e.currentTarget) setOdprto(false); }}>
+          onClick={e => { if (e.target === e.currentTarget) naZapri(); }}>
         <div className="modalOkno">
           <div className="modalGlava">
             <h3>📥 Uvoz iz Google Sheets</h3>
-            <button type="button" className="modalZapri" aria-label="Zapri" onClick={() => setOdprto(false)}>✕</button>
+            <button type="button" className="modalZapri" aria-label="Zapri" onClick={naZapri}>✕</button>
           </div>
           <div className="field" style={{ marginTop: 0 }}>
             <label htmlFor="gsUrl">
@@ -886,7 +887,6 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno }){
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
         </div>
         </div>
-      )}
     </div>
   );
 }
@@ -1041,6 +1041,9 @@ function App(){
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
+  // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
+  // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
+  const [uvozOdprt, setUvozOdprt] = useState(false);
 
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
@@ -1193,10 +1196,62 @@ function App(){
   // pisanje (generiranje, objava) in odobritve ostajajo nespremenjene - te
   // še naprej ločuje vloga, tako v vmesniku kot v RLS politikah.
 
+  // Izvoz je ikona v isti fiksni vrstici kot uvoz/nastavitve/odjava, zato
+  // je element definiran tu in podan navzdol — prej je stal v vrstici z
+  // izbirnikom meseca in ji jemal širino.
+  const izvozniVir = (
+        <RazporedIzvozVir
+          naziv={view === "ward" ? (wardCode === "NZV" ? "NZV" : "Oddelek " + (wardCode || "")) : "Moj razpored"}
+          naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
+          pripravi={pripraviIzvoz}
+          pdf={{
+            label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
+            onClick: () => {
+              const el = view === "ward" ? document.querySelector(".wardPrintArea") : document.getElementById("printMy");
+              // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
+              // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
+              // "afterprint", da se živ zaslon nikoli ne spremeni.
+              if (view === "my" && el) {
+                el.classList.add("pdfCols");
+                const pocistiPoTiskanju = () => {
+                  el.classList.remove("pdfCols");
+                  window.removeEventListener("afterprint", pocistiPoTiskanju);
+                };
+                window.addEventListener("afterprint", pocistiPoTiskanju);
+              }
+              PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
+            },
+          }}
+          ical={view === "my" ? {
+            onClick: async () => {
+              const { startISO, endISO } = monthRange(month);
+              const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+                .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
+              const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
+              const dnevi = daysInRange(startISO, endISO);
+              prenesiICS(ustvariICS(dnevi, byDate), "moj-razpored-" + month + ".ics");
+            },
+          } : undefined}
+        />
+  );
+
   return (
     <div className={"wrap" + (view === "ward" ? " wide" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
-      <RazporedLogout/>
+      <RazporedLogout pred={
+        <React.Fragment>
+          <RazporedUvozIkona/>
+          <RazporedOrodja/>
+        </React.Fragment>
+      }/>
+      {profile && profile.role === "admin" && (
+        <RazporedUvozVir
+          ikona="📗"
+          naziv="Razpored iz Google Sheets"
+          opis={view === "ward" ? (wardCode === "NZV" ? "NZV" : "oddelek " + (wardCode || "—")) : "Moj razpored"}
+          onClick={() => setUvozOdprt(true)}
+        />
+      )}
       <header className="top">
         <div className="wordmark">
           <img className="logoSmall" src="logo-pbb.png" alt="" />
@@ -1234,49 +1289,19 @@ function App(){
               style={{flex:"0 0 auto", minWidth:0}}>
               {Array.from({length:5}, (_, i) => new Date().getFullYear() - 1 + i).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <RazporedIzvoz
-              compact
-              naslov={(view === "ward" ? "razpored-" + wardCode : "moj-razpored") + "-" + month}
-              pripravi={pripraviIzvoz}
-              pdf={{
-                label: "Izvozi v PDF (" + (view === "ward" ? "A4 ležeče" : "A4 pokončno") + ", 1 stran)",
-                onClick: () => {
-                  const el = view === "ward" ? document.querySelector(".wardPrintArea") : document.getElementById("printMy");
-                  // "pdfCols" razporedi tedne v več stolpcev SAMO za izvoz (glej
-                  // CSS zgoraj) - doda se pred merjenjem/tiskanjem, odstrani po
-                  // "afterprint", da se živ zaslon nikoli ne spremeni.
-                  if (view === "my" && el) {
-                    el.classList.add("pdfCols");
-                    const pocistiPoTiskanju = () => {
-                      el.classList.remove("pdfCols");
-                      window.removeEventListener("afterprint", pocistiPoTiskanju);
-                    };
-                    window.addEventListener("afterprint", pocistiPoTiskanju);
-                  }
-                  PrintFit.natisni(el, { orientacija: view === "ward" ? "landscape" : "portrait" });
-                },
-              }}
-              ical={view === "my" ? {
-                onClick: async () => {
-                  const { startISO, endISO } = monthRange(month);
-                  const { data } = await client.from("schedule_entries").select("work_date, shift_code")
-                    .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
-                  const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
-                  const dnevi = daysInRange(startISO, endISO);
-                  prenesiICS(ustvariICS(dnevi, byDate), "moj-razpored-" + month + ".ics");
-                },
-              } : undefined}
-            />
           </div>
         </div>
       </header>
 
+      {izvozniVir}
       <UvozIzSheets
         profile={profile}
         wardCode={view === "my" ? null : wardCode}
         myId={session.user.id}
         month={month}
         onUvozeno={() => setReloadKey(k => k + 1)}
+        odprto={uvozOdprt}
+        naZapri={() => setUvozOdprt(false)}
       />
 
       {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month} />}

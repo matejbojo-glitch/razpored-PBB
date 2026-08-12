@@ -34,11 +34,122 @@
       " font-weight:700; color:var(--text); cursor:pointer; font-family:inherit; min-height:40px; }" +
       ".dlMenuItem:hover{ background:var(--surface-2); }" +
       ".dlMenuItem:disabled{ opacity:.5; cursor:default; }" +
+      ".dlMenuItem{ display:flex; flex-direction:column; gap:2px; }" +
+      ".dlMenuOpis{ font-weight:600; font-size:11.5px; color:var(--muted); }" +
+      ".dlMenuNaslov{ margin:6px 10px 2px; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }" +
+      ".dlMenuNaslov:first-child{ margin-top:2px; }" +
+      ".dlMenu{ max-height:min(70vh, 460px); overflow-y:auto; }" +
       ".dlMenuMsg{ padding:2px 10px 4px; font-size:12px; }";
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
     document.head.appendChild(style);
+  }
+
+  // ---------------------------------------------------------------------
+  // Register izvoznih virov
+  //
+  // Izvozna ikona stoji v fiksni vrstici zgoraj desno, izvozljive
+  // razpredelnice pa nastajajo globoko v strani (v zavihkih, v podkomponentah
+  // z lastnim stanjem). Dvigovanje njihovih podatkov do vrha strani bi
+  // pomenilo predelavo vsake od njih, zato gre obratno: vsaka razpredelnica
+  // se ob priklopu PRIJAVI sem, ob odklopu pa se odjavi. Ikona zato vedno
+  // ponuja natanko tisto, kar je ta hip na zaslonu — ob menjavi zavihka se
+  // seznam sam posodobi.
+  // ---------------------------------------------------------------------
+  // Isti vzorec uporabljata izvoz in uvoz, zato je register tovarna.
+  function ustvariRegister() {
+    var vnosi = [], poslusalci = [];
+    function objavi() {
+      var kopija = vnosi.slice();
+      poslusalci.forEach(function (f) { f(kopija); });
+    }
+    return {
+      // Nevidna komponenta: samo prijavi svoj vnos. Props se berejo prek
+      // ref, da se ob vsakem izrisu (kjer nastanejo nove funkcije) ne bi
+      // ponovno prijavljala in s tem sprožala neskončne posodobitve.
+      Vir: function (props) {
+        var ref = useRef(props);
+        ref.current = props;
+        useEffect(function () {
+          var vnos = { ref: ref };
+          vnosi.push(vnos);
+          objavi();
+          return function () {
+            var i = vnosi.indexOf(vnos);
+            if (i !== -1) vnosi.splice(i, 1);
+            objavi();
+          };
+        }, []);
+        return null;
+      },
+      // Hook za komponento, ki prijavljene vnose prikaže.
+      uporabi: function () {
+        var st = useState(vnosi.slice());
+        var seznam = st[0], nastavi = st[1];
+        useEffect(function () {
+          poslusalci.push(nastavi);
+          nastavi(vnosi.slice());
+          return function () {
+            var i = poslusalci.indexOf(nastavi);
+            if (i !== -1) poslusalci.splice(i, 1);
+          };
+        }, []);
+        return seznam.map(function (v) { return v.ref.current; }).filter(Boolean);
+      },
+    };
+  }
+
+  var izvozRegister = ustvariRegister();
+  var uvozRegister = ustvariRegister();
+
+  // Uvozna ikona 📥 za vrstico zgoraj desno. Vsaka stran prijavi, kaj je
+  // na njej mogoče uvoziti (imenik, kvote dopusta, barvni koledar ...) —
+  // ena sama ikona brez menija ne bi šla, ker ima uvoz na vsaki strani
+  // drug pomen. Če stran ne prijavi ničesar, se ikona ne izriše.
+  function RazporedUvozIkona() {
+    var viri = uvozRegister.uporabi();
+    var odprtoState = useState(false);
+    var odprto = odprtoState[0], setOdprto = odprtoState[1];
+    var wrapRef = useRef(null);
+    useEffect(function () {
+      if (!odprto) return;
+      function naZunanjiKlik(ev) {
+        if (wrapRef.current && !wrapRef.current.contains(ev.target)) setOdprto(false);
+      }
+      document.addEventListener("pointerdown", naZunanjiKlik);
+      return function () { document.removeEventListener("pointerdown", naZunanjiKlik); };
+    }, [odprto]);
+    if (!viri.length) return null;
+    ensureStyle();
+    return e(
+      "div",
+      { className: "no-print dlCompact", ref: wrapRef },
+      e("button", {
+        className: "dlIconBtn", type: "button", "aria-label": "Uvoz podatkov",
+        title: "Uvoz podatkov", "aria-expanded": odprto,
+        onClick: function () { setOdprto(function (o) { return !o; }); },
+      }, "📥"),
+      odprto && e("div", { className: "dlMenu", role: "menu" }, viri.map(function (vir, i) {
+        return e("button", {
+          key: i, className: "dlMenuItem", type: "button", disabled: !!vir.onemogocen,
+          onClick: function () { setOdprto(false); vir.onClick(); },
+        },
+          e("span", null, (vir.ikona || "📄") + " " + (vir.naziv || "Uvoz")),
+          vir.opis && e("span", { className: "dlMenuOpis" }, vir.opis)
+        );
+      }))
+    );
+  }
+
+  var RazporedIzvozVir = izvozRegister.Vir;
+
+  // Izvozna ikona za vrstico zgoraj desno — ponudi vse trenutno prijavljene
+  // vire. Če ni prijavljen noben (stran nima česa izvoziti), se ne izriše.
+  function RazporedOrodja() {
+    var viri = izvozRegister.uporabi();
+    if (!viri.length) return null;
+    return e(RazporedIzvoz, { compact: true, viri: viri });
   }
 
   // props:
@@ -70,24 +181,34 @@
       return function () { document.removeEventListener("pointerdown", naZunanjiKlik); };
     }, [props.compact, odprto]);
 
-    function podatki() {
-      return props.pripravi ? props.pripravi() : props.listi;
+    // "viri" (neobvezno, samo compact): več izvoznih virov pod eno ikono.
+    // Nujno za strani, kjer je na zaslonu HKRATI več različnih razpredelnic
+    // (Statistika ima tri, Generator štiri) — ena sama ikona brez izbire
+    // vira bi tri od njih preprosto izgubila. Brez "viri" se komponenta
+    // obnaša kot doslej, zato ostale strani ostanejo nespremenjene.
+    var viri = props.viri && props.viri.length
+      ? props.viri
+      : [{ naziv: null, naslov: props.naslov, listi: props.listi, pripravi: props.pripravi,
+           pdf: props.pdf, ical: props.ical }];
+
+    function podatki(vir) {
+      return vir.pripravi ? vir.pripravi() : vir.listi;
     }
 
-    function izvoziExcel() {
+    function izvoziExcel(vir) {
       setMsg(null);
       try {
-        root.ExportUtils.izvoziXLSX(props.naslov, podatki());
+        root.ExportUtils.izvoziXLSX(vir.naslov, podatki(vir));
         setOdprto(false);
       } catch (err) {
         setMsg({ ok: false, text: err.message || String(err) });
       }
     }
 
-    async function izvoziSheets() {
+    async function izvoziSheets(vir) {
       setBusy("sheets"); setMsg(null);
       try {
-        var url = await root.GSheetsExport.izvoziVSheets(props.naslov, podatki());
+        var url = await root.GSheetsExport.izvoziVSheets(vir.naslov, podatki(vir));
         setMsg({ ok: true, text: "Ustvarjeno — odpiram v novem zavihku …" });
         setOdprto(false);
         root.open(url, "_blank", "noopener");
@@ -102,34 +223,33 @@
       ensureStyle();
 
       var postavke = [];
-      if (props.pdf) {
-        postavke.push(
-          e(
-            "button",
-            { key: "pdf", className: "dlMenuItem", type: "button", onClick: function () { setOdprto(false); props.pdf.onClick(); } },
-            "📄 " + (props.pdf.label || "Izvozi v PDF")
-          )
-        );
-      }
-      postavke.push(
-        e("button", { key: "xlsx", className: "dlMenuItem", type: "button", onClick: izvoziExcel, disabled: !!busy }, "⬇ Izvozi v Excel")
-      );
-      postavke.push(
-        e(
-          "button",
-          { key: "sheets", className: "dlMenuItem", type: "button", onClick: izvoziSheets, disabled: !!busy },
-          busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"
-        )
-      );
-      if (props.ical) {
-        postavke.push(
-          e(
-            "button",
-            { key: "ical", className: "dlMenuItem", type: "button", onClick: function () { setOdprto(false); props.ical.onClick(); } },
-            "📅 " + (props.ical.label || "Izvozi v koledar (.ics)")
-          )
-        );
-      }
+      viri.forEach(function (vir, i) {
+        // Naslov skupine se izpiše samo, kadar je virov več — pri enem bi
+        // bil odvečen šum.
+        if (viri.length > 1) {
+          postavke.push(e("p", { key: "n" + i, className: "dlMenuNaslov" }, vir.naziv || "Izvoz"));
+        }
+        if (vir.pdf) {
+          postavke.push(e("button", {
+            key: "pdf" + i, className: "dlMenuItem", type: "button",
+            onClick: function () { setOdprto(false); vir.pdf.onClick(); },
+          }, "📄 " + (vir.pdf.label || "Izvozi v PDF")));
+        }
+        postavke.push(e("button", {
+          key: "xlsx" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+          onClick: function () { izvoziExcel(vir); },
+        }, "⬇ Izvozi v Excel"));
+        postavke.push(e("button", {
+          key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+          onClick: function () { izvoziSheets(vir); },
+        }, busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"));
+        if (vir.ical) {
+          postavke.push(e("button", {
+            key: "ical" + i, className: "dlMenuItem", type: "button",
+            onClick: function () { setOdprto(false); vir.ical.onClick(); },
+          }, "📅 " + (vir.ical.label || "Izvozi v koledar (.ics)")));
+        }
+      });
 
       return e(
         "div",
@@ -149,10 +269,10 @@
       e(
         "div",
         { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-        e("button", { className: "dlBtn", type: "button", onClick: izvoziExcel, disabled: !!busy }, "⬇ Izvozi v Excel"),
+        e("button", { className: "dlBtn", type: "button", onClick: function () { izvoziExcel(viri[0]); }, disabled: !!busy }, "⬇ Izvozi v Excel"),
         e(
           "button",
-          { className: "dlBtn", type: "button", onClick: izvoziSheets, disabled: !!busy },
+          { className: "dlBtn", type: "button", onClick: function () { izvoziSheets(viri[0]); }, disabled: !!busy },
           busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"
         )
       ),
@@ -161,4 +281,8 @@
   }
 
   root.RazporedIzvoz = RazporedIzvoz;
+  root.RazporedIzvozVir = RazporedIzvozVir;
+  root.RazporedOrodja = RazporedOrodja;
+  root.RazporedUvozVir = uvozRegister.Vir;
+  root.RazporedUvozIkona = RazporedUvozIkona;
 })(typeof window !== "undefined" ? window : this);

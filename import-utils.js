@@ -100,6 +100,57 @@ window.ImportUtils = (function () {
   // vrne { vrsteVrstic: string[][], tip: "csv"|"xlsx"|"pdf-besedilo" }.
   // Za PDF je vsaka "vrstica" en sam string (golo besedilo), ne razdeljena
   // po stolpcih — kličoča koda naj to prikaže v urejljivem polju za pregled.
+  // JSON v isto obliko kot CSV/Excel (vrstice x stolpci), da ga preostala
+  // uvozna logika obravnava enako.
+  //   .jsonl  — en zapis na vrstico
+  //   .json   — polje objektov, polje polj, ali objekt z enim poljem znotraj
+  //   .gsheet — NI podatek, ampak bližnjica iz Google Drive z URL-jem; vrne
+  //             se povezava, ki jo stran nato uvozi po običajni poti
+  // Glave se sestavijo iz unije ključev, da manjkajoč ključ v posameznem
+  // zapisu ne premakne stolpcev.
+  function jsonVVrstice(besedilo, ime) {
+    const t = besedilo.trim();
+    if (!t) throw new Error("Datoteka je prazna.");
+
+    if (ime.endsWith(".gsheet")) {
+      let url = null;
+      try { url = (JSON.parse(t) || {}).url || null; } catch (e) { /* spodaj */ }
+      if (!url) throw new Error("V .gsheet datoteki ni povezave do preglednice.");
+      return { vrsteVrstic: [], tip: "gsheet", url: url };
+    }
+
+    let zapisi;
+    if (ime.endsWith(".jsonl")) {
+      zapisi = t.split(/\r?\n/).filter(v => v.trim()).map((v, i) => {
+        try { return JSON.parse(v); }
+        catch (e) { throw new Error("Vrstica " + (i + 1) + " ni veljaven JSON."); }
+      });
+    } else {
+      let podatki;
+      try { podatki = JSON.parse(t); }
+      catch (e) { throw new Error("Datoteka ni veljaven JSON: " + (e.message || e)); }
+      if (Array.isArray(podatki)) zapisi = podatki;
+      else if (podatki && typeof podatki === "object") {
+        // Objekt ovija podatke (npr. { "vrstice": [...] }) — vzemi prvo polje.
+        const polje = Object.keys(podatki).find(k => Array.isArray(podatki[k]));
+        if (!polje) throw new Error("V JSON datoteki ni seznama zapisov.");
+        zapisi = podatki[polje];
+      } else throw new Error("V JSON datoteki ni seznama zapisov.");
+    }
+    if (!zapisi.length) return { vrsteVrstic: [], tip: "json" };
+
+    if (Array.isArray(zapisi[0])) {
+      return { vrsteVrstic: zapisi.map(v => v.map(c => (c == null ? "" : String(c)))), tip: "json" };
+    }
+    const glave = [];
+    zapisi.forEach(z => Object.keys(z || {}).forEach(k => { if (!glave.includes(k)) glave.push(k); }));
+    const vrstice = zapisi.map(z => glave.map(k => {
+      const v = (z || {})[k];
+      return v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v));
+    }));
+    return { vrsteVrstic: [glave, ...vrstice], tip: "json" };
+  }
+
   function preberiDatoteko(file) {
     const ime = (file.name || "").toLowerCase();
     return new Promise((resolve, reject) => {
@@ -118,6 +169,26 @@ window.ImportUtils = (function () {
             .catch(reject);
         };
         reader.readAsArrayBuffer(file);
+      } else if (ime.endsWith(".json") || ime.endsWith(".jsonl") || ime.endsWith(".gsheet")) {
+        reader.onload = () => {
+          try { resolve(jsonVVrstice(String(reader.result || ""), ime)); }
+          catch (e) { reject(e); }
+        };
+        reader.readAsText(file, "UTF-8");
+      } else if (ime.endsWith(".heic") || ime.endsWith(".heif") || /\.(jpe?g|png|webp|gif|bmp|tiff?)$/.test(ime)) {
+        // Slika razporeda ni berljiva brez OCR, tega pa aplikacija nima.
+        // Namesto tihe napake ("prazna datoteka") povemo, kaj storiti — ker
+        // bi napačno prebran razpored pomenil napačne izmene ljudem.
+        reject(new Error(
+          "Slik (" + ime.split(".").pop() + ") aplikacija ne zna prebrati — za to bi bilo potrebno "
+          + "prepoznavanje besedila, ki ga nima. Razpored izvozi iz Excela/Google Sheets "
+          + "(.xlsx, .csv) ali prilepi povezavo do Google preglednice."
+        ));
+      } else if (ime.endsWith(".docx") || ime.endsWith(".doc")) {
+        reject(new Error(
+          "Wordovih datotek aplikacija ne zna prebrati. Če je razpored v tabeli, jo v Wordu "
+          + "označi in prilepi v Excel ali Google Sheets, nato uvozi .xlsx/.csv."
+        ));
       } else {
         // .csv, .txt ali karkoli drugega — obravnavaj kot besedilo
         reader.onload = () => resolve({ vrsteVrstic: csvBesedilaVVrstice(String(reader.result || "")), tip: "csv" });
@@ -241,5 +312,9 @@ window.ImportUtils = (function () {
     return t;
   }
 
-  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum };
+  // Enoten seznam za "accept" na <input type=file> — da vse strani ponujajo
+  // isto in da se ne razide s tem, kar preberiDatoteko dejansko zna.
+  const PODPRTE_PRIPONE = ".csv,.txt,.xlsx,.xls,.xlsb,.json,.jsonl,.gsheet,.pdf";
+
+  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, PODPRTE_PRIPONE };
 })();

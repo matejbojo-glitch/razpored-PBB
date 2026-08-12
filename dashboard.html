@@ -344,7 +344,8 @@ function SmsTab({ baseline, onUpdate }){
           </tbody>
         </table>
       </div>
-      <RazporedIzvoz
+      <RazporedIzvozVir
+        naziv="SMS / TZN"
         naslov={`pravicnost-sms-${baseline.obdobje}`}
         pripravi={() => [{
           ime: "SMS-TZN",
@@ -436,7 +437,8 @@ function DezTab({ baseline, onUpdate }){
         </table>
       </div>
       <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
-      <RazporedIzvoz
+      <RazporedIzvozVir
+        naziv="Dežurstva"
         naslov={`pravicnost-dezurstva-${baseline.obdobje}`}
         pripravi={() => [{
           ime: "Dežurstva",
@@ -482,7 +484,8 @@ function NedezTab({ baseline }){
           </tbody>
         </table>
       </div>
-      <RazporedIzvoz
+      <RazporedIzvozVir
+        naziv="Nedežurni"
         naslov={`pravicnost-nedezurni-${baseline.obdobje}`}
         pripravi={() => [{
           ime: "Nedežurni",
@@ -507,7 +510,7 @@ function App({ role, ogled, profil }){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Statistika</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
