@@ -2255,7 +2255,7 @@ function DopustTab(){
             if (!filtrirano.length) throw new Error("Ni podatkov za izvoz.");
             return [{
               ime: "Dopust",
-              glave: ["Ime in priimek", "Šifra zaposlenega", "Dnevi", "Sprememba"],
+              glave: ["Priimek in ime", "Šifra zaposlenega", "Dnevi", "Sprememba"],
               vrstice: filtrirano.map(r => [r.full_name || "", r.employee_code || "", r.dnevi, r.sprememba ?? ""]),
             }];
           }}
@@ -2507,7 +2507,7 @@ function PlaceTab(){
             naslov={"place-" + obdobje}
             pripravi={() => [{
               ime: "Plače",
-              glave: ["Matična številka", "Ime in priimek", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              glave: ["Matična številka", "Priimek in ime", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
               vrstice: vrstice.map(r => [r.employee_code, r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
             }]}
           />
@@ -2517,7 +2517,7 @@ function PlaceTab(){
           <div className="tableScroller" style={{marginTop:10}}>
             <table className="fairTable">
               <thead>
-                <tr><th>Mat. št.</th><th>Ime in priimek</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+                <tr><th>Mat. št.</th><th>Priimek in ime</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
               </thead>
               <tbody>
                 {vrstice.map(r => (

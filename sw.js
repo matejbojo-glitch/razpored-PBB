@@ -102,7 +102,10 @@
 // v34: neprosojna lepljiva glava (prekrivanje besedila) in enako široke
 // vrstice Imenika — spremenjene imenik/zelje/obrazec/nastavitve/admin.
 
-const CACHE = 'razpored-pbb-v34';
+// v35: enoten zapis imen "Priimek Ime" — spremenjeni login/imenik/admin/
+// index (naslovi stolpcev, polje ob registraciji, komentar pri parafi).
+
+const CACHE = 'razpored-pbb-v35';
 const ASSETS = [
   './',
   './index.html',

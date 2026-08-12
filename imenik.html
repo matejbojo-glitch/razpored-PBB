@@ -279,7 +279,7 @@ function Seznam({ osebe, oddelki, onOdpri }){
         naslov="imenik"
         pripravi={() => [{
           ime: "Imenik",
-          glave: ["Ime in priimek", "Vloga", "Oddelek", "E-pošta", "Telefon"],
+          glave: ["Priimek in ime", "Vloga", "Oddelek", "E-pošta", "Telefon"],
           vrstice: filtrirano.map(o => [
             o.full_name || "",
             o.pending ? "še ni registriran" : (RazporedAuth.ROLE_LABEL[o.role] || o.role),
@@ -1222,7 +1222,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 
       <div className="card">
         <p className="hint" style={{marginTop:0}}>Ali dodaj eno osebo ročno:</p>
-        <div className="field"><label>Ime in priimek</label><input type="text" value={novo.full_name} onChange={e => setNovo(n => ({...n, full_name:e.target.value}))} /></div>
+        <div className="field"><label>Priimek in ime</label><input type="text" placeholder="npr. Rozman Anka" value={novo.full_name} onChange={e => setNovo(n => ({...n, full_name:e.target.value}))} /></div>
         <div className="field"><label>E-pošta</label><input type="email" value={novo.email} onChange={e => setNovo(n => ({...n, email:e.target.value}))} /></div>
         <div className="field"><label>Telefon</label><input type="tel" value={novo.phone} onChange={e => setNovo(n => ({...n, phone:e.target.value}))} /></div>
         <div className="field"><label>Vloga</label>
