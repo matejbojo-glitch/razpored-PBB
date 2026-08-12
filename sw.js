@@ -124,7 +124,11 @@
 // BARVA celice (ne besedilo), mrežo določi uporabnik z dotikom štirih
 // vogalov. Spremenjena zelje.html.
 
-const CACHE = 'razpored-pbb-v39';
+// v40: še zadnji izvozi (CSV, JSON osnova, PDF) na Generatorju in
+// Statistiki so v meniju ikone ⬇ — v vsebini ni več izvoznih gumbov.
+// Spremenjeni export-buttons.js, admin.html, dashboard.html.
+
+const CACHE = 'razpored-pbb-v40';
 const ASSETS = [
   './',
   './index.html',

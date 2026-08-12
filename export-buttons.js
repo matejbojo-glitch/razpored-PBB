@@ -235,20 +235,34 @@
             onClick: function () { setOdprto(false); vir.pdf.onClick(); },
           }, "📄 " + (vir.pdf.label || "Izvozi v PDF")));
         }
-        postavke.push(e("button", {
-          key: "xlsx" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
-          onClick: function () { izvoziExcel(vir); },
-        }, "⬇ Izvozi v Excel"));
-        postavke.push(e("button", {
-          key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
-          onClick: function () { izvoziSheets(vir); },
-        }, busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"));
+        // Vir brez razpredelnice (samo PDF ali JSON) Excela/Sheets ne ponudi —
+        // sicer bi izvoz odpovedal z "ni podatkov" na postavki, ki je za tak
+        // vir sploh nima smisla ponujati.
+        if (vir.pripravi || vir.listi) {
+          postavke.push(e("button", {
+            key: "xlsx" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziExcel(vir); },
+          }, "⬇ Izvozi v Excel"));
+          postavke.push(e("button", {
+            key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziSheets(vir); },
+          }, busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"));
+        }
         if (vir.ical) {
           postavke.push(e("button", {
             key: "ical" + i, className: "dlMenuItem", type: "button",
             onClick: function () { setOdprto(false); vir.ical.onClick(); },
           }, "📅 " + (vir.ical.label || "Izvozi v koledar (.ics)")));
         }
+        // "dodatno": izvozi, ki so posebnost ene strani (CSV v obliki, ki jo
+        // pričakuje računovodstvo, JSON osnova za mobilno aplikacijo ...) in
+        // jih skupni Excel/Sheets izvoz ne pokrije.
+        (vir.dodatno || []).forEach(function (d, k) {
+          postavke.push(e("button", {
+            key: "d" + i + "_" + k, className: "dlMenuItem", type: "button",
+            onClick: function () { setOdprto(false); d.onClick(); },
+          }, (d.ikona || "⬇") + " " + d.label));
+        });
       });
 
       return e(
