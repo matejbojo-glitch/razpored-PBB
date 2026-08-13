@@ -54,7 +54,6 @@ with vhod (employee_code, email, full_name) as (
     ('1072', 'luka.rant@pb-begunje.si', 'RANT LUKA'),
     ('1106', 'elma.rekic@pb-begunje.si', 'REKIĆ ELMA'),
     ('1164', 'erik.starc@pb-begunje.si', 'STARC ERIK'),
-    ('1143', 'luka.stare@pb-begunje.si', 'STARE LUKA'),
     ('963', 'mark.skantar@pb-begunje.si', 'ŠKANTAR MARK'),
     ('1035', 'nikolina.tomasic@pb-begunje.si', 'TOMAŠIĆ  NIKOLINA'),
     ('1102', 'enej.valjavec@pb-begunje.si', 'VALJAVEC ENEJ'),

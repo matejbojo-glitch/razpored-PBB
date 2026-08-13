@@ -63,7 +63,6 @@ with vhod (email, polno) as (
     ('luka.rant@pb-begunje.si', 'Rant Luka'),
     ('elma.rekic@pb-begunje.si', 'Rekić Elma'),
     ('erik.starc@pb-begunje.si', 'Starc Erik'),
-    ('luka.stare@pb-begunje.si', 'Stare Luka'),
     ('mark.skantar@pb-begunje.si', 'Škantar Mark'),
     ('nikolina.tomasic@pb-begunje.si', 'Tomašić Nikolina'),
     ('enej.valjavec@pb-begunje.si', 'Valjavec Enej'),

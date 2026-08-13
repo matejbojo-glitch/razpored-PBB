@@ -98,6 +98,7 @@
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
+<script src="oseba-vrstica.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -281,26 +282,40 @@ function Seznam({ osebe, oddelki, onOdpri }){
       </div>
       <div className="card">
         {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
-        {filtrirano.map(o => (
-          <button key={o.id} className="person" onClick={() => onOdpri(o.id)}>
-            <div className="avatarStatus">
-              <div className="av">{initials(o.full_name)}</div>
-              {(() => { const st = statusPrisotnosti(danes[o.id]); return <span className={"pika " + st.koda} title={st.naziv}></span>; })()}
-            </div>
-            <div className="info">
-              <div className="name">{o.full_name}</div>
-              <div className="meta">
-                {o.pending
-                  ? <span className="pill pending">še ni registriran</span>
-                  : <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>}
-                {(o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : [])).map((k, i) => (
-                  <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
-                ))}
-              </div>
-            </div>
-            <span className="chev">›</span>
-          </button>
-        ))}
+        {filtrirano.map(o => {
+          const st = statusPrisotnosti(danes[o.id]);
+          const kode = o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []);
+          return (
+            <RazporedOsebaVrstica
+              key={o.id}
+              ime={o.full_name}
+              naProfil={() => onOdpri(o.id)}
+              pikaRazred={st.koda}
+              pikaNaziv={st.naziv}
+              otroci={
+                <React.Fragment>
+                  <div className="ovMeta">
+                    {o.pending
+                      ? <span className="pill pending">še ni registriran</span>
+                      : <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>}
+                    <span>{st.naziv}</span>
+                  </div>
+                  <div className="ovMeta">
+                    {kode.length === 0
+                      ? <span>Brez oddelka</span>
+                      : kode.map((k, i) => (
+                          <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
+                        ))}
+                  </div>
+                  {o.email && <div className="ovMeta"><a className="mail" href={"mailto:" + o.email}>{o.email}</a></div>}
+                  <button className="iconBtn" style={{alignSelf:"flex-start"}} onClick={() => onOdpri(o.id)}>
+                    Odpri celoten zapis ›
+                  </button>
+                </React.Fragment>
+              }
+            />
+          );
+        })}
       </div>
     </React.Fragment>
   );
