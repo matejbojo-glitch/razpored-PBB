@@ -23,17 +23,12 @@
     color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
   }
-  .wrap{ max-width: 780px; margin:0 auto; padding: 0 16px 60px; }
-  :focus-visible{ outline: 2px solid var(--accent); outline-offset:2px; border-radius:8px; }
-
+  /* širina: theme.css (.wrap / .wrap.wide / .wrap.polna) */
+  .wrap{ padding-bottom: 60px; }
   header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
     padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
-  .wordmark{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .wordmark .logoSmall{ height:28px; width:auto; }
-  .wordmark .mark{ font-weight:800; font-size:20px; letter-spacing:-0.02em; }
   .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
     padding:2px 8px; border-radius:999px; }
-  .sub{ margin:2px 0 0; font-size:13px; color:var(--muted); }
   .backlink{ display:inline-block; margin-top:10px; font-size:12.5px; color:var(--muted); text-decoration:underline;
     text-underline-offset:3px; text-decoration-color:var(--line); }
 
@@ -42,14 +37,7 @@
   .tabs button{ flex:1; border:0; background:transparent; color:var(--muted); padding:10px 10px;
     border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer; }
   .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
-
-  h2.section{ font-size:15px; font-weight:800; margin: 24px 0 10px; letter-spacing:-0.01em; }
-  p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5; }
-
-  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
   .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  .field{ display:flex; flex-direction:column; gap:5px; }
-  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   input[type=month], input[type=number], input[type=text], select{
     background: var(--surface-2); border:1px solid var(--line); color:var(--text);
     padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; min-width:0;
@@ -138,8 +126,6 @@
   .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; }
   .bar i{ display:block; height:100%; background: var(--accent); }
-
-  footer.foot{ margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.6; }
   @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
 
   @media print{
