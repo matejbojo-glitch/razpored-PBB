@@ -137,7 +137,12 @@
 // kopij skupnih razredov (.card, .sub, .field, h2.section, p.hint,
 // .submitBtn). Spremenjeni theme.css in vse strani.
 
-const CACHE = 'razpored-pbb-v42';
+// v43: seznami zaposlenih so strnjeni — vidno je samo ime, klik na vrstico
+// razpre osnovne podatke, klik na ime odpre celoten zapis. Vzorec je zdaj
+// ena skupna komponenta (oseba-vrstica.js), ne kopija na vsaki strani.
+// Spremenjeni imenik.html, admin.html, theme.css; nov oseba-vrstica.js.
+
+const CACHE = 'razpored-pbb-v43';
 const ASSETS = [
   './',
   './index.html',
@@ -169,7 +174,8 @@ const ASSETS = [
   './import-utils.js',
   './export-utils.js',
   './gsheets-client.js',
-  './export-buttons.js'
+  './export-buttons.js',
+  './oseba-vrstica.js'
 ];
 
 self.addEventListener('install', (event) => {

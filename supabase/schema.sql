@@ -1129,8 +1129,8 @@ from (values
   ('ŠABIĆ S.', 'A'), ('KODRAS N.', 'B'), ('ROZMAN K.', 'C'), ('MOČNIK S.', 'D'), ('SMOLEJ N.', 'E'),
   ('DŽINIĆ A.', 'B'), ('STARC E.', 'E'), ('KARNIČAR J.', 'D'), ('ZEKAN A.', 'A'), ('ŠKANTAR M.', 'B'),
   ('VALJAVEC E.', 'C'), ('BEĆIROVIĆ N.', 'D'), ('SUŠNIK J.', 'A'), ('POGAČNIK M.', 'A'), ('GAZIBARA A.', 'C'),
-  ('MURIĆ A.', 'D'), ('RANT L.', 'B'), ('REKIĆ E.', 'B'), ('BALEK M.', 'A'), ('MEGLIČ J.', 'C'),
-  ('NUHANOVIĆ M.', 'C'), ('STARE L.', 'D'), ('TOMAŠIĆ N.', 'A'), ('MRAVLJE U.', 'C'), ('VOZEL D.', 'E'),
+  ('MURIĆ A.', 'D'), ('RANT L.', 'B'), ('REKIĆ E.', 'B'), ('MEGLIČ J.', 'C'),
+  ('NUHANOVIĆ M.', 'C'), ('TOMAŠIĆ N.', 'A'), ('MRAVLJE U.', 'C'), ('VOZEL D.', 'E'),
   ('BRATUŠA M.', 'C'), ('SVETINA R.', 'E'), ('URANKER M.', 'A'), ('PETERMAN R.', 'D'), ('MALER A.', 'B'),
   ('MUŠIĆ A.', 'B'), ('BAJT A.', 'C'), ('VOLARIČ N.', 'E'), ('SODJA B.', 'D'), ('TALIĆ A.', 'A')
 ) as v(full_name, slot)
@@ -1359,12 +1359,11 @@ on conflict (profile_id) do update set
 --     dopolnjen iz že obstoječe tabele (10) lead_departments — ta natančno
 --     pozna njihov "domači" oddelek (isti vir, ki že polni Statistiko/Vodje).
 --
---     Vrednost oddelka ostaja null samo za 3 osebe, za katere noben vir
---     (zaposleni-emaili.csv, zaposleni-vloge-gesla.csv, lead_departments)
---     ne pove konkretnega oddelka, samo splošno skupino: Zaplotnik Alenka
---     in Balek Mija ("SMS/ZZT" — vloga 'user' od tod), Sejdinović Mustafa
---     ("Nedežurni (DMS/DZN)" — vloga 'vodja' od tod). Te 3 admin ročno
---     dokonča v Imeniku. Za "FLEXI/<oddelek>" zapise je department_code=
+--     Tri osebe, ki jim noben vir ni dal konkretnega oddelka (Zaplotnik
+--     Alenka, Balek Mija, Sejdinović Mustafa), so 13. 8. 2026 zapustile
+--     bolnišnico in so iz tega seznama odstranjene — skupaj s Stare Luko.
+--     Za njihov izbris iz obstoječe baze glej supabase/odstrani-zaposlene.sql.
+--     Za "FLEXI/<oddelek>" zapise je department_code=
 --     'FLEXI' (primarni), spodnji drugi insert pa doda njihov "domači"
 --     oddelek kot SEKUNDARNO članstvo prek profile_departments (oseba je
 --     hkrati FLEXI in npr. E2/C/A).
@@ -1376,7 +1375,6 @@ from (values
   ('ajla.huseinbasic@pb-begunje.si', 'FLEXI', 'user'),
   ('aldin.gazibara@pb-begunje.si', 'C1', 'user'),
   ('aleksander.maglic@pb-begunje.si', 'E1', 'vodja'),
-  ('alenka.zaplotnik@pb-begunje.si', null, 'user'),
   ('alen.music@pb-begunje.si', 'E2', 'user'),
   ('alma.muric@pb-begunje.si', 'D', 'user'),
   ('almedin.zekan@pb-begunje.si', 'C1', 'user'),
@@ -1404,7 +1402,6 @@ from (values
   ('jure.karnicar@pb-begunje.si', 'C1', 'user'),
   ('klara.rozman@pb-begunje.si', 'C', 'user'),
   ('luka.rant@pb-begunje.si', 'D', 'user'),
-  ('luka.stare@pb-begunje.si', 'C1', 'user'),
   ('magdalena.mavritratnik@pb-begunje.si', 'B1B2', 'vodja'),
   ('maja.vrevc@pb-begunje.si', 'FLEXI', 'user'),
   ('marija.bratusa@pb-begunje.si', 'E1', 'user'),
@@ -1417,9 +1414,7 @@ from (values
   ('mateja.lunar@pb-begunje.si', 'B', 'vodja'),
   ('merima.nuhanovic@pb-begunje.si', 'D', 'user'),
   ('metka.veluscek@pb-begunje.si', 'SOBO', 'vodja'),
-  ('mija.balek@pb-begunje.si', null, 'user'),
   ('mojca.uranker@pb-begunje.si', 'E1', 'user'),
-  ('mustafa.sejdinovic@pb-begunje.si', null, 'vodja'),
   ('nadja.kodras@pb-begunje.si', 'C', 'user'),
   ('natasa.smolej@pb-begunje.si', 'C', 'user'),
   ('neja.vozel@pb-begunje.si', 'FLEXI', 'user'),
@@ -2354,8 +2349,14 @@ alter table public.profiles add column if not exists parafa text;
 -- ---------------------------------------------------------------------
 alter table public.profiles add column if not exists job_title text;
 
+-- "created_at" (datum PRVE objave) je manjkal, čeprav ga sprožilec spodaj
+-- ohranja in ga index.html bere ("Objavljeno"). V produkciji obstaja, v tej
+-- datoteki ga ni bilo — shema torej ni znala na novo postaviti delujoče
+-- baze: prvi UPDATE bi padel z "record new has no field created_at".
+alter table public.schedule_entries add column if not exists created_at timestamptz not null default now();
 alter table public.schedule_entries add column if not exists created_by uuid references public.profiles (id);
 alter table public.schedule_entries add column if not exists updated_by uuid references public.profiles (id);
+
 
 create or replace function public.schedule_entries_touch()
 returns trigger
@@ -2368,7 +2369,15 @@ begin
     new.created_by := auth.uid();
   else
     new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
-    new.created_by := old.created_by;
+    -- Avtorja prve objave ohrani (upsert iz aplikacije pošlje prazno polje
+    -- in bi ga sicer izbrisal) — RAZEN kadar ga prav zdaj prazni baza sama,
+    -- ker je bil avtorjev račun izbrisan ("on delete set null", odsek 30).
+    -- Takrat old.created_by kaže na profil, ki ne obstaja več; če ga vrnemo,
+    -- v vrstici ostane viseča povezava na neobstoječo osebo.
+    if not (new.created_by is null and old.created_by is not null
+            and not exists (select 1 from public.profiles p where p.id = old.created_by)) then
+      new.created_by := old.created_by;
+    end if;
   end if;
   new.updated_at := now();
   new.updated_by := auth.uid();
@@ -2983,3 +2992,37 @@ as $$
 $$;
 
 revoke all on function public.prejemniki_obvestil(uuid[]) from public, anon, authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 30) Sled avtorstva preživi izbris osebe
+-- ---------------------------------------------------------------------
+-- Kdo je vnesel/odobril, ni lastništvo, ampak sled. Ko oseba zapusti
+-- bolnišnico in se njen račun izbriše, mora zapis ostati — samo brez
+-- avtorja. Brez "on delete set null" te povezave izbris ustavijo, sprožilec
+-- schedule_entries_touch pa poleg tega ob UPDATE avtorja vrne na staro
+-- vrednost, tako da polja ni mogoče niti ročno izprazniti.
+do $$
+declare v record;
+begin
+  for v in
+    select conname, conrelid::regclass as tabela, a.attname as stolpec
+    from pg_constraint c
+    join unnest(c.conkey) k on true
+    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k
+    where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass
+      and c.confdeltype = 'a'   -- 'a' = no action (privzeto, blokira izbris)
+      and (c.conrelid, a.attname) in (
+        ('public.schedule_entries'::regclass, 'created_by'),
+        ('public.schedule_entries'::regclass, 'updated_by'),
+        ('public.schedule_entries_log'::regclass, 'changed_by'),
+        ('public.profiles_log'::regclass, 'changed_by'),
+        ('public.swap_requests'::regclass, 'lead_id'),
+        ('public.swap_requests'::regclass, 'admin_id')
+      )
+  loop
+    execute format('alter table %s drop constraint %I', v.tabela, v.conname);
+    execute format('alter table %s add constraint %I foreign key (%I) references public.profiles (id) on delete set null',
+                   v.tabela, v.conname, v.stolpec);
+  end loop;
+end $$;

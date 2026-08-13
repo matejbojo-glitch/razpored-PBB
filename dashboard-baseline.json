@@ -13,16 +13,6 @@
     "kpu": 43
    },
    {
-    "ime": "BALEK M.",
-    "enota": "D",
-    "delo": 89,
-    "nocne": 34,
-    "nedpraz": 11,
-    "vikend": 19,
-    "ld": 28,
-    "kpu": 26
-   },
-   {
     "ime": "BEČIROVIĆ N.",
     "enota": "C1",
     "delo": 139,
@@ -383,16 +373,6 @@
     "kpu": 34
    },
    {
-    "ime": "STARE L.",
-    "enota": "D",
-    "delo": 140,
-    "nocne": 51,
-    "nedpraz": 19,
-    "vikend": 32,
-    "ld": 44,
-    "kpu": 38
-   },
-   {
     "ime": "SUŠNIK J.",
     "enota": "C1",
     "delo": 134,
@@ -520,16 +500,6 @@
     "nedpraz": 0,
     "vikend": 1,
     "ld": 27,
-    "kpu": 0
-   },
-   {
-    "ime": "ZAPLOTNIK A.",
-    "enota": "C",
-    "delo": 121,
-    "nocne": 0,
-    "nedpraz": 0,
-    "vikend": 0,
-    "ld": 47,
     "kpu": 0
    },
    {
@@ -759,16 +729,6 @@
     "enota": "D",
     "podskupina": "D",
     "ure": 613.0,
-    "redi": 0.0,
-    "noc": 0.0,
-    "ned": 0,
-    "praz": 0
-   },
-   {
-    "ime": "SEJDINOVIĆ MUSTAFA",
-    "enota": "C1",
-    "podskupina": "D",
-    "ure": 0.0,
     "redi": 0.0,
     "noc": 0.0,
     "ned": 0,

@@ -89,7 +89,22 @@ dotakne.
   je namen ravno to, da admin osebno pozna in lahko sporoči začetno geslo —
   in ravno zato aplikacija ob prvi prijavi prisili njegovo spremembo (glej
   zgoraj).
-- **Oddelek/vloga za dvoumne primere** — 3 osebe (Zaplotnik Alenka, Balek
-  Mija, Sejdinović Mustafa), za katere noben vir ne pove konkretnega
-  oddelka, admin po registraciji ročno dokonča v Imeniku (dropdown že
-  podpira vse potrebno), glej komentar v `schema.sql` (18).
+- **Zaplotnik Alenka, Balek Mija, Sejdinović Mustafa in Stare Luka** —
+  13. 8. 2026 niso več zaposleni; iz seznamov (`roster/*.csv`,
+  `dashboard-baseline.json`, seed v `schema.sql`) so odstranjeni, da jih
+  ta skripta ne ustvari znova. Za izbris iz obstoječe baze glej
+  `supabase/odstrani-zaposlene.sql`.
+
+
+## Preizkusi
+
+| Skripta | Kaj preveri | Kaj potrebuje |
+|---|---|---|
+| `preveri-delovni-cas.mjs` | `delovni-cas.js` in kopija v `supabase/functions/_shared/` sta identična | nič |
+| `preveri-foto-uvoz.mjs` | branje barv razpredelnice s fotografije (Želje) | nič |
+| `preveri-oseba-vrstica.mjs` | strnjena vrstica seznama zaposlenih: strnjeno je vidno samo ime, klik na vrstico razpre podatke, klik na ime odpre zapis | `playwright` |
+| `preveri-izbris-osebe.mjs` | `schema.sql` postavi delujočo bazo iz nič; `odstrani-zaposlene.sql` se izvede po ukazih (vsak v svoji seji, kot v Supabase SQL Editorju) in za sabo ne pusti ne imena ne viseče povezave | lokalni PostgreSQL + `su postgres` |
+
+`preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
+voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
+šele ob zagonu proti pravi bazi, ne z branjem kode.
