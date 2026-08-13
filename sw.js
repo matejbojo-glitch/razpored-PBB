@@ -128,7 +128,11 @@
 // Statistiki so v meniju ikone ⬇ — v vsebini ni več izvoznih gumbov.
 // Spremenjeni export-buttons.js, admin.html, dashboard.html.
 
-const CACHE = 'razpored-pbb-v40';
+// v41: dežurna pravila (najmanj/največ na mesec, prost dan, samo med
+// tednom) je mogoče trajno urejati v Imeniku — doslej jih je bilo mogoče
+// spremeniti le za eno generiranje. Spremenjena imenik.html.
+
+const CACHE = 'razpored-pbb-v41';
 const ASSETS = [
   './',
   './index.html',
