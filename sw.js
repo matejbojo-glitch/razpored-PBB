@@ -132,7 +132,12 @@
 // tednom) je mogoče trajno urejati v Imeniku — doslej jih je bilo mogoče
 // spremeniti le za eno generiranje. Spremenjena imenik.html.
 
-const CACHE = 'razpored-pbb-v41';
+// v42: enotna postavitev — širine vsebine so ena lestvica v theme.css
+// (.wrap / .wrap.wide / .wrap.polna), strani pa ne nosijo več svojih
+// kopij skupnih razredov (.card, .sub, .field, h2.section, p.hint,
+// .submitBtn). Spremenjeni theme.css in vse strani.
+
+const CACHE = 'razpored-pbb-v42';
 const ASSETS = [
   './',
   './index.html',

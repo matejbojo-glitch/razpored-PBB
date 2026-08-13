@@ -68,7 +68,6 @@
     table.wardTableT th:not(.name), table.wardTableT td:not(.name){ width:auto; min-width:0; }
   }
   @media (min-width:900px){
-    .wrap.wide{ max-width: 1400px; }
   }
 
   /* NZV — dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
@@ -1236,7 +1235,7 @@ function App(){
   );
 
   return (
-    <div className={"wrap" + (view === "ward" ? " wide" : "")}>
+    <div className={"wrap" + (view === "ward" ? " wide polna" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout pred={
         <React.Fragment>
