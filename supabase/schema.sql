@@ -1171,7 +1171,17 @@ from (values
   ('SALKIĆ MARUŠA', 1, 1, null, true),
   ('TRPIN SAŠA', 1, 1, null, true)
 ) as v(full_name, min_m, max_m, day_off, weekdays_only)
-join public.profiles p on p.full_name = v.full_name
+-- Ujemanje po VREČI BESED (velike črke, vrstni red ni pomemben), ne po
+-- točnem zapisu: imena so bila medtem poenotena iz "PRIIMEK IME" v
+-- "Priimek Ime", zato bi natančna primerjava tiho ujela nič vrstic in
+-- dežurna pravila bi ostala nenastavljena, brez vsakega opozorila.
+join public.profiles p on (
+  select string_agg(d, ' ' order by d)
+  from unnest(string_to_array(upper(regexp_replace(btrim(p.full_name), '\s+', ' ', 'g')), ' ')) d
+) = (
+  select string_agg(d, ' ' order by d)
+  from unnest(string_to_array(upper(v.full_name), ' ')) d
+)
 on conflict (profile_id) do update set
   duty_min_monthly = coalesce(public.profile_hr_details.duty_min_monthly, excluded.duty_min_monthly),
   duty_max_monthly = coalesce(public.profile_hr_details.duty_max_monthly, excluded.duty_max_monthly),

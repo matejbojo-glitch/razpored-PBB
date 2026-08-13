@@ -328,7 +328,8 @@ function Seznam({ osebe, oddelki, onOdpri }){
 // ---------------------------------------------------------------------
 // Profil ene osebe.
 // ---------------------------------------------------------------------
-const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"" };
+const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"",
+  duty_min_monthly:"", duty_max_monthly:"", duty_day_off:"", duty_weekdays_only:false };
 
 function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno }){
   const jeMoj = oseba.id === myId;
@@ -523,7 +524,9 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
   useEffect(() => {
     if (!smemVidetiHr) { setHr(null); return; }
     client.from("profile_hr_details").select("*").eq("profile_id", oseba.id).maybeSingle()
-      .then(({ data }) => { setHr(data || {}); setHrEdit(data ? { ...HR_PRAZNO, ...data, annual_leave_total: data.annual_leave_total ?? "", leave_balance_days: data.leave_balance_days ?? "", leave_balance_asof: data.leave_balance_asof || "" } : HR_PRAZNO); });
+      .then(({ data }) => { setHr(data || {}); setHrEdit(data ? { ...HR_PRAZNO, ...data, annual_leave_total: data.annual_leave_total ?? "", leave_balance_days: data.leave_balance_days ?? "", leave_balance_asof: data.leave_balance_asof || "",
+        duty_min_monthly: data.duty_min_monthly ?? "", duty_max_monthly: data.duty_max_monthly ?? "",
+        duty_day_off: data.duty_day_off || "", duty_weekdays_only: !!data.duty_weekdays_only } : HR_PRAZNO); });
     // eslint-disable-next-line
   }, [oseba.id, smemVidetiHr]);
 
@@ -540,6 +543,14 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
         annual_leave_total: hrEdit.annual_leave_total !== "" ? Number(hrEdit.annual_leave_total) : null,
         leave_balance_days: hrEdit.leave_balance_days !== "" ? Number(hrEdit.leave_balance_days) : null,
         leave_balance_asof: hrEdit.leave_balance_asof || null,
+        // Dežurna pravila so TRAJNA (veljajo do preklica). V Generatorju →
+        // Dežurstva jih je mogoče spremeniti samo za tisto eno generiranje;
+        // trajno se nastavijo tu, sicer bi jih moral popravljati kdo z
+        // dostopom do baze.
+        duty_min_monthly: hrEdit.duty_min_monthly !== "" ? Number(hrEdit.duty_min_monthly) : null,
+        duty_max_monthly: hrEdit.duty_max_monthly !== "" ? Number(hrEdit.duty_max_monthly) : null,
+        duty_day_off: hrEdit.duty_day_off || null,
+        duty_weekdays_only: !!hrEdit.duty_weekdays_only,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -617,13 +628,28 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
         {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
       </div>
 
-      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null) && (
+      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null || hr.duty_max_monthly != null || hr.duty_weekdays_only) && (
         <div className="card">
           {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
           {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{hr.birth_date}</div></div>}
           {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
           {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
           {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
+          {(hr.duty_min_monthly != null || hr.duty_max_monthly != null || hr.duty_weekdays_only || hr.duty_day_off) && (
+            <div className="rowline">
+              <div className="lbl">Dežurstva</div>
+              <div className="val">
+                {[
+                  hr.duty_min_monthly != null && hr.duty_max_monthly != null && hr.duty_min_monthly === hr.duty_max_monthly
+                    ? `${hr.duty_max_monthly} na mesec`
+                    : [hr.duty_min_monthly != null ? `najmanj ${hr.duty_min_monthly}` : null,
+                       hr.duty_max_monthly != null ? `največ ${hr.duty_max_monthly}` : null].filter(Boolean).join(", "),
+                  hr.duty_weekdays_only ? "samo med tednom" : null,
+                  hr.duty_day_off ? `prost ${hr.duty_day_off}` : null,
+                ].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          )}
           {hr.annual_leave_total != null && hr.annual_leave_total !== "" && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
           {hr.leave_balance_days != null && hr.leave_balance_days !== "" && (
             <div className="rowline">
@@ -804,6 +830,29 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             <div className="field"><label>Datum rojstva</label><input type="date" value={hrEdit.birth_date} onChange={e => setHrEdit(h => ({...h, birth_date:e.target.value}))} /></div>
             <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={hrEdit.position_name} onChange={e => setHrEdit(h => ({...h, position_name:e.target.value}))} /></div>
             <div className="field"><label>Vodja (naziv)</label><input type="text" value={hrEdit.manager_name} onChange={e => setHrEdit(h => ({...h, manager_name:e.target.value}))} /></div>
+            <h3 style={{fontSize:13, fontWeight:800, margin:"14px 0 2px"}}>Dežurstva — trajna pravila</h3>
+            <p className="hint" style={{marginTop:0}}>
+              Veljajo do preklica. Generator → Dežurstva jih vzame kot izhodišče; tam jih je mogoče spremeniti
+              samo za tisto eno generiranje, trajno pa se nastavijo tu. Prazno = brez omejitve.
+            </p>
+            <div style={{display:"flex", gap:8}}>
+              <div className="field" style={{flex:1}}><label>Najmanj na mesec</label>
+                <input type="number" min="0" value={hrEdit.duty_min_monthly}
+                  onChange={e => setHrEdit(h => ({...h, duty_min_monthly:e.target.value}))} /></div>
+              <div className="field" style={{flex:1}}><label>Največ na mesec</label>
+                <input type="number" min="0" value={hrEdit.duty_max_monthly}
+                  onChange={e => setHrEdit(h => ({...h, duty_max_monthly:e.target.value}))} /></div>
+            </div>
+            <div className="field"><label>Stalno prost dan v tednu</label>
+              <select value={hrEdit.duty_day_off} onChange={e => setHrEdit(h => ({...h, duty_day_off:e.target.value}))}>
+                <option value="">— brez —</option>
+                {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
+              </select></div>
+            <label className="rowline" style={{cursor:"pointer"}}>
+              <input type="checkbox" checked={!!hrEdit.duty_weekdays_only}
+                onChange={e => setHrEdit(h => ({...h, duty_weekdays_only:e.target.checked}))} />
+              <span style={{marginLeft:8}}>Samo med tednom (nikoli sobota/nedelja)</span>
+            </label>
             <div className="field"><label>Starševsko varstvo</label><input type="text" value={hrEdit.parental_leave} onChange={e => setHrEdit(h => ({...h, parental_leave:e.target.value}))} /></div>
             <div className="field"><label>Letni dopust 2026 (skupaj)</label><input type="number" value={hrEdit.annual_leave_total} onChange={e => setHrEdit(h => ({...h, annual_leave_total:e.target.value}))} /></div>
             <div className="field"><label>Stanje dopusta (preostanek, dni)</label><input type="number" value={hrEdit.leave_balance_days} onChange={e => setHrEdit(h => ({...h, leave_balance_days:e.target.value}))} /></div>
