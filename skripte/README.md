@@ -107,6 +107,7 @@ dotakne.
 | `preveri-zapis-v-sheets.mjs` | `pripraviPosodobitveOddelka` (index.html) na fixture-ju v obliki resničnega dokumenta ("2026 SMS RAZPORED") — najde prave koordinate (vrstica, stolpec) za pisanje nazaj v Google Sheets, ločeno po mesecih z različnim naborom ljudi, prek prazne vmesne vrstice, brez pisanja v celico osebe, ki v listu nima stolpca | nič |
 | `preveri-nzv-sheets.mjs` | `pripraviPosodobitveNzv`/`nzvNazivVKodo`/`NZV_STOLPCI` (index.html) na fixture-ju v obliki resničnega dokumenta ("Letni dopusti in omejitve za NZV") — pravi vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA), prave koordinate za enote IN za nova LD/IZOB/BS polja, ločeno po mesecih, prek prazne vmesne vrstice | nič |
 | `preveri-pametni-uvoz.mjs` | `razvrstiListe`/`obdelajOddelekVrstice`/`obdelajNzvVrstice` (index.html) — "Naloži datoteko (samodejno)" pravilno loči zavihke po znani kodi oddelka od preostalih, prepozna oddelčno IN NZV obliko po vsebini, in list, ki ni nobeno od tega (npr. "KALUP" legenda), tiho ne vrne ničesar (preskočen, ne napaka) | nič |
+| `preveri-xlsx-datum.mjs` | `xlsxCelicaVBesedilo` (import-utils.js) na PRAVEM branju/pisanju `xlsx.core.min.js` — datumska celica z drobno plavajočo napako (npr. `46173.999999988` namesto `46174`, kot pri resničnem izvozu iz Google Sheets) se prebere kot PRAVI dan, ne kot prejšnji dan tik pred polnočjo | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
@@ -118,3 +119,15 @@ tedni) je doslej nepovratno prekinila `obdelajBlok` — vsi dnevi ZA njo so
 tiho izpadli iz uvoza/zapisa. Ista funkcija se uporablja tako za uvoz
 (`uvoziOddelek`/`uvoziNzv`) kot za pisanje nazaj, zato popravek velja za
 oboje.
+
+`preveri-xlsx-datum.mjs` je prav tako odkril resnično napako, prijavljeno
+takoj po uvedbi "Naloži datoteko (samodejno)": uvoženi vpisi so pristali na
+za en dan zamaknjenem datumu, na VSEH oddelkih. Vzrok je bil v tem, kako
+Excel/Google Sheets shranjujeta datum (serijsko število dni od izhodišča) —
+pri izvozu iz Google Sheets to število pogosto NI točno cel dan, ampak ima
+drobno plavajočo napako (npr. `46173.999999988` namesto `46174`), kar se je
+brez zaokroževanja prebralo kot prejšnji dan tik pred polnočjo. Ker
+`xlsxCelicaVBesedilo` uporablja tudi obstoječi (starejši) `preberiDatoteko`
+pri drugih Excel uvozih po aplikaciji (npr. HR uvoz v Imeniku), bi ista
+napaka lahko doslej prizadela tudi te — popravek (zaokrožitev na najbližji
+dan) velja za vse.

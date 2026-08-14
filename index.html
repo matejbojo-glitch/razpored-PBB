@@ -292,6 +292,7 @@ function daysInRange(startISO, endISO){
 
 function MyScheduleView({ userId, month }){
   const [entries, setEntries] = useState(null);
+  const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po leave_entries
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
 
@@ -304,11 +305,33 @@ function MyScheduleView({ userId, month }){
     return () => { cancelled = true; };
   }, [userId, startISO, endISO]);
 
+  // LD (letni dopust) je za marsikoga vpisan samo v Želje → Razpredelnica
+  // (leave_entries), ne v schedule_entries (za NZV/vodje objavljen razpored
+  // ne piše po osebi kot pri SMS oddelkih, glej nalozizPodatkeNzv zgoraj) -
+  // brez tega je "Moj razpored" za te osebe kazal dopust kot navaden prost
+  // dan. Dopolnimo SAMO dneve, ki v schedule_entries še nimajo vrednosti
+  // (glej byDate spodaj) - objavljene izmene se nikoli ne prepišejo.
+  useEffect(() => {
+    let cancelled = false;
+    setDopustiLD([]);
+    client.from("profiles").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
+      if (cancelled || !profil) return Promise.resolve();
+      return client.from("leave_entries").select("full_name, work_date")
+        .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO)
+        .then(({ data }) => {
+          if (cancelled) return;
+          setDopustiLD((data || []).filter(d => imenaSeUjemataNzv(d.full_name, profil.full_name)).map(d => d.work_date));
+        });
+    });
+    return () => { cancelled = true; };
+  }, [userId, startISO, endISO]);
+
   const byDate = useMemo(() => {
     const m = {};
     (entries || []).forEach(e => { m[e.work_date] = e.shift_code; });
+    dopustiLD.forEach(datum => { if (!m[datum]) m[datum] = "LD"; });
     return m;
-  }, [entries]);
+  }, [entries, dopustiLD]);
 
   const iso = todayISO();
   const todaySifra = byDate[iso];
