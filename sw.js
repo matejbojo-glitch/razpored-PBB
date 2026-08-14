@@ -211,7 +211,19 @@
 // Gumb preimenovan v "🔄 Obrni na ležeči prikaz"/"📱 Nazaj na pokončni
 // prikaz", da opiše dejansko (novo) vedenje. Spremenjen index.html.
 
-const CACHE = 'razpored-pbb-v50';
+// v51: popravek pravega hrošča v51 iz v50 - nov uporabnikov posnetek
+// zaslona (tokrat s telefonom, ki JE fizično zavrten v ležečo lego, medtem
+// ko je ročni "Širši prikaz" iz v50 ostal vklopljen) je pokazal, da stran
+// takrat ostane stisnjena v majhen pas na sredini zaslona, obdana s črnim
+// - ročni CSS zasuk (rotate(90deg) na body) in prava ležeča orientacija
+// ustvarita konflikt (100vh/100vw se ob fizičnem obratu ne prerešita
+// zanesljivo). Popravek: nov JS poslušalec (matchMedia "orientation:
+// landscape") ročni zasuk SAM izklopi, takoj ko telefon postane resnično
+// ležeč - takrat že obstoječ @media (orientation: landscape) sam poskrbi
+// za širok prikaz, ročni trik pa se umakne, še preden pride do konflikta.
+// Spremenjen index.html.
+
+const CACHE = 'razpored-pbb-v51';
 const ASSETS = [
   './',
   './index.html',
