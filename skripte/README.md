@@ -109,7 +109,7 @@ dotakne.
 | `preveri-pametni-uvoz.mjs` | `razvrstiListe`/`obdelajOddelekVrstice`/`obdelajNzvVrstice` (index.html) — "Naloži datoteko (samodejno)" pravilno loči zavihke po znani kodi oddelka od preostalih, prepozna oddelčno IN NZV obliko po vsebini, in list, ki ni nobeno od tega (npr. "KALUP" legenda), tiho ne vrne ničesar (preskočen, ne napaka) | nič |
 | `preveri-xlsx-datum.mjs` | `xlsxCelicaVBesedilo` (import-utils.js) na PRAVEM branju/pisanju `xlsx.core.min.js` — datumska celica z drobno plavajočo napako (npr. `46173.999999988` namesto `46174`, kot pri resničnem izvozu iz Google Sheets) se prebere kot PRAVI dan, ne kot prejšnji dan tik pred polnočjo | nič |
 | `preveri-nzv-dezurstvo-datum.mjs` | "od konca do konca": prava `.xlsx` datumska celica (z isto plavajočo napako kot zgoraj) → `xlsxCelicaVBesedilo` → `obdelajNzvVrstice` — dežurstvo/LD, uvožena prek NZV, pristaneta na PRAVEM dnevu in v obliki (`employee_id`+`work_date`, brez omejitve na `department_code`), ki jo "Moj razpored" (MyScheduleView) samodejno prikaže | nič |
-| `preveri-vnesi-parafe.mjs` | `supabase/vnesi-parafe.sql` na pravi bazi: vseh 66 vrstic iz uradnega izvoza paraf se ujema s pravim profilom (`imena_se_ujemata`), oseba brez profila konča v poročilu "NI NAJDEN PROFIL" namesto da tiho izpade, dve različni osebi s podobnim priimkom ("Magkić"/"Maglić") NE zapišeta parafe v isti profil, drugi zagon je varen (idempotenten) | lokalni PostgreSQL + `su postgres` |
+| `preveri-vnesi-parafe.mjs` | `supabase/vnesi-parafe.sql` na pravi bazi: vseh 65 vrstic iz uradnega izvoza paraf se ujema s pravim profilom (`imena_se_ujemata`), oseba brez profila konča v poročilu "NI NAJDEN PROFIL" namesto da tiho izpade, "Maglić Aleksander" (prvotno dve nasprotujoči si vrstici v izvozu, glej spodaj) dobi uporabnikom potrjeno parafo "MAG", drugi zagon je varen (idempotenten) | lokalni PostgreSQL + `su postgres` |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
@@ -135,10 +135,11 @@ napaka lahko doslej prizadela tudi te — popravek (zaokrožitev na najbližji
 dan) velja za vse.
 
 `preveri-vnesi-parafe.mjs` je pri pripravi `vnesi-parafe.sql` ujel resnično
-past PRED zagonom na pravi bazi, ne šele po njem: uradni izvoz paraf
-vsebuje LOČENI vrstici "Magkić Aleksander" in "Maglić Aleksander" - na prvi
-pogled videti kot tipkarska napaka ene osebe, a gre (najverjetneje) za dve
-različni osebi s podobnim priimkom. Prvi poskus je obe vrstici pomotoma
-združil v eno (isto osebo) - preizkus na pravi bazi je to takoj pokazal kot
-podvojen ključ. Popravljeno: obe vrstici ostaneta ločeni, vsaka s svojo
-parafo.
+past PRED zagonom na pravi bazi, ne šele po njem: uradni izvoz paraf je
+vseboval LOČENI, nasprotujoči si vrstici "Magkić Aleksander" (parafa
+"AMG") in "Maglić Aleksander" (parafa "MA") za isto osebo - prvi poskus ju
+je pomotoma združil v eno vrstico, preizkus na pravi bazi je to takoj
+pokazal kot podvojen ključ. Uporabnik je nato potrdil, da gre res za eno
+osebo (Aleksander Maglić) IN da je prava parafa "MAG" (drugačna od obeh
+prvotnih, nasprotujočih si vrednosti) - `vnesi-parafe.sql` zdaj vsebuje
+samo eno, pravilno vrstico.

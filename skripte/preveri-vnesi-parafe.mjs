@@ -2,16 +2,16 @@
 /* Preizkus supabase/vnesi-parafe.sql na PRAVI bazi PostgreSQL (isti vzorec
  * kot preveri-izbris-osebe.mjs) - preden admin to skripto požene proti
  * pravi produkcijski bazi, preverimo:
- *   1. da se VSEH 66 vrstic iz izvoza pravilno ujema s profili (po
+ *   1. da se VSEH vrstic iz izvoza pravilno ujema s profili (po
  *      full_name, prek imena_se_ujemata - vreča besed, neodvisno od
  *      vrstnega reda Priimek/Ime);
  *   2. da OSEBA BREZ profila (npr. ker izvoz vsebuje ime, ki ga v
  *      aplikaciji (še) ni) konča v poročilu "NI NAJDEN PROFIL", ne tiho
  *      izpade;
- *   3. NAJPOMEMBNEJE - da "MAGKIĆ ALEKSANDER" in "MAGLIĆ ALEKSANDER" (dve
- *      LOČENI vrstici v izvozu, glej opombo v .sql datoteki) NE zapišeta
- *      parafe v isti profil - to bi bila tiha napaka, ki bi eni osebi
- *      dala napačno parafo.
+ *   3. da "MAGLIĆ ALEKSANDER" dobi PRAVO, uporabnikom potrjeno parafo
+ *      "MAG" (prvotni izvoz je isto osebo pomotoma navedel dvakrat, kot
+ *      "Magkić"/AMG in "Maglić"/MA - obe napačni, popravljeno na eno
+ *      vrstico z eno pravo parafo, glej .sql datoteko).
  *
  * Zagon: node skripte/preveri-vnesi-parafe.mjs
  * Če PostgreSQL ni na voljo, se preizkus preskoči (izhod 0).
@@ -76,7 +76,7 @@ psql(readFileSync(join(DELO, "prep.sql"), "utf8"));
 psql(readFileSync(join(DELO, "schema.sql"), "utf8"));
 trdi(true, "shema postavljena brez napak");
 
-console.log("2) zaseji profile za VSAKO ime iz vnesi-parafe.sql (izvlečeno iz .sql same, da test ne more zaostati) + 1 manjkajoč + oba 'Mag*ić'");
+console.log("2) zaseji profile za VSAKO ime iz vnesi-parafe.sql (izvlečeno iz .sql same, da test ne more zaostati) + 1 namenoma manjkajoč");
 // full_name-e izvlečemo NEPOSREDNO iz vhod (...) values bloka v pravi .sql
 // datoteki - tako preizkus preveri PRAVI seznam, ne svoje kopije.
 const vhodStart = parafeSql.indexOf("with vhod (full_name, parafa) as (");
@@ -87,7 +87,8 @@ const vrsticaRx = /\('([^']+)',\s*'([^']+)'\)/g;
 const vhodImena = [];
 let m;
 while ((m = vrsticaRx.exec(vhodBlok))) vhodImena.push({ full_name: m[1], parafa: m[2] });
-trdi(vhodImena.length === 66, `izvlečenih ${vhodImena.length} vrstic iz vnesi-parafe.sql (pričakovano 66)`);
+trdi(vhodImena.length === 65, `izvlečenih ${vhodImena.length} vrstic iz vnesi-parafe.sql (pričakovano 65)`);
+trdi(vhodImena.filter(v => v.full_name === "MAGLIĆ ALEKSANDER").length === 1, "'MAGLIĆ ALEKSANDER' se pojavi natanko enkrat (ne več dvakrat pod dvema zapisoma priimka)");
 
 // Vsak profil dobi full_name IDENTIČEN vhodnemu imenu (najbolj pogost realni
 // primer - HR izvoz in aplikacija se ujemata) - razen zadnjega imena na
@@ -124,10 +125,8 @@ console.log("4) preveri rezultat");
   });
 }
 {
-  const magkic = psql(`select parafa from public.profiles where full_name = 'MAGKIĆ ALEKSANDER';`).trim();
   const maglic = psql(`select parafa from public.profiles where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
-  trdi(magkic === "AMG" && maglic === "MA" && magkic !== maglic,
-    `"Magkić" (${magkic}) in "Maglić" (${maglic}) sta ostala LOČENA profila s SVOJO parafo, se nista zlila`);
+  trdi(maglic === "MAG", `"MAGLIĆ ALEKSANDER" -> parafa "${maglic}" (pričakovano potrjeno "MAG", ne stara "AMG"/"MA")`);
 }
 {
   const stolpci = psql(
