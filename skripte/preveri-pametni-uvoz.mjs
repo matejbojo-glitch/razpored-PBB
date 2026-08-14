@@ -81,6 +81,10 @@ const koda = [
   izvleci("vrsticaJePrazna"),
   izvleci("obdelajBlok"),
   izvleci("obdelajOddelekVrstice"),
+  izvleci("normalizirajImeNzv"),
+  izvleci("imenaSeUjemataNzv"),
+  constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),
+  izvleci("ocistiNazivOsebe"),
   izvleci("obdelajNzvVrstice"),
   izvleci("razvrstiListe"),
   izvleci("zdruziPoKljucu"),
@@ -138,13 +142,18 @@ console.log("3) obdelajNzvVrstice na NZV-oblikovanem listu (enote + LD/IZOB/BS)"
   const vrsteVrstic = [
     ["Razpored SEPTEMBER 2026"],
     ["", "PDZN", "SOBO", "ŽO", "E1", "E2", "D", "MO", "B", "C", "C1", "PO", "A", "B1,B2", "DB", "SA DOP", "SA POP", "URGENCA", "U2", "DEŽURSTVO", "LD", "IZOB", "BS"],
-    ["1. 9. 2026", "KAR", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "BOJ", "NOV, PET", "", ""],
+    ["1. 9. 2026", "KAR", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "Matej Bojić", "NOV, PET", "", ""],
   ];
-  const poParafi = { KAR: { id: "karnicar-id", full_name: "Karničar Jure" }, BOJ: { id: "bojic-id", full_name: "Bojić Matej" }, NOV: { id: "novak-id", full_name: "Novak Ana" }, PET: { id: "petek-id", full_name: "Petek Iza" } };
-  const { zapisi, dopusti, najdenDatum, najdenaGlava, neujemanja } = obdelajNzvVrstice(vrsteVrstic, "2026-09", poParafi, "admin-id");
+  // DEŽURSTVO vsebuje POLNO IME, ne parafo - potrjeno na pravi uporabnikovi
+  // datoteki (glej preveri-nzv-dezurstvo-ime.mjs).
+  const poParafi = { KAR: { id: "karnicar-id", full_name: "Karničar Jure" }, NOV: { id: "novak-id", full_name: "Novak Ana" }, PET: { id: "petek-id", full_name: "Petek Iza" } };
+  const profili = [{ id: "bojic-id", full_name: "Bojić Matej" }];
+  const { zapisi, dopusti, najdenDatum, najdenaGlava, neujemanja } = obdelajNzvVrstice(vrsteVrstic, "2026-09", poParafi, "admin-id", profili);
   trdi(najdenDatum && najdenaGlava, "najde datume in glavo enot");
   const pdzn = zapisi.find(z => z.employee_id === "karnicar-id" && z.department_code === "PDZN");
   trdi(!!pdzn, "PDZN / KAR -> zapis v schedule_entries");
+  const dez = zapisi.find(z => z.employee_id === "bojic-id" && z.department_code === "DEZ");
+  trdi(!!dez, "DEŽURSTVO / 'Matej Bojić' (polno ime) -> zapis v schedule_entries");
   jseq(dopusti.length, 2, "2 vpisa odsotnosti (NOV in PET v stolpcu LD)");
   trdi(dopusti.every(d => d.kind === "ld" && d.created_by === "admin-id"), "oba LD vpisa imata kind='ld' in pravi created_by");
   trdi(neujemanja.size === 0, "brez neujemanj");

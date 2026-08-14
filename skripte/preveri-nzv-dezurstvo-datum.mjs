@@ -83,6 +83,10 @@ const indexKoda = [
   izvleciFn(htmlSrc, "vrsticaJePrazna"),
   izvleciFn(htmlSrc, "obdelajBlok"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ODSOTNOST_KIND")),
+  izvleciFn(htmlSrc, "normalizirajImeNzv"),
+  izvleciFn(htmlSrc, "imenaSeUjemataNzv"),
+  constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
+  izvleciFn(htmlSrc, "ocistiNazivOsebe"),
   izvleciFn(htmlSrc, "obdelajNzvVrstice"),
 ].join("\n\n");
 // ImportUtils.normalizirajDatum: v pravi aplikaciji je to LOČENA funkcija v
@@ -139,8 +143,10 @@ console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih 
 {
   const GLAVA = ["PDZN", "SOBO", "ŽO", "E1", "E2", "D", "MO", "B", "C", "C1", "PO", "A", "B1,B2", "DB", "SA DOP", "SA POP", "URGENCA", "U2", "DEŽURSTVO", "LD", "IZOB", "BS"];
   function prazneVrednosti() { return GLAVA.map(() => ""); }
-  const vrstica1 = prazneVrednosti(); vrstica1[GLAVA.indexOf("DEŽURSTVO")] = "BOJ";
-  const vrstica2 = prazneVrednosti(); vrstica2[GLAVA.indexOf("DEŽURSTVO")] = "SAL"; vrstica2[GLAVA.indexOf("LD")] = "NOV";
+  // DEŽURSTVO vsebuje POLNO IME, ne parafo - potrjeno na pravi uporabnikovi
+  // datoteki (glej preveri-nzv-dezurstvo-ime.mjs), zato tudi tu.
+  const vrstica1 = prazneVrednosti(); vrstica1[GLAVA.indexOf("DEŽURSTVO")] = "Matej Bojić";
+  const vrstica2 = prazneVrednosti(); vrstica2[GLAVA.indexOf("DEŽURSTVO")] = "Maruša Salkić"; vrstica2[GLAVA.indexOf("LD")] = "NOV";
 
   // Datumski stolpec (A) PRIDE iz prave XLSX celice z napako - enako kot bi
   // ga xlsxVsiListi v resnici prebral iz naloženega delovnega zvezka.
@@ -152,22 +158,24 @@ console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih 
   ];
 
   const poParafi = {
-    BOJ: { id: "bojic-id", full_name: "Bojić Matej" },
-    SAL: { id: "salkic-id", full_name: "Salkić Maruša" },
     NOV: { id: "novak-id", full_name: "Novak Ana" },
   };
-  const { zapisi, dopusti, najdenDatum, najdenaGlava, neujemanja } = obdelajNzvVrstice(vrsteVrstic, "2026-09", poParafi, "admin-id");
+  const profili = [
+    { id: "bojic-id", full_name: "Bojić Matej" },
+    { id: "salkic-id", full_name: "Salkić Maruša" },
+  ];
+  const { zapisi, dopusti, najdenDatum, najdenaGlava, neujemanja } = obdelajNzvVrstice(vrsteVrstic, "2026-09", poParafi, "admin-id", profili);
 
   trdi(najdenDatum && najdenaGlava, "najde datume in glavo enot");
   trdi(neujemanja.size === 0, "brez neujemanj parafe");
 
   const dez1 = zapisi.find(z => z.employee_id === "bojic-id");
   jseq(dez1, { employee_id: "bojic-id", department_code: "DEZ", work_date: "2026-09-01", shift_code: "DEŽURSTVO" },
-    "BOJ (1.9.) -> pravi zapis: employee_id, department_code='DEZ', work_date='2026-09-01' (NE '2026-08-31'), shift_code='DEŽURSTVO'");
+    "'Matej Bojić' (1.9., polno ime v DEŽURSTVO stolpcu) -> pravi zapis: employee_id, department_code='DEZ', work_date='2026-09-01' (NE '2026-08-31'), shift_code='DEŽURSTVO'");
 
   const dez2 = zapisi.find(z => z.employee_id === "salkic-id");
   jseq(dez2, { employee_id: "salkic-id", department_code: "DEZ", work_date: "2026-09-02", shift_code: "DEŽURSTVO" },
-    "SAL (2.9.) -> pravi zapis za pravi dan");
+    "'Maruša Salkić' (2.9.) -> pravi zapis za pravi dan");
 
   // KLJUČNO za "Moj razpored": zapis NE VSEBUJE nobenega polja, ki bi
   // izmenjavo omejilo na oddelek - MyScheduleView v index.html bere
