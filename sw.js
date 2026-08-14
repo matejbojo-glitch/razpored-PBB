@@ -180,7 +180,21 @@
 // prejšnjo za ta dan, namesto da bi celoten uvoz padel. Spremenjen
 // index.html.
 
-const CACHE = 'razpored-pbb-v47';
+// v48: popravljena RESNIČNA napaka "vpisi pristanejo na napačnem dnevu" pri
+// uvozu iz naložene .xlsx datoteke (na VSEH oddelkih) - Excel/Google Sheets
+// shranita datum kot serijsko število, ki pri izvozu iz Google Sheets
+// pogosto NI točno cel dan (drobna plavajoča napaka, npr. 46173.999999988
+// namesto 46174 za isti dan); brez zaokroževanja se je to prebralo kot
+// prejšnji dan tik pred polnočjo. xlsxCelicaVBesedilo (import-utils.js)
+// zdaj zaokroži na najbližji dan - potrjeno s pravim branjem/pisanjem
+// xlsx.core.min.js (preveri-xlsx-datum.mjs). Ista napaka bi lahko doslej
+// prizadela tudi druge, starejše uvoze iz .xlsx (npr. HR uvoz v Imeniku).
+// Dodatno: "Moj razpored" zdaj prikaže tudi LD, vpisan samo v Želje →
+// Razpredelnica (leave_entries) - prej se je za osebe, ki nimajo objavljene
+// izmene po osebi (NZV/vodje), letni dopust kazal kot navaden prost dan.
+// Spremenjena index.html, import-utils.js.
+
+const CACHE = 'razpored-pbb-v48';
 const ASSETS = [
   './',
   './index.html',

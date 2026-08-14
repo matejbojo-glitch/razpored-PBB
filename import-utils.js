@@ -33,16 +33,37 @@ window.ImportUtils = (function () {
     return vrstice.filter(v => v.some(p => (p || "").trim() !== ""));
   }
 
+  // Excel/Google Sheets shranjujeta datum kot "serijsko število" (št. dni od
+  // fiksnega izhodišča) - CELO za navadne, brez-urne datume ta številka
+  // pogosto NI točno cel dan, ampak ima drobno plavajočo napako (npr.
+  // 46173.999999988 namesto točno 46174 za isti dan) - resnično se to
+  // zgodi pri izvozu iz Google Sheets. Knjižnica (xlsx.core.min.js) to
+  // brez zaokroževanja pretvori v čas TIK PRED polnočjo PRAVEGA dne (npr.
+  // "23:59:59.998" prejšnjega koledarskega dne) - golo odrezanje prvih 10
+  // znakov ISO niza bi zato vrnilo NAPAČEN, za en dan prestavljen datum.
+  // Najden in preverjen na resničnem zapisu/branju prek xlsx.core.min.js,
+  // glej skripte/preveri-xlsx-datum.mjs - to je bil pravi vzrok napake
+  // "vpisi pristanejo na napačnem dnevu" pri uvozu iz naložene .xlsx
+  // datoteke (CSV/Google Sheets pot te napake nima, ker izvozi besedilo
+  // datuma, ne binarno serijsko številko).
+  const DAN_MS = 24 * 60 * 60 * 1000;
+  const ISO_CAS_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+  function zaokroziNaDan(casovniZig){
+    const zaokrozenDan = Math.round(casovniZig / DAN_MS);
+    const d = new Date(zaokrozenDan * DAN_MS);
+    const y = d.getUTCFullYear(), m = String(d.getUTCMonth()+1).padStart(2,"0"), dd = String(d.getUTCDate()).padStart(2,"0");
+    return `${y}-${m}-${dd}`;
+  }
   function xlsxCelicaVBesedilo(c) {
     if (c === null || c === undefined) return "";
-    // cellDates:true (glej spodaj) pretvori datumsko oblikovane celice v JS
-    // Date namesto Excel serijske številke — tu jo damo v ISO obliko
-    // (YYYY-MM-DD), da se ujema s preostalo aplikacijo (datumi so povsod ISO).
-    if (c instanceof Date && !isNaN(c)) {
-      // getUTC* (ne krajevni čas) - SheetJS datumske celice bere kot UTC
-      // polnoč, krajevni čas bi lahko ob negativnem UTC odmiku premaknil dan.
-      const y = c.getUTCFullYear(), m = String(c.getUTCMonth()+1).padStart(2,"0"), d = String(c.getUTCDate()).padStart(2,"0");
-      return `${y}-${m}-${d}`;
+    // cellDates:true (glej spodaj) BI moral pretvoriti datumsko oblikovane
+    // celice v JS Date - ta vendorirana različica xlsx.core.min.js pa
+    // dejansko vrne ISO niz S ČASOM (npr. "2026-06-01T00:00:00.000Z"), ne
+    // Date objekta - zato preverimo OBOJE, defenzivno.
+    if (c instanceof Date && !isNaN(c)) return zaokroziNaDan(c.getTime());
+    if (typeof c === "string" && ISO_CAS_RX.test(c)) {
+      const t = Date.parse(c);
+      if (!isNaN(t)) return zaokroziNaDan(t);
     }
     return String(c);
   }
