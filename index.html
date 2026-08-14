@@ -1572,6 +1572,30 @@ function App(){
     try { localStorage.setItem("razpored-sirsi-pogled", sirsiPogled ? "1" : "0"); } catch (e) { /* zasebni način ipd. - ni usodno */ }
   }, [sirsiPogled]);
 
+  // Če telefon FIZIČNO postane ležeč (uporabnik ga med ogledom obrne, ali
+  // ima samodejno obračanje vklopljeno), ročni zasuk (rotate(90deg) na
+  // body, glej <style> zgoraj) samodejno ugasnemo. Uporabnikov posnetek
+  // zaslona je pokazal pravi hrošč te kombinacije: PRAVA ležeča orientacija
+  // + še vedno aktiven ročni zasuk je stran stisnila v majhen pas na sredini
+  // zaslona (100vh/100vw sta bila izračunana za staro, pokončno stanje in
+  // se ob fizičnem obratu nista zanesljivo preračunala). Ko je telefon
+  // resnično ležeč, ga @media (orientation: landscape) že sam po sebi
+  // pravilno prikaže široko - ročni zasuk takrat samo škodi, zato ga takoj
+  // izklopimo, še preden pride do konflikta (namesto da bi se zanašali na
+  // to, da se @media (orientation: portrait) zgoraj pravočasno prereši).
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(orientation: landscape)");
+    const naOrientacijo = () => { if (mq.matches) setSirsiPogled(false); };
+    naOrientacijo();
+    if (mq.addEventListener) mq.addEventListener("change", naOrientacijo);
+    else mq.addListener(naOrientacijo); // starejši WebView brez addEventListener na MediaQueryList
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", naOrientacijo);
+      else mq.removeListener(naOrientacijo);
+    };
+  }, []);
+
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
       if (!res) return;
