@@ -19,14 +19,10 @@
 -- Zaplotnik Alenka, Balek Mija, Sejdinović Mustafa - zanje ni profila, v
 -- katerega bi se parafa zapisala.
 --
--- POZOR - "MAGKIĆ ALEKSANDER" (parafa "AMG"): izvoz vsebuje LOČENO
--- vrstico "MAGLIĆ ALEKSANDER" (parafa "MA", vrstica 61) - torej gre
--- najverjetneje za DVE različni osebi s podobnim priimkom (Magkić/Maglić),
--- NE za tipkarsko napako ene same osebe - zato NISEM združil teh dveh
--- vrstic. Če je "Magkić" v resnici tiskarska napaka za "Maglić", preveri
--- spodnje poročilo (vrstica se bo pokazala kot "ni najden profil" ali pa
--- bo prepisala napačno osebo, če profil "Magkić" dejansko obstaja) in po
--- potrebi ročno popravi v Imeniku.
+-- "MAGKIĆ ALEKSANDER" (AMG) / "MAGLIĆ ALEKSANDER" (MA) v izvirnem izvozu
+-- sta bili dve LOČENI vrstici za isto osebo (Aleksander Maglić - "Magkić"
+-- je bila tiskarska napaka priimka) - uporabnik je potrdil, da je prava
+-- parafa "MAG". Spodaj zato samo ENA vrstica z uradno pravo parafo.
 --
 -- Varno za ponovni zagon (UPDATE prepiše na isto vrednost, če ni sprememb).
 -- ---------------------------------------------------------------------
@@ -71,7 +67,6 @@ with vhod (full_name, parafa) as (
   ('VOVK URŠKA', 'UV'),
   ('ZEKAN ALMEDIN', 'AZE'),
   ('MRAVLJE UROŠ', 'UM'),
-  ('MAGKIĆ ALEKSANDER', 'AMG'),
   ('MUŠIĆ ALEN', 'AMU'),
   ('ADNA MIDŽAN', 'AMI'),
   ('ANA MITROVA', 'ANM'),
@@ -90,7 +85,7 @@ with vhod (full_name, parafa) as (
   ('LELIČ DIJANA', 'DIL'),
   ('POGAČNIK TEJA', 'PT'),
   ('VOZEL DEJAN', 'DV'),
-  ('MAGLIĆ ALEKSANDER', 'MA'),
+  ('MAGLIĆ ALEKSANDER', 'MAG'),
   ('STARC ERIK', 'SE'),
   ('GASHI GENTIANA', 'GG'),
   ('SIJAMHODŽIĆ NERMINA', 'SN'),
