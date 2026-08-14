@@ -198,8 +198,20 @@ function autoParafa(fullName){
   const priimek = deli.length > 1 ? deli.slice(0, -1).join("") : (deli[0] || "");
   return priimek.slice(0, 3).toUpperCase();
 }
-function parafaOd(profil){
-  return (profil && profil.parafa) ? profil.parafa : autoParafa(profil ? profil.full_name : "");
+// Parafa se je za del kadra spremenila z veljavnostjo od 1.10.2026
+// (uradna prenova, ne popravek napake) - profiles.parafa hrani NOVO
+// parafo (velja od tega datuma dalje), profiles.parafa_pred_oktobrom_2026
+// pa STARO (veljala do 30.9.2026), samo za osebe, ki jim je bila
+// dejansko spremenjena (glej supabase/posodobi-parafe-oktober-2026.sql).
+// "datum" je delovni dan (work_date, "LLLL-MM-DD") ALI mesec ("LLLL-MM")
+// razporeda/dopusta, na katerega se parafa nanaša - NE današnji dan.
+const PARAFA_PRESTOP = "2026-10";
+function parafaOd(profil, datum){
+  if (!profil) return autoParafa("");
+  if (datum && datum.slice(0, 7) < PARAFA_PRESTOP && profil.parafa_pred_oktobrom_2026) {
+    return profil.parafa_pred_oktobrom_2026;
+  }
+  return profil.parafa || autoParafa(profil.full_name);
 }
 // Prikaz ur izmene pride iz skupnega delovni-cas.js (edini vir resnice) —
 // prej je bila ista tabela zapisana še enkrat tu in še enkrat v admin.html.
@@ -647,25 +659,25 @@ function nzvNazivVKodo(){
 async function nalozizPodatkeNzv(startISO, endISO){
   const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
   const [{ data: entries }, { data: dopusti }, { data: profili }] = await Promise.all([
-    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa)")
+    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa, parafa_pred_oktobrom_2026)")
       .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO),
     client.from("leave_entries").select("full_name, work_date, kind")
       .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
-    client.from("profiles").select("full_name, parafa"),
+    client.from("profiles").select("full_name, parafa, parafa_pred_oktobrom_2026"),
   ]);
   const podatki = {};
   (entries || []).forEach(r => {
     if (!r.profiles) return;
     const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
     const key = koda + "|" + r.work_date;
-    const parafa = parafaOd(r.profiles);
+    const parafa = parafaOd(r.profiles, r.work_date);
     podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
   });
   (dopusti || []).forEach(d => {
     const koda = NZV_KIND_KODA[d.kind];
     if (!koda) return;
     const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
-    const parafa = ujem ? parafaOd(ujem) : d.full_name;
+    const parafa = ujem ? parafaOd(ujem, d.work_date) : d.full_name;
     const key = koda + "|" + d.work_date;
     podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
   });
@@ -1010,11 +1022,14 @@ function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
 const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
 
 // Ista vloga kot kratkaImenaMapa, samo za parafe (uvoziNzv/uvoziDatotekoPametno).
-function parafaMapa(profili){
+// "datum" (mesec ali dan) izbere pravo stran prestopa 1.10.2026 (glej
+// parafaOd) - vsak klic je za EN ciljni mesec, ki nikoli ne sega čez
+// prestop, zato zadostuje ena skupna vrednost za ves seznam profilov.
+function parafaMapa(profili, datum){
   const m = {};
   const podvojene = new Set();
   (profili || []).forEach(p => {
-    const parafa = parafaOd(p).toUpperCase();
+    const parafa = parafaOd(p, datum).toUpperCase();
     if (parafa in m) { podvojene.add(parafa); } else { m[parafa] = p; }
   });
   podvojene.forEach(k => delete m[k]);
@@ -1067,8 +1082,8 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId){
 async function uvoziNzv(url, ciljniMesec, myId){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const { data: profili } = await client.from("profiles").select("id, full_name, parafa");
-  const { poParafi, podvojene } = parafaMapa(profili);
+  const { data: profili } = await client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026");
+  const { poParafi, podvojene } = parafaMapa(profili, ciljniMesec);
   const { zapisi, dopusti, neujemanja, najdenDatum, najdenaGlava } = obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId);
   podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
   if (!zapisi.length && !dopusti.length) {
@@ -1138,10 +1153,10 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
 
   const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
     client.from("profiles").select("id, full_name"),
-    client.from("profiles").select("id, full_name, parafa"),
+    client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026"),
   ]);
   const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
-  const { poParafi, podvojene } = parafaMapa(profiliParafa);
+  const { poParafi, podvojene } = parafaMapa(profiliParafa, ciljniMesec);
 
   const neujemanja = new Set();
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
