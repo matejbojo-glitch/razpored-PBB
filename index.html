@@ -75,6 +75,16 @@
   }
   @media (min-width:900px){
   }
+  /* Ista postavitev kot zgoraj, a NA ZAHTEVO prek gumba "Širši prikaz"
+     (glej WideToggle v App), namesto da bi bila odvisna od tega, ali
+     naprava DEJANSKO javi ležečo orientacijo - telefon s samodejnim
+     obračanjem, izklopljenim v nastavitvah Androida, orientation:landscape
+     nikoli ne sproži, ne glede na to, kako ga uporabnik drži. */
+  html.sirsiPogled .wardScroller{ overflow-x:visible; }
+  html.sirsiPogled table.wardTableT{ width:100%; table-layout:fixed; }
+  html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:70px; }
+  html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
+  html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
 
   /* NZV — dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
      uradni predlogi "Letni dopusti in omejitve za NZV". Manjše pisave, ker
@@ -93,6 +103,10 @@
     table.wardTableNzv th:not(.name):not(.dez), table.wardTableNzv td.enotaCell:not(.dez){ width:auto; min-width:0; }
     table.wardTableNzv th.dez, table.wardTableNzv td.dez{ width:90px; }
   }
+  html.sirsiPogled table.wardTableNzv{ width:100%; table-layout:fixed; }
+  html.sirsiPogled table.wardTableNzv td.name{ width:60px; }
+  html.sirsiPogled table.wardTableNzv th:not(.name):not(.dez), html.sirsiPogled table.wardTableNzv td.enotaCell:not(.dez){ width:auto; min-width:0; }
+  html.sirsiPogled table.wardTableNzv th.dez, html.sirsiPogled table.wardTableNzv td.dez{ width:90px; }
 </style>
 </head>
 <body>
@@ -1514,6 +1528,19 @@ function App(){
   // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
   // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
   const [uvozOdprt, setUvozOdprt] = useState(false);
+  // "Širši prikaz" (na zahtevo, glej WideToggle) - na telefonu s samodejnim
+  // obračanjem zaslona IZKLOPLJENIM (pogosto v nastavitvah Androida) se
+  // @media (orientation: landscape) v theme.css/index.html nikoli ne
+  // sproži, ne glede na to, kako uporabnik drži telefon - ta gumb doseže
+  // ISTO široko postavitev "Po oddelkih" tabele (html.sirsiPogled, glej
+  // <style> zgoraj) ROČNO, brez odvisnosti od dejanske orientacije naprave.
+  const [sirsiPogled, setSirsiPogled] = useState(() => {
+    try { return localStorage.getItem("razpored-sirsi-pogled") === "1"; } catch (e) { return false; }
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle("sirsiPogled", sirsiPogled);
+    try { localStorage.setItem("razpored-sirsi-pogled", sirsiPogled ? "1" : "0"); } catch (e) { /* zasebni način ipd. - ni usodno */ }
+  }, [sirsiPogled]);
 
   useEffect(() => {
     RazporedAuth.requireAuth().then(res => {
@@ -1751,6 +1778,12 @@ function App(){
             </select>
           </div>
         </div>
+        {view === "ward" && (
+          <button type="button" className="dlBtn no-print" style={{marginTop:10}}
+            aria-pressed={sirsiPogled} onClick={() => setSirsiPogled(s => !s)}>
+            {sirsiPogled ? "📱 Nazaj na ozek prikaz" : "↔️ Širši prikaz (kot ležeče)"}
+          </button>
+        )}
       </header>
 
       {izvozniVir}

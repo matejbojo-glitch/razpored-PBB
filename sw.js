@@ -194,7 +194,15 @@
 // izmene po osebi (NZV/vodje), letni dopust kazal kot navaden prost dan.
 // Spremenjena index.html, import-utils.js.
 
-const CACHE = 'razpored-pbb-v48';
+// v49: "Po oddelkih"/NZV dobi ročen gumb "↔️ Širši prikaz (kot ležeče)" -
+// dosedanja široka postavitev tabele je bila vezana IZKLJUČNO na
+// @media (orientation: landscape), kar se na telefonu s samodejnim
+// obračanjem zaslona IZKLOPLJENIM (pogosto v nastavitvah Androida) nikoli
+// ne sproži, ne glede na to, kako uporabnik drži telefon. Gumb doseže isto
+// postavitev (html.sirsiPogled v <style>) ne glede na dejansko orientacijo
+// naprave, izbira se zapomni (localStorage). Spremenjen index.html.
+
+const CACHE = 'razpored-pbb-v49';
 const ASSETS = [
   './',
   './index.html',
