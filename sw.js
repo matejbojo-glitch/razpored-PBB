@@ -142,7 +142,25 @@
 // ena skupna komponenta (oseba-vrstica.js), ne kopija na vsaki strani.
 // Spremenjeni imenik.html, admin.html, theme.css; nov oseba-vrstica.js.
 
-const CACHE = 'razpored-pbb-v43';
+// v44: "Po oddelkih" (SMS razpored) po vzoru uradne predloge "2026 SMS
+// RAZPORED" — celica zdaj kaže CELO kodo izmene (prej kvečjemu 3 znake, kar
+// je KPU brez razločevanja od prazne celice prikazovalo enako kot "–").
+// Admin lahko razpored zdaj tudi zapiše NAZAJ v obstoječ Google Sheets
+// dokument (samo v ujemajoče se celice - imena/oblika/podpisi ostanejo
+// nedotaknjeni). Ob tem popravljena resnična napaka pri uvozu IN pisanju:
+// prazna vrstica sredi mesečnega bloka je doslej nepovratno prekinila
+// branje vseh dni za njo. Spremenjeni index.html, gsheets-client.js.
+
+// v45: NZV pogled usklajen z uradno predlogo "Letni dopusti in omejitve za
+// NZV" — vrstni red stolpcev popravljen (SA DOP/SA POP med DB in URGENCA,
+// ne na koncu) in dodani trije novi povzetni stolpci LD/IZOB/BS (kdo je ta
+// dan na letnem dopustu/strokovnem izobraževanju/bolniški - iz leave_entries,
+// isti vir kot Želje → Razpredelnica). Uvoz teh treh stolpcev piše v
+// leave_entries (ne schedule_entries kot ostale enote). "Zapiši nazaj v
+// Sheets" zdaj deluje tudi za NZV (prej samo za navadne oddelke). Spremenjen
+// index.html.
+
+const CACHE = 'razpored-pbb-v45';
 const ASSETS = [
   './',
   './index.html',

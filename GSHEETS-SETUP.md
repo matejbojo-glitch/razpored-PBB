@@ -80,3 +80,58 @@ last tistega, ki je kliknil gumb; deliš ga naprej ročno (Google Sheets →
 Po vnosu Client ID-ja odpri poljubno stran z gumbom (npr. Imenik) in klikni
 "Izvozi v Google Sheets" — pojavi se Google prijavno okno namesto
 sporočila "Izvoz v Google Sheets še ni nastavljen".
+
+## Uvoz iz Google Sheets IN pisanje nazaj — pravi zavihek je nujen
+
+Na strani **Razpored → Po oddelkih** (admin) je poleg izvoza tudi:
+- **📥 Uvozi Oddelki** — prebere razpored iz Google Sheets dokumenta v
+  aplikacijo (samo javno deljeni dokument, "Vsak s povezavo lahko ogleda" —
+  brez prijave, drugačna pot kot izvoz zgoraj).
+- **📤 Zapiši nazaj v Sheets** — obratna smer: trenutno stanje iz aplikacije
+  zapiše nazaj v **obstoječ** dokument (potrebuje Google prijavo, ker piše,
+  ne samo bere). Piše **samo v celice, ki jih tudi uvoz prebere** — ime osebe,
+  oblika, podpisni blok in drugi meseci v istem zavihku ostanejo nedotaknjeni.
+  Nikoli ne doda novega stolpca/vrstice — če oseba v listu (še) nima svojega
+  stolpca, se tiho izpusti (javi se kot "brez ujemanja imena"). Deluje tudi za
+  NZV (glej spodaj).
+
+### NZV — dan × enota (ne dan × oseba)
+
+Stran **Razpored → NZV** ima drugačno obliko kot navadni oddelki: stolpci so
+organizacijske ENOTE (PDZN, SOBO, ŽO, E1, E2, D, MO, B, C, C1, PO, A, B1/B2,
+DB, SA DOP, SA POP, URGENCA, U2), ne osebe — celica pove, KDO (parafa) to
+enoto pokriva ta dan. Zadnji trije stolpci, **LD / IZOB / BS**, niso enote,
+ampak povzetek odsotnosti tega dne (letni dopust / strokovno izobraževanje /
+bolniška) — isti vir podatkov kot Želje → Razpredelnica. Uvoz teh treh
+stolpcev zato piše v drugo tabelo (odsotnosti) kot ostale enote (razpored) —
+to je notranja podrobnost, v Sheets dokumentu pa je vseeno, videti je kot en
+sam sklop stolpcev v isti vrstici.
+
+"Uvozi NZV" in "Zapiši nazaj v Sheets" pri NZV veljata za isti dokument/list
+kot "Letni dopusti in omejitve za NZV" — velja ista past z zavihki/gid kot
+zgoraj (klikni pravi zavihek/mesec, šele nato kopiraj povezavo).
+
+**Za oboje velja ista past, ki je vzrok večine "ni najdenih vrstic"/"nobeno
+ime se ni ujemalo" napak pri dokumentu z več zavihki (en na oddelek, kot
+"2026 SMS RAZPORED"):** povezava v naslovnem polju MORA kazati na zavihek
+TEGA oddelka, kar pomeni v naslovni vrstici brskalnika `#gid=…`. Če samo
+odpreš dokument in kopiraš povezavo iz naslovne vrstice, ne da bi prej
+kliknil zavihek na dnu (npr. "C1"), povezava kaže na PRVI zavihek v
+dokumentu (običajno tisti, ki je bil ustvarjen prvi) — uvoz/zapis potem
+tiho bere/piše napačen oddelek.
+
+**Postopek, ki deluje zanesljivo:**
+1. V Google Sheets klikni zavihek za ta oddelek (dno zaslona).
+2. Šele PO TEM kopiraj naslov iz naslovne vrstice brskalnika.
+3. To povezavo prilepi v aplikacijo — vsak oddelek/gumb si svojo povezavo
+   zapomni posebej, zato to storiš enkrat na oddelek.
+
+### Preden prvič uporabiš "Zapiši nazaj v Sheets" na PRAVEM dokumentu
+
+Funkcija piše v ročno voden, podpisan uradni dokument brez možnosti
+razveljavitve v aplikaciji (Google Sheets ima svojo "Zgodovina različic" -
+File → Version history - ki lahko povrne prejšnje stanje, če bi kaj šlo
+narobe, a to je ročno dejanje, ne gumb v tej aplikaciji). Priporočam:
+naredi kopijo dokumenta (File → Make a copy), preizkusi "Zapiši nazaj" na
+kopiji in preveri, da so se spremenile TOČNO prave celice, šele nato uporabi
+na pravem dokumentu.

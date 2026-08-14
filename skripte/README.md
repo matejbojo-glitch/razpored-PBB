@@ -104,7 +104,16 @@ dotakne.
 | `preveri-foto-uvoz.mjs` | branje barv razpredelnice s fotografije (Želje) | nič |
 | `preveri-oseba-vrstica.mjs` | strnjena vrstica seznama zaposlenih: strnjeno je vidno samo ime, klik na vrstico razpre podatke, klik na ime odpre zapis | `playwright` |
 | `preveri-izbris-osebe.mjs` | `schema.sql` postavi delujočo bazo iz nič; `odstrani-zaposlene.sql` se izvede po ukazih (vsak v svoji seji, kot v Supabase SQL Editorju) in za sabo ne pusti ne imena ne viseče povezave | lokalni PostgreSQL + `su postgres` |
+| `preveri-zapis-v-sheets.mjs` | `pripraviPosodobitveOddelka` (index.html) na fixture-ju v obliki resničnega dokumenta ("2026 SMS RAZPORED") — najde prave koordinate (vrstica, stolpec) za pisanje nazaj v Google Sheets, ločeno po mesecih z različnim naborom ljudi, prek prazne vmesne vrstice, brez pisanja v celico osebe, ki v listu nima stolpca | nič |
+| `preveri-nzv-sheets.mjs` | `pripraviPosodobitveNzv`/`nzvNazivVKodo`/`NZV_STOLPCI` (index.html) na fixture-ju v obliki resničnega dokumenta ("Letni dopusti in omejitve za NZV") — pravi vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA), prave koordinate za enote IN za nova LD/IZOB/BS polja, ločeno po mesecih, prek prazne vmesne vrstice | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
 šele ob zagonu proti pravi bazi, ne z branjem kode.
+
+`preveri-zapis-v-sheets.mjs` je odkril resnično napako (ne le preveril
+pravilnost): prazna vrstica SREDI mesečnega bloka (npr. presledek med
+tedni) je doslej nepovratno prekinila `obdelajBlok` — vsi dnevi ZA njo so
+tiho izpadli iz uvoza/zapisa. Ista funkcija se uporablja tako za uvoz
+(`uvoziOddelek`/`uvoziNzv`) kot za pisanje nazaj, zato popravek velja za
+oboje.
