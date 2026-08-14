@@ -169,7 +169,18 @@
 // zavihek naenkrat) ostane na voljo kot "Ali ročno …". Spremenjeni
 // index.html, import-utils.js.
 
-const CACHE = 'razpored-pbb-v46';
+// v47: popravek resnične napake v46 - "Naloži datoteko (samodejno)" je pri
+// večzavihkovni datoteki (npr. cel "2026 SMS RAZPORED") pisalo VSE zavihke
+// v EN SAM Postgres upsert stavek; če je ista oseba za isti dan nastopila v
+// dveh zavihkih (npr. FLEXI pokritost + matični oddelek), je Postgres to
+// zavrnil z "ON CONFLICT DO UPDATE command cannot affect row a second
+// time" in CEL uvoz je spodletel. Zdaj se vsak zavihek zapiše LOČENO
+// (zaporedoma), z dodatnim čiščenjem morebitnih podvojenih vrstic ZNOTRAJ
+// istega zavihka (zdruziPoKljucu) - poznejši zavihek/vrednost prepiše
+// prejšnjo za ta dan, namesto da bi celoten uvoz padel. Spremenjen
+// index.html.
+
+const CACHE = 'razpored-pbb-v47';
 const ASSETS = [
   './',
   './index.html',

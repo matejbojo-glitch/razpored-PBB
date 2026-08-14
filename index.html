@@ -1047,6 +1047,26 @@ function razvrstiListe(listi){
   return { oddelki, preostali };
 }
 
+// En sam SQL "upsert" stavek (INSERT ... ON CONFLICT DO UPDATE) v Postgresu
+// zavrne, če isti stavek dvakrat "prizadene" isto vrstico (napaka "ON
+// CONFLICT DO UPDATE command cannot affect row a second time") - to se v
+// resnici zgodi, če ista oseba za isti dan nastopa v VEČ zavihkih naenkrat
+// (npr. FLEXI pokritost, ki je hkrati omenjena tudi v matičnem oddelku).
+// Ta pomožna funkcija na SEZNAMU zapisov obdrži samo zadnjo vrednost za
+// vsak ključ (oseba+dan) - uporablja jo uvoziDatotekoPametno spodaj, PRED
+// vsakim posameznim klicem shraniZapiseRazporeda/shraniDopusteNzv, da se
+// napaka sploh ne more zgoditi.
+function zdruziPoKljucu(vrstice, kljucFn){
+  const m = new Map();
+  const podvojeni = new Set();
+  vrstice.forEach(v => {
+    const k = kljucFn(v);
+    if (m.has(k)) podvojeni.add(k);
+    m.set(k, v); // zadnja vrednost zmaga
+  });
+  return { edinstveni: [...m.values()], podvojeni };
+}
+
 async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   const { listi } = await window.ImportUtils.preberiVseListe(file);
   if (!listi || !listi.length) throw new Error("Prazna datoteka.");
@@ -1059,47 +1079,56 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
   const { poParafi, podvojene } = parafaMapa(profiliParafa);
 
-  const vsiZapisi = [];
-  const vsiDopusti = [];
   const neujemanja = new Set();
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
 
+  // Vsak list se zapiše V SVOJEM lastnem klicu (ne enem skupnem upsert-u čez
+  // vse liste skupaj) - če ista oseba za isti dan nastopa v dveh zavihkih,
+  // to naravno pomeni "kasnejši zavihek prepiše prejšnjega za ta dan"
+  // namesto da bi Postgres zavrnil celoten uvoz (glej zdruziPoKljucu zgoraj).
+  let steviloRazporeda = 0, steviloOdsotnosti = 0;
   const povzetekOddelki = [];
-  oddelki.forEach(({ koda, vrsteVrstic }) => {
+  for (const { koda, vrsteVrstic } of oddelki) {
     const { zapisi, neujemanja: neu } = obdelajOddelekVrstice(vrsteVrstic, koda, ciljniMesec, poKratkem);
     neu.forEach(n => neujemanja.add(koda + ": " + n));
-    if (zapisi.length) { vsiZapisi.push(...zapisi); povzetekOddelki.push(`${koda} (${zapisi.length})`); }
-  });
+    if (!zapisi.length) continue;
+    const { edinstveni, podvojeni } = zdruziPoKljucu(zapisi, z => z.employee_id + "|" + z.work_date);
+    if (podvojeni.size) neujemanja.add(`${koda}: ${podvojeni.size} podvojenih vpisov (ista oseba/dan večkrat v tem zavihku) - uporabljena zadnja vrednost`);
+    await shraniZapiseRazporeda(edinstveni);
+    steviloRazporeda += edinstveni.length;
+    povzetekOddelki.push(`${koda} (${edinstveni.length})`);
+  }
 
   const preskoceni = [];
-  preostali.forEach(l => {
+  for (const l of preostali) {
     const { zapisi, dopusti, neujemanja: neu } = obdelajNzvVrstice(l.vrsteVrstic, ciljniMesec, poParafi, myId);
-    if (zapisi.length || dopusti.length) {
-      vsiZapisi.push(...zapisi); vsiDopusti.push(...dopusti);
-      neu.forEach(n => neujemanja.add(l.naziv + ": " + n));
-    } else {
-      preskoceni.push(l.naziv);
-    }
-  });
+    if (!zapisi.length && !dopusti.length) { preskoceni.push(l.naziv); continue; }
+    neu.forEach(n => neujemanja.add(l.naziv + ": " + n));
+    const { edinstveni: eZapisi, podvojeni: pZapisi } = zdruziPoKljucu(zapisi, z => z.employee_id + "|" + z.work_date);
+    const { edinstveni: eDopusti, podvojeni: pDopusti } = zdruziPoKljucu(dopusti, d => d.full_name + "|" + d.work_date);
+    if (pZapisi.size || pDopusti.size) neujemanja.add(`${l.naziv}: ${pZapisi.size + pDopusti.size} podvojenih vpisov (ista oseba/dan večkrat v tem zavihku) - uporabljena zadnja vrednost`);
+    await Promise.all([
+      eZapisi.length ? shraniZapiseRazporeda(eZapisi) : Promise.resolve(),
+      eDopusti.length ? shraniDopusteNzv(eDopusti) : Promise.resolve(),
+    ]);
+    steviloRazporeda += eZapisi.length;
+    steviloOdsotnosti += eDopusti.length;
+  }
 
-  if (!vsiZapisi.length && !vsiDopusti.length) {
+  if (!steviloRazporeda && !steviloOdsotnosti) {
     throw new Error(
       `V datoteki ni prepoznanih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]}. ` +
       `Prepoznani oddelčni listi: ${oddelki.map(o => o.koda).join(", ") || "noben"}.` +
       (preskoceni.length ? ` Neprepoznani listi (preveri ime zavihka/vsebino): ${preskoceni.join(", ")}.` : "")
     );
   }
-  await Promise.all([
-    vsiZapisi.length ? shraniZapiseRazporeda(vsiZapisi) : Promise.resolve(),
-    vsiDopusti.length ? shraniDopusteNzv(vsiDopusti) : Promise.resolve(),
-  ]);
   const deli = [];
   if (povzetekOddelki.length) deli.push("oddelki: " + povzetekOddelki.join(", "));
-  if (vsiDopusti.length) deli.push(`${vsiDopusti.length} vpisov odsotnosti (LD/IZOB/BS)`);
-  let besedilo = `Uvoženih skupaj ${vsiZapisi.length + vsiDopusti.length} vpisov` + (deli.length ? " (" + deli.join("; ") + ")" : "") + ".";
+  if (steviloOdsotnosti) deli.push(`${steviloOdsotnosti} vpisov odsotnosti (LD/IZOB/BS)`);
+  let besedilo = `Uvoženih skupaj ${steviloRazporeda + steviloOdsotnosti} vpisov` + (deli.length ? " (" + deli.join("; ") + ")" : "") + ".";
   if (preskoceni.length) besedilo += ` Preskočeni listi (niso prepoznani kot oddelek ali NZV za izbrani mesec): ${preskoceni.join(", ")}.`;
-  if (neujemanja.size) besedilo += ` Brez ujemanja imena/parafe: ${[...neujemanja].join(", ")}.`;
+  if (neujemanja.size) besedilo += ` Opombe: ${[...neujemanja].join(", ")}.`;
   return besedilo;
 }
 
