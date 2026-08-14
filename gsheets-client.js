@@ -113,5 +113,107 @@
     return "https://docs.google.com/spreadsheets/d/" + id + "/edit";
   }
 
-  root.GSheetsExport = { izvoziVSheets: izvoziVSheets, jeNastavljeno: function () { return !!CLIENT_ID; } };
+  // ---------------------------------------------------------------------
+  // Branje/pisanje POSAMEZNIH CELIC v obstoječ dokument (za "Zapiši nazaj v
+  // Sheets" na Razporedu — piše popravke naravnost v admin-ov že obstoječ,
+  // ročno voden dokument, namesto da bi ob vsakem izvozu naredila nov).
+  //
+  // preberiVrednosti/zapisiVObstojeciList NAMENOMA ne uporabljata javnega
+  // CSV izvoza (glej ImportUtils.preberiGoogleSheet v import-utils.js) - ta
+  // izpusti prazne vrstice, kar bi za BRANJE bilo v redu, za PISANJE pa bi
+  // premaknilo indekse vrstic glede na resnične številke vrstic v listu.
+  // Namesto tega gresta prek Sheets API (values.get / values:batchUpdate) z
+  // OAuth žetonom, ki že obstaja za izvoz zgoraj (isti obseg pravic).
+  // ---------------------------------------------------------------------
+
+  function razberiPovezavo(url) {
+    var m = String(url || "").match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (!m) throw new Error("Ni videti kot povezava Google Sheets (pričakovano: docs.google.com/spreadsheets/d/...).");
+    var gidM = String(url).match(/[?#&]gid=([0-9]+)/);
+    return { id: m[1], gid: gidM ? gidM[1] : null };
+  }
+
+  // 0-based indeks stolpca -> črke ("A", "B", ..., "Z", "AA", ...).
+  function stolpecVCrke(n) {
+    var s = "", m = n + 1;
+    while (m > 0) {
+      var ostanek = (m - 1) % 26;
+      s = String.fromCharCode(65 + ostanek) + s;
+      m = Math.floor((m - 1) / 26);
+    }
+    return s;
+  }
+
+  // gid v URL-ju je INTERNI ID zavihka (ne njegov naslov), Sheets API values.*
+  // pa zahteva naslov ("List1!A1"). To poišče naslov, ki ustreza gid-u iz
+  // povezave - če gid v povezavi manjka, vzame prvi zavihek v dokumentu
+  // (enako kot javni CSV izvoz privzeto vzame gid=0).
+  async function najdiNaslovLista(id, zeton, gid) {
+    var res = await fetch("https://sheets.googleapis.com/v4/spreadsheets/" + id + "?fields=sheets.properties", {
+      headers: { "Authorization": "Bearer " + zeton },
+    });
+    var podatki = await preveriOdgovor(res, "Branje seznama zavihkov ni uspelo");
+    var listi = (podatki.sheets || []).map(function (s) { return s.properties; });
+    if (!listi.length) throw new Error("Dokument nima nobenega zavihka.");
+    var moj = gid != null ? listi.filter(function (s) { return String(s.sheetId) === String(gid); })[0] : listi[0];
+    if (!moj) {
+      throw new Error(
+        "V dokumentu ni zavihka z gid=" + gid + " — preveri, da je povezava kopirana IZ PRAVEGA zavihka " +
+        "(klikni zavihek na dnu preglednice, šele nato kopiraj naslov iz naslovne vrstice)."
+      );
+    }
+    return moj.title;
+  }
+
+  // Vrne { id, naslovLista, vrsteVrstic } - vrsteVrstic je string[][], kjer
+  // INDEKS v polju ustreza PRAVI številki vrstice v listu (vrstica 1 v
+  // Sheetsu = vrsteVrstic[0]); Google API prazne vmesne vrstice vrne kot [],
+  // ne jih izpusti, dokler jih izrecno zahtevamo v obsegu (glej spodaj).
+  async function preberiVrednosti(url) {
+    var razbrano = razberiPovezavo(url);
+    var zeton = await pridobiZeton(!trenutniZeton);
+    var naslovLista = await najdiNaslovLista(razbrano.id, zeton, razbrano.gid);
+    var obseg = encodeURIComponent(naslovLista) + "!A1:ZZ3000";
+    var res = await fetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" + razbrano.id + "/values/" + obseg,
+      { headers: { "Authorization": "Bearer " + zeton } }
+    );
+    var podatki = await preveriOdgovor(res, "Branje podatkov iz Google Sheets ni uspelo");
+    return { id: razbrano.id, naslovLista: naslovLista, vrsteVrstic: podatki.values || [] };
+  }
+
+  // posodobitve: [{ vrstica, stolpec, vrednost }], 0-based indeksi TOČNO
+  // takšni, kot jih vrne preberiVrednosti (ista poravnava). Piše SAMO te
+  // posamezne celice prek values:batchUpdate - noben drug del lista (imena,
+  // podpisni blok, drugi meseci, oblikovanje) se ne spremeni. Vrne število
+  // dejansko zapisanih celic in naslov zavihka.
+  async function zapisiVObstojeciList(url, posodobitve) {
+    if (!posodobitve || !posodobitve.length) return { list: null, stevilo: 0, url: url };
+    var razbrano = razberiPovezavo(url);
+    var zeton = await pridobiZeton(!trenutniZeton);
+    var naslovLista = await najdiNaslovLista(razbrano.id, zeton, razbrano.gid);
+    var podatkiObsegov = posodobitve.map(function (p) {
+      return {
+        range: "'" + naslovLista.replace(/'/g, "''") + "'!" + stolpecVCrke(p.stolpec) + (p.vrstica + 1),
+        values: [[p.vrednost]],
+      };
+    });
+    var res = await fetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" + razbrano.id + "/values:batchUpdate",
+      {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + zeton, "Content-Type": "application/json" },
+        body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: podatkiObsegov }),
+      }
+    );
+    await preveriOdgovor(res, "Pisanje v Google Sheets ni uspelo");
+    return { list: naslovLista, stevilo: posodobitve.length, url: "https://docs.google.com/spreadsheets/d/" + razbrano.id + "/edit" };
+  }
+
+  root.GSheetsExport = {
+    izvoziVSheets: izvoziVSheets,
+    jeNastavljeno: function () { return !!CLIENT_ID; },
+    preberiVrednosti: preberiVrednosti,
+    zapisiVObstojeciList: zapisiVObstojeciList,
+  };
 })(typeof window !== "undefined" ? window : this);

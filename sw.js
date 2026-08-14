@@ -142,7 +142,16 @@
 // ena skupna komponenta (oseba-vrstica.js), ne kopija na vsaki strani.
 // Spremenjeni imenik.html, admin.html, theme.css; nov oseba-vrstica.js.
 
-const CACHE = 'razpored-pbb-v43';
+// v44: "Po oddelkih" (SMS razpored) po vzoru uradne predloge "2026 SMS
+// RAZPORED" — celica zdaj kaže CELO kodo izmene (prej kvečjemu 3 znake, kar
+// je KPU brez razločevanja od prazne celice prikazovalo enako kot "–").
+// Admin lahko razpored zdaj tudi zapiše NAZAJ v obstoječ Google Sheets
+// dokument (samo v ujemajoče se celice - imena/oblika/podpisi ostanejo
+// nedotaknjeni). Ob tem popravljena resnična napaka pri uvozu IN pisanju:
+// prazna vrstica sredi mesečnega bloka je doslej nepovratno prekinila
+// branje vseh dni za njo. Spremenjeni index.html, gsheets-client.js.
+
+const CACHE = 'razpored-pbb-v44';
 const ASSETS = [
   './',
   './index.html',

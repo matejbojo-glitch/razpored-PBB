@@ -66,6 +66,12 @@
     table.wardTableT{ width:100%; table-layout:fixed; }
     table.wardTableT th.name, table.wardTableT td.name{ width:70px; }
     table.wardTableT th:not(.name), table.wardTableT td:not(.name){ width:auto; min-width:0; }
+    /* Cele kode izmen ("popoldan do 19", "NOČNA od 19") so predolge za
+       enakomerno razdeljen stolpec pri table-layout:fixed - privzeti
+       white-space:nowrap (theme.css) bi jih pustil vizualno preliti čez
+       sosednje celice. Raje se prelomijo v dve vrstici znotraj SVOJEGA
+       stolpca. */
+    table.wardTableT td:not(.name){ white-space:normal; }
   }
   @media (min-width:900px){
   }
@@ -485,9 +491,14 @@ function WardView({ deptCode, month, myId }){
                     const isMe = z.id === myId;
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
-                        <span className={"swatch swatch-" + cls} title={sifra}>
-                          {cls==="off" ? "–" : (sifra||"").slice(0,3)}
-                        </span>
+                        {/* Prej je bilo tu vedno kvečjemu 3 znake ("dop", "NOČ") in vsaka
+                            "off" celica (KPU ALI resnično prazna) je pokazala isti "–" —
+                            KPU se torej ni dalo ločiti od praznega dneva. Zdaj: prazna
+                            celica ne izriše ničesar (kot v uradni predlogi "2026 SMS
+                            RAZPORED"), vsaka druga pokaže celotno kodo. */}
+                        {sifra && (
+                          <span className={"swatch swatch-" + cls} title={sifra}>{sifra}</span>
+                        )}
                       </td>
                     );
                   })}
@@ -656,22 +667,45 @@ function najdiVrsticoImen(vrsteVrstic, zacetekBloka){
 // obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset,
 // obdelajVrstico) sprehodi en strnjen sklop datumskih vrstic od indeksa i
 // naprej, poišče glavo (imena/enote) zanj in za vsako vrstico ZNOTRAJ
-// [startISO,endISO] pokliče obdelajVrstico(vrstica, glava, datum). "offset"
+// [startISO,endISO] pokliče obdelajVrstico(vrstica, glava, datum, j). "offset"
 // = koliko uvodnih (ne-podatkovnih) stolpcev pred imeni/enotami - 2 za
 // oddelke (Datum, Dan kot ločena stolpca, glej realno predlogo "2026 SMS
 // RAZPORED"), 1 za NZV (samo Datum, BREZ ločenega stolpca Dan - glej
 // realno predlogo "Letni dopusti in omejitve za NZV", ki ima glavo "DATUM |
 // PDZN | SOBO | …" brez vmesnega "Dan"). Vrne indeks tik za sklopom.
+// "j" (indeks vrstice v vrsteVrstic) je dodan kot 4. argument obdelajVrstico
+// - obstoječa dva klicatelja (uvoziOddelek/uvoziNzv) ga ne sprejemata in ga
+// JS preprosto prezre; uporablja ga samo pripraviPosodobitveOddelka (pisanje
+// nazaj v Sheets), ki potrebuje pravo številko vrstice v listu, ne samo
+// vsebine.
+// Google Sheets API (values.get, glej GSheetsExport.preberiVrednosti) prazne
+// VMESNE vrstice vrne kot [] namesto da bi jih izpustil - ista stvar se
+// zgodi tudi v pravih dokumentih, ki imajo tu in tam prazno vrstico "za
+// zrak" (vizualni presledek med tedni ipd.). Prej je katera koli taka
+// vrstica sredi bloka nepovratno PREKINILA branje - vse dneve ZA njo je
+// tiho izpustila, čeprav so bili dejansko del istega, še odprtega bloka
+// (najden šele s fixture testom, glej skripte/preveri-zapis-v-sheets.mjs).
+function vrsticaJePrazna(vrstica){
+  return !vrstica || vrstica.length === 0 || vrstica.every(c => (c == null ? "" : String(c)).trim() === "");
+}
+
 function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obdelajVrstico, stanje){
   const glavaIdx = poisciGlavo(vrsteVrstic, i);
   const glava = glavaIdx != null ? vrsteVrstic[glavaIdx].slice(offset) : [];
-  let j = i;
+  let j = i, praznihZapored = 0;
   while (j < vrsteVrstic.length) {
+    // Prazno vrstico preskoči (blok se še ne konča) - a ne v nedogled, da
+    // se namesto naslednjega meseca ne "poje" ves prazen prostor do njega.
+    if (vrsticaJePrazna(vrsteVrstic[j])) {
+      if (++praznihZapored > 20) break;
+      j++; continue;
+    }
+    praznihZapored = 0;
     const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[j][0]);
     if (!ISO_DATUM_RX.test(datum)) break;
     if (datum >= startISO && datum <= endISO) {
       stanje.najdenDatum = true;
-      if (glava.length) { stanje.najdenaGlava = true; obdelajVrstico(vrsteVrstic[j], glava, datum); }
+      if (glava.length) { stanje.najdenaGlava = true; obdelajVrstico(vrsteVrstic[j], glava, datum, j); }
     }
     j++;
   }
@@ -737,12 +771,83 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
     }, stanje);
   }
   if (!zapisi.length) {
-    if (!stanje.najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku - preveri, da si prilepil pravo povezavo (in pravi zavihek, če je oddelkov več).`);
+    if (!stanje.najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK — v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
     if (!stanje.najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z imeni oseb.");
-    throw new Error("Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: " + [...neujemanja].join(", "));
+    throw new Error(`Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: ${[...neujemanja].join(", ")}. Če so imena videti pravilna, je verjetno kriv napačen zavihek (glej zgoraj) — preveri, da povezava kaže na zavihek TEGA oddelka.`);
   }
   await shraniZapiseRazporeda(zapisi);
   return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "");
+}
+
+// ---------------------------------------------------------------------
+// Pisanje NAZAJ v Google Sheets — samo za oddelčne zavihke (kot uvoziOddelek
+// zgoraj), ne za "Moj razpored"/NZV (drugačna oblika, glej "kasneje" v
+// pogovoru z uporabnikom). Piše SAMO v celice, ki jih uvoziOddelek tudi
+// prebere - iste (vrstica, stolpec) koordinate, izračunane z isto logiko
+// iskanja bloka/glave. Zato:
+//   - imena, vloge, naslov meseca, podpisni blok in oblikovanje v listu
+//     ostanejo NEDOTAKNJENI (nobena od teh celic ni v seznamu posodobitev),
+//   - oseba, ki v listu (še) nima svojega stolpca (ker v Sheetsu še ni bila
+//     dodana), se tiho izpusti - funkcija NIKOLI ne doda novega stolpca ali
+//     vrstice, samo prepiše obstoječe.
+// Za pravilno poravnavo vrstic MORA klicatelj prebrati list prek
+// GSheetsExport.preberiVrednosti (Sheets API), NE prek
+// ImportUtils.preberiGoogleSheet (javni CSV izvoz) - slednji izpusti prazne
+// vrstice in bi s tem premaknil indekse vrstic glede na resnične številke
+// vrstic v listu.
+function pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDate){
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const poKratkem = {};
+  const podvojena = new Set();
+  (employees || []).forEach(z => {
+    const kratko = priimekZacetnica(z.full_name).toUpperCase();
+    if (kratko in poKratkem) podvojena.add(kratko); else poKratkem[kratko] = z;
+  });
+  podvojena.forEach(k => delete poKratkem[k]);
+  const posodobitve = [];
+  const neujemanja = new Set();
+  podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
+  const stanje = { najdenDatum: false, najdenaGlava: false };
+  let i = 0;
+  while (i < vrsteVrstic.length) {
+    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]);
+    if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
+    i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum, j) => {
+      imena.forEach((ime, idx) => {
+        const z = poKratkem[(ime || "").trim().toUpperCase()];
+        if (!z) { if (ime) neujemanja.add(ime); return; }
+        const trenutna = byEmpDate[z.id + "|" + datum] || "";
+        posodobitve.push({ vrstica: j, stolpec: 2 + idx, vrednost: trenutna });
+      });
+    }, stanje);
+  }
+  return { posodobitve, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava, neujemanja };
+}
+
+async function zapisiOddelekVSheets(url, wardCode, ciljniMesec){
+  if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
+    throw new Error("Pisanje v Google Sheets še ni nastavljeno — manjka Google Client ID (glej GSHEETS-SETUP.md).");
+  }
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const [{ data: employees }, { data: entries }] = await Promise.all([
+    client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
+    client.from("schedule_entries").select("employee_id, work_date, shift_code")
+      .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
+  ]);
+  if (!employees || !employees.length) throw new Error("Za ta oddelek še ni dodeljenih zaposlenih.");
+  const byEmpDate = {};
+  (entries || []).forEach(e => { byEmpDate[e.employee_id + "|" + e.work_date] = e.shift_code; });
+
+  const { naslovLista, vrsteVrstic } = await window.GSheetsExport.preberiVrednosti(url);
+  const { posodobitve, najdenDatum, najdenaGlava, neujemanja } = pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDate);
+  if (!posodobitve.length) {
+    if (!najdenDatum) throw new Error(`V zavihku "${naslovLista}" ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} - preveri, da povezava kaže na pravi zavihek (klikni zavihek za ta oddelek, šele nato kopiraj povezavo).`);
+    if (!najdenaGlava) throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nad njimi ni najti vrstice z imeni oseb.`);
+    throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nobeno ime v listu se ni ujemalo z zaposlenim v aplikaciji: ` + [...neujemanja].join(", "));
+  }
+  const rezultat = await window.GSheetsExport.zapisiVObstojeciList(url, posodobitve);
+  return `Zapisanih ${rezultat.stevilo} celic v zavihek "${rezultat.list}".`
+    + (neujemanja.size ? ` Brez ujemanja imena (celica v Sheetsu ni bila spremenjena): ${[...neujemanja].join(", ")}.` : "");
 }
 
 // NZV predloga ima glavo (enote) VEDNO neposredno nad prvim dnem tega
@@ -852,6 +957,28 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
     }
   };
 
+  // Piše nazaj samo za navadne oddelke (uvoziOddelek/pripraviPosodobitveOddelka
+  // podpirata samo to obliko - "Moj razpored" in NZV imata drugačno postavitev,
+  // glej opombo ob pripraviPosodobitveOddelka). Zahteva potrditev, ker piše v
+  // deljen, ročno voden dokument z realno zgodovino/podpisi - napačna povezava
+  // (napačen zavihek) bi lahko prepisala tuje celice.
+  const zapisiNazaj = async () => {
+    if (!url.trim()) { setMsg({ ok: false, text: "Vnesi povezavo do Google Sheets." }); return; }
+    if (!window.confirm(
+      `To bo prepisalo obstoječe celice izmen za ${MESECI[Number(month.split("-")[1]) - 1]} ${month.split("-")[0]} v zavihku, na katerega kaže zgornja povezava, s trenutnim stanjem iz aplikacije.\n\n` +
+      "Imena, oblika in podpisni blok ostanejo nedotaknjeni - spremenijo se samo celice z izmenami. To dejanje ni mogoče razveljaviti (razen ročno, v Google Sheets prek Zgodovina različic).\n\nNadaljujem?"
+    )) return;
+    setBusy("zapis"); setMsg(null);
+    try {
+      const besedilo = await zapisiOddelekVSheets(url.trim(), wardCode, month);
+      setMsg({ ok: true, text: besedilo });
+    } catch (e) {
+      setMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // Napredna, redkeje uporabljena funkcija (samo admin) - v modalnem oknu,
   // da glavni zaslon ostane čist (na telefonu se odpre z dna).
   if (!odprto) return null;
@@ -870,6 +997,12 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
             </label>
             <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => spremeniUrl(e.target.value)} />
           </div>
+          <p className="hint" style={{marginTop:2, marginBottom:10}}>
+            Pomembno pri dokumentu z več zavihki (en na oddelek): odpri zavihek ZA TA ODDELEK v Google Sheets
+            (klikni njegovo ime na dnu preglednice) in šele nato kopiraj povezavo iz naslovne vrstice - ta mora
+            vsebovati "#gid=…". Če povezavo kopiraš, ne da bi prej kliknil zavihek, se vedno uporabi prvi zavihek v
+            dokumentu, ne tisti, ki ga pričakuješ.
+          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="dlBtn" type="button" disabled={!!busy} onClick={() => nalozi("moj")}>
               {busy === "moj" ? "Uvažam …" : "📥 Uvozi Moj razpored"}
@@ -877,11 +1010,18 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
             <button className="dlBtn" type="button" disabled={!!busy || !wardCode} onClick={() => nalozi("oddelek")}>
               {busy === "oddelek" ? "Uvažam …" : "📥 Uvozi " + (wardCode === "NZV" ? "NZV" : "Oddelki")}
             </button>
+            {wardCode && wardCode !== "NZV" && (
+              <button className="dlBtn" type="button" disabled={!!busy} onClick={zapisiNazaj}>
+                {busy === "zapis" ? "Zapisujem …" : "📤 Zapiši nazaj v Sheets"}
+              </button>
+            )}
           </div>
           <p className="hint" style={{marginTop:6}}>
-            Uvozi samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
+            Uvozi/zapiše samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
             povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
-            gumb/oddelek si zapomni svojo zadnjo povezavo posebej.
+            gumb/oddelek si zapomni svojo zadnjo povezavo posebej. "Zapiši nazaj" prepiše SAMO obstoječe celice z
+            izmenami za osebe, ki so v listu že navedene po imenu - novih oseb/stolpcev ne dodaja, oblike in
+            podpisnega bloka se ne dotakne.
           </p>
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
         </div>
