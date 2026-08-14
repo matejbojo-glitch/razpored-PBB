@@ -110,6 +110,8 @@ dotakne.
 | `preveri-xlsx-datum.mjs` | `xlsxCelicaVBesedilo` (import-utils.js) na PRAVEM branju/pisanju `xlsx.core.min.js` — datumska celica z drobno plavajočo napako (npr. `46173.999999988` namesto `46174`, kot pri resničnem izvozu iz Google Sheets) se prebere kot PRAVI dan, ne kot prejšnji dan tik pred polnočjo | nič |
 | `preveri-nzv-dezurstvo-datum.mjs` | "od konca do konca": prava `.xlsx` datumska celica (z isto plavajočo napako kot zgoraj) → `xlsxCelicaVBesedilo` → `obdelajNzvVrstice` — dežurstvo/LD, uvožena prek NZV, pristaneta na PRAVEM dnevu in v obliki (`employee_id`+`work_date`, brez omejitve na `department_code`), ki jo "Moj razpored" (MyScheduleView) samodejno prikaže | nič |
 | `preveri-vnesi-parafe.mjs` | `supabase/vnesi-parafe.sql` na pravi bazi: vseh 65 vrstic iz uradnega izvoza paraf se ujema s pravim profilom (`imena_se_ujemata`), oseba brez profila konča v poročilu "NI NAJDEN PROFIL" namesto da tiho izpade, "Maglić Aleksander" (prvotno dve nasprotujoči si vrstici v izvozu, glej spodaj) dobi uporabnikom potrjeno parafo "MAG", drugi zagon je varen (idempotenten) | lokalni PostgreSQL + `su postgres` |
+| `preveri-posodobi-parafe-oktober-2026.mjs` | `supabase/posodobi-parafe-oktober-2026.sql` na pravi bazi: vseh 21 vrstic se ujema s pravim profilom, `profiles.parafa` dobi NOVO parafo (velja od 1.10.2026), `profiles.parafa_pred_oktobrom_2026` STARO (veljala do 30.9.2026), 2 osebi brez dejanske spremembe imata obe polji enaki, drugi zagon je varen | lokalni PostgreSQL + `su postgres` |
+| `preveri-parafa-datumski-prestop.mjs` | `parafaOd`/`parafaMapa` (index.html) - oseba s spremenjeno parafo dobi STARO parafo za dneve/mesece pred 1.10.2026 in NOVO od tega datuma dalje (natančno na meji: 30.9. stara, 1.10. nova), oseba BREZ spremembe (velika večina kadra) je od datuma popolnoma neodvisna (regresija), `parafaMapa` (obratna preslikava za uvoz) uporabi pravo stran prestopa za cel ciljni mesec | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
@@ -143,3 +145,12 @@ pokazal kot podvojen ključ. Uporabnik je nato potrdil, da gre res za eno
 osebo (Aleksander Maglić) IN da je prava parafa "MAG" (drugačna od obeh
 prvotnih, nasprotujočih si vrednosti) - `vnesi-parafe.sql` zdaj vsebuje
 samo eno, pravilno vrstico.
+
+`preveri-posodobi-parafe-oktober-2026.mjs`/`preveri-parafa-datumski-prestop.mjs`
+pokrivata resnično poslovno spremembo (ne popravek napake): parafa se je za
+21 oseb spremenila z veljavnostjo od 1.10.2026, uporabnik pa je poslal
+OBE vrednosti (staro in novo) z jasno mejo. `profiles.parafa` odslej hrani
+novo, nov stolpec `profiles.parafa_pred_oktobrom_2026` pa staro - `parafaOd`
+med njima izbira glede na `work_date` razporeda/dopusta, ne glede na
+današnji datum, zato NZV za pretekle mesece (pred oktobrom 2026) še naprej
+pravilno prikaže staro parafo, tudi če je skripta pognana šele pozneje.

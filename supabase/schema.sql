@@ -3026,3 +3026,18 @@ begin
                    v.tabela, v.conname, v.stolpec);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------
+-- 31) profiles.parafa_pred_oktobrom_2026 — parafa je bila za del kadra
+--     PRENOVLJENA z veljavnostjo od 1.10.2026 (uradna sprememba, ne napaka
+--     v aplikaciji) - profiles.parafa (sekcija 24) odslej hrani NOVO
+--     parafo, ta stolpec pa STARO, ki je veljala do 30.9.2026. Potreben je
+--     samo za osebe, ki jim je parafa RESNIČNO spremenjena - za vse ostale
+--     ostane prazen in profiles.parafa velja ne glede na datum (glej
+--     parafaOd(profil, datum) v index.html, ki izbira med njima glede na
+--     work_date razporeda/dopusta - meseci v tej aplikaciji nikoli ne
+--     segajo čez 1. v mesecu, zato en klic vedno pade bodisi v celoti
+--     pred bodisi v celoti po prestopu). Seed konkretnih vrednosti: glej
+--     supabase/posodobi-parafe-oktober-2026.sql.
+-- ---------------------------------------------------------------------
+alter table public.profiles add column if not exists parafa_pred_oktobrom_2026 text;
