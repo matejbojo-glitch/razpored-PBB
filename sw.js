@@ -160,7 +160,16 @@
 // Sheets" zdaj deluje tudi za NZV (prej samo za navadne oddelke). Spremenjen
 // index.html.
 
-const CACHE = 'razpored-pbb-v45';
+// v46: "Uvoz razporeda" (Po oddelkih/NZV) dobi enostavnejšo pot - namesto da
+// mora admin za VSAK oddelek posebej kopirati pravo #gid= povezavo iz
+// Google Sheets, lahko zdaj naloži EN Excel izvoz (lahko cel delovni
+// zvezek z več zavihki, npr. "2026 SMS RAZPORED") in aplikacija sama
+// prepozna, kateri zavihek je kateri oddelek/mesec, ter uvozi vse naenkrat
+// (uvoziDatotekoPametno). Prejšnja pot (lepljenje povezave, en oddelek/
+// zavihek naenkrat) ostane na voljo kot "Ali ročno …". Spremenjeni
+// index.html, import-utils.js.
+
+const CACHE = 'razpored-pbb-v46';
 const ASSETS = [
   './',
   './index.html',
