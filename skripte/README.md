@@ -112,6 +112,7 @@ dotakne.
 | `preveri-vnesi-parafe.mjs` | `supabase/vnesi-parafe.sql` na pravi bazi: vseh 65 vrstic iz uradnega izvoza paraf se ujema s pravim profilom (`imena_se_ujemata`), oseba brez profila konča v poročilu "NI NAJDEN PROFIL" namesto da tiho izpade, "Maglić Aleksander" (prvotno dve nasprotujoči si vrstici v izvozu, glej spodaj) dobi uporabnikom potrjeno parafo "MAG", drugi zagon je varen (idempotenten) | lokalni PostgreSQL + `su postgres` |
 | `preveri-posodobi-parafe-oktober-2026.mjs` | `supabase/posodobi-parafe-oktober-2026.sql` na pravi bazi: vseh 21 vrstic se ujema s pravim profilom, `profiles.parafa` dobi NOVO parafo (velja od 1.10.2026), `profiles.parafa_pred_oktobrom_2026` STARO (veljala do 30.9.2026), 2 osebi brez dejanske spremembe imata obe polji enaki, drugi zagon je varen | lokalni PostgreSQL + `su postgres` |
 | `preveri-parafa-datumski-prestop.mjs` | `parafaOd`/`parafaMapa` (index.html) - oseba s spremenjeno parafo dobi STARO parafo za dneve/mesece pred 1.10.2026 in NOVO od tega datuma dalje (natančno na meji: 30.9. stara, 1.10. nova), oseba BREZ spremembe (velika večina kadra) je od datuma popolnoma neodvisna (regresija), `parafaMapa` (obratna preslikava za uvoz) uporabi pravo stran prestopa za cel ciljni mesec | nič |
+| `preveri-nzv-dezurstvo-ime.mjs` | `obdelajNzvVrstice` (index.html) - stolpec DEŽURSTVO uradne predloge se ujema po POLNEM IMENU (vreča besed), ne po parafi kot vsi ostali stolpci - potrjeno na pravi uporabnikovi datoteki, glej spodaj. Naziv pred imenom ("dr. ") se odstrani pred primerjavo, oseba brez profila konča v poročilu (ne izgine tiho), vsi ostali stolpci se ŠE VEDNO ujemajo po parafi (regresija) | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
@@ -154,3 +155,16 @@ novo, nov stolpec `profiles.parafa_pred_oktobrom_2026` pa staro - `parafaOd`
 med njima izbira glede na `work_date` razporeda/dopusta, ne glede na
 današnji datum, zato NZV za pretekle mesece (pred oktobrom 2026) še naprej
 pravilno prikaže staro parafo, tudi če je skripta pognana šele pozneje.
+
+`preveri-nzv-dezurstvo-ime.mjs` je odkril resnično napako, ki je razložila,
+zakaj se dežurstvo, uvoženo iz uradne predloge "Letni dopusti in omejitve za
+NZV", ni NIKOLI pojavilo v "Moj razpored" - najden z dry-run-om PRAVIH
+uporabnikovih datotek skozi produkcijsko kodo (ne z branjem kode). Stolpec
+DEŽURSTVO te predloge vsebuje POLNO IME osebe (npr. "Grega Arnež", včasih z
+nazivom "dr. Tanja Torkar"), medtem ko VSI OSTALI stolpci (enote, LD/IZOB/BS)
+vsebujejo parafo (npr. "GA"). `obdelajNzvVrstice` je stolpec DEŽURSTVO doslej
+obravnaval enako kot vse ostale - iskal je parafo, ki je seveda nikoli ni
+našel, zato je vsak dežurstveni vpis tiho odpadel (skrit med pričakovanimi
+"neujemanji" v poročilu, ne opazen kot ločen hrošč). Popravljeno: ta stolpec
+se zdaj ujema po polnem imenu (ista "vreča besed" primerjava kot LD/IZOB/BS),
+naziv pred imenom pa se pred primerjavo odstrani.
