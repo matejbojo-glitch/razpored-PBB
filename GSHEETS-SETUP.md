@@ -92,7 +92,24 @@ Na strani **Razpored → Po oddelkih** (admin) je poleg izvoza tudi:
   ne samo bere). Piše **samo v celice, ki jih tudi uvoz prebere** — ime osebe,
   oblika, podpisni blok in drugi meseci v istem zavihku ostanejo nedotaknjeni.
   Nikoli ne doda novega stolpca/vrstice — če oseba v listu (še) nima svojega
-  stolpca, se tiho izpusti (javi se kot "brez ujemanja imena").
+  stolpca, se tiho izpusti (javi se kot "brez ujemanja imena"). Deluje tudi za
+  NZV (glej spodaj).
+
+### NZV — dan × enota (ne dan × oseba)
+
+Stran **Razpored → NZV** ima drugačno obliko kot navadni oddelki: stolpci so
+organizacijske ENOTE (PDZN, SOBO, ŽO, E1, E2, D, MO, B, C, C1, PO, A, B1/B2,
+DB, SA DOP, SA POP, URGENCA, U2), ne osebe — celica pove, KDO (parafa) to
+enoto pokriva ta dan. Zadnji trije stolpci, **LD / IZOB / BS**, niso enote,
+ampak povzetek odsotnosti tega dne (letni dopust / strokovno izobraževanje /
+bolniška) — isti vir podatkov kot Želje → Razpredelnica. Uvoz teh treh
+stolpcev zato piše v drugo tabelo (odsotnosti) kot ostale enote (razpored) —
+to je notranja podrobnost, v Sheets dokumentu pa je vseeno, videti je kot en
+sam sklop stolpcev v isti vrstici.
+
+"Uvozi NZV" in "Zapiši nazaj v Sheets" pri NZV veljata za isti dokument/list
+kot "Letni dopusti in omejitve za NZV" — velja ista past z zavihki/gid kot
+zgoraj (klikni pravi zavihek/mesec, šele nato kopiraj povezavo).
 
 **Za oboje velja ista past, ki je vzrok večine "ni najdenih vrstic"/"nobeno
 ime se ni ujemalo" napak pri dokumentu z več zavihki (en na oddelek, kot

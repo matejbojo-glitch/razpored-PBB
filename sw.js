@@ -151,7 +151,16 @@
 // prazna vrstica sredi mesečnega bloka je doslej nepovratno prekinila
 // branje vseh dni za njo. Spremenjeni index.html, gsheets-client.js.
 
-const CACHE = 'razpored-pbb-v44';
+// v45: NZV pogled usklajen z uradno predlogo "Letni dopusti in omejitve za
+// NZV" — vrstni red stolpcev popravljen (SA DOP/SA POP med DB in URGENCA,
+// ne na koncu) in dodani trije novi povzetni stolpci LD/IZOB/BS (kdo je ta
+// dan na letnem dopustu/strokovnem izobraževanju/bolniški - iz leave_entries,
+// isti vir kot Želje → Razpredelnica). Uvoz teh treh stolpcev piše v
+// leave_entries (ne schedule_entries kot ostale enote). "Zapiši nazaj v
+// Sheets" zdaj deluje tudi za NZV (prej samo za navadne oddelke). Spremenjen
+// index.html.
+
+const CACHE = 'razpored-pbb-v45';
 const ASSETS = [
   './',
   './index.html',

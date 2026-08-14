@@ -541,6 +541,72 @@ function razvrstiSA(sifra){
   if (t.includes("pop")) return "SAPOP";
   return "SADOP"; // privzeto dopoldan, če ni prepoznano drugače
 }
+// Vrstni red stolpcev v uradni predlogi ima "SA DOP"/"SA POP" MED "DB" in
+// "URGENCA" (ne na koncu, kot bi bil naiven vrstni red NZV_ENOTE+dodatek) -
+// zato tu sestavimo pravi prikazni vrstni red ločeno od NZV_ENOTE (ki ostaja
+// nespremenjen, ker ga poizvedba in uvoz uporabljata brez odvisnosti od
+// vrstnega reda stolpcev).
+const NZV_STOLPCI = (() => {
+  const brezUrgence = NZV_ENOTE.filter(([k]) => k !== "URGENCA" && k !== "U2");
+  const urgencaU2 = NZV_ENOTE.filter(([k]) => k === "URGENCA" || k === "U2");
+  return [...brezUrgence, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"], ...urgencaU2];
+})();
+// Zadnji trije stolpci uradne predloge ("LD", "IZOB", "BS") niso enote, ampak
+// POVZETEK odsotnosti tega dne (glej leave_entries.kind) - kdo je ta dan na
+// letnem dopustu / strokovnem izobraževanju / bolniški. Isti vir kot Želje →
+// Razpredelnica (zelje.html), tu prikazan skupaj s končnim razporedom, ker
+// gre za "omejitve, ki se vežejo na razpored za določen mesec".
+const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+
+function normalizirajImeNzv(s){ return (s || "").trim().toUpperCase().replace(/\s+/g, " "); }
+// Ista "vreča besed" primerjava kot imenaSeUjemata v zelje.html
+// (leave_entries.full_name je prosto besedilo iz statičnega roster-seznama,
+// ne nujno enak zapis kot profiles.full_name) - namerno podvojeno tu namesto
+// deljene datoteke, glej opombo ob classify()/BARVE v drugih straneh.
+function imenaSeUjemataNzv(a, b){
+  const na = normalizirajImeNzv(a), nb = normalizirajImeNzv(b);
+  if (!na || !nb) return false;
+  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
+}
+
+// Naziv stolpca (kot v uradni predlogi) -> notranja koda. Skupno za izris,
+// izvoz, uvoz IN pisanje nazaj, da se štirje kraji ne razidejo.
+function nzvNazivVKodo(){
+  const m = { "Dežurstvo": "DEZ", "DEŽURSTVO": "DEZ", "SA DOP": "SADOP", "SA POP": "SAPOP", "LD": "LD", "IZOB": "IZOB", "BS": "BS" };
+  NZV_ENOTE.forEach(([koda, naziv]) => { m[naziv] = koda; });
+  return m;
+}
+
+// Skupno nalaganje podatkov za izris/izvoz/pisanje-nazaj NZV pogleda -
+// "podatki" = { "KODA|datum": "parafa, parafa2" } za vse enote + DEZ +
+// LD/IZOB/BS (iz leave_entries, ujemano po imenu na profiles).
+async function nalozizPodatkeNzv(startISO, endISO){
+  const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
+  const [{ data: entries }, { data: dopusti }, { data: profili }] = await Promise.all([
+    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa)")
+      .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO),
+    client.from("leave_entries").select("full_name, work_date, kind")
+      .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
+    client.from("profiles").select("full_name, parafa"),
+  ]);
+  const podatki = {};
+  (entries || []).forEach(r => {
+    if (!r.profiles) return;
+    const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
+    const key = koda + "|" + r.work_date;
+    const parafa = parafaOd(r.profiles);
+    podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
+  });
+  (dopusti || []).forEach(d => {
+    const koda = NZV_KIND_KODA[d.kind];
+    if (!koda) return;
+    const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
+    const parafa = ujem ? parafaOd(ujem) : d.full_name;
+    const key = koda + "|" + d.work_date;
+    podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
+  });
+  return { podatki, entries: entries || [] };
+}
 
 function NzvView({ month }){
   const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "parafa, parafa2" }
@@ -551,28 +617,15 @@ function NzvView({ month }){
   useEffect(() => {
     let cancelled = false;
     setPodatki(null); setEntries(null);
-    const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
-    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa)")
-      .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
-      .then(({ data }) => {
-        if (cancelled) return;
-        setEntries(data || []);
-        const m = {};
-        (data || []).forEach(r => {
-          if (!r.profiles) return;
-          const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
-          const key = koda + "|" + r.work_date;
-          const parafa = parafaOd(r.profiles);
-          m[key] = m[key] ? m[key] + ", " + parafa : parafa;
-        });
-        setPodatki(m);
-      });
+    nalozizPodatkeNzv(startISO, endISO).then(({ podatki, entries }) => {
+      if (cancelled) return;
+      setEntries(entries);
+      setPodatki(podatki);
+    });
     return () => { cancelled = true; };
   }, [startISO, endISO]);
 
   if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
-
-  const stolpci = [...NZV_ENOTE, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"]];
 
   return (
     <div className="wardPrintArea">
@@ -581,8 +634,11 @@ function NzvView({ month }){
           <thead>
             <tr>
               <th className="name">Datum</th>
-              {stolpci.map(([koda, naziv]) => <th key={koda}>{naziv}</th>)}
+              {NZV_STOLPCI.map(([koda, naziv]) => <th key={koda}>{naziv}</th>)}
               <th className="dez">Dežurstvo</th>
+              <th>LD</th>
+              <th>IZOB</th>
+              <th>BS</th>
             </tr>
           </thead>
           <tbody>
@@ -591,10 +647,13 @@ function NzvView({ month }){
               return (
                 <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
                   <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
-                  {stolpci.map(([koda]) => (
+                  {NZV_STOLPCI.map(([koda]) => (
                     <td key={koda} className="enotaCell">{podatki[koda + "|" + dn.datum] || ""}</td>
                   ))}
                   <td className="enotaCell dez">{podatki["DEZ|" + dn.datum] || ""}</td>
+                  <td className="enotaCell">{podatki["LD|" + dn.datum] || ""}</td>
+                  <td className="enotaCell">{podatki["IZOB|" + dn.datum] || ""}</td>
+                  <td className="enotaCell">{podatki["BS|" + dn.datum] || ""}</td>
                 </tr>
               );
             })}
@@ -603,9 +662,11 @@ function NzvView({ month }){
       </div>
       <InfoToggle>
         Celice prikazujejo parafe (Imenik → admin lahko nastavi natančno parafo osebe; brez nastavitve aplikacija
-        sama izpelje grobo privzeto iz priimka). Prikazuje, kdo pokriva katero enoto posamezen dan — iz objavljenega
-        razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). Prazna celica pomeni, da za ta dan/enoto (še) ni
-        objavljenega vnosa.
+        sama izpelje grobo privzeto iz priimka). Enote/Dežurstvo prikazujejo, kdo pokriva katero enoto posamezen dan
+        — iz objavljenega razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). LD/IZOB/BS prikazujejo
+        odsotnosti (letni dopust/strokovno izobraževanje/bolniška) iz Želje → Razpredelnica za ta dan — to so
+        omejitve, ki jih generator upošteva pri sestavi razporeda, tu prikazane skupaj s končnim razporedom za
+        pregled na enem mestu. Prazna celica pomeni, da za ta dan/enoto (še) ni objavljenega vnosa oz. odsotnosti.
       </InfoToggle>
       <RazporedPodpisi entries={entries} />
     </div>
@@ -629,6 +690,15 @@ const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 async function shraniZapiseRazporeda(zapisi){
   for (let i = 0; i < zapisi.length; i += 200) {
     const { error } = await client.from("schedule_entries").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_id,work_date" });
+    if (error) throw error;
+  }
+}
+
+// Isti upsert vzorec kot zelje.html (leave_entries, ključ full_name+work_date) -
+// za NZV uvoz stolpcev LD/IZOB/BS (glej uvoziNzv).
+async function shraniDopusteNzv(dopusti){
+  for (let i = 0; i < dopusti.length; i += 200) {
+    const { error } = await client.from("leave_entries").upsert(dopusti.slice(i, i + 200), { onConflict: "full_name,work_date" });
     if (error) throw error;
   }
 }
@@ -861,23 +931,28 @@ function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
   return (vrsteVrstic[i][1] || "").trim() ? i : null;
 }
 
-async function uvoziNzv(url, ciljniMesec){
+// Stolpci LD/IZOB/BS niso razpored (schedule_entries), ampak odsotnost
+// (leave_entries) - glej NZV_KIND_KODA. Zapisi zanje gredo v drugo tabelo,
+// zato jih uvoziNzv loči na dva izhodna seznama (zapisi/dopusti).
+const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
+
+async function uvoziNzv(url, ciljniMesec, myId){
   const { startISO, endISO } = monthRange(ciljniMesec);
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const nazivVKodo = { "Dežurstvo": "DEZ", "SA DOP": "SADOP", "SA POP": "SAPOP" };
-  NZV_ENOTE.forEach(([koda, naziv]) => { nazivVKodo[naziv] = koda; });
+  const nazivVKodo = nzvNazivVKodo();
   const { data: profili } = await client.from("profiles").select("id, full_name, parafa");
   const poParafi = {};
   const podvojene = new Set();
   (profili || []).forEach(p => {
     const parafa = parafaOd(p).toUpperCase();
-    if (parafa in poParafi) { podvojene.add(parafa); } else { poParafi[parafa] = p.id; }
+    if (parafa in poParafi) { podvojene.add(parafa); } else { poParafi[parafa] = p; }
   });
   podvojene.forEach(k => delete poParafi[k]);
   const neujemanja = new Set();
   podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
   const zapisi = [];
+  const dopusti = [];
   const stanje = { najdenDatum: false, najdenaGlava: false };
   let i = 0;
   while (i < vrsteVrstic.length) {
@@ -889,25 +964,82 @@ async function uvoziNzv(url, ciljniMesec){
         if (!virKoda) return;
         const vsebina = (vrstica[1 + idx] || "").trim();
         if (!vsebina) return;
+        if (virKoda in NZV_ODSOTNOST_KIND) {
+          vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
+            const oseba = poParafi[parafa.toUpperCase()];
+            if (!oseba) { neujemanja.add(parafa); return; }
+            dopusti.push({ full_name: oseba.full_name, work_date: datum, kind: NZV_ODSOTNOST_KIND[virKoda], created_by: myId });
+          });
+          return;
+        }
         // SA DOP/SA POP pišeta isto department_code "SA", ločeno samo prek
         // shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda.
         const koda = virKoda === "SADOP" || virKoda === "SAPOP" ? "SA" : virKoda;
         const sifra = virKoda === "SADOP" ? "dopoldan" : virKoda === "SAPOP" ? "popoldan" : (koda === "DEZ" ? "DEŽURSTVO" : "PRISOTEN");
         vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
-          const id = poParafi[parafa.toUpperCase()];
-          if (!id) { neujemanja.add(parafa); return; }
-          zapisi.push({ employee_id: id, department_code: koda, work_date: datum, shift_code: sifra });
+          const oseba = poParafi[parafa.toUpperCase()];
+          if (!oseba) { neujemanja.add(parafa); return; }
+          zapisi.push({ employee_id: oseba.id, department_code: koda, work_date: datum, shift_code: sifra });
         });
       });
     }, stanje);
   }
-  if (!zapisi.length) {
+  if (!zapisi.length && !dopusti.length) {
     if (!stanje.najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku - preveri, da si prilepil pravo povezavo (in pravi zavihek/mesec).`);
     if (!stanje.najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z glavami enot.");
     throw new Error("Najdene vrstice za izbrani mesec, a nobena parafa se ni ujemala z osebo v aplikaciji: " + [...neujemanja].join(", "));
   }
-  await shraniZapiseRazporeda(zapisi);
-  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja parafe: ${[...neujemanja].join(", ")}.` : "");
+  await Promise.all([
+    zapisi.length ? shraniZapiseRazporeda(zapisi) : Promise.resolve(),
+    dopusti.length ? shraniDopusteNzv(dopusti) : Promise.resolve(),
+  ]);
+  const deli = [];
+  if (zapisi.length) deli.push(`${zapisi.length} vpisov razporeda`);
+  if (dopusti.length) deli.push(`${dopusti.length} vpisov odsotnosti (LD/IZOB/BS)`);
+  return `Uvoženih: ${deli.join(", ")}.` + (neujemanja.size ? ` Brez ujemanja parafe: ${[...neujemanja].join(", ")}.` : "");
+}
+
+// Enak namen kot pripraviPosodobitveOddelka (glej tam), a za NZV obliko:
+// stolpci so ENOTE (znane, fiksne po nzvNazivVKodo), ne osebe, zato tu ne
+// primerjamo glave z znanim naborom ljudi, ampak vsak naziv stolpca v listu
+// prevedemo nazaj v kodo in poiščemo njegovo trenutno vrednost v "podatki"
+// (glej nalozizPodatkeNzv) - to samodejno podpre tudi drugačen vrstni red
+// stolpcev, kot ga ima NZV_STOLPCI, dokler so nazivi enaki uradni predlogi.
+function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const nazivVKodo = nzvNazivVKodo();
+  const posodobitve = [];
+  const stanje = { najdenDatum: false, najdenaGlava: false };
+  let i = 0;
+  while (i < vrsteVrstic.length) {
+    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]);
+    if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
+    i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum, j) => {
+      stolpci.forEach((naziv, idx) => {
+        const koda = nazivVKodo[naziv];
+        if (!koda) return;
+        posodobitve.push({ vrstica: j, stolpec: 1 + idx, vrednost: podatki[koda + "|" + datum] || "" });
+      });
+    }, stanje);
+  }
+  return { posodobitve, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
+async function zapisiNzvVSheets(url, ciljniMesec){
+  if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
+    throw new Error("Pisanje v Google Sheets še ni nastavljeno — manjka Google Client ID (glej GSHEETS-SETUP.md).");
+  }
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const { podatki } = await nalozizPodatkeNzv(startISO, endISO);
+  const { naslovLista, vrsteVrstic } = await window.GSheetsExport.preberiVrednosti(url);
+  const { posodobitve, najdenDatum, najdenaGlava } = pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki);
+  if (!posodobitve.length) {
+    if (!najdenDatum) throw new Error(`V zavihku "${naslovLista}" ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} - preveri, da povezava kaže na pravi zavihek (klikni zavihek za ta oddelek, šele nato kopiraj povezavo).`);
+    if (!najdenaGlava) throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nad njimi ni najti vrstice z glavami enot.`);
+    throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nobena glava stolpca v listu se ni ujemala z znano enoto NZV.`);
+  }
+  const rezultat = await window.GSheetsExport.zapisiVObstojeciList(url, posodobitve);
+  return `Zapisanih ${rezultat.stevilo} celic v zavihek "${rezultat.list}".`;
 }
 
 // Shrani zadnjo uporabljeno povezavo LOČENO za vsak kontekst (Moj
@@ -946,7 +1078,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
     try {
       let besedilo;
       if (tip === "moj") besedilo = await uvoziMojRazpored(url.trim(), myId, profile.department_code, month);
-      else if (wardCode === "NZV") besedilo = await uvoziNzv(url.trim(), month);
+      else if (wardCode === "NZV") besedilo = await uvoziNzv(url.trim(), month, myId);
       else besedilo = await uvoziOddelek(url.trim(), wardCode, month);
       setMsg({ ok: true, text: besedilo });
       onUvozeno();
@@ -957,20 +1089,21 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
     }
   };
 
-  // Piše nazaj samo za navadne oddelke (uvoziOddelek/pripraviPosodobitveOddelka
-  // podpirata samo to obliko - "Moj razpored" in NZV imata drugačno postavitev,
-  // glej opombo ob pripraviPosodobitveOddelka). Zahteva potrditev, ker piše v
-  // deljen, ročno voden dokument z realno zgodovino/podpisi - napačna povezava
-  // (napačen zavihek) bi lahko prepisala tuje celice.
+  // Piše nazaj za navadne oddelke IN za NZV (uvoziOddelek/pripraviPosodobitveOddelka
+  // in uvoziNzv/pripraviPosodobitveNzv obe najdeta iste koordinate, ki jih uvoz tudi
+  // prebere) - samo "Moj razpored" te možnosti (še) nima, ker gre za osebno, ne
+  // deljeno tabelo. Zahteva potrditev, ker piše v deljen, ročno voden dokument z
+  // realno zgodovino/podpisi - napačna povezava (napačen zavihek) bi lahko
+  // prepisala tuje celice.
   const zapisiNazaj = async () => {
     if (!url.trim()) { setMsg({ ok: false, text: "Vnesi povezavo do Google Sheets." }); return; }
     if (!window.confirm(
-      `To bo prepisalo obstoječe celice izmen za ${MESECI[Number(month.split("-")[1]) - 1]} ${month.split("-")[0]} v zavihku, na katerega kaže zgornja povezava, s trenutnim stanjem iz aplikacije.\n\n` +
-      "Imena, oblika in podpisni blok ostanejo nedotaknjeni - spremenijo se samo celice z izmenami. To dejanje ni mogoče razveljaviti (razen ročno, v Google Sheets prek Zgodovina različic).\n\nNadaljujem?"
+      `To bo prepisalo obstoječe celice s podatki za ${MESECI[Number(month.split("-")[1]) - 1]} ${month.split("-")[0]} v zavihku, na katerega kaže zgornja povezava, s trenutnim stanjem iz aplikacije.\n\n` +
+      "Imena/nazivi stolpcev, oblika in podpisni blok ostanejo nedotaknjeni - spremenijo se samo celice s podatki. To dejanje ni mogoče razveljaviti (razen ročno, v Google Sheets prek Zgodovina različic).\n\nNadaljujem?"
     )) return;
     setBusy("zapis"); setMsg(null);
     try {
-      const besedilo = await zapisiOddelekVSheets(url.trim(), wardCode, month);
+      const besedilo = wardCode === "NZV" ? await zapisiNzvVSheets(url.trim(), month) : await zapisiOddelekVSheets(url.trim(), wardCode, month);
       setMsg({ ok: true, text: besedilo });
     } catch (e) {
       setMsg({ ok: false, text: e.message || String(e) });
@@ -1010,7 +1143,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
             <button className="dlBtn" type="button" disabled={!!busy || !wardCode} onClick={() => nalozi("oddelek")}>
               {busy === "oddelek" ? "Uvažam …" : "📥 Uvozi " + (wardCode === "NZV" ? "NZV" : "Oddelki")}
             </button>
-            {wardCode && wardCode !== "NZV" && (
+            {wardCode && (
               <button className="dlBtn" type="button" disabled={!!busy} onClick={zapisiNazaj}>
                 {busy === "zapis" ? "Zapisujem …" : "📤 Zapiši nazaj v Sheets"}
               </button>
@@ -1019,9 +1152,9 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <p className="hint" style={{marginTop:6}}>
             Uvozi/zapiše samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
             povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
-            gumb/oddelek si zapomni svojo zadnjo povezavo posebej. "Zapiši nazaj" prepiše SAMO obstoječe celice z
-            izmenami za osebe, ki so v listu že navedene po imenu - novih oseb/stolpcev ne dodaja, oblike in
-            podpisnega bloka se ne dotakne.
+            gumb/oddelek si zapomni svojo zadnjo povezavo posebej. "Zapiši nazaj" prepiše SAMO obstoječe celice, ki jih
+            uvoz tudi prebere (izmene po osebah za oddelke; enote/Dežurstvo/LD/IZOB/BS za NZV) - novih
+            oseb/stolpcev/vrstic ne dodaja, oblike in podpisnega bloka se ne dotakne.
           </p>
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
         </div>
@@ -1270,35 +1403,25 @@ function App(){
     // view === "ward"
     if (wardCode === "NZV") {
       // Isto obliko (dnevi v vrsticah, ENOTE v stolpcih, parafe namesto
-      // polnih imen, SA razdeljena na dopoldan/popoldan) kot na zaslonu -
-      // glej NzvView - usklajeno z uradno predlogo "Letni dopusti in
-      // omejitve za NZV".
-      const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
-      const { data } = await client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa)")
-        .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO);
-      const m = {};
-      (data || []).forEach(r => {
-        if (!r.profiles) return;
-        const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
-        const key = koda + "|" + r.work_date;
-        const parafa = parafaOd(r.profiles);
-        m[key] = m[key] ? m[key] + ", " + parafa : parafa;
-      });
+      // polnih imen, SA razdeljena na dopoldan/popoldan, LD/IZOB/BS povzetek
+      // odsotnosti) kot na zaslonu - glej NzvView/nalozizPodatkeNzv -
+      // usklajeno z uradno predlogo "Letni dopusti in omejitve za NZV".
+      const { podatki: m, entries: data } = await nalozizPodatkeNzv(startISO, endISO);
       // SAMO en uvodni stolpec ("Datum", dan že vsebovan v besedilu) - za
       // razliko od oddelčnih tabel realna predloga "Letni dopusti in
       // omejitve za NZV" NIMA ločenega stolpca "Dan" (glava se začne
       // neposredno "DATUM | PDZN | SOBO | …").
-      const stolpci = [...NZV_ENOTE, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"]];
+      const glaveKoncne = ["Dežurstvo", "LD", "IZOB", "BS"];
       return [{
         ime: "NZV",
-        glave: ["Datum", ...stolpci.map(([, naziv]) => naziv), "Dežurstvo"],
+        glave: ["Datum", ...NZV_STOLPCI.map(([, naziv]) => naziv), ...glaveKoncne],
         vrstice: [
           ...days.map(dn => [
             datumSlo(dn.datum) + " " + dn.dan,
-            ...stolpci.map(([koda]) => m[koda + "|" + dn.datum] || ""),
-            m["DEZ|" + dn.datum] || "",
+            ...NZV_STOLPCI.map(([koda]) => m[koda + "|" + dn.datum] || ""),
+            m["DEZ|" + dn.datum] || "", m["LD|" + dn.datum] || "", m["IZOB|" + dn.datum] || "", m["BS|" + dn.datum] || "",
           ]),
-          ...(await podpisneVrstice(data, stolpci.length + 2)),
+          ...(await podpisneVrstice(data, NZV_STOLPCI.length + 1 + glaveKoncne.length)),
         ],
       }];
     }
