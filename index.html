@@ -1583,10 +1583,18 @@ function App(){
   // pravilno prikaže široko - ročni zasuk takrat samo škodi, zato ga takoj
   // izklopimo, še preden pride do konflikta (namesto da bi se zanašali na
   // to, da se @media (orientation: portrait) zgoraj pravočasno prereši).
+  // resnicnoLezece skriva gumb "Obrni na ležeči prikaz" v pravi ležeči
+  // orientaciji - tam bi klik nanj takoj sam sebe razveljavil (zgornji
+  // efekt ga vrne na false), torej bi bil gumb viden, a brez učinka
+  // (uporabnik je natanko to opazil na posnetku).
+  const [resnicnoLezece, setResnicnoLezece] = useState(false);
   useEffect(() => {
     if (!window.matchMedia) return;
     const mq = window.matchMedia("(orientation: landscape)");
-    const naOrientacijo = () => { if (mq.matches) setSirsiPogled(false); };
+    const naOrientacijo = () => {
+      setResnicnoLezece(mq.matches);
+      if (mq.matches) setSirsiPogled(false);
+    };
     naOrientacijo();
     if (mq.addEventListener) mq.addEventListener("change", naOrientacijo);
     else mq.addListener(naOrientacijo); // starejši WebView brez addEventListener na MediaQueryList
@@ -1832,7 +1840,7 @@ function App(){
             </select>
           </div>
         </div>
-        {view === "ward" && (
+        {view === "ward" && !resnicnoLezece && (
           <button type="button" className="dlBtn no-print" style={{marginTop:10}}
             aria-pressed={sirsiPogled} onClick={() => setSirsiPogled(s => !s)}>
             {sirsiPogled ? "📱 Nazaj na pokončni prikaz" : "🔄 Obrni na ležeči prikaz"}

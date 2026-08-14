@@ -206,6 +206,28 @@ h1.pageTitle, h2.pageTitle{
 .field{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
 .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
 
+/* Na telefonu v ležeči legi (nizka višina zaslona) je header.top - logo,
+   podnaslov, "Prijavljen", zavihki, izbirniki Oddelek/Mesec - prej
+   zapolnil CELOTNO vidno višino, še preden se je prikazala ena sama
+   vrstica razporeda (uporabnikov posnetek zaslona: v ležeči legi ni bilo
+   videti ničesar od dejanske tabele brez drsenja, kar je "širši prikaz"
+   naredilo brez učinka). max-height (ne samo orientation) namenoma omeji
+   to SAMO na dejansko nizke telefonske zaslone - širši/višji ležeči
+   zasloni (tablice, namizje) ostanejo nespremenjeni. */
+@media (orientation: landscape) and (max-height: 500px){
+  header.top{ padding: calc(env(safe-area-inset-top) + 6px) 0 6px; }
+  .wordmark{ gap:6px; }
+  .wordmark .logoSmall{ height:20px; }
+  .wordmark .mark, .mark{ font-size:15px; }
+  .sub{ display:none; }
+  .whoRow{ margin-top:4px; }
+  .whoRow .who{ font-size:11px; }
+  .segmented{ margin-top:6px; padding:3px; }
+  .segmented button{ padding:6px 8px; font-size:12.5px; }
+  .field{ margin-top:6px; gap:3px; }
+  .field label{ font-size:10px; }
+}
+
 input, select, textarea{
   background: var(--surface); border:1px solid var(--line); color:var(--text);
   padding:10px 12px; border-radius: var(--radius-sm); font-size:14.5px;
