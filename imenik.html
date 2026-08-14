@@ -322,6 +322,109 @@ function Seznam({ osebe, oddelki, onOdpri }){
 }
 
 // ---------------------------------------------------------------------
+// Admin: ustvari PRAVO prijavo (Auth račun) za novo osebo — takoj se lahko
+// prijavi. Ločeno od "Uvoz zaposlenih" spodaj, ki samo doda vrstico v
+// čakalni seznam (contact_imports) do trenutka, ko se oseba SAMA
+// registrira prek login.html — to tu naredi prijavo namesto nje, prek
+// Edge Function "admin-uporabnik" (potrebuje service_role ključ, ki ga
+// brskalnik nikoli ne sme imeti neposredno, glej UPORABNIKI-SETUP.md).
+// ---------------------------------------------------------------------
+const PRAZEN_NOV_UPORABNIK = { full_name:"", email:"", role:"user", department_code:"", phone:"" };
+
+function DodajUporabnika({ oddelki, onSpremenjeno }){
+  const [obrazec, setObrazec] = useState(PRAZEN_NOV_UPORABNIK);
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+  const [ustvarjen, setUstvarjen] = useState(null); // { full_name, email, geslo } - prikazano SAMO enkrat, takoj po ustvarjanju
+  const [kopMsg, setKopMsg] = useState(null);
+
+  const ustvari = async () => {
+    const full_name = obrazec.full_name.trim();
+    const email = obrazec.email.trim();
+    if (!full_name || !email) { setNapaka("Vnesi ime, priimek in e-pošto."); return; }
+    setBusy(true); setNapaka(null);
+    try {
+      const { data, error } = await client.functions.invoke("admin-uporabnik", {
+        body: {
+          action: "ustvari", full_name, email,
+          role: obrazec.role, department_code: obrazec.department_code || null,
+          phone: obrazec.phone.trim() || null,
+        },
+      });
+      if (error) {
+        let sporocilo = error.message || String(error);
+        // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) —
+        // brez tega bi uporabnik videl samo generično "non-2xx status code".
+        if (error.context && typeof error.context.json === "function") {
+          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
+        }
+        throw new Error(sporocilo);
+      }
+      setUstvarjen({ full_name, email, geslo: data.geslo });
+      setObrazec(PRAZEN_NOV_UPORABNIK);
+      onSpremenjeno();
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="no-print">
+      <h2 className="section">Dodaj uporabnika (nova prijava)</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Takoj ustvari pravo prijavo (e-pošta + začasno geslo) — oseba se lahko prijavi nemudoma, ob prvi
+        prijavi pa mora nastaviti svoje geslo. Za dodajanje osebe v imenik BREZ prijave (dokler se ne
+        registrira sama) uporabi "Uvoz zaposlenih" spodaj.
+      </p>
+      <div className="card">
+        {ustvarjen && (
+          <div className="rowline" style={{flexDirection:"column", alignItems:"stretch", gap:6}}>
+            <p className="okMsg" style={{margin:0}}>
+              Račun za <b>{ustvarjen.full_name}</b> ({ustvarjen.email}) je ustvarjen. Spodnje geslo je vidno
+              samo zdaj — sporoči ga osebi osebno (ne po e-pošti/klepetu), ob prvi prijavi ga bo morala
+              zamenjati.
+            </p>
+            <div style={{display:"flex", gap:8, alignItems:"center"}}>
+              <code style={{background:"var(--surface-2)", border:"1px solid var(--line)", borderRadius:8, padding:"6px 10px", fontSize:14, fontWeight:700}}>{ustvarjen.geslo}</code>
+              <button className="iconBtn" onClick={() => copyBesedilo(ustvarjen.geslo, ok => { setKopMsg(ok ? "Kopirano" : "Napaka"); setTimeout(() => setKopMsg(null), 1500); })}>
+                {kopMsg || "⧉ Kopiraj"}
+              </button>
+            </div>
+            <button className="iconBtn" style={{alignSelf:"flex-start"}} onClick={() => setUstvarjen(null)}>Zapri</button>
+          </div>
+        )}
+        {!ustvarjen && (
+          <React.Fragment>
+            <div className="field"><label>Priimek in ime</label><input type="text" placeholder="npr. Rozman Anka" value={obrazec.full_name} onChange={e => setObrazec(o => ({...o, full_name:e.target.value}))} /></div>
+            <div className="field"><label>E-pošta</label><input type="email" value={obrazec.email} onChange={e => setObrazec(o => ({...o, email:e.target.value}))} /></div>
+            <div className="field"><label>Telefon (neobvezno)</label><input type="tel" value={obrazec.phone} onChange={e => setObrazec(o => ({...o, phone:e.target.value}))} /></div>
+            <div className="field">
+              <label>Vloga</label>
+              <select value={obrazec.role} onChange={e => setObrazec(o => ({...o, role:e.target.value}))}>
+                <option value="user">Zaposleni</option>
+                <option value="vodja">Vodja ekipe</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Oddelek (neobvezno, lahko dodaš tudi kasneje)</label>
+              <select value={obrazec.department_code} onChange={e => setObrazec(o => ({...o, department_code:e.target.value}))}>
+                <option value="">— brez —</option>
+                {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+              </select>
+            </div>
+            <button className="submitBtn" onClick={ustvari} disabled={busy}>{busy ? "Ustvarjam …" : "+ Ustvari prijavo"}</button>
+            {napaka && <p className="err">{napaka}</p>}
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
 // Profil ene osebe.
 // ---------------------------------------------------------------------
 const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"",
@@ -584,7 +687,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
   };
 
   const odstraniUporabnika = async () => {
-    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na \"Zaposleni\", oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE (ni ga mogoče izbrisati brez service_role ključa) — samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Nadaljuj?")) return;
+    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na \"Zaposleni\", oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE — samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Za popoln izbris prijave in zgodovine uporabi \"Trajno izbriši uporabnika\" spodaj. Nadaljuj?")) return;
     setBusy(true); setMsg(null);
     try {
       const { error: e1 } = await client.from("contact_phones").delete().eq("profile_id", oseba.id);
@@ -598,6 +701,37 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
       onNazaj();
     } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
     finally { setBusy(false); }
+  };
+
+  // Pravi, TRAJEN izbris — Auth račun (prijava) izgine, kar prek "on delete
+  // cascade" (schema.sql) odnese tudi profil in ves njegov razpored/
+  // dopuste/želje. Kliče Edge Function "admin-uporabnik" (potrebuje
+  // service_role ključ). Za osebo z zgodovino v menjavah/obrazcih (brez
+  // kaskade, namerno) funkcija zavrne z jasno napako in usmeri na
+  // supabase/odstrani-zaposlene.sql — to NI hrošč, glej komentar tam.
+  const [izbrisPotrdi, setIzbrisPotrdi] = useState("");
+  const [izbrisBusy, setIzbrisBusy] = useState(false);
+  const [izbrisMsg, setIzbrisMsg] = useState(null);
+  const izbrisiTrajno = async () => {
+    if (izbrisPotrdi.trim() !== oseba.full_name) {
+      setIzbrisMsg({ ok:false, text:"Prepiši ime natančno (\"" + oseba.full_name + "\"), da potrdiš." });
+      return;
+    }
+    if (!confirm("TRAJNO izbrišem " + oseba.full_name + " — Auth račun (prijava) in ves njen/njegov razpored, dopuste in želje? Tega NI mogoče razveljaviti.")) return;
+    setIzbrisBusy(true); setIzbrisMsg(null);
+    try {
+      const { error } = await client.functions.invoke("admin-uporabnik", { body: { action:"izbrisi", profile_id: oseba.id } });
+      if (error) {
+        let sporocilo = error.message || String(error);
+        if (error.context && typeof error.context.json === "function") {
+          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
+        }
+        throw new Error(sporocilo);
+      }
+      onSpremenjeno();
+      onNazaj();
+    } catch (e) { setIzbrisMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setIzbrisBusy(false); }
   };
 
   return (
@@ -691,6 +825,25 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             <button className="submitBtn" onClick={shraniAdmin} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
             <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
             {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+
+          <h2 className="section no-print">Trajno izbriši uporabnika (nevarno)</h2>
+          <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              Za razliko od zgornjega gumba to POPOLNOMA izbriše prijavo (Auth račun) in ves razpored,
+              dopuste in želje te osebe — <b>tega ni mogoče razveljaviti</b>. Če ima oseba zgodovino menjav
+              ali obrazcev, bo izbris zavrnjen (potreben je ročen postopek, glej sporočilo). Za začasno
+              odsotnost ali napako pri vlogi/oddelku uporabi zgornji "Odstrani iz imenika" — tega je mogoče
+              popraviti nazaj.
+            </p>
+            <div className="field">
+              <label htmlFor="izbrisPotrdi">Za potrditev prepiši ime: {oseba.full_name}</label>
+              <input id="izbrisPotrdi" type="text" value={izbrisPotrdi} onChange={e => setIzbrisPotrdi(e.target.value)} />
+            </div>
+            <button className="dangerBtn" onClick={izbrisiTrajno} disabled={izbrisBusy || izbrisPotrdi.trim() !== oseba.full_name}>
+              {izbrisBusy ? "Izbrišem …" : "Trajno izbriši uporabnika"}
+            </button>
+            {izbrisMsg && <p className={izbrisMsg.ok ? "okMsg" : "err"}>{izbrisMsg.text}</p>}
           </div>
 
           <h2 className="section no-print">Ogled kot ta uporabnik (admin)</h2>
@@ -1544,6 +1697,7 @@ function App(){
       {!odprtId && pogled === "seznam" && (
         <React.Fragment>
           <Seznam osebe={vsi} oddelki={oddelki} onOdpri={odpri} />
+          {myRole === "admin" && <DodajUporabnika oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
           {myRole === "admin" && <AdminUvoz osebe={osebe} oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
         </React.Fragment>
       )}
