@@ -83,6 +83,7 @@ const koda = [
   izvleci("obdelajOddelekVrstice"),
   izvleci("obdelajNzvVrstice"),
   izvleci("razvrstiListe"),
+  izvleci("zdruziPoKljucu"),
 ].join("\n\n");
 
 const sandbox = {
@@ -99,7 +100,7 @@ function normalizirajDatum(s) {
 }
 vm.createContext(sandbox);
 vm.runInContext(koda, sandbox);
-const { razvrstiListe, obdelajOddelekVrstice, obdelajNzvVrstice } = sandbox;
+const { razvrstiListe, obdelajOddelekVrstice, obdelajNzvVrstice, zdruziPoKljucu } = sandbox;
 
 console.log("1) razvrstiListe loči oddelčne liste (po imenu) od preostalih");
 {
@@ -161,6 +162,40 @@ console.log("4) list, ki ni ne oddelek ne NZV (npr. 'KALUP' legenda), ne vrne ni
   jseq(zapisi.length, 0, "0 zapisov razporeda");
   jseq(dopusti.length, 0, "0 zapisov odsotnosti");
   trdi(!najdenDatum, "sploh ne najde datumskih vrstic (legenda ni razpored) - v pravi funkciji to pomeni 'preskočen list'");
+}
+
+console.log("5) zdruziPoKljucu - osnovno vedenje (zadnja vrednost zmaga)");
+{
+  const { edinstveni, podvojeni } = zdruziPoKljucu(
+    [{ k: "a", v: 1 }, { k: "b", v: 2 }, { k: "a", v: 3 }],
+    (r) => r.k
+  );
+  jseq(edinstveni, [{ k: "a", v: 3 }, { k: "b", v: 2 }], "podvojen ključ 'a' obdrži ZADNJO vrednost (v:3, ne v:1)");
+  jseq([...podvojeni], ["a"], "'a' je javljen kot podvojen ključ");
+}
+
+console.log("6) resnični scenarij, ki je javil Postgres napako: ista oseba, isti dan, DVA zavihka");
+{
+  // To je natančno situacija, ki je uporabniku vrnila "ON CONFLICT DO UPDATE
+  // command cannot affect row a second time" - oseba "DOLAR T." se pojavi
+  // TAKO v zavihku "B" (matični oddelek) KOT v zavihku "FLEXI" (križna
+  // pokritost) za isti dan. En sam skupen upsert bi to zavrnil - zato
+  // uvoziDatotekoPametno zdaj piše vsak zavihek LOČENO, po predhodnem
+  // zdruziPoKljucu znotraj samega zavihka (ta test preveri drugi del -
+  // dedup ZNOTRAJ enega zavihka, prvi del preveri arhitektura ločenih
+  // klicev, ki je vidna samo v pravi funkciji z I/O, ne v tem fixture-ju).
+  const bVrstice = [
+    ["B odd", "", "DOLAR T.", "DOLAR T."], // ista oseba POMOTOMA dvakrat v isti glavi (dva stolpca)
+    ["", "", "SMS / TZN", "SMS / TZN"],
+    ["1. 9. 2026", "TO", "dopoldan", "popoldan"], // različni vrednosti za isto osebo/dan v istem zavihku
+  ];
+  const poKratkem = { "DOLAR T.": "dolar-id" };
+  const { zapisi } = obdelajOddelekVrstice(bVrstice, "B", "2026-09", poKratkem);
+  jseq(zapisi.length, 2, "obdelajOddelekVrstice sam po sebi NE združuje - vrne oba (to bi šlo v en sam upsert in padlo)");
+  const { edinstveni, podvojeni } = zdruziPoKljucu(zapisi, z => z.employee_id + "|" + z.work_date);
+  jseq(edinstveni.length, 1, "zdruziPoKljucu pred zapisom zmanjša na 1 vrstico za (oseba, dan)");
+  jseq(edinstveni[0].shift_code, "popoldan", "obdrži ZADNJO najdeno vrednost (popoldan, iz drugega stolpca)");
+  trdi(podvojeni.size === 1, "podvojenost je zaznana in bi bila javljena uporabniku kot opomba");
 }
 
 console.log("");
