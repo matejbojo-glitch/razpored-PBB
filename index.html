@@ -817,15 +817,14 @@ function kratkaImenaMapa(profili){
   return { poKratkem: m, podvojena };
 }
 
-async function uvoziOddelek(url, wardCode, ciljniMesec){
+// Čist izračun (brez omrežja/baze) - iz surovih vrstic (vira ni pomembno, ali
+// so prišle prek Google Sheets URL-ja ali iz naloženega Excela, glej
+// uvoziDatotekoPametno spodaj) izračuna zapise za schedule_entries. Ločeno od
+// uvoziOddelek, da isto logiko lahko uporabita OBA vira vrstic.
+function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
   const { startISO, endISO } = monthRange(ciljniMesec);
-  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
-  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const { data: profili } = await client.from("profiles").select("id, full_name");
-  const { poKratkem, podvojena } = kratkaImenaMapa(profili);
-  const neujemanja = new Set();
-  podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   const zapisi = [];
+  const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
   let i = 0;
   while (i < vrsteVrstic.length) {
@@ -840,9 +839,19 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
       });
     }, stanje);
   }
+  return { zapisi, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
+async function uvoziOddelek(url, wardCode, ciljniMesec){
+  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
+  const { data: profili } = await client.from("profiles").select("id, full_name");
+  const { poKratkem, podvojena } = kratkaImenaMapa(profili);
+  const { zapisi, neujemanja, najdenDatum, najdenaGlava } = obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem);
+  podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   if (!zapisi.length) {
-    if (!stanje.najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK — v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
-    if (!stanje.najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z imeni oseb.");
+    if (!najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK — v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
+    if (!najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z imeni oseb.");
     throw new Error(`Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: ${[...neujemanja].join(", ")}. Če so imena videti pravilna, je verjetno kriv napačen zavihek (glej zgoraj) — preveri, da povezava kaže na zavihek TEGA oddelka.`);
   }
   await shraniZapiseRazporeda(zapisi);
@@ -936,23 +945,27 @@ function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
 // zato jih uvoziNzv loči na dva izhodna seznama (zapisi/dopusti).
 const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
 
-async function uvoziNzv(url, ciljniMesec, myId){
-  const { startISO, endISO } = monthRange(ciljniMesec);
-  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
-  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const nazivVKodo = nzvNazivVKodo();
-  const { data: profili } = await client.from("profiles").select("id, full_name, parafa");
-  const poParafi = {};
+// Ista vloga kot kratkaImenaMapa, samo za parafe (uvoziNzv/uvoziDatotekoPametno).
+function parafaMapa(profili){
+  const m = {};
   const podvojene = new Set();
   (profili || []).forEach(p => {
     const parafa = parafaOd(p).toUpperCase();
-    if (parafa in poParafi) { podvojene.add(parafa); } else { poParafi[parafa] = p; }
+    if (parafa in m) { podvojene.add(parafa); } else { m[parafa] = p; }
   });
-  podvojene.forEach(k => delete poParafi[k]);
-  const neujemanja = new Set();
-  podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
+  podvojene.forEach(k => delete m[k]);
+  return { poParafi: m, podvojene };
+}
+
+// Čist izračun (brez omrežja/baze), analogen obdelajOddelekVrstice zgoraj -
+// ločen od uvoziNzv, da isto logiko uporablja tudi uvoziDatotekoPametno
+// (glej spodaj), ki jo poganja na VSAKEM listu naložene datoteke.
+function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId){
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const nazivVKodo = nzvNazivVKodo();
   const zapisi = [];
   const dopusti = [];
+  const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
   let i = 0;
   while (i < vrsteVrstic.length) {
@@ -984,9 +997,19 @@ async function uvoziNzv(url, ciljniMesec, myId){
       });
     }, stanje);
   }
+  return { zapisi, dopusti, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
+async function uvoziNzv(url, ciljniMesec, myId){
+  const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
+  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
+  const { data: profili } = await client.from("profiles").select("id, full_name, parafa");
+  const { poParafi, podvojene } = parafaMapa(profili);
+  const { zapisi, dopusti, neujemanja, najdenDatum, najdenaGlava } = obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId);
+  podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
   if (!zapisi.length && !dopusti.length) {
-    if (!stanje.najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku - preveri, da si prilepil pravo povezavo (in pravi zavihek/mesec).`);
-    if (!stanje.najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z glavami enot.");
+    if (!najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku - preveri, da si prilepil pravo povezavo (in pravi zavihek/mesec).`);
+    if (!najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z glavami enot.");
     throw new Error("Najdene vrstice za izbrani mesec, a nobena parafa se ni ujemala z osebo v aplikaciji: " + [...neujemanja].join(", "));
   }
   await Promise.all([
@@ -997,6 +1020,87 @@ async function uvoziNzv(url, ciljniMesec, myId){
   if (zapisi.length) deli.push(`${zapisi.length} vpisov razporeda`);
   if (dopusti.length) deli.push(`${dopusti.length} vpisov odsotnosti (LD/IZOB/BS)`);
   return `Uvoženih: ${deli.join(", ")}.` + (neujemanja.size ? ` Brez ujemanja parafe: ${[...neujemanja].join(", ")}.` : "");
+}
+
+// "Pametni uvoz" - ena naložena datoteka (lahko z več zavihki, kot pravi
+// delovni zvezek "2026 SMS RAZPORED") namesto ročnega lepljenja povezave za
+// vsak oddelek/mesec posebej. Vsak list se prepozna samodejno:
+//   - ime lista se ujema z znano kodo oddelka (PO_ODDELKIH_KODE, npr. "C1",
+//     "FLEXI") -> oddelčni razpored (obdelajOddelekVrstice) - IME lista je
+//     tu edini zanesljiv način vedeti, kateri oddelek gre v ta stolpec
+//     schedule_entries (vsebina sama po sebi tega ne pove);
+//   - sicer poskusi NZV obliko (obdelajNzvVrstice) - ta je prepoznana po
+//     VSEBINI glave (enote kot PDZN/SOBO/... so že v vrsticah), zato ne
+//     potrebuje imena lista po vzorcu - obdrži se samo, če je za izbrani
+//     mesec dejansko kaj našel;
+//   - sicer je list preskočen (npr. "KALUP", "kopije", "jesen" v pravi
+//     predlogi) - uporabnik dobi seznam preskočenih listov v sporočilu, da
+//     ve, da ni bilo tiho prezrto.
+function razvrstiListe(listi){
+  const oddelki = [];
+  const preostali = [];
+  (listi || []).forEach(l => {
+    const koda = (l.naziv || "").trim().toUpperCase();
+    if (PO_ODDELKIH_KODE.includes(koda)) oddelki.push({ koda, vrsteVrstic: l.vrsteVrstic });
+    else preostali.push(l);
+  });
+  return { oddelki, preostali };
+}
+
+async function uvoziDatotekoPametno(file, ciljniMesec, myId){
+  const { listi } = await window.ImportUtils.preberiVseListe(file);
+  if (!listi || !listi.length) throw new Error("Prazna datoteka.");
+  const { oddelki, preostali } = razvrstiListe(listi);
+
+  const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
+    client.from("profiles").select("id, full_name"),
+    client.from("profiles").select("id, full_name, parafa"),
+  ]);
+  const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
+  const { poParafi, podvojene } = parafaMapa(profiliParafa);
+
+  const vsiZapisi = [];
+  const vsiDopusti = [];
+  const neujemanja = new Set();
+  podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
+  podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
+
+  const povzetekOddelki = [];
+  oddelki.forEach(({ koda, vrsteVrstic }) => {
+    const { zapisi, neujemanja: neu } = obdelajOddelekVrstice(vrsteVrstic, koda, ciljniMesec, poKratkem);
+    neu.forEach(n => neujemanja.add(koda + ": " + n));
+    if (zapisi.length) { vsiZapisi.push(...zapisi); povzetekOddelki.push(`${koda} (${zapisi.length})`); }
+  });
+
+  const preskoceni = [];
+  preostali.forEach(l => {
+    const { zapisi, dopusti, neujemanja: neu } = obdelajNzvVrstice(l.vrsteVrstic, ciljniMesec, poParafi, myId);
+    if (zapisi.length || dopusti.length) {
+      vsiZapisi.push(...zapisi); vsiDopusti.push(...dopusti);
+      neu.forEach(n => neujemanja.add(l.naziv + ": " + n));
+    } else {
+      preskoceni.push(l.naziv);
+    }
+  });
+
+  if (!vsiZapisi.length && !vsiDopusti.length) {
+    throw new Error(
+      `V datoteki ni prepoznanih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]}. ` +
+      `Prepoznani oddelčni listi: ${oddelki.map(o => o.koda).join(", ") || "noben"}.` +
+      (preskoceni.length ? ` Neprepoznani listi (preveri ime zavihka/vsebino): ${preskoceni.join(", ")}.` : "")
+    );
+  }
+  await Promise.all([
+    vsiZapisi.length ? shraniZapiseRazporeda(vsiZapisi) : Promise.resolve(),
+    vsiDopusti.length ? shraniDopusteNzv(vsiDopusti) : Promise.resolve(),
+  ]);
+  const deli = [];
+  if (povzetekOddelki.length) deli.push("oddelki: " + povzetekOddelki.join(", "));
+  if (vsiDopusti.length) deli.push(`${vsiDopusti.length} vpisov odsotnosti (LD/IZOB/BS)`);
+  let besedilo = `Uvoženih skupaj ${vsiZapisi.length + vsiDopusti.length} vpisov` + (deli.length ? " (" + deli.join("; ") + ")" : "") + ".";
+  if (preskoceni.length) besedilo += ` Preskočeni listi (niso prepoznani kot oddelek ali NZV za izbrani mesec): ${preskoceni.join(", ")}.`;
+  if (neujemanja.size) besedilo += ` Brez ujemanja imena/parafe: ${[...neujemanja].join(", ")}.`;
+  return besedilo;
 }
 
 // Enak namen kot pripraviPosodobitveOddelka (glej tam), a za NZV obliko:
@@ -1089,6 +1193,30 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
     }
   };
 
+  // Najlažja pot za uporabnika (glej pogovor) - namesto da za VSAK oddelek
+  // posebej lepi pravo #gid= povezavo, naloži EN Excel izvoz (lahko z več
+  // zavihki, cel delovni zvezek) in aplikacija sama prepozna vsebino
+  // vsakega lista (glej uvoziDatotekoPametno). Na voljo ne glede na to, kateri
+  // zavihek/oddelek je trenutno izbran zgoraj - naložena datoteka se obdela
+  // v celoti. Isti gumb lahko uporabiš večkrat (nova datoteka, popravljena
+  // različica, naslednji mesec …) - vsak nov uvoz samo prepiše/dopolni
+  // obstoječe vpise za zadevni dan, nič se ne podvoji (upsert po datumu).
+  const nalozizDatoteko = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // da lahko isto datoteko izbereš tudi drugič zapored
+    if (!file) return;
+    setBusy("datoteka"); setMsg(null);
+    try {
+      const besedilo = await uvoziDatotekoPametno(file, month, myId);
+      setMsg({ ok: true, text: besedilo });
+      onUvozeno();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message || String(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // Piše nazaj za navadne oddelke IN za NZV (uvoziOddelek/pripraviPosodobitveOddelka
   // in uvoziNzv/pripraviPosodobitveNzv obe najdeta iste koordinate, ki jih uvoz tudi
   // prebere) - samo "Moj razpored" te možnosti (še) nima, ker gre za osebno, ne
@@ -1121,21 +1249,38 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           onClick={e => { if (e.target === e.currentTarget) naZapri(); }}>
         <div className="modalOkno">
           <div className="modalGlava">
-            <h3>📥 Uvoz iz Google Sheets</h3>
+            <h3>📥 Uvoz razporeda</h3>
             <button type="button" className="modalZapri" aria-label="Zapri" onClick={naZapri}>✕</button>
           </div>
-          <div className="field" style={{ marginTop: 0 }}>
-            <label htmlFor="gsUrl">
-              Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
-            </label>
-            <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => spremeniUrl(e.target.value)} />
-          </div>
-          <p className="hint" style={{marginTop:2, marginBottom:10}}>
-            Pomembno pri dokumentu z več zavihki (en na oddelek): odpri zavihek ZA TA ODDELEK v Google Sheets
-            (klikni njegovo ime na dnu preglednice) in šele nato kopiraj povezavo iz naslovne vrstice - ta mora
-            vsebovati "#gid=…". Če povezavo kopiraš, ne da bi prej kliknil zavihek, se vedno uporabi prvi zavihek v
-            dokumentu, ne tisti, ki ga pričakuješ.
+
+          <p className="hint" style={{marginTop:0, marginBottom:6}}>
+            <b>Najlažje:</b> naloži Excel izvoz razporeda (.xlsx) — lahko cel delovni zvezek z več zavihki (npr. cel
+            dokument "2026 SMS RAZPORED"). Aplikacija sama prepozna, kateri zavihek je kateri oddelek/mesec, in
+            uvozi vse naenkrat, ne glede na to, kateri oddelek je trenutno izbran zgoraj. Datoteko lahko naložiš
+            tudi večkrat zapored (nova različica, naslednji mesec …) — vsak nov uvoz samo prepiše/dopolni obstoječe
+            vpise, nič se ne podvoji.
           </p>
+          <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
+            <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
+              {busy === "datoteka" ? "Uvažam …" : "📁 Naloži datoteko (samodejno)"}
+              <input type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
+            </label>
+          </div>
+
+          <details>
+            <summary className="hint" style={{cursor:"pointer", marginBottom:8}}>Ali ročno, po povezavi do Google Sheets (za posamezen zavihek)</summary>
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="gsUrl">
+                Uvoz iz Google Sheets za {kontekst === "my" ? "Moj razpored" : (kontekst === "NZV" ? "NZV" : "oddelek " + kontekst)} (deljeno kot "vsak s povezavo lahko ogleda")
+              </label>
+              <input id="gsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={url} onChange={e => spremeniUrl(e.target.value)} />
+            </div>
+            <p className="hint" style={{marginTop:2, marginBottom:10}}>
+              Pomembno pri dokumentu z več zavihki (en na oddelek): odpri zavihek ZA TA ODDELEK v Google Sheets
+              (klikni njegovo ime na dnu preglednice) in šele nato kopiraj povezavo iz naslovne vrstice - ta mora
+              vsebovati "#gid=…". Če povezavo kopiraš, ne da bi prej kliknil zavihek, se vedno uporabi prvi zavihek v
+              dokumentu, ne tisti, ki ga pričakuješ.
+            </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="dlBtn" type="button" disabled={!!busy} onClick={() => nalozi("moj")}>
               {busy === "moj" ? "Uvažam …" : "📥 Uvozi Moj razpored"}
@@ -1149,13 +1294,14 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
               </button>
             )}
           </div>
-          <p className="hint" style={{marginTop:6}}>
-            Uvozi/zapiše samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
-            povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
-            gumb/oddelek si zapomni svojo zadnjo povezavo posebej. "Zapiši nazaj" prepiše SAMO obstoječe celice, ki jih
-            uvoz tudi prebere (izmene po osebah za oddelke; enote/Dežurstvo/LD/IZOB/BS za NZV) - novih
-            oseb/stolpcev/vrstic ne dodaja, oblike in podpisnega bloka se ne dotakne.
-          </p>
+            <p className="hint" style={{marginTop:6}}>
+              Uvozi/zapiše samo mesec, ki je trenutno izbran zgoraj ({MESECI[Number(month.split("-")[1]) - 1]} {month.split("-")[0]}) -
+              povezava lahko kaže na zavihek z več meseci (kot realna predloga), aplikacija sama poišče pravi blok. Vsak
+              gumb/oddelek si zapomni svojo zadnjo povezavo posebej. "Zapiši nazaj" prepiše SAMO obstoječe celice, ki jih
+              uvoz tudi prebere (izmene po osebah za oddelke; enote/Dežurstvo/LD/IZOB/BS za NZV) - novih
+              oseb/stolpcev/vrstic ne dodaja, oblike in podpisnega bloka se ne dotakne.
+            </p>
+          </details>
           {msg && <p className={msg.ok ? "okMsg" : "err"} style={{ marginTop: 8 }}>{msg.text}</p>}
         </div>
         </div>

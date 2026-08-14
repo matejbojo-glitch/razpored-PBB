@@ -56,6 +56,50 @@ window.ImportUtils = (function () {
     return vrstice.map(v => v.map(xlsxCelicaVBesedilo));
   }
 
+  // Za "pametni uvoz" (glej index.html uvoziDatotekoPametno) - za razliko od
+  // xlsxVVrstice zgoraj prebere VSE zavihke naenkrat, ne samo prvega, da
+  // klicatelj lahko samodejno prepozna, kateri zavihek je kateri
+  // oddelek/mesec (npr. pravi delovni zvezek "2026 SMS RAZPORED" ima en
+  // zavihek na oddelek).
+  function xlsxVsiListi(arrayBuffer) {
+    if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka xlsx.core.min.js).");
+    const wb = window.XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+    return wb.SheetNames.map(naziv => {
+      const vrstice = window.XLSX.utils.sheet_to_json(wb.Sheets[naziv], { header: 1, blankrows: false, defval: "" });
+      return { naziv, vrsteVrstic: vrstice.map(v => v.map(xlsxCelicaVBesedilo)) };
+    });
+  }
+
+  // Prebere File objekt v { listi: [{ naziv, vrsteVrstic }] } - eden na
+  // vsak zavihek za pravi Excel delovni zvezek (.xlsx/.xls/.xlsb); za
+  // CSV/besedilo je "list" en sam, poimenovan po datoteki (brez pripone),
+  // ker CSV nima pojma zavihkov.
+  function preberiVseListe(file) {
+    const ime = (file.name || "").toLowerCase();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error("Napaka pri branju datoteke."));
+      if (ime.endsWith(".xlsx") || ime.endsWith(".xls") || ime.endsWith(".xlsb")) {
+        reader.onload = () => {
+          try { resolve({ listi: xlsxVsiListi(reader.result) }); }
+          catch (e) { reject(e); }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ime.endsWith(".csv") || ime.endsWith(".txt")) {
+        reader.onload = () => {
+          const naziv = (file.name || "list").replace(/\.[^.]+$/, "");
+          resolve({ listi: [{ naziv, vrsteVrstic: csvBesedilaVVrstice(String(reader.result || "")) }] });
+        };
+        reader.readAsText(file, "UTF-8");
+      } else {
+        reject(new Error(
+          "Ta vrsta datoteke ni podprta za samodejni uvoz (pričakovano: .xlsx, .xls ali .csv) - "
+          + "izvozi razpored iz Google Sheets/Excela v eno od teh oblik."
+        ));
+      }
+    });
+  }
+
   let pdfjsPromise = null;
   function nalozipdfjs() {
     if (!pdfjsPromise) {
@@ -316,5 +360,5 @@ window.ImportUtils = (function () {
   // isto in da se ne razide s tem, kar preberiDatoteko dejansko zna.
   const PODPRTE_PRIPONE = ".csv,.txt,.xlsx,.xls,.xlsb,.json,.jsonl,.gsheet,.pdf";
 
-  return { preberiDatoteko, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, PODPRTE_PRIPONE };
+  return { preberiDatoteko, preberiVseListe, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, PODPRTE_PRIPONE };
 })();

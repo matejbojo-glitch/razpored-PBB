@@ -106,6 +106,7 @@ dotakne.
 | `preveri-izbris-osebe.mjs` | `schema.sql` postavi delujočo bazo iz nič; `odstrani-zaposlene.sql` se izvede po ukazih (vsak v svoji seji, kot v Supabase SQL Editorju) in za sabo ne pusti ne imena ne viseče povezave | lokalni PostgreSQL + `su postgres` |
 | `preveri-zapis-v-sheets.mjs` | `pripraviPosodobitveOddelka` (index.html) na fixture-ju v obliki resničnega dokumenta ("2026 SMS RAZPORED") — najde prave koordinate (vrstica, stolpec) za pisanje nazaj v Google Sheets, ločeno po mesecih z različnim naborom ljudi, prek prazne vmesne vrstice, brez pisanja v celico osebe, ki v listu nima stolpca | nič |
 | `preveri-nzv-sheets.mjs` | `pripraviPosodobitveNzv`/`nzvNazivVKodo`/`NZV_STOLPCI` (index.html) na fixture-ju v obliki resničnega dokumenta ("Letni dopusti in omejitve za NZV") — pravi vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA), prave koordinate za enote IN za nova LD/IZOB/BS polja, ločeno po mesecih, prek prazne vmesne vrstice | nič |
+| `preveri-pametni-uvoz.mjs` | `razvrstiListe`/`obdelajOddelekVrstice`/`obdelajNzvVrstice` (index.html) — "Naloži datoteko (samodejno)" pravilno loči zavihke po znani kodi oddelka od preostalih, prepozna oddelčno IN NZV obliko po vsebini, in list, ki ni nobeno od tega (npr. "KALUP" legenda), tiho ne vrne ničesar (preskočen, ne napaka) | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne

@@ -81,9 +81,40 @@ Po vnosu Client ID-ja odpri poljubno stran z gumbom (npr. Imenik) in klikni
 "Izvozi v Google Sheets" — pojavi se Google prijavno okno namesto
 sporočila "Izvoz v Google Sheets še ni nastavljen".
 
-## Uvoz iz Google Sheets IN pisanje nazaj — pravi zavihek je nujen
+## Uvoz razporeda — najlažje: naloži datoteko
 
-Na strani **Razpored → Po oddelkih** (admin) je poleg izvoza tudi:
+Na strani **Razpored → Po oddelkih/NZV** (admin), gumb **"📥 Uvoz razporeda"**
+zdaj najprej ponudi **"📁 Naloži datoteko (samodejno)"** — naložiš en Excel
+izvoz (.xlsx), lahko kar CEL delovni zvezek z vsemi zavihki (npr. cel
+dokument "2026 SMS RAZPORED"), in aplikacija sama prepozna vsebino vsakega
+zavihka:
+- zavihek, poimenovan po znani kodi oddelka (B, C, C1, D, E1, E2, FLEXI) →
+  uvozi kot razpored TEGA oddelka;
+- zavihek v obliki "Letni dopusti in omejitve za NZV" (enote v glavi, ne
+  glede na ime zavihka) → uvozi kot NZV;
+- zavihek, ki ni prepoznan kot nobeno od tega (npr. "KALUP", "kopije",
+  "jesen" v pravi predlogi — to so legenda/delovni zavihki, ne razpored) →
+  tiho preskočen, naveden v sporočilu po uvozu, da veš, da ni bil prezrt po
+  pomoti.
+
+To deluje ne glede na to, kateri oddelek/zavihek je trenutno izbran zgoraj v
+aplikaciji — naložena datoteka se v celoti pregleda. Datoteko lahko naložiš
+tudi večkrat zapored (novo/popravljeno različico, naslednji mesec …) — vsak
+nov uvoz samo prepiše/dopolni obstoječe vpise za zadevni dan, nič se ne
+podvoji.
+
+**Kako narediš tako datoteko iz Google Sheets:** v dokumentu klikni meni
+**Datoteka → Prenesi → Microsoft Excel (.xlsx)** (na telefonu: ikona "⋮" ali
+"Deli" → "Pošlji kopijo" → izberi obliko **"Excel (.xlsx)"**) — to prenese
+CEL dokument z vsemi zavihki v eni datoteki, ki jo nato naložiš v
+aplikacijo. Ni ti treba paziti na noben zavihek/#gid= — to je ravno prednost
+te poti pred ročnim lepljenjem povezave spodaj.
+
+## Ročni uvoz prek povezave — pravi zavihek je nujen
+
+Če datoteke raje ne nalagaš (npr. dokument se še ureja v Google Sheets in ga
+ne želiš vsakič znova prenašati), je na voljo tudi prejšnja pot — razširi
+"Ali ročno, po povezavi do Google Sheets" v istem oknu:
 - **📥 Uvozi Oddelki** — prebere razpored iz Google Sheets dokumenta v
   aplikacijo (samo javno deljeni dokument, "Vsak s povezavo lahko ogleda" —
   brez prijave, drugačna pot kot izvoz zgoraj).
