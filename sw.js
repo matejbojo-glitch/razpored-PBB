@@ -223,7 +223,21 @@
 // za širok prikaz, ročni trik pa se umakne, še preden pride do konflikta.
 // Spremenjen index.html.
 
-const CACHE = 'razpored-pbb-v51';
+// v52: uporabnikov naslednji posnetek zaslona (tokrat s telefonom, ki JE
+// pravilno v ležeči legi) je pokazal, da header.top (logo, podnaslov,
+// "Prijavljen", zavihki, izbirniki Oddelek/Mesec) v nizki ležeči višini
+// zapolni CELOTEN vidni zaslon, še preden se prikaže ena sama vrstica
+// razporeda - "širši prikaz" je bil zato brez učinka (širina se je
+// povečala, a nič dodatnega ni bilo videti brez drsenja). theme.css dobi
+// nov @media (orientation: landscape) and (max-height: 500px) blok, ki
+// glavo strči (manjši logo/pisava, skrit podnaslov, tanjši razmiki) SAMO
+// na dejansko nizkih telefonskih zaslonih - širši/višji ležeči zasloni
+// (tablice, namizje) ostanejo nespremenjeni. Gumb "Obrni na ležeči
+// prikaz" (index.html) se zdaj tudi skrije v pravi ležeči legi, kjer bi
+// bil - kot je uporabnik opazil - brez učinka (prejšnji v51 popravek ga
+// takoj sam izklopi). Spremenjena index.html, theme.css.
+
+const CACHE = 'razpored-pbb-v52';
 const ASSETS = [
   './',
   './index.html',
