@@ -75,6 +75,33 @@
   }
   @media (min-width:900px){
   }
+  /* "Širši prikaz" mora DEJANSKO zavrteti zaslon (ne samo prilepiti široko
+     tabelo na ozek pokončni zaslon - to bi tabelo samo stisnilo, ne
+     razširilo, kar se je zgodilo pri prvem poskusu, glej posnetek
+     zaslona uporabnika). Zato na ozkem pokončnem zaslonu CELO stran
+     (body) vizualno zavrtimo za 90° - klasičen "prisilno ležeče" trik za
+     telefone s samodejnim obračanjem, izklopljenim v nastavitvah
+     Androida. width/height sta zamenjana (100vh/100vw), da telefon
+     DEJANSKO dobi širino svoje višine (~700-900px), ne samo CSS namig na
+     nespremenjeni ozki širini. transform na body ustvari nov "containing
+     block" tudi za position:fixed elemente znotraj njega (vrstica ikon,
+     spodnji meni), zato se zavrtijo skupaj z ostalo vsebino. Na napravi,
+     ki je JE dejansko ležeča (ali širši zaslon), se ta blok sploh ne
+     uporabi (orientation:portrait pogoj) - gumb tam ni potreben, a ostane
+     brez učinka, če bi ga kdo vseeno kliknil. */
+  @media (orientation: portrait){
+    html.sirsiPogled body{
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vh;
+      height: 100vw;
+      transform-origin: top left;
+      transform: rotate(90deg) translateY(-100%);
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
   /* Ista postavitev kot zgoraj, a NA ZAHTEVO prek gumba "Širši prikaz"
      (glej WideToggle v App), namesto da bi bila odvisna od tega, ali
      naprava DEJANSKO javi ležečo orientacijo - telefon s samodejnim
@@ -1528,12 +1555,15 @@ function App(){
   // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
   // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
   const [uvozOdprt, setUvozOdprt] = useState(false);
-  // "Širši prikaz" (na zahtevo, glej WideToggle) - na telefonu s samodejnim
-  // obračanjem zaslona IZKLOPLJENIM (pogosto v nastavitvah Androida) se
-  // @media (orientation: landscape) v theme.css/index.html nikoli ne
-  // sproži, ne glede na to, kako uporabnik drži telefon - ta gumb doseže
-  // ISTO široko postavitev "Po oddelkih" tabele (html.sirsiPogled, glej
-  // <style> zgoraj) ROČNO, brez odvisnosti od dejanske orientacije naprave.
+  // "Obrni na ležeči prikaz" - na telefonu s samodejnim obračanjem zaslona
+  // IZKLOPLJENIM (pogosto v nastavitvah Androida) se @media (orientation:
+  // landscape) nikoli ne sproži, zaslon pa fizično ostane ozek (portret) ne
+  // glede na to, kako uporabnik drži telefon. Prvi poskus (samo širša
+  // postavitev tabele prek CSS razreda) je zato samo stiskal stolpce v
+  // isto ozko širino - video posnetek uporabnika je to potrdil. Zato gumb
+  // zdaj namesto tega dejansko ZAVRTI celo stran za 90° prek CSS transform
+  // (glej html.sirsiPogled body v <style> zgoraj) - to resnično poveča
+  // razpoložljivo širino, ne le prikaže tabelo drugače.
   const [sirsiPogled, setSirsiPogled] = useState(() => {
     try { return localStorage.getItem("razpored-sirsi-pogled") === "1"; } catch (e) { return false; }
   });
@@ -1781,7 +1811,7 @@ function App(){
         {view === "ward" && (
           <button type="button" className="dlBtn no-print" style={{marginTop:10}}
             aria-pressed={sirsiPogled} onClick={() => setSirsiPogled(s => !s)}>
-            {sirsiPogled ? "📱 Nazaj na ozek prikaz" : "↔️ Širši prikaz (kot ležeče)"}
+            {sirsiPogled ? "📱 Nazaj na pokončni prikaz" : "🔄 Obrni na ležeči prikaz"}
           </button>
         )}
       </header>

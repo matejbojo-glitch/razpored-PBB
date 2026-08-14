@@ -202,7 +202,16 @@
 // postavitev (html.sirsiPogled v <style>) ne glede na dejansko orientacijo
 // naprave, izbira se zapomni (localStorage). Spremenjen index.html.
 
-const CACHE = 'razpored-pbb-v49';
+// v50: popravek pravega hrošča v gumbu iz v49 - uporabnikov posnetek
+// zaslona (pravi telefon, samodejno obračanje IZKLOPLJENO) je pokazal, da
+// prejšnja rešitev (samo table-layout:fixed na nespremenjeni ozki širini)
+// tabelo samo STISNE, je ne razširi. "Širši prikaz" zdaj namesto tega
+// resnično ZAVRTI celo stran za 90° (CSS transform na <body>, klasičen
+// "prisilno ležeče" trik) - telefon dejansko dobi širino svoje višine.
+// Gumb preimenovan v "🔄 Obrni na ležeči prikaz"/"📱 Nazaj na pokončni
+// prikaz", da opiše dejansko (novo) vedenje. Spremenjen index.html.
+
+const CACHE = 'razpored-pbb-v50';
 const ASSETS = [
   './',
   './index.html',
