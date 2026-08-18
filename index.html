@@ -553,6 +553,82 @@ function RazporedPodpisi({ entries }){
   );
 }
 
+// "Menjave v tem mesecu" POD mesečnim razporedom (samo admin) - doslej so
+// bile menjave vidne izključno na ločeni strani "Menjava", ne pa ob
+// razporedu, ki ga koordinator dejansko pregleduje. Ista poizvedba kot
+// MenjaveMeseca v obrazec.html (obrazci, vrsta "menjava_sluzbe", brez
+// osnutkov), le da je filtrirana na PRIKAZANI mesec (ne na tekoči).
+//
+// POMEMBNO: ko koordinator menjavo potrdi, se izmeni v schedule_entries
+// zamenjata SAMODEJNO (obrazec_potrdi_koordinator, schema.sql sekcija 22) -
+// ta seznam je torej pregled/revizija ("kdo je zamenjal s kom"), ne korak,
+// ki bi ga bilo treba ročno prenesti v razpored. Zato je tudi tik pod
+// tabelo: razpored zgoraj že vsebuje učinek teh menjav.
+const MENJAVA_STATUS_NAZIV = {
+  caka_sodelavca: "čaka sodelavca",
+  caka_vodjo: "čaka vodjo",
+  caka_koordinatorja: "čaka koordinatorja",
+  zakljucen: "potrjeno",
+  zavrnjen: "zavrnjeno",
+  preklican: "preklicano",
+};
+function menjavaPillRazred(status){
+  if (status === "zakljucen") return "pill ok";
+  if (status === "zavrnjen" || status === "preklican") return "pill danger";
+  return "pill warn"; // vse "caka_*" stopnje
+}
+function MenjaveVMesecu({ month }){
+  const [vrstice, setVrstice] = useState(null);
+  const { startISO, endISO } = monthRange(month);
+
+  useEffect(() => {
+    let cancelled = false;
+    setVrstice(null);
+    client.from("obrazci")
+      .select("id, status, je_dezurstvo, polja, vlagatelj:profiles!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profiles!obrazci_sodelavec_id_fkey(full_name)")
+      .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
+      .filter("polja->>datum_a", "gte", startISO).filter("polja->>datum_a", "lte", endISO)
+      .order("ustvarjen", { ascending: false })
+      .then(({ data }) => { if (!cancelled) setVrstice(data || []); });
+    return () => { cancelled = true; };
+  }, [startISO, endISO]);
+
+  const dan = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("sl-SI", { day: "numeric", month: "numeric" }) : "—";
+
+  return (
+    <div className="no-print" style={{marginTop:24}}>
+      <h2 className="section">Menjave v tem mesecu</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Potrjena menjava je v razporedu zgoraj že upoštevana — izmeni se zamenjata samodejno ob potrditvi koordinatorja.
+      </p>
+      {vrstice === null && <p className="sub">Nalagam …</p>}
+      {vrstice !== null && vrstice.length === 0 && <p className="sub">V tem mesecu ni nobene menjave.</p>}
+      {vrstice !== null && vrstice.length > 0 && (
+        <div className="card" style={{padding:0}}>
+          {vrstice.map(r => {
+            const p = r.polja || {};
+            return (
+              <div key={r.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between",
+                gap:12, padding:"10px 14px", borderBottom:"1px solid var(--line)"}}>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:14}}>
+                    {r.vlagatelj ? r.vlagatelj.full_name : "?"} ↔ {r.sodelavec ? r.sodelavec.full_name : "?"}
+                    {r.je_dezurstvo && <span className="pill muted" style={{marginLeft:6}}>dežurstvo</span>}
+                  </div>
+                  <div style={{fontSize:12, color:"var(--muted)", marginTop:2}}>
+                    {dan(p.datum_a)} ⇄ {dan(p.datum_b)}
+                  </div>
+                </div>
+                <span className={menjavaPillRazred(r.status)}>{MENJAVA_STATUS_NAZIV[r.status] || r.status}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WardView({ deptCode, month, myId }){
   const [employees, setEmployees] = useState(null);
   const [entries, setEntries] = useState(null);
@@ -2145,6 +2221,13 @@ function App(){
           : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} />
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
+      {/* Menjave se izpišejo POD mesečnim razporedom in samo adminu
+          (uporabnikova izrecna zahteva) - navadni zaposleni jih vidi na
+          strani "Menjava". Ni vezano na izbrani oddelek: menjava lahko
+          poteka tudi med osebama z različnih oddelkov. */}
+      {view==="ward" && wardCode && profile && profile.role === "admin" && (
+        <MenjaveVMesecu key={"menjave" + reloadKey} month={month} />
+      )}
 
       <Uvod myId={session.user.id} deferredPrompt={deferredPrompt} naNamesti={install} />
 

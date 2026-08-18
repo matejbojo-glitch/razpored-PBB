@@ -281,7 +281,18 @@
 // Ime)" pomeni zamenjavo - uporabi se samo prvo (dejansko delajoče) ime.
 // Spremenjena index.html, supabase/schema.sql. Nov preveri-zdravniki-dezurstvo.mjs.
 
-const CACHE = 'razpored-pbb-v56';
+// v57: pod mesečnim razporedom ("Po oddelkih") se adminu zdaj izpiše
+// seznam VSEH menjav tistega meseca (kdo z kom, katera dneva, status) -
+// doslej so bile menjave vidne izključno na ločeni strani "Menjava", ne
+// pa ob razporedu, ki ga koordinator dejansko pregleduje. Seznam je
+// pregled/revizija: ob potrditvi koordinatorja se izmeni v razporedu
+// zamenjata samodejno (obrazec_potrdi_koordinator, schema.sql sekcija
+// 22), zato razpored zgoraj učinek menjave že vsebuje. Zavihek "Kalup
+// (SMS/TZN)" v admin.html se odslej imenuje "Oddelki" (izrecna želja
+// uporabnika; "kalup" ostaja ime rotacijskega vzorca A-E).
+// Spremenjeni index.html, admin.html.
+
+const CACHE = 'razpored-pbb-v57';
 const ASSETS = [
   './',
   './index.html',
