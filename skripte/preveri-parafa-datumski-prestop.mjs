@@ -57,8 +57,14 @@ const koda = [
   izvleci("parafaMapa"),
 ].join("\n\n");
 
-const sandbox = {};
+// autoParafa/parafaOd v index.html sta odslej samo tanka ovoja nad skupno
+// parafa.js (edini vir resnice, ker isto preslikavo oznaka → oseba
+// potrebuje tudi Imenik) - zato mora biti v peskovniku najprej ta.
+// Preizkus s tem še vedno preverja PRAVO kodo, ki teče v aplikaciji,
+// vključno z ovojema: če bi se ovoj razšel s skupno datoteko, tu pade.
+const sandbox = { window: {} };
 vm.createContext(sandbox);
+vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 vm.runInContext(koda, sandbox);
 const { parafaOd, parafaMapa, autoParafa, PARAFA_PRESTOP } = sandbox;
 

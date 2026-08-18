@@ -119,6 +119,7 @@ dotakne.
 | `preveri-uvoz-napotilo.mjs` | `preberiUvozIzNaslova` (index.html) — razčlenjevanje naslova `index.html?uvoz=1&oddelek=…&mesec=…`, prek katerega zavihek "Oddelki" (admin.html) napoti na uvoz razporeda: veljavne skupine (6 oddelkov + FLEXI + NZV), neveljaven oddelek/mesec pomeni "privzeto" in ne napake (naslov je zunanji vhod, ki ga uporabnik lahko spremeni ali deli naprej) | nič |
 | `preveri-vgnezdeni-join.mjs` | statično lovi DVOUMNE vgnezdene ("embed") zapise v poizvedbah: če ima tabela več tujih ključev na isto ciljno tabelo (npr. `schedule_entries` → `profiles` prek `employee_id`/`created_by`/`updated_by`), mora zapis nositi namig (`profiles!employee_id(...)`), sicer PostgREST vrne napako namesto vrstic — napaka se ne pokaže kot sporočilo, ampak kot tiho prazen prikaz | nič |
 | `preveri-datum-oblika.mjs` | `datum.js` — ena sama oblika datuma za vso aplikacijo (`27.10.2026`, brez presledkov): brez vodilnih ničel, brez premika zaradi časovnega pasu (delovni datum `YYYY-MM-DD` se razčleni kot besedilo, ne prek `Date`), različici brez leta in s časom, prazne/neveljavne vrednosti dajo prazen niz; preveri tudi, da nobena stran ne uporablja več golega `toLocaleDateString("sl-SI")` | nič |
+| `preveri-parafe-pregled.mjs` | `parafa.js` — skupna logika paraf (razpored + Imenik): izpeljana parafa iz priimka, izbira prave strani prestopa 1.10.2026 glede na DATUM razporeda (ne današnji dan), ločevanje izrecno nastavljene od izpeljane, in zaznava TRKOV (dve osebi z isto parafo — natanko primer "POG" iz uporabnikovega poročila uvoza) | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
@@ -281,3 +282,16 @@ deloval le zato, ker se bere iz `leave_entries` prek ločene poizvedbe brez
 vgnezdenja. Ista napaka je tiho praznila dežurstva v razporedu vodij
 (admin.html). Ker se taka napaka NE pokaže kot sporočilo, jo je edino
 zanesljivo loviti statično — od tod ta preizkus.
+
+`preveri-parafe-pregled.mjs`/`parafa.js` sta nastala iz uporabnikovega
+poročila uvoza, ki je med opombami naštelo "POG (parafa se ujema z več
+osebami)" in nekaj paraf, ki jih aplikacija ne pozna. Vzrok trkov je
+IZPELJANA parafa: kdor je nima izrecno nastavljene, dobi prve tri črke
+priimka, zato dva Pogačnika oba dobita "POG" — uvoz take oznake ne more
+enolično pripisati osebi in vpis (pravilno) odpade. Doslej tega ni bilo
+mogoče videti nikjer v aplikaciji: parafa je bila vidna samo adminu in
+samo posamično, na profilu ene osebe. Zavihek "Parafe" v Imeniku je zato
+odprt vsem prijavljenim in trke izrecno poudari. Logika je v skupni
+`parafa.js` in ne podvojena po straneh, ker gre za preslikavo oznaka →
+OSEBA v bolnišničnem razporedu: tiho razhajanje med kopijama bi pomenilo
+izmeno, pripisano napačnemu človeku.

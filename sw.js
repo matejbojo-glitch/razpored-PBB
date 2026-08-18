@@ -321,7 +321,19 @@
 // obenem pa je bil datum po straneh zapisan na tri različne načine.
 // Spremenjeni index.html, admin.html, obrazec.html, zelje.html; nova datum.js.
 
-const CACHE = 'razpored-pbb-v59';
+// v60: Imenik dobi zavihek "Parafe", viden VSEM prijavljenim (doslej je
+// bila parafa vidna samo adminu, in še to posamično na profilu ene osebe).
+// Pregled poudari dvoje, kar tiho lomi uvoz razporeda: TRKE (dve osebi z
+// isto parafo - uvoz take oznake ne more enolično pripisati, zato vpis
+// odpade in v poročilu piše "parafa se ujema z več osebami") in IZPELJANE
+// parafe (kdor je nima izrecno nastavljene, dobi prve tri črke priimka -
+// najpogostejši vir trkov, npr. dva Pogačnika -> oba "POG"). Parafa je
+// vezana na DATUM razporeda (prenova od 1.10.2026), zato ima pregled
+// izbirnik meseca. Logika paraf se je preselila v skupno parafa.js (edini
+// vir resnice; podvojena bi bila nevarna, ker gre za preslikavo oznaka →
+// OSEBA v razporedu). Spremenjena index.html, imenik.html; nova parafa.js.
+
+const CACHE = 'razpored-pbb-v60';
 const ASSETS = [
   './',
   './index.html',
@@ -348,6 +360,7 @@ const ASSETS = [
   './supabase-client.js',
   './nav.js',
   './datum.js',
+  './parafa.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',

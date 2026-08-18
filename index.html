@@ -146,6 +146,7 @@
 <script src="supabase-client.js"></script>
 <script src="push-client.js"></script>
 <script src="nav.js"></script>
+<script src="parafa.js"></script>
 <script src="datum.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -192,26 +193,14 @@ function priimekZacetnica(fullName){
 // tudi dvobesedni priimki ("Mavri Tratnik Magdalena" -> "MAV"). Dokler so
 // bili nekateri zapisani obratno, je ta funkcija zanje vračala prve tri
 // črke OSEBNEGA imena ("Aldin Gazibara" -> "ALD" namesto "GAZ").
-function autoParafa(fullName){
-  const deli = (fullName || "").trim().split(/\s+/);
-  const priimek = deli.length > 1 ? deli.slice(0, -1).join("") : (deli[0] || "");
-  return priimek.slice(0, 3).toUpperCase();
-}
-// Parafa se je za del kadra spremenila z veljavnostjo od 1.10.2026
-// (uradna prenova, ne popravek napake) - profiles.parafa hrani NOVO
-// parafo (velja od tega datuma dalje), profiles.parafa_pred_oktobrom_2026
-// pa STARO (veljala do 30.9.2026), samo za osebe, ki jim je bila
-// dejansko spremenjena (glej supabase/posodobi-parafe-oktober-2026.sql).
-// "datum" je delovni dan (work_date, "LLLL-MM-DD") ALI mesec ("LLLL-MM")
-// razporeda/dopusta, na katerega se parafa nanaša - NE današnji dan.
-const PARAFA_PRESTOP = "2026-10";
-function parafaOd(profil, datum){
-  if (!profil) return autoParafa("");
-  if (datum && datum.slice(0, 7) < PARAFA_PRESTOP && profil.parafa_pred_oktobrom_2026) {
-    return profil.parafa_pred_oktobrom_2026;
-  }
-  return profil.parafa || autoParafa(profil.full_name);
-}
+// Logika paraf je v skupni parafa.js (edini vir resnice) - isto preslikavo
+// oznaka → OSEBA potrebuje tudi Imenik (pregled paraf), podvojena pa bi
+// bila nevarna: tiho razhajanje med kopijama bi pomenilo izmeno, pripisano
+// napačnemu človeku. Tu ostaneta samo imeni, ki ju uporablja preostala koda
+// te strani.
+const PARAFA_PRESTOP = window.Parafa.PRESTOP;
+function autoParafa(fullName){ return window.Parafa.auto(fullName); }
+function parafaOd(profil, datum){ return window.Parafa.zaDatum(profil, datum); }
 // Prikaz ur izmene pride iz skupnega delovni-cas.js (edini vir resnice) —
 // prej je bila ista tabela zapisana še enkrat tu in še enkrat v admin.html.
 const DELOVNI_ČAS = Object.fromEntries(
