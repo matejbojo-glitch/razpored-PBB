@@ -163,21 +163,24 @@ window.ImportUtils = (function () {
   // Zakaj ne preprosto gručenje X-lege začetkov: besede znotraj ene celice se
   // začenjajo na različnih X, zato bi vsaka beseda postala svoj "stolpec".
   //
+  // Meje stolpcev se računajo SAMO iz vrstic s "tipičnim" (najpogostejšim)
+  // številom koščkov na strani (>= 2) - potrjeno na pravem uradnem dokumentu
+  // ("Razporeditev zaposlenih v UA in DEŽ"): naslovna vrstica ("Zadeva: ...")
+  // je EN sam košček, širok skoraj celo stran - če bi ga uporabili za
+  // določanje pasov, bi s svojo širino "prekril" meje med vsemi pravimi
+  // stolpci in ves dokument sesul v en sam stolpec. Enako lahko naredi
+  // podpisni blok na dnu. Vrstice, ki ne ustrezajo tipičnemu številu
+  // koščkov (naslov, podpis, ali redka vrstica, kjer je PDF dva soseda
+  // pomotoma združil v en košček), se še vedno izpišejo - le da jih, če
+  // imajo samo EN košček, obravnavamo kot golo besedilo (cela vrstica en
+  // sam stolpec), ne poskušamo jih siliti v mrežo.
+  //
   // Ostane hevristika (PDF ne nosi podatka o tabeli) - zato uvoz rezultat
   // vedno pokaže v predogledu, preden karkoli zapiše.
   function pdfKoscjiVTabelo(koscki, minPresledek) {
     const prag = minPresledek == null ? 8 : minPresledek; // v PDF točkah (1/72")
     if (!koscki.length) return [];
-    // 1) Vsi vodoravni odseki na strani -> združeni v zasedene pasove.
-    const odseki = koscki.map(k => [k.x, k.x + (k.sirina > 0 ? k.sirina : String(k.str || "").length * 4)])
-      .sort((a, b) => a[0] - b[0]);
-    const pasovi = [];
-    odseki.forEach(([a, b]) => {
-      const zadnji = pasovi[pasovi.length - 1];
-      if (zadnji && a - zadnji[1] < prag) { if (b > zadnji[1]) zadnji[1] = b; }
-      else pasovi.push([a, b]);
-    });
-    // 2) Vrstice: koščki z (zaokroženo) isto navpično lego. Y v PDF raste
+    // 1) Vrstice: koščki z (zaokroženo) isto navpično lego. Y v PDF raste
     //    navzgor, zato padajoče = od vrha strani navzdol.
     const poVrsticah = new Map();
     koscki.forEach(k => {
@@ -185,10 +188,45 @@ window.ImportUtils = (function () {
       if (!poVrsticah.has(y)) poVrsticah.set(y, []);
       poVrsticah.get(y).push(k);
     });
+    const vrsticeY = Array.from(poVrsticah.keys()).sort((a, b) => b - a);
+
+    // 2) Tipično število koščkov na vrstico (mode med vrsticami z >= 2) -
+    //    samo te vrstice smejo določati meje stolpcev.
+    const steviloPoVrstici = vrsticeY.map(y => poVrsticah.get(y).length);
+    const stevec = new Map();
+    steviloPoVrstici.forEach(n => { if (n >= 2) stevec.set(n, (stevec.get(n) || 0) + 1); });
+    let tipicno = 0, najvecKrat = 0;
+    stevec.forEach((krat, n) => { if (krat > najvecKrat) { najvecKrat = krat; tipicno = n; } });
+
+    // 3) Pasovi SAMO iz tipičnih vrstic.
+    const odseki = [];
+    vrsticeY.forEach(y => {
+      const vrstica = poVrsticah.get(y);
+      if (vrstica.length !== tipicno) return;
+      vrstica.forEach(k => odseki.push([k.x, k.x + (k.sirina > 0 ? k.sirina : String(k.str || "").length * 4)]));
+    });
+    odseki.sort((a, b) => a[0] - b[0]);
+    const pasovi = [];
+    odseki.forEach(([a, b]) => {
+      const zadnji = pasovi[pasovi.length - 1];
+      if (zadnji && a - zadnji[1] < prag) { if (b > zadnji[1]) zadnji[1] = b; }
+      else pasovi.push([a, b]);
+    });
+
+    // 4) Izris: vrstica z EDINIM koščkom (naslov, podpis, opomba) -> en sam
+    //    stolpec, ne poskušamo je uvrstiti v pasove. Ostale vrstice (tudi
+    //    tiste, ki ne ustrezajo "tipičnemu" številu - npr. vikend dan brez
+    //    zasedbe v enem stolpcu) se razporedijo po pasovih kot običajno.
     const vrstice = [];
-    Array.from(poVrsticah.keys()).sort((a, b) => b - a).forEach(y => {
+    vrsticeY.forEach(y => {
+      const kosckiVrstice = poVrsticah.get(y).sort((a, b) => a.x - b.x);
+      if (!pasovi.length || kosckiVrstice.length === 1) {
+        const besedilo = kosckiVrstice.map(k => String(k.str || "")).join(" ").replace(/\s+/g, " ").trim();
+        if (besedilo) vrstice.push([besedilo]);
+        return;
+      }
       const celice = pasovi.map(() => []);
-      poVrsticah.get(y).sort((a, b) => a.x - b.x).forEach(k => {
+      kosckiVrstice.forEach(k => {
         // Pas, ki vsebuje začetek koščka; sicer najbližji (košček lahko rahlo
         // štrli čez rob pasu, npr. pri drugačni pisavi v isti tabeli).
         let idx = pasovi.findIndex(p => k.x >= p[0] - 0.5 && k.x <= p[1] + 0.5);
