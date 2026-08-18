@@ -113,6 +113,7 @@ dotakne.
 | `preveri-posodobi-parafe-oktober-2026.mjs` | `supabase/posodobi-parafe-oktober-2026.sql` na pravi bazi: vseh 21 vrstic se ujema s pravim profilom, `profiles.parafa` dobi NOVO parafo (velja od 1.10.2026), `profiles.parafa_pred_oktobrom_2026` STARO (veljala do 30.9.2026), 2 osebi brez dejanske spremembe imata obe polji enaki, drugi zagon je varen | lokalni PostgreSQL + `su postgres` |
 | `preveri-parafa-datumski-prestop.mjs` | `parafaOd`/`parafaMapa` (index.html) - oseba s spremenjeno parafo dobi STARO parafo za dneve/mesece pred 1.10.2026 in NOVO od tega datuma dalje (natančno na meji: 30.9. stara, 1.10. nova), oseba BREZ spremembe (velika večina kadra) je od datuma popolnoma neodvisna (regresija), `parafaMapa` (obratna preslikava za uvoz) uporabi pravo stran prestopa za cel ciljni mesec | nič |
 | `preveri-nzv-dezurstvo-ime.mjs` | `obdelajNzvVrstice` (index.html) - stolpec DEŽURSTVO uradne predloge se ujema po POLNEM IMENU (vreča besed), ne po parafi kot vsi ostali stolpci - potrjeno na pravi uporabnikovi datoteki, glej spodaj. Naziv pred imenom ("dr. ") se odstrani pred primerjavo, oseba brez profila konča v poročilu (ne izgine tiho), vsi ostali stolpci se ŠE VEDNO ujemajo po parafi (regresija) | nič |
+| `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne
@@ -168,3 +169,27 @@ našel, zato je vsak dežurstveni vpis tiho odpadel (skrit med pričakovanimi
 "neujemanji" v poročilu, ne opazen kot ločen hrošč). Popravljeno: ta stolpec
 se zdaj ujema po polnem imenu (ista "vreča besed" primerjava kot LD/IZOB/BS),
 naziv pred imenom pa se pred primerjavo odstrani.
+
+`preveri-flexi-uvoz.mjs` je pri prvem zagonu, s fixture-jem zvestim pravi
+strukturi FLEXI zavihka, ujel resnično napako v `obdelajFlexiVrstice`, ne le
+napako v fixture-ju (kot je bilo prvotno posumljeno): funkcija je za VSE
+vrstice v mesečnem bloku pisala isti `work_date` - datum PRVE vrstice bloka -
+namesto pravega datuma vsake posamezne vrstice. Vzrok: `obdelajBlok` (skupna
+pomožna funkcija za vse uvoze) pravi datum vsake vrstice preda kot 3. argument
+callbacku, `obdelajFlexiVrstice`-jev callback pa ga ni sprejel v svoj seznam
+parametrov, zato je namesto njega uporabil zunanjo spremenljivko `datum`
+(zajeto ob ZAČETKU bloka, torej datum prve vrstice). Posledica: pri več
+zaporednih dneh v istem bloku bi bili VSI vpisi zapisani na datum prvega dne
+- popravljeno tako, da callback datum vsake vrstice sprejme kot svoj
+parameter (ista imena, a zdaj pravi, po-vrstici vir), namesto zunanjega.
+
+Dodatno, ker `normalizirajImeNzv` (skupna za NZV DEŽURSTVO stolpec in za
+kratka-imena ujemanje pri uvozu oddelkov) zdaj uporablja nov, uporabnikom
+potrjen alias seznam `IME_PSEVDONIM_NZV` (npr. "HORVAT"→"HROVAT" - pravi
+priimek je Hrovat, ne Horvat; "TOMAŽEVIĆ"→"TOMAŽEVIČ" - pravi priimek je s
+"č", ne "ć") za dve konkretni, uporabnikom izrecno potrjeni imenski razliki
+(ne splošno ć→č pravilo - oboje sta legitimni črki v drugih resničnih
+priimkih, npr. Bojić, Alukić, Sofrić), so bili trije obstoječi preizkusi
+(`preveri-nzv-dezurstvo-datum.mjs`, `preveri-nzv-dezurstvo-ime.mjs`,
+`preveri-pametni-uvoz.mjs`), ki `normalizirajImeNzv` uporabljajo posredno,
+dopolnjeni z izvlečkom te nove konstante.

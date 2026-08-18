@@ -88,8 +88,13 @@ while ((m = vrsticaRx.exec(vhodBlok))) vhodImena.push({ full_name: m[1], nova: m
 trdi(vhodImena.length === 21, `izvlečenih ${vhodImena.length} vrstic iz posodobi-parafe-oktober-2026.sql (pričakovano 21)`);
 
 const nespremenjeni = vhodImena.filter(v => v.nova === v.stara).map(v => v.full_name);
-trdi(nespremenjeni.length === 2 && nespremenjeni.includes("BOJIĆ MATEJ") && nespremenjeni.includes("MAGLIĆ ALEKSANDER"),
-  `natanko 2 osebi imata enako staro in novo parafo (Bojić Matej, Maglić Aleksander) - dobil: ${nespremenjeni.join(", ")}`);
+trdi(nespremenjeni.length === 1 && nespremenjeni.includes("MAGLIĆ ALEKSANDER"),
+  `natanko 1 oseba ima enako staro in novo parafo (Maglić Aleksander) - dobil: ${nespremenjeni.join(", ")}`);
+{
+  const bojicVhod = vhodImena.find(v => v.full_name === "BOJIĆ MATEJ");
+  trdi(bojicVhod && bojicVhod.stara === "BOJ" && bojicVhod.nova === "MBO",
+    `Bojić Matej SE JE spremenil: stara "BOJ" (starejši NZV zapis), nova "MBO" (dobil stara="${bojicVhod && bojicVhod.stara}", nova="${bojicVhod && bojicVhod.nova}")`);
+}
 
 const izpuscen = vhodImena[vhodImena.length - 1];
 const zaSeed = vhodImena.slice(0, -1);
@@ -126,7 +131,12 @@ console.log("4) preveri rezultat");
 {
   const bojic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profiles where full_name = 'BOJIĆ MATEJ';`).trim();
   const [nova, stara] = bojic.split("|");
-  trdi(nova === "MBO" && stara === "MBO", `"BOJIĆ MATEJ" (parafa se ni spremenila) -> nova "${nova}", stara "${stara}" (obe "MBO")`);
+  trdi(nova === "MBO" && stara === "BOJ", `"BOJIĆ MATEJ" -> nova "${nova}" (pričakovano "MBO"), stara "${stara}" (pričakovano "BOJ", starejši NZV zapis)`);
+}
+{
+  const maglic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profiles where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
+  const [nova, stara] = maglic.split("|");
+  trdi(nova === "MAG" && stara === "MAG", `"MAGLIĆ ALEKSANDER" (parafa se ni spremenila) -> nova "${nova}", stara "${stara}" (obe "MAG")`);
 }
 {
   const jeVNiNajden = izhod.includes(izpuscen.full_name);

@@ -81,6 +81,7 @@ const koda = [
   izvleci("vrsticaJePrazna"),
   izvleci("obdelajBlok"),
   izvleci("obdelajOddelekVrstice"),
+  constVKotVar(izvleciConst("IME_PSEVDONIM_NZV")),
   izvleci("normalizirajImeNzv"),
   izvleci("imenaSeUjemataNzv"),
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),

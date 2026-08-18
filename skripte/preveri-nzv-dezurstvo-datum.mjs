@@ -83,6 +83,7 @@ const indexKoda = [
   izvleciFn(htmlSrc, "vrsticaJePrazna"),
   izvleciFn(htmlSrc, "obdelajBlok"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ODSOTNOST_KIND")),
+  constVKotVar(izvleciConst(htmlSrc, "IME_PSEVDONIM_NZV")),
   izvleciFn(htmlSrc, "normalizirajImeNzv"),
   izvleciFn(htmlSrc, "imenaSeUjemataNzv"),
   constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
