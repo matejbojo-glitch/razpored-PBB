@@ -117,6 +117,8 @@ dotakne.
 | `preveri-nzv-dezurstvo-ime.mjs` | `obdelajNzvVrstice` (index.html) - stolpec DEŽURSTVO uradne predloge se ujema po POLNEM IMENU (vreča besed), ne po parafi kot vsi ostali stolpci - potrjeno na pravi uporabnikovi datoteki, glej spodaj. Naziv pred imenom ("dr. ") se odstrani pred primerjavo, oseba brez profila konča v poročilu (ne izgine tiho), vsi ostali stolpci se ŠE VEDNO ujemajo po parafi (regresija) | nič |
 | `preveri-zdravniki-dezurstvo.mjs` | `obdelajZdravnikiVrstice` (index.html) - uvoz uradnega dokumenta "Razporeditev zaposlenih v UA in DEŽ" (dežurni zdravniki, `duty_doctors`) - datum+dan+ime "Urgenca ZDR" pogosto v ENI celici (glej `pdfKoscjiVTabelo`), zapis "Ime (Drugo Ime)" v "Dežurstvo ZDR" pomeni zamenjavo (uporabi samo prvo ime), vikend brez "Urgenca ZDR" ne ustvari napačnega zapisa, "Dežurstvo dipl. m.s./zn." (že pokrito prek NZV uvoza) se ne podvoji, podpisni blok na dnu z navidezno datumsko vsebino ne prepiše zadnjega pravega dne | nič |
 | `preveri-uvoz-napotilo.mjs` | `preberiUvozIzNaslova` (index.html) — razčlenjevanje naslova `index.html?uvoz=1&oddelek=…&mesec=…`, prek katerega zavihek "Oddelki" (admin.html) napoti na uvoz razporeda: veljavne skupine (6 oddelkov + FLEXI + NZV), neveljaven oddelek/mesec pomeni "privzeto" in ne napake (naslov je zunanji vhod, ki ga uporabnik lahko spremeni ali deli naprej) | nič |
+| `preveri-vgnezdeni-join.mjs` | statično lovi DVOUMNE vgnezdene ("embed") zapise v poizvedbah: če ima tabela več tujih ključev na isto ciljno tabelo (npr. `schedule_entries` → `profiles` prek `employee_id`/`created_by`/`updated_by`), mora zapis nositi namig (`profiles!employee_id(...)`), sicer PostgREST vrne napako namesto vrstic — napaka se ne pokaže kot sporočilo, ampak kot tiho prazen prikaz | nič |
+| `preveri-datum-oblika.mjs` | `datum.js` — ena sama oblika datuma za vso aplikacijo (`27.10.2026`, brez presledkov): brez vodilnih ničel, brez premika zaradi časovnega pasu (delovni datum `YYYY-MM-DD` se razčleni kot besedilo, ne prek `Date`), različici brez leta in s časom, prazne/neveljavne vrednosti dajo prazen niz; preveri tudi, da nobena stran ne uporablja več golega `toLocaleDateString("sl-SI")` | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
@@ -265,3 +267,17 @@ do funkcij v index.html ne more priti prek `<script src>`) potrebuje lasten
 preizkus usklajenosti. Ker naslov nosi vrednosti, ki gredo naravnost v
 izbiro oddelka in meseca za pisanje v razpored, jih `preberiUvozIzNaslova`
 preveri proti znanim kodam oz. obliki `YYYY-MM` namesto da bi jim zaupala.
+
+`preveri-vgnezdeni-join.mjs` je nastal ob resnični napaki, ki jo je prijavil
+uporabnik s posnetkom zaslona: uvoz NZV je javil "Uvoženih skupaj 342
+vpisov", mreža v aplikaciji pa je ostala prazna — razen stolpca LD. Vzrok ni
+bil v uvozu (vrstice SO bile zapisane), ampak v BRANJU: `schedule_entries`
+ima tri tuje ključe na `profiles` (`employee_id` od začetka, `created_by` in
+`updated_by` dodana pozneje v sekciji 30 sheme), `nalozizPodatkeNzv` pa je
+bral z nedoločenim `profiles(...)`. PostgREST tak zapis zavrne kot dvoumen
+in vrne napako namesto vrstic; koda je rezultat brala kot `(entries || [])`,
+zato ni bilo ne sporočila ne opozorila — samo prazne celice. Stolpec LD je
+deloval le zato, ker se bere iz `leave_entries` prek ločene poizvedbe brez
+vgnezdenja. Ista napaka je tiho praznila dežurstva v razporedu vodij
+(admin.html). Ker se taka napaka NE pokaže kot sporočilo, jo je edino
+zanesljivo loviti statično — od tod ta preizkus.

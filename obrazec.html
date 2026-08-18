@@ -101,6 +101,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="datum.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
@@ -128,7 +129,7 @@ const STATUS_LABEL = {
 const DEJANJE_STOPNJA = ["ODDANO", "SODELAVEC_POTRDIL/ZAVRNIL", "VODJA_ODOBRIL/ZAVRNIL", "KOORDINATOR_POTRDIL/ZAVRNIL"];
 
 function fmtDatum(iso){
-  return new Date(iso + "T00:00:00").toLocaleDateString("sl-SI", { day:"numeric", month:"short", year:"numeric" });
+  return window.Datum.slo(iso);
 }
 function fmtCas(iso){
   return new Date(iso).toLocaleString("sl-SI", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
@@ -573,7 +574,7 @@ function MojiObrazci({ rows, onOdpri }){
         <div className="entry" key={r.id} onClick={() => onOdpri(r)}>
           <div>
             <div className="who">{r.stevilka} · {VRSTA_LABEL[r.vrsta]}</div>
-            <div className="meta">{new Date(r.ustvarjen).toLocaleDateString("sl-SI")}</div>
+            <div className="meta">{window.Datum.slo(r.ustvarjen)}</div>
           </div>
           <StatusPill status={r.status} />
         </div>
@@ -691,7 +692,7 @@ function App(){
                   glave: ["Številka", "Vrsta", "Ustvarjen", "Status"],
                   vrstice: moji.map(r => [
                     r.stevilka, VRSTA_LABEL[r.vrsta] || r.vrsta,
-                    new Date(r.ustvarjen).toLocaleDateString("sl-SI"),
+                    window.Datum.slo(r.ustvarjen),
                     (STATUS_LABEL[r.status] || { text: r.status }).text,
                   ]),
                 }]}

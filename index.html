@@ -146,6 +146,7 @@
 <script src="supabase-client.js"></script>
 <script src="push-client.js"></script>
 <script src="nav.js"></script>
+<script src="datum.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
@@ -165,10 +166,8 @@ const MESECI = ["Januar","Februar","Marec","April","Maj","Junij","Julij","Avgust
 // Datum kot v uradnih predlogah ("1. 9. 2026", brez vodilnih ničel) namesto
 // ISO - samo za PRIKAZ/izvoz na tej strani; interno (poizvedbe, ključi) se
 // še vedno povsod uporablja ISO "YYYY-MM-DD".
-function datumSlo(iso){
-  const [y, m, d] = iso.split("-").map(Number);
-  return `${d}. ${m}. ${y}`;
-}
+// Ena sama oblika datuma za vso aplikacijo - glej datum.js.
+function datumSlo(iso){ return window.Datum.slo(iso); }
 
 // Kratko ime za prikaz na "Po oddelkih" (samo TA stran - full_name se nikjer
 // drugje v aplikaciji ne skrajša), po vzoru uradne predloge "2026 SMS
@@ -435,7 +434,7 @@ function MyScheduleView({ userId, month }){
     <div id="printMy">
       {startISO <= iso && iso <= endISO && (
         <div className="todayCard">
-          <div className="lbl">Danes · {new Date(iso+"T00:00:00").toLocaleDateString("sl-SI",{day:"numeric",month:"long"})}</div>
+          <div className="lbl">Danes · {window.Datum.slo(iso)}</div>
           <div className="shift">
             <span className="dot" style={{background: BARVE[todayCls]}}></span>
             <div>
@@ -593,7 +592,7 @@ function MenjaveVMesecu({ month }){
     return () => { cancelled = true; };
   }, [startISO, endISO]);
 
-  const dan = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("sl-SI", { day: "numeric", month: "numeric" }) : "—";
+  const dan = (iso) => window.Datum.slo(iso) || "—";
 
   return (
     <div className="no-print" style={{marginTop:24}}>
@@ -795,7 +794,16 @@ function nzvNazivVKodo(){
 async function nalozizPodatkeNzv(startISO, endISO){
   const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
   const [{ data: entries }, { data: dopusti }, { data: profili }] = await Promise.all([
-    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles(full_name, parafa, parafa_pred_oktobrom_2026)")
+    // "profiles!employee_id(...)" in NE samo "profiles(...)": schedule_entries
+    // ima TRI tuje ključe na profiles (employee_id, created_by, updated_by -
+    // zadnja dva dodana pozneje, sekcija 30 sheme). Ob nedoločenem vgnezdenem
+    // branju PostgREST ne more vedeti, po katerem naj pripne, in vrne napako
+    // namesto vrstic - posledica je bila PRAZNA NZV mreža (enote in
+    // DEŽURSTVO), medtem ko je stolpec LD deloval, ker se bere iz
+    // leave_entries prek ločene poizvedbe. Namig mora ostati tudi ob
+    // morebitnem preimenovanju omejitve, zato je vezan na IME STOLPCA, ne na
+    // ime tujega ključa.
+    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, parafa, parafa_pred_oktobrom_2026)")
       .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO),
     client.from("leave_entries").select("full_name, work_date, kind")
       .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),

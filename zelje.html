@@ -192,6 +192,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="datum.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="exceljs.min.js"></script>
 <script src="import-utils.js"></script>
@@ -1433,7 +1434,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
               const dt = new Date(entry.created_at);
               return (
                 <li key={entry.id}>
-                  <span className="t">{dt.toLocaleDateString("sl-SI")} {dt.toLocaleTimeString("sl-SI",{hour:"2-digit",minute:"2-digit"})}</span>
+                  <span className="t">{window.Datum.sloSCasom(dt)}</span>
                   <span className="who">{entry.editor_name || "Neznano"}</span>: {entry.full_name}, {new Date(entry.work_date+"T00:00:00").getDate()}. {MESECI_SL[new Date(entry.work_date+"T00:00:00").getMonth()]}:{" "}
                   {entry.from_kind ? PEN_META[entry.from_kind].label : "brez"} → {entry.to_kind ? PEN_META[entry.to_kind].label : "brez"}
                 </li>
