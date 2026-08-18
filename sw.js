@@ -263,7 +263,16 @@
 // vizualno izstopa tudi od LD, ne le po odtenku. Spremenjena index.html,
 // import-utils.js, admin.html, zelje.html. Nov preveri-pdf-stolpci.mjs.
 
-const CACHE = 'razpored-pbb-v54';
+// v55: popravek resnične napake v pdfKoscjiVTabelo (import-utils.js, v54),
+// najdene na dry-run-u PRAVE uradne datoteke uporabnika ("Razporeditev
+// zaposlenih v UA in DEŽ"): naslovna vrstica, ki je EN sam košček širok
+// skoraj celo stran, je s svojo širino premostila prav vse meje med
+// stolpci in ves dokument sesula v en sam stolpec. Pasovi se zdaj računajo
+// SAMO iz vrstic s tipičnim (najpogostejšim) številom koščkov na vrstico -
+// naslovna/podpisna vrstica se s tem samodejno izloči. Spremenjena
+// import-utils.js, dopolnjen preveri-pdf-stolpci.mjs.
+
+const CACHE = 'razpored-pbb-v55';
 const ASSETS = [
   './',
   './index.html',
