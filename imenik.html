@@ -93,6 +93,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="parafa.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
@@ -1568,6 +1569,83 @@ function DopustPregled({ oddelki }){
   );
 }
 
+// Pregled paraf — viden VSEM prijavljenim (izrecna zahteva uporabnika).
+// Parafa je kratka oznaka, ki jo uradne predloge in NZV razpored
+// uporabljajo namesto polnega imena; doslej jo je bilo mogoče videti samo
+// posamično, na profilu ene osebe, in samo adminu.
+//
+// Pregled hkrati pokaže dve stvari, ki tiho lomita uvoz razporeda:
+//   1. TRK - dve osebi imata isto parafo. Uvoz take oznake ne more
+//      enolično pripisati osebi, zato jo (pravilno) zavrne in vpis
+//      odpade; v poročilu se pokaže kot "parafa se ujema z več osebami".
+//   2. IZPELJANA parafa - oseba nima izrecno nastavljene, zato se vzame
+//      prve tri črke priimka. Prav to je najpogostejši vir trkov (dva
+//      Pogačnika -> oba "POG").
+function ParafePregled({ osebe }){
+  // Parafa je vezana na DATUM razporeda (prenova z veljavnostjo od
+  // 1.10.2026), ne na današnji dan - zato izbirnik meseca: pri uvozu
+  // starejšega meseca velja stara parafa.
+  const [mesec, setMesec] = useState(() => new Date().toISOString().slice(0, 7));
+  const vrstice = useMemo(() => {
+    return (osebe || []).map(o => ({
+      oseba: o,
+      parafa: window.Parafa.zaDatum(o, mesec),
+      izpeljana: window.Parafa.jeIzpeljana(o, mesec),
+    })).sort((a, b) => a.parafa.localeCompare(b.parafa, "sl") || a.oseba.full_name.localeCompare(b.oseba.full_name, "sl"));
+  }, [osebe, mesec]);
+  const trki = useMemo(() => window.Parafa.trki(osebe || [], mesec), [osebe, mesec]);
+  const trkKljuci = Object.keys(trki);
+
+  return (
+    <React.Fragment>
+      <h2 className="section">Parafe ({vrstice.length})</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Kratka oznaka, ki jo razpored NZV in uradne predloge uporabljajo namesto polnega imena. Parafo lahko
+        spremeni administrator na profilu osebe.
+      </p>
+      <div className="field" style={{maxWidth:220}}>
+        <label htmlFor="parafaMesec">Velja za mesec</label>
+        <input id="parafaMesec" type="month" value={mesec} onChange={e => setMesec(e.target.value)} />
+      </div>
+
+      {trkKljuci.length > 0 && (
+        <div className="card" style={{borderColor:"var(--danger)", marginBottom:12}}>
+          <b style={{color:"var(--danger)"}}>⚠ {trkKljuci.length} parafa/e pripada/jo več osebam</b>
+          <p className="hint" style={{marginBottom:0}}>
+            Uvoz razporeda take oznake ne more pripisati eni osebi, zato jo preskoči in vpis odpade
+            (v poročilu uvoza se pokaže kot "parafa se ujema z več osebami"). Administrator naj vsaj eni od
+            navedenih oseb nastavi drugačno parafo na njenem profilu.
+          </p>
+          <ul style={{margin:"8px 0 0", paddingLeft:18}}>
+            {trkKljuci.sort().map(k => (
+              <li key={k} style={{fontSize:13}}>
+                <b>{k}</b> — {trki[k].map(o => o.full_name).join(", ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="card" style={{padding:0}}>
+        {vrstice.map(({ oseba, parafa, izpeljana }) => (
+          <div key={oseba.id} style={{display:"flex", alignItems:"center", gap:12, padding:"9px 14px",
+            borderBottom:"1px solid var(--line)"}}>
+            <span style={{
+              fontWeight:800, fontVariantNumeric:"tabular-nums", minWidth:52,
+              color: trki[parafa.toUpperCase()] ? "var(--danger)" : "var(--text)",
+            }}>{parafa}</span>
+            <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+              {oseba.full_name}
+            </span>
+            {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena — izpeljana iz priimka">izpeljana</span>}
+            {trki[parafa.toUpperCase()] && <span className="pill danger">trk</span>}
+          </div>
+        ))}
+      </div>
+    </React.Fragment>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null);
   const [osebe, setOsebe] = useState([]);
@@ -1590,7 +1668,7 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     client.from("profiles")
-      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, job_title, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, parafa_pred_oktobrom_2026, job_title, email, contact_phones(phone), profile_departments(department_code, sort_order)")
       .order("full_name")
       .then(({ data, error }) => {
         if (error) {
@@ -1687,10 +1765,16 @@ function App(){
         <div><button className="backlink no-print" onClick={zapri}>‹ Nazaj na imenik</button><p className="empty">Osebe ni bilo mogoče najti.</p></div>
       )}
 
-      {!odprtId && myRole === "admin" && (
+      {/* Zavihka "Seznam" in "Parafe" sta na voljo VSEM prijavljenim
+          (parafe na izrecno zahtevo uporabnika); "Stanje dopusta" ostaja
+          samo adminu, ker prikazuje kadrovske podatke. */}
+      {!odprtId && (
         <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
           <button role="tab" aria-selected={pogled==="seznam"} onClick={() => setPogled("seznam")}>Seznam</button>
-          <button role="tab" aria-selected={pogled==="dopust"} onClick={() => setPogled("dopust")}>Stanje dopusta</button>
+          <button role="tab" aria-selected={pogled==="parafe"} onClick={() => setPogled("parafe")}>Parafe</button>
+          {myRole === "admin" && (
+            <button role="tab" aria-selected={pogled==="dopust"} onClick={() => setPogled("dopust")}>Stanje dopusta</button>
+          )}
         </div>
       )}
 
@@ -1701,6 +1785,8 @@ function App(){
           {myRole === "admin" && <AdminUvoz osebe={osebe} oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
         </React.Fragment>
       )}
+
+      {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} />}
 
       {!odprtId && pogled === "dopust" && myRole === "admin" && (
         <DopustPregled oddelki={oddelki} />
