@@ -237,7 +237,17 @@
 // bil - kot je uporabnik opazil - brez učinka (prejšnji v51 popravek ga
 // takoj sam izklopi). Spremenjena index.html, theme.css.
 
-const CACHE = 'razpored-pbb-v52';
+// v53: Admin → Kalup dobi nov gumb "📤 Zapiši predogled v Sheets" - piše
+// PREDOGLED generatorja (z upoštevanimi ročnimi popravki celic), ŠE PRED
+// objavo v Supabase, nazaj v obstoječi Google Sheets dokument (npr. "2026
+// SMS RAZPORED"), na iste koordinate kot že objavljen razpored (index.html
+// "Zapiši nazaj v Sheets") - piše samo v obstoječe celice, nikoli ne doda
+// vrstice/stolpca. Nova skupna datoteka sheets-mreza.js (namerno LOČENA
+// kopija iskalne logike iz index.html - admin.html je samostojna stran in
+// do Babel/React funkcij v index.html ne more priti), preverjena s
+// preveri-sheets-mreza.mjs. Spremenjena admin.html, nova sheets-mreza.js.
+
+const CACHE = 'razpored-pbb-v53';
 const ASSETS = [
   './',
   './index.html',
@@ -270,6 +280,7 @@ const ASSETS = [
   './export-utils.js',
   './gsheets-client.js',
   './export-buttons.js',
+  './sheets-mreza.js',
   './oseba-vrstica.js'
 ];
 

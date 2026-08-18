@@ -105,6 +105,7 @@ dotakne.
 | `preveri-oseba-vrstica.mjs` | strnjena vrstica seznama zaposlenih: strnjeno je vidno samo ime, klik na vrstico razpre podatke, klik na ime odpre zapis | `playwright` |
 | `preveri-izbris-osebe.mjs` | `schema.sql` postavi delujočo bazo iz nič; `odstrani-zaposlene.sql` se izvede po ukazih (vsak v svoji seji, kot v Supabase SQL Editorju) in za sabo ne pusti ne imena ne viseče povezave | lokalni PostgreSQL + `su postgres` |
 | `preveri-zapis-v-sheets.mjs` | `pripraviPosodobitveOddelka` (index.html) na fixture-ju v obliki resničnega dokumenta ("2026 SMS RAZPORED") — najde prave koordinate (vrstica, stolpec) za pisanje nazaj v Google Sheets, ločeno po mesecih z različnim naborom ljudi, prek prazne vmesne vrstice, brez pisanja v celico osebe, ki v listu nima stolpca | nič |
+| `preveri-sheets-mreza.mjs` | `pripraviPosodobitveOddelkaIzMreze` (sheets-mreza.js) — ista logika kot `preveri-zapis-v-sheets.mjs`, a za PREDOGLED iz Admin → Kalup (še ne objavljen v Supabase): uporabi vrednost, ki jo trenutno prikazuje predogled (torej VKLJUČNO z ročnim popravkom celice), ne surov izračun generatorja | nič |
 | `preveri-nzv-sheets.mjs` | `pripraviPosodobitveNzv`/`nzvNazivVKodo`/`NZV_STOLPCI` (index.html) na fixture-ju v obliki resničnega dokumenta ("Letni dopusti in omejitve za NZV") — pravi vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA), prave koordinate za enote IN za nova LD/IZOB/BS polja, ločeno po mesecih, prek prazne vmesne vrstice | nič |
 | `preveri-pametni-uvoz.mjs` | `razvrstiListe`/`obdelajOddelekVrstice`/`obdelajNzvVrstice` (index.html) — "Naloži datoteko (samodejno)" pravilno loči zavihke po znani kodi oddelka od preostalih, prepozna oddelčno IN NZV obliko po vsebini, in list, ki ni nobeno od tega (npr. "KALUP" legenda), tiho ne vrne ničesar (preskočen, ne napaka) | nič |
 | `preveri-xlsx-datum.mjs` | `xlsxCelicaVBesedilo` (import-utils.js) na PRAVEM branju/pisanju `xlsx.core.min.js` — datumska celica z drobno plavajočo napako (npr. `46173.999999988` namesto `46174`, kot pri resničnem izvozu iz Google Sheets) se prebere kot PRAVI dan, ne kot prejšnji dan tik pred polnočjo | nič |
@@ -193,3 +194,16 @@ priimkih, npr. Bojić, Alukić, Sofrić), so bili trije obstoječi preizkusi
 (`preveri-nzv-dezurstvo-datum.mjs`, `preveri-nzv-dezurstvo-ime.mjs`,
 `preveri-pametni-uvoz.mjs`), ki `normalizirajImeNzv` uporabljajo posredno,
 dopolnjeni z izvlečkom te nove konstante.
+
+`sheets-mreza.js` (nova skupna datoteka, `preveri-sheets-mreza.mjs`) rešuje
+poseben primer: Admin → Kalup zdaj lahko piše PREDOGLED generatorja (še ne
+objavljen v Supabase, z upoštevanimi ročnimi popravki celic) nazaj v
+obstoječi Google Sheets dokument, po isti logiki iskanja koordinat kot
+`pripraviPosodobitveOddelka` (index.html) za že objavljen razpored. Ker je
+admin.html samostojna Babel/React stran (do funkcij v index.html ne more
+priti prek `<script src>`), je logika iskanja bloka/glave NAMERNO podvojena
+v `sheets-mreza.js`, ne le sklicana - da podvojitev sčasoma ne zaide iz
+sinhronizacije z index.html, `preveri-sheets-mreza.mjs` preverja isto
+obnašanje (prazna vmesna vrstica, podpisni blok, drug nabor ljudi po
+mesecih, oseba brez stolpca) na isti fixture obliki kot
+`preveri-zapis-v-sheets.mjs`.
