@@ -872,6 +872,48 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
   );
 }
 
+// Uvoz ŽE SESTAVLJENEGA razporeda (Excel/PDF/CSV/Google Sheets) za vse
+// skupine - 6 oddelkov + FLEXI + NZV. Sam uvoz živi v index.html (ena
+// sama, testirana pot za vse skupine, glej uvoziDatotekoPametno); tu je
+// napotilo nanj z že izbrano skupino in mesecem, prek naslova
+// "index.html?uvoz=1&oddelek=…&mesec=…".
+//
+// Zakaj napotilo in ne kopija uvoza sem: uvozna logika je ~300 vrstic,
+// razpršenih čez index.html in pokritih z več preizkusi (preveri-pametni-
+// uvoz, preveri-flexi-uvoz, preveri-nzv-*). Druga kopija bi se sčasoma
+// razšla s prvo - to je isti razlog, zaradi katerega sheets-mreza.js
+// (edina namerna podvojitev) potrebuje lasten preizkus usklajenosti.
+const UVOZ_SKUPINE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+function UvozRazporedaNapotek({ koda, month }){
+  // Generator pokriva samo 6 oddelkov, uvoz pa VSE skupine - zato ima ta
+  // razdelek svoj izbirnik, ki ni vezan na izbiro oddelka za generator
+  // (privzeto pa se z njo ujema, da je pot čim krajša).
+  const [skupina, setSkupina] = useState(koda);
+  useEffect(() => { setSkupina(koda); }, [koda]);
+  const naslov = `index.html?uvoz=1&oddelek=${encodeURIComponent(skupina)}&mesec=${encodeURIComponent(month)}`;
+  return (
+    <div className="card no-print" style={{marginTop:12, marginBottom:12}}>
+      <h3 style={{margin:"0 0 6px", fontSize:15}}>📥 Uvozi že sestavljen razpored</h3>
+      <p className="hint" style={{marginTop:0}}>
+        Naloži Excel/PDF/CSV izvoz razporeda (npr. cel dokument "2026 SMS RAZPORED" — vsi zavihki naenkrat) ali
+        poveži Google Sheets. Velja za vse skupine: 6 oddelkov, FLEXI in NZV. To je ločeno od generatorja zgoraj —
+        uvozi obstoječ razpored, namesto da ga izračuna.
+      </p>
+      <div style={{display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap"}}>
+        <div className="field" style={{marginBottom:0}}>
+          <label htmlFor="uvozSkupina">Skupina</label>
+          <select id="uvozSkupina" value={skupina} onChange={e => setSkupina(e.target.value)}>
+            {UVOZ_SKUPINE.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+        <a className="dlBtn" href={naslov} style={{textDecoration:"none", flex:"0 0 auto"}}>
+          📥 Odpri uvoz za {skupina}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function KalupTab(){
   const [koda, setKoda] = useState("B");
   const [month, setMonth] = useState("2026-11");
@@ -1141,6 +1183,8 @@ function KalupTab(){
         Ob kliku se želje, letni dopust in omejitve preberejo naravnost iz baze — vmesnih potrditev ni.
         Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
       </p>
+
+      <UvozRazporedaNapotek koda={koda} month={month} />
 
       {!staffList ? <p className="hint">Nalagam osebje …</p> : (
       <React.Fragment>

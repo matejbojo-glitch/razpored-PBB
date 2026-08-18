@@ -890,6 +890,25 @@ function NzvView({ month }){
 // (DEZ, NEDEZ, PDZN, SOBO ...) tu niso na voljo, ne glede na vlogo.
 const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 
+// Uvoz razporeda živi samo tu (ena sama, testirana pot za VSE skupine -
+// 6 oddelkov + FLEXI + NZV), zavihek "Oddelki" v admin.html pa nanj
+// napoti prek "index.html?uvoz=1&oddelek=…&mesec=…". Vrne null, kadar
+// naslov tega ne zahteva; sicer {oddelek, mesec}, kjer je posamezno polje
+// null, če vrednost ni veljavna - naslov je zunanji vhod (uporabnik ga
+// lahko poljubno spremeni ali deli naprej), zato se oddelek preveri proti
+// znanim kodam, mesec pa proti obliki YYYY-MM, namesto da bi se mu
+// zaupalo. Neveljavna vrednost pomeni "uporabi privzeto", ne napake.
+function preberiUvozIzNaslova(search){
+  const p = new URLSearchParams(search || "");
+  if (p.get("uvoz") !== "1") return null;
+  const oddelek = (p.get("oddelek") || "").trim().toUpperCase();
+  const mesec = (p.get("mesec") || "").trim();
+  return {
+    oddelek: (PO_ODDELKIH_KODE.includes(oddelek) || oddelek === "NZV") ? oddelek : null,
+    mesec: /^\d{4}-(0[1-9]|1[0-2])$/.test(mesec) ? mesec : null,
+  };
+}
+
 // ---------------------------------------------------------------------
 // Uvoz iz Google Sheets (admin) — javna povezava ("vsak s povezavo lahko
 // ogleda"), brez OAuth, isti mehanizem kot imenik.html (ImportUtils.
@@ -1901,15 +1920,31 @@ function Uvod({ myId, deferredPrompt, naNamesti }){
 function App(){
   const [auth, setAuth] = useState(null); // { session, profile }
   const [depts, setDepts] = useState([]);
-  const [view, setView] = useState("my");
-  const [month, setMonth] = useState(currentMonthStr());
-  const [wardCode, setWardCode] = useState(null);
+  // Uvoz razporeda živi TU (en sam, testiran uvoz za vse oddelke + FLEXI +
+  // NZV), zavihek "Oddelki" v admin.html pa nanj napoti prek naslova
+  // "index.html?uvoz=1&oddelek=…&mesec=…" - tako je uvoz na voljo tudi iz
+  // administracije, brez podvajanja uvozne logike na drugi strani (in s
+  // tem brez tveganja, da bi se kopiji sčasoma razšli).
+  const zacetniUvoz = useMemo(() => {
+    try { return preberiUvozIzNaslova(window.location.search); } catch (e) { return null; }
+  }, []);
+
+  const [view, setView] = useState(zacetniUvoz && zacetniUvoz.oddelek ? "ward" : "my");
+  const [month, setMonth] = useState((zacetniUvoz && zacetniUvoz.mesec) || currentMonthStr());
+  const [wardCode, setWardCode] = useState((zacetniUvoz && zacetniUvoz.oddelek) || null);
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
   // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
   // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
-  const [uvozOdprt, setUvozOdprt] = useState(false);
+  const [uvozOdprt, setUvozOdprt] = useState(!!zacetniUvoz);
+  // Ko je uvozno okno enkrat odprto prek ?uvoz=1, parametre pobrišemo iz
+  // naslova - sicer bi se okno znova odprlo ob vsakem osveževanju strani
+  // (in ob delitvi povezave). Stanje komponente je že prebrano zgoraj.
+  useEffect(() => {
+    if (!zacetniUvoz) return;
+    try { window.history.replaceState({}, "", window.location.pathname); } catch (e) { /* ni usodno */ }
+  }, [zacetniUvoz]);
   // "Obrni na ležeči prikaz" - na telefonu s samodejnim obračanjem zaslona
   // IZKLOPLJENIM (pogosto v nastavitvah Androida) se @media (orientation:
   // landscape) nikoli ne sproži, zaslon pa fizično ostane ozek (portret) ne

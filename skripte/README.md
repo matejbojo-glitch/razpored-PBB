@@ -116,6 +116,7 @@ dotakne.
 | `preveri-parafa-datumski-prestop.mjs` | `parafaOd`/`parafaMapa` (index.html) - oseba s spremenjeno parafo dobi STARO parafo za dneve/mesece pred 1.10.2026 in NOVO od tega datuma dalje (natančno na meji: 30.9. stara, 1.10. nova), oseba BREZ spremembe (velika večina kadra) je od datuma popolnoma neodvisna (regresija), `parafaMapa` (obratna preslikava za uvoz) uporabi pravo stran prestopa za cel ciljni mesec | nič |
 | `preveri-nzv-dezurstvo-ime.mjs` | `obdelajNzvVrstice` (index.html) - stolpec DEŽURSTVO uradne predloge se ujema po POLNEM IMENU (vreča besed), ne po parafi kot vsi ostali stolpci - potrjeno na pravi uporabnikovi datoteki, glej spodaj. Naziv pred imenom ("dr. ") se odstrani pred primerjavo, oseba brez profila konča v poročilu (ne izgine tiho), vsi ostali stolpci se ŠE VEDNO ujemajo po parafi (regresija) | nič |
 | `preveri-zdravniki-dezurstvo.mjs` | `obdelajZdravnikiVrstice` (index.html) - uvoz uradnega dokumenta "Razporeditev zaposlenih v UA in DEŽ" (dežurni zdravniki, `duty_doctors`) - datum+dan+ime "Urgenca ZDR" pogosto v ENI celici (glej `pdfKoscjiVTabelo`), zapis "Ime (Drugo Ime)" v "Dežurstvo ZDR" pomeni zamenjavo (uporabi samo prvo ime), vikend brez "Urgenca ZDR" ne ustvari napačnega zapisa, "Dežurstvo dipl. m.s./zn." (že pokrito prek NZV uvoza) se ne podvoji, podpisni blok na dnu z navidezno datumsko vsebino ne prepiše zadnjega pravega dne | nič |
+| `preveri-uvoz-napotilo.mjs` | `preberiUvozIzNaslova` (index.html) — razčlenjevanje naslova `index.html?uvoz=1&oddelek=…&mesec=…`, prek katerega zavihek "Oddelki" (admin.html) napoti na uvoz razporeda: veljavne skupine (6 oddelkov + FLEXI + NZV), neveljaven oddelek/mesec pomeni "privzeto" in ne napake (naslov je zunanji vhod, ki ga uporabnik lahko spremeni ali deli naprej) | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
@@ -252,3 +253,15 @@ oklepaju) je bila prvotno razporejena, zato se uporabi samo prva.
 `obdelajZdravnikiVrstice` (index.html) to prebere in shrani ločeno od
 `obdelajNzvVrstice` (ki še vedno pokriva "Dežurstvo dipl. m.s./zn." prek
 obstoječega NZV uvoza - ni podvojeno).
+
+Zavihek "Oddelki" (prej "Kalup (SMS/TZN)") v admin.html uvoza razporeda ne
+podvaja: uvozna logika (~300 vrstic, razpršenih čez index.html in pokritih
+s `preveri-pametni-uvoz.mjs`, `preveri-flexi-uvoz.mjs` in `preveri-nzv-*`)
+ostaja na ENEM mestu, zavihek pa nanjo napoti prek naslova
+`index.html?uvoz=1&oddelek=…&mesec=…` z že izbrano skupino in mesecem.
+Druga kopija bi se sčasoma razšla s prvo - isti razlog, zaradi katerega
+`sheets-mreza.js` (edina namerna podvojitev v repozitoriju, ker admin.html
+do funkcij v index.html ne more priti prek `<script src>`) potrebuje lasten
+preizkus usklajenosti. Ker naslov nosi vrednosti, ki gredo naravnost v
+izbiro oddelka in meseca za pisanje v razpored, jih `preberiUvozIzNaslova`
+preveri proti znanim kodam oz. obliki `YYYY-MM` namesto da bi jim zaupala.
