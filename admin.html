@@ -2804,7 +2804,11 @@ function App({ ogled, profil }){
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
         <div className="tabs no-print" role="tablist">
-          <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Kalup (SMS/TZN)</button>
+          {/* Zavihek se je prej imenoval "Kalup (SMS/TZN)" - preimenovan na
+              izrecno željo uporabnika. "Kalup" ostaja ime ROTACIJSKEGA
+              VZORCA (5-tedenska rotacija A-E, stolpec "Kalup" v tabeli
+              spodaj), zavihek pa se odslej imenuje po tem, kar ureja. */}
+          <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Oddelki</button>
           <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
           <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
