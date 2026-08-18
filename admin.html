@@ -158,6 +158,7 @@
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
+<script src="sheets-mreza.js"></script>
 <script src="oseba-vrstica.js"></script>
 <script src="print-fit.js"></script>
 
@@ -887,6 +888,20 @@ function KalupTab(){
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
   const wardRef = useRef();
+  // Zapis PREDOGLEDA (še ne objavljenega) nazaj v Google Sheets — ista
+  // povezava/dokument, ki ga admin že uporablja za ta oddelek, zato se
+  // shrani ločeno po oddelku (localStorage), enako kot v index.html.
+  const [sheetsUrl, setSheetsUrl] = useState(() => { try { return localStorage.getItem("kalup-sheets-url-" + koda) || ""; } catch (e) { return ""; } });
+  const [sheetsBusy, setSheetsBusy] = useState(false);
+  const [sheetsMsg, setSheetsMsg] = useState(null);
+  useEffect(() => {
+    setSheetsMsg(null);
+    try { setSheetsUrl(localStorage.getItem("kalup-sheets-url-" + koda) || ""); } catch (e) { setSheetsUrl(""); }
+  }, [koda]);
+  const spremeniSheetsUrl = (v) => {
+    setSheetsUrl(v);
+    try { localStorage.setItem("kalup-sheets-url-" + koda, v); } catch (e) { /* zasebni način ipd. - ni usodno */ }
+  };
   // Ročni popravki po izračunu: "ime|datum" -> besedilo. Podobna logika kot v
   // zavihku Vodje, a tu se (za razliko od Vodje) popravek upošteva TUDI ob
   // objavi v Supabase - vsaka celica tu je natanko ena oseba/en dan, zato se
@@ -990,6 +1005,51 @@ function KalupTab(){
   };
   const nastaviPopravek = (z, dn, vrednost) => {
     setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
+  };
+
+  // Zapiše PREDOGLED (rezultat + ročni popravki, torej natanko to, kar je
+  // trenutno prikazano v mreži spodaj) nazaj v obstoječi Google Sheets
+  // dokument — ŠE PRED objavo v Supabase, da lahko admin sprotno popravlja
+  // in vidi rezultat v svojem pravem, deljenem dokumentu. Piše na iste
+  // koordinate kot bi kasneje pisal "Zapiši nazaj v Sheets" iz Razporeda za
+  // že objavljen razpored (glej sheets-mreza.js) — samo obstoječe celice,
+  // nikoli nova vrstica/stolpec, da imena/vloge/podpisni blok ostanejo
+  // nedotaknjeni.
+  const zapisiPredogledVSheets = async () => {
+    if (!rezultat) return;
+    if (!sheetsUrl.trim()) { setSheetsMsg({ ok: false, text: "Vnesi povezavo do Google Sheets." }); return; }
+    if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
+      setSheetsMsg({ ok: false, text: "Pisanje v Google Sheets še ni nastavljeno — manjka Google Client ID (glej GSHEETS-SETUP.md)." });
+      return;
+    }
+    if (!window.confirm(
+      `To bo prepisalo obstoječe celice s podatki za ${rezultat.mesec} v zavihku, na katerega kaže zgornja povezava, s TRENUTNIM PREDOGLEDOM (vključno z ročnimi popravki) - razpored za ${rezultat.naziv} ŠE NI objavljen v Supabase.\n\n` +
+      "Imena/nazivi stolpcev, oblika in podpisni blok ostanejo nedotaknjeni - spremenijo se samo celice s podatki. To dejanje ni mogoče razveljaviti (razen ročno, v Google Sheets prek Zgodovina različic).\n\nNadaljujem?"
+    )) return;
+    setSheetsBusy(true); setSheetsMsg(null);
+    try {
+      const { naslovLista, vrsteVrstic } = await window.GSheetsExport.preberiVrednosti(sheetsUrl.trim());
+      const staff = rezultat.staff.map(z => ({ ime: z.ime }));
+      const vrednostZa = (ime, datum) => {
+        const z = rezultat.staff.find(s => s.ime === ime);
+        const dn = rezultat.dnevi.find(d => d.datum === datum);
+        return z && dn ? celica(z, dn) : "";
+      };
+      const { posodobitve, najdenDatum, najdenaGlava, neujemanja } =
+        window.SheetsMreza.pripraviPosodobitveOddelkaIzMreze(vrsteVrstic, rezultat.mesec, staff, vrednostZa);
+      if (!posodobitve.length) {
+        if (!najdenDatum) throw new Error(`V zavihku "${naslovLista}" ni najdenih vrstic za ${rezultat.mesec} - preveri, da povezava kaže na pravi zavihek (klikni zavihek za ta oddelek, šele nato kopiraj povezavo).`);
+        if (!najdenaGlava) throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nad njimi ni najti vrstice z imeni oseb.`);
+        throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nobeno ime v listu se ni ujemalo z osebo v predogledu: ` + [...neujemanja].join(", "));
+      }
+      const rez = await window.GSheetsExport.zapisiVObstojeciList(sheetsUrl.trim(), posodobitve);
+      setSheetsMsg({ ok: true, text: `Zapisanih ${rez.stevilo} celic v zavihek "${rez.list}" (predogled, še ni objavljeno v Supabase).`
+        + (neujemanja.size ? ` Brez ujemanja imena (celica v Sheetsu ni bila spremenjena): ${[...neujemanja].join(", ")}.` : "") });
+    } catch (e) {
+      setSheetsMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setSheetsBusy(false);
+    }
   };
 
   // Delovnopravne kršitve (počitek med izmenama, zaporedne nočne, prost dan v
@@ -1219,6 +1279,24 @@ function KalupTab(){
               }];
             }}
           />
+
+          <h2 className="section no-print">4c · Zapiši predogled v Google Sheets</h2>
+          <p className="hint no-print">
+            Predogled zgoraj (z vsemi ročnimi popravki) lahko zapišeš nazaj v obstoječi, deljeni dokument (npr. "2026
+            SMS RAZPORED") - ŠE PRED objavo v Supabase, da ga lahko sproti pregledaš/popraviš v pravi obliki, ki jo
+            uporabljajo drugi. Odpri zavihek ZA TA ODDELEK v Google Sheets in šele nato kopiraj povezavo iz naslovne
+            vrstice (mora vsebovati "#gid=…") - piše samo v obstoječe celice, nikoli ne doda vrstice/stolpca.
+          </p>
+          <div className="field no-print" style={{ marginTop: 8, marginBottom: 8 }}>
+            <label htmlFor="kalupSheetsUrl">Povezava do Google Sheets za oddelek {koda}</label>
+            <input id="kalupSheetsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..."
+              value={sheetsUrl} onChange={e => spremeniSheetsUrl(e.target.value)} />
+          </div>
+          <button className="dlBtn no-print" type="button" onClick={zapisiPredogledVSheets} disabled={sheetsBusy}>
+            {sheetsBusy ? "Zapisujem …" : "📤 Zapiši predogled v Sheets"}
+          </button>
+          {sheetsMsg && <p className="hint no-print" style={{color: sheetsMsg.ok ? "var(--ok)" : "var(--danger)"}}>{sheetsMsg.text}</p>}
+
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
             {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
           </button>
