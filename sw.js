@@ -303,7 +303,25 @@
 // je izbrano napotilo, da kopiji ne moreta zaiti iz sinhronizacije.
 // Spremenjeni index.html, admin.html. Nov preveri-uvoz-napotilo.mjs.
 
-const CACHE = 'razpored-pbb-v58';
+// v59: popravek RESNIČNE napake, zaradi katere je NZV mreža ostala prazna,
+// čeprav je uvoz javil več sto vpisanih vrstic (uporabnik jo je prijavil s
+// posnetkom): schedule_entries ima TRI tuje ključe na profiles
+// (employee_id + pozneje dodana created_by/updated_by, sekcija 30 sheme),
+// nalozizPodatkeNzv pa je bral vgnezdeno z nedoločenim "profiles(...)".
+// PostgREST tak zapis zavrne kot dvoumen in vrne napako namesto vrstic -
+// zato so bile enote IN stolpec DEŽURSTVO prazni, medtem ko je LD deloval
+// (bere se iz leave_entries prek ločene poizvedbe). Ista napaka je tiho
+// praznila dežurstva v razporedu vodij (admin.html). Obojemu dodan namig
+// "profiles!employee_id(...)"; preveri-vgnezdeni-join.mjs odslej statično
+// lovi vsak tak dvoumen zapis (napaka se drugače ne pokaže kot sporočilo,
+// ampak samo kot prazen zaslon).
+// Datum je odslej po VSEJ aplikaciji zapisan enako: dan.mesec.leto brez
+// presledkov ("27.10.2026") prek nove skupne datum.js - privzeta slovenska
+// oblika ("27. 10. 2026") se je v ozkem stolpcu DATUM obrezala v "1. 9. 20…",
+// obenem pa je bil datum po straneh zapisan na tri različne načine.
+// Spremenjeni index.html, admin.html, obrazec.html, zelje.html; nova datum.js.
+
+const CACHE = 'razpored-pbb-v59';
 const ASSETS = [
   './',
   './index.html',
@@ -329,6 +347,7 @@ const ASSETS = [
   './supabase-js.min.js',
   './supabase-client.js',
   './nav.js',
+  './datum.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',
