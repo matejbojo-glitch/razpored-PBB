@@ -237,7 +237,14 @@ function classify(sifra){
   if (t.startsWith("popoldan")) return "pop";
   return "off";
 }
-const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", ld:"#2F6B4A", dez:"#B3402A" };
+// LD je bil doslej "#2F6B4A" - temno zelena, skoraj neločljiva od dop
+// ("#4F9B6B", ki ga dobi tudi PRISOTEN) pri 15% prosojnem ozadju v vrstici
+// dneva. Zdaj rdeča "#E06666", enako kot letni dopust v uradnih preglednicah
+// bolnišnice in v Želje → Razpredelnica (--ld) - torej barva, ki jo kader že
+// pozna. Dežurstvo ostane svoja, temnejša opekasta rdeča IN se izriše polno
+// zapolnjeno (glej dayRow spodaj), da se od LD loči tudi po teži, ne le
+// odtenku.
+const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", ld:"#E06666", dez:"#B3402A" };
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
@@ -433,8 +440,18 @@ function MyScheduleView({ userId, month }){
                     <div className="n">{d.getDate()}</div>
                     <div className="d">{dn.dan}</div>
                   </div>
-                  <div className={"chip" + (cls==="off" ? " off" : "")} style={{background: cls==="off" ? "transparent" : (BARVE[cls] + "26"), border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls])}}>
-                    <span className="dot" style={{background: BARVE[cls]}}></span>
+                  {/* Dežurstvo je edina izmena, ki se izriše POLNO zapolnjeno
+                      (bela pisava na opekasti podlagi) - tako se na prvi
+                      pogled loči od letnega dopusta, ki je prav tako rdečkast,
+                      a le rahlo obarvan. Ostale izmene ostanejo lahke
+                      (15% podlaga + obroba v svoji barvi). */}
+                  <div className={"chip" + (cls==="off" ? " off" : "") + (cls==="dez" ? " polna" : "")}
+                    style={{
+                      background: cls==="dez" ? BARVE.dez : (cls==="off" ? "transparent" : BARVE[cls] + "26"),
+                      border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls]),
+                      color: cls==="dez" ? "#fff" : undefined,
+                    }}>
+                    <span className="dot" style={{background: cls==="dez" ? "#fff" : BARVE[cls]}}></span>
                     <span className="txt">{shiftLabel(sifra)}</span>
                   </div>
                 </div>
@@ -1489,7 +1506,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "datoteka" ? "Uvažam …" : "📁 Naloži datoteko (samodejno)"}
-              <input type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
             </label>
           </div>
 

@@ -247,7 +247,23 @@
 // do Babel/React funkcij v index.html ne more priti), preverjena s
 // preveri-sheets-mreza.mjs. Spremenjena admin.html, nova sheets-mreza.js.
 
-const CACHE = 'razpored-pbb-v53';
+// v54: Uvoz iz PDF-ja zdaj prepozna PRAVE stolpce (ne samo golo besedilo
+// po vrsticah kot doslej) - pdfKoscjiVTabelo (import-utils.js) uporabi
+// vodoravno lego/širino vsakega koščka besedila (že na voljo v pdf.js), da
+// najde meje med stolpci po navpičnem belem prostoru. Uveljavljeno povsod,
+// kjer je uvoz doslej PDF izrecno zavračal z "PDF ni podprt" (admin.html,
+// zelje.html) - zdaj namesto tega poskusi prepoznati tabelo, in samo če je
+// PDF res golo besedilo (dopis, ne preglednica), pokaže isto sporočilo kot
+// prej. "Naloži datoteko (samodejno)" v index.html zdaj sprejme tudi .pdf.
+// Dodatno: barva LD (letni dopust) v "Moj razpored" je bila temno zelena
+// ("#2F6B4A"), skoraj neločljiva od "PRISOTEN"/dopoldan (obe uporabljata
+// isto zeleno "#4F9B6B" pri 15% podlagi) - LD je zdaj rdeča ("#E06666"),
+// enaka kot že drugod v aplikaciji (Želje → Razpredelnica). Dežurstvo se
+// zdaj izriše polno zapolnjeno (bela pisava na opekasti podlagi), da
+// vizualno izstopa tudi od LD, ne le po odtenku. Spremenjena index.html,
+// import-utils.js, admin.html, zelje.html. Nov preveri-pdf-stolpci.mjs.
+
+const CACHE = 'razpored-pbb-v54';
 const ASSETS = [
   './',
   './index.html',

@@ -1034,7 +1034,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     setUvozBusy(true); setUvozMsg(null);
     try {
       const { vrsteVrstic, tip, url } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) — uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
       // .gsheet je bližnjica z Google Drive: ni podatek, ampak povezava.
       if (tip === "gsheet") { await uvoziIzSheets(url); return; }
       await uvoziVrstice(vrsteVrstic, file.name);
