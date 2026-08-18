@@ -109,6 +109,7 @@ dotakne.
 | `preveri-nzv-sheets.mjs` | `pripraviPosodobitveNzv`/`nzvNazivVKodo`/`NZV_STOLPCI` (index.html) na fixture-ju v obliki resničnega dokumenta ("Letni dopusti in omejitve za NZV") — pravi vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA), prave koordinate za enote IN za nova LD/IZOB/BS polja, ločeno po mesecih, prek prazne vmesne vrstice | nič |
 | `preveri-pametni-uvoz.mjs` | `razvrstiListe`/`obdelajOddelekVrstice`/`obdelajNzvVrstice` (index.html) — "Naloži datoteko (samodejno)" pravilno loči zavihke po znani kodi oddelka od preostalih, prepozna oddelčno IN NZV obliko po vsebini, in list, ki ni nobeno od tega (npr. "KALUP" legenda), tiho ne vrne ničesar (preskočen, ne napaka) | nič |
 | `preveri-xlsx-datum.mjs` | `xlsxCelicaVBesedilo` (import-utils.js) na PRAVEM branju/pisanju `xlsx.core.min.js` — datumska celica z drobno plavajočo napako (npr. `46173.999999988` namesto `46174`, kot pri resničnem izvozu iz Google Sheets) se prebere kot PRAVI dan, ne kot prejšnji dan tik pred polnočjo | nič |
+| `preveri-pdf-stolpci.mjs` | `pdfKoscjiVTabelo` (import-utils.js) — rekonstrukcija PRAVIH stolpcev iz PDF-ja po navpičnem belem prostoru med koščki besedila (x-lega/širina, ki jih pdf.js že vrne): več besed v isti celici ostane skupaj, prazna celica ne zamakne ostalih stolpcev, golo besedilo brez tabele (dopis) da en sam stolpec | nič |
 | `preveri-nzv-dezurstvo-datum.mjs` | "od konca do konca": prava `.xlsx` datumska celica (z isto plavajočo napako kot zgoraj) → `xlsxCelicaVBesedilo` → `obdelajNzvVrstice` — dežurstvo/LD, uvožena prek NZV, pristaneta na PRAVEM dnevu in v obliki (`employee_id`+`work_date`, brez omejitve na `department_code`), ki jo "Moj razpored" (MyScheduleView) samodejno prikaže | nič |
 | `preveri-vnesi-parafe.mjs` | `supabase/vnesi-parafe.sql` na pravi bazi: vseh 65 vrstic iz uradnega izvoza paraf se ujema s pravim profilom (`imena_se_ujemata`), oseba brez profila konča v poročilu "NI NAJDEN PROFIL" namesto da tiho izpade, "Maglić Aleksander" (prvotno dve nasprotujoči si vrstici v izvozu, glej spodaj) dobi uporabnikom potrjeno parafo "MAG", drugi zagon je varen (idempotenten) | lokalni PostgreSQL + `su postgres` |
 | `preveri-posodobi-parafe-oktober-2026.mjs` | `supabase/posodobi-parafe-oktober-2026.sql` na pravi bazi: vseh 21 vrstic se ujema s pravim profilom, `profiles.parafa` dobi NOVO parafo (velja od 1.10.2026), `profiles.parafa_pred_oktobrom_2026` STARO (veljala do 30.9.2026), 2 osebi brez dejanske spremembe imata obe polji enaki, drugi zagon je varen | lokalni PostgreSQL + `su postgres` |
@@ -207,3 +208,16 @@ sinhronizacije z index.html, `preveri-sheets-mreza.mjs` preverja isto
 obnašanje (prazna vmesna vrstica, podpisni blok, drug nabor ljudi po
 mesecih, oseba brez stolpca) na isti fixture obliki kot
 `preveri-zapis-v-sheets.mjs`.
+
+`preveri-pdf-stolpci.mjs`/`pdfKoscjiVTabelo` odpravita dolgo znano
+omejitev, dokumentirano v vsakem "PDF ni podprt" sporočilu po aplikaciji:
+uvoz iz PDF-ja je doslej vrnil samo golo besedilo po vrsticah (Y-sortirano,
+nato X znotraj vrstice), ker se je zdelo, da PDF ne nosi zanesljivega
+podatka o stolpcih. V resnici pdf.js za vsak košček besedila že vrne
+njegovo vodoravno lego IN širino - dovolj, da se stolpci najdejo po
+"navpičnem belem prostoru" med njimi (združevanje prekrivajočih se
+vodoravnih odsekov v pasove, nato širok presledek med pasovi = meja
+stolpca). Rezultat je zdaj prava `vrsteVrstic` oblika (vrstice × stolpci),
+ki gre naravnost skozi ISTO kodo kot .xlsx/.csv - `tip` je `"pdf-besedilo"`
+samo še takrat, ko v PDF-ju resnično ni najti nobenega stolpca (golo
+besedilo, npr. dopis), ne za vsak PDF kot doslej.

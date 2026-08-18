@@ -112,9 +112,28 @@ window.ImportUtils = (function () {
           resolve({ listi: [{ naziv, vrsteVrstic: csvBesedilaVVrstice(String(reader.result || "")) }] });
         };
         reader.readAsText(file, "UTF-8");
+      } else if (ime.endsWith(".pdf")) {
+        // PDF nima zavihkov - cel dokument je en "list". Stolpci se
+        // rekonstruirajo po navpičnem belem prostoru (glej pdfKoscjiVTabelo);
+        // če jih ni najti (navaden dopis, ne preglednica), to javimo z jasnim
+        // sporočilom namesto tihega uvoza ene same "stolpčne" kolone.
+        reader.onload = () => {
+          pdfVTabelo(reader.result).then(vrsteVrstic => {
+            if (!vrsteVrstic.some(v => v.length > 1)) {
+              reject(new Error(
+                "V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica). "
+                + "Za samodejni uvoz razporeda uporabi .xlsx/.csv izvoz ali PDF, ki vsebuje pravo tabelo."
+              ));
+              return;
+            }
+            const naziv = (file.name || "list").replace(/\.[^.]+$/, "");
+            resolve({ listi: [{ naziv, vrsteVrstic }] });
+          }).catch(reject);
+        };
+        reader.readAsArrayBuffer(file);
       } else {
         reject(new Error(
-          "Ta vrsta datoteke ni podprta za samodejni uvoz (pričakovano: .xlsx, .xls ali .csv) - "
+          "Ta vrsta datoteke ni podprta za samodejni uvoz (pričakovano: .xlsx, .xls, .csv ali .pdf) - "
           + "izvozi razpored iz Google Sheets/Excela v eno od teh oblik."
         ));
       }
@@ -132,33 +151,78 @@ window.ImportUtils = (function () {
     return pdfjsPromise;
   }
 
-  // PDF nima zanesljive splošne "razpoznaj tabelo" logike v brskalniku brez
-  // strežnika (glej prejšnjo analizo v roster/analiza-razporedov.md — za
-  // barvne PDF preglednice smo uporabljali Python/PyMuPDF). Tu zato samo
-  // izvlečemo golo besedilo po vrsticah (position-sortirano po Y, nato X) —
-  // uporabnik/admin nato ročno preveri/uredi pred uvozom, enako kot pri
-  // "prilepi CSV besedilo" polju.
-  async function pdfVBesedilneVrstice(arrayBuffer) {
+  // Iz koščkov besedila ENE strani rekonstruira PRAVE stolpce (ne samo
+  // besedilnih vrstic, kot je delala prejšnja različica). pdf.js za vsak
+  // košček pove tudi njegovo vodoravno lego in širino, zato stolpce najdemo
+  // po "navpičnem belem prostoru": vse koščke projiciramo na os X, združimo
+  // prekrivajoče se odseke, in kjer med njimi ostane dovolj širok prazen pas
+  // (minPresledek), je meja med stolpcema. Ta pristop pravilno obdrži skupaj
+  // več besed v ISTI celici ("Grega Arnež" = dve besedi, majhen presledek),
+  // hkrati pa loči sosednja stolpca (velik presledek).
+  //
+  // Zakaj ne preprosto gručenje X-lege začetkov: besede znotraj ene celice se
+  // začenjajo na različnih X, zato bi vsaka beseda postala svoj "stolpec".
+  //
+  // Ostane hevristika (PDF ne nosi podatka o tabeli) - zato uvoz rezultat
+  // vedno pokaže v predogledu, preden karkoli zapiše.
+  function pdfKoscjiVTabelo(koscki, minPresledek) {
+    const prag = minPresledek == null ? 8 : minPresledek; // v PDF točkah (1/72")
+    if (!koscki.length) return [];
+    // 1) Vsi vodoravni odseki na strani -> združeni v zasedene pasove.
+    const odseki = koscki.map(k => [k.x, k.x + (k.sirina > 0 ? k.sirina : String(k.str || "").length * 4)])
+      .sort((a, b) => a[0] - b[0]);
+    const pasovi = [];
+    odseki.forEach(([a, b]) => {
+      const zadnji = pasovi[pasovi.length - 1];
+      if (zadnji && a - zadnji[1] < prag) { if (b > zadnji[1]) zadnji[1] = b; }
+      else pasovi.push([a, b]);
+    });
+    // 2) Vrstice: koščki z (zaokroženo) isto navpično lego. Y v PDF raste
+    //    navzgor, zato padajoče = od vrha strani navzdol.
+    const poVrsticah = new Map();
+    koscki.forEach(k => {
+      const y = Math.round(k.y);
+      if (!poVrsticah.has(y)) poVrsticah.set(y, []);
+      poVrsticah.get(y).push(k);
+    });
+    const vrstice = [];
+    Array.from(poVrsticah.keys()).sort((a, b) => b - a).forEach(y => {
+      const celice = pasovi.map(() => []);
+      poVrsticah.get(y).sort((a, b) => a.x - b.x).forEach(k => {
+        // Pas, ki vsebuje začetek koščka; sicer najbližji (košček lahko rahlo
+        // štrli čez rob pasu, npr. pri drugačni pisavi v isti tabeli).
+        let idx = pasovi.findIndex(p => k.x >= p[0] - 0.5 && k.x <= p[1] + 0.5);
+        if (idx === -1) {
+          let najboljse = Infinity;
+          pasovi.forEach((p, i) => {
+            const d = k.x < p[0] ? p[0] - k.x : (k.x > p[1] ? k.x - p[1] : 0);
+            if (d < najboljse) { najboljse = d; idx = i; }
+          });
+        }
+        if (idx >= 0) celice[idx].push(String(k.str || ""));
+      });
+      const vrstica = celice.map(c => c.join(" ").replace(/\s+/g, " ").trim());
+      if (vrstica.some(c => c !== "")) vrstice.push(vrstica);
+    });
+    return vrstice;
+  }
+
+  async function pdfVTabelo(arrayBuffer) {
     const pdfjsLib = await nalozipdfjs();
     const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const vrstice = [];
+    let vse = [];
     for (let s = 1; s <= doc.numPages; s++) {
       const stran = await doc.getPage(s);
       const vsebina = await stran.getTextContent();
-      const poVrsticah = new Map(); // zaokrožen Y -> [{x, str}]
-      vsebina.items.forEach(item => {
-        const y = Math.round(item.transform[5]);
-        if (!poVrsticah.has(y)) poVrsticah.set(y, []);
-        poVrsticah.get(y).push({ x: item.transform[4], str: item.str });
-      });
-      const yji = Array.from(poVrsticah.keys()).sort((a, b) => b - a);
-      yji.forEach(y => {
-        const kosi = poVrsticah.get(y).sort((a, b) => a.x - b.x);
-        const besedilo = kosi.map(k => k.str).join(" ").replace(/\s+/g, " ").trim();
-        if (besedilo) vrstice.push(besedilo);
-      });
+      const koscki = vsebina.items
+        .filter(item => String(item.str || "").trim() !== "")
+        .map(item => ({ x: item.transform[4], y: item.transform[5], sirina: item.width || 0, str: item.str }));
+      // Stolpci se iščejo NA VSAKI STRANI POSEBEJ - uradni dokumenti imajo
+      // pogosto drugačno postavitev na prvi strani (glava z logotipom) kot na
+      // naslednjih, skupno iskanje bi ju zlilo v napačne stolpce.
+      vse = vse.concat(pdfKoscjiVTabelo(koscki));
     }
-    return vrstice;
+    return vse;
   }
 
   // Glavna vstopna točka: prebere File objekt (iz <input type="file">) in
@@ -229,8 +293,14 @@ window.ImportUtils = (function () {
         reader.readAsArrayBuffer(file);
       } else if (ime.endsWith(".pdf")) {
         reader.onload = () => {
-          pdfVBesedilneVrstice(reader.result)
-            .then(vrstice => resolve({ vrsteVrstic: vrstice.map(v => [v]), tip: "pdf-besedilo" }))
+          pdfVTabelo(reader.result)
+            .then(vrsteVrstic => {
+              // Če je PDF navadno besedilo (dopis, opomba), ne preglednica,
+              // ima rezultat en sam stolpec - to javimo kot "pdf-besedilo",
+              // da kličoča stran ponudi ročno urejanje namesto uvoza tabele.
+              const vecStolpcev = vrsteVrstic.some(v => v.length > 1);
+              resolve({ vrsteVrstic, tip: vecStolpcev ? "pdf" : "pdf-besedilo" });
+            })
             .catch(reject);
         };
         reader.readAsArrayBuffer(file);
@@ -381,5 +451,5 @@ window.ImportUtils = (function () {
   // isto in da se ne razide s tem, kar preberiDatoteko dejansko zna.
   const PODPRTE_PRIPONE = ".csv,.txt,.xlsx,.xls,.xlsb,.json,.jsonl,.gsheet,.pdf";
 
-  return { preberiDatoteko, preberiVseListe, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, PODPRTE_PRIPONE };
+  return { preberiDatoteko, preberiVseListe, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, pdfKoscjiVTabelo, PODPRTE_PRIPONE };
 })();

@@ -945,7 +945,7 @@ function KalupTab(){
     setKvoteUvozBusy(true); setKvoteUvozMsg(null);
     try {
       const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setKvoteUvozMsg("PDF ni podprt za uvoz kvot (ni stolpcev) — uporabi CSV/Excel."); return; }
+      if (tip === "pdf-besedilo") { setKvoteUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) — uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
       const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","kvota"], ["ime","full_name"]);
       const nove = {};
       objekti.forEach(o => { if (o.ime && o.kvota !== "") nove[o.ime.toUpperCase()] = o.kvota; });
@@ -1980,7 +1980,7 @@ function UporabnikiTab(){
     setUvozBusy(true); setUvozMsg(null);
     try {
       const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) — uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
       const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["full_name","role","department_code"], ["full_name","ime"]);
       let ok = 0, neujemajoci = [];
       for (const o of objekti) {
@@ -2155,7 +2155,7 @@ function DopustTab(){
     setUvozBusy(true); setUvozMsg(null); setPredogled(null);
     try {
       const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("PDF ni podprt za ta uvoz (ni stolpcev) — uporabi CSV/Excel."); return; }
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) — uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
       const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, DOPUST_GLAVE_MAPA);
       if (!najdeniStolpci.includes("employee_code") || !najdeniStolpci.includes("dnevi")) {
         setUvozMsg("V datoteki ni bilo mogoče najti stolpcev za šifro zaposlenega (Mat.št) in DOPUST.");
