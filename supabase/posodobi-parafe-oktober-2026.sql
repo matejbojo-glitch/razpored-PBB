@@ -11,9 +11,11 @@
 -- meseci PRED oktobrom 2026 v NZV prikažejo staro parafo, oktober 2026
 -- dalje novo.
 --
--- BOJIĆ MATEJ in MAGLIĆ ALEKSANDER se parafa dejansko NI spremenila -
--- vseeno sta spodaj (stara = nova), da je seznam popoln in v kodi ni
--- potreben poseben primer zanju.
+-- MAGLIĆ ALEKSANDER se parafa dejansko NI spremenila - vseeno je spodaj
+-- (stara = nova), da je seznam popoln in v kodi ni potreben poseben primer
+-- zanj. BOJIĆ MATEJ SE JE spremenil (uporabnik popravil prvotno napačno
+-- domnevo "brez spremembe"): do 30.9.2026 "BOJ" (starejši, neuraden zapis
+-- v NZV predlogi), od 1.10.2026 dalje "MBO" (uradna parafa).
 --
 -- Ujemanje po `imena_se_ujemata()` (vreča besed, ne glede na vrstni red
 -- Priimek/Ime in velikost črk - glej schema.sql), enako kot vnesi-parafe.sql.
@@ -22,7 +24,7 @@
 
 with vhod (full_name, nova, stara) as (
   values
-  ('BOJIĆ MATEJ', 'MBO', 'MBO'),
+  ('BOJIĆ MATEJ', 'MBO', 'BOJ'),
   ('HROVAT NINA', 'NH', 'HRO'),
   ('HUMAR SAŠA', 'SH', 'HUM'),
   ('SALKIĆ MARUŠA', 'MSA', 'SAL'),

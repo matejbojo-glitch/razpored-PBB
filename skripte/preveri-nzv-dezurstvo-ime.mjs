@@ -86,6 +86,7 @@ const koda = [
   izvleci("nzvNazivVKodo"),
   constVKotVar(izvleciConst("NZV_KIND_KODA")),
   constVKotVar(izvleciConst("NZV_ODSOTNOST_KIND")),
+  constVKotVar(izvleciConst("IME_PSEVDONIM_NZV")),
   izvleci("normalizirajImeNzv"),
   izvleci("imenaSeUjemataNzv"),
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),

@@ -634,7 +634,18 @@ const NZV_STOLPCI = (() => {
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
 const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
 
-function normalizirajImeNzv(s){ return (s || "").trim().toUpperCase().replace(/\s+/g, " "); }
+// Znane, uporabnikom POTRJENE napake pri tipkanju v izvornih dokumentih
+// (ne domneva) - "Horvat" namesto "Hrovat" in "Tomažević" namesto
+// "Tomaževič" sta se v resnični NZV predlogi izmenično pojavljali za ISTI
+// osebi, kar bi brez tega povzročilo neujemanje - "vreča besed" prenese
+// samo vrstni red besed, ne posameznih napačnih črk. Namerno SAMO ti dve,
+// natančni besedi - splošno popravljanje "ć"/"č" bi bilo nevarno (obe črki
+// se legitimno pojavljata v resničnih priimkih, npr. "Alukić", "Sofrić").
+const IME_PSEVDONIM_NZV = { "HORVAT": "HROVAT", "TOMAŽEVIĆ": "TOMAŽEVIČ" };
+function normalizirajImeNzv(s){
+  return (s || "").trim().toUpperCase().replace(/\s+/g, " ")
+    .split(" ").map(b => IME_PSEVDONIM_NZV[b] || b).join(" ");
+}
 // Ista "vreča besed" primerjava kot imenaSeUjemata v zelje.html
 // (leave_entries.full_name je prosto besedilo iz statičnega roster-seznama,
 // ne nujno enak zapis kot profiles.full_name) - namerno podvojeno tu namesto
@@ -918,12 +929,89 @@ function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
   return { zapisi, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
 }
 
+// FLEXI zavihek uradne predloge ima DRUGAČNO obliko kot ostalih 6 oddelkov:
+// vsaka oseba zaseda PAR stolpcev (oddelek te izmene + izmena), ker flexi
+// kader vsak dan pokriva DRUG oddelek, ne vedno istega - department_code
+// torej NI fiksen za ves list (kot pri obdelajOddelekVrstice), ampak se
+// prebere iz podatkov. Ime osebe je v glavi NAD stolpcem IZMENE (drugi od
+// dveh), stolpec pred njim (oddelek) nima lastne glave - potrjeno na pravi
+// uporabnikovi datoteki ("2026_SMS_RAZPORED.xlsx", zavihek FLEXI).
+//
+// Ta zavihek ima tudi POSEBNOST, ki je pri ostalih 6 oddelkih ni: isto ime
+// se v glavi VRSTICE lahko pojavi VEČKRAT (opaženo na pravi datoteki - cel
+// blok stolpcev se v isti vrstici enkrat ponovi, z DELNO drugačnimi
+// vrednostmi za isti dan). Ker ni zanesljivega načina vedeti, kateri od
+// dveh je pravi, se uporabi PRVA (skrajno leva) pojavitev vsakega imena,
+// druga pa se tiho prezre - varnejše kot uganjevanje, kateri je pravi.
+const IME_S_PIKO_RX = /^\S.*\s[A-ZČŠŽĐĆ]\.\s*$/;
+function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka){
+  for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
+    const vrstica = vrsteVrstic[i] || [];
+    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null;
+    const imaIme = vrstica.some((c, idx) => idx >= 2 && IME_S_PIKO_RX.test((c || "").trim().toUpperCase()));
+    if (!imaIme) continue;
+    return i;
+  }
+  return null;
+}
+// "veljavniOddelki" (Set velikih črk kod iz departments tabele) je nujen -
+// schedule_entries.department_code ima tuji ključ na departments.code, zato
+// bi npr. "C/E2" (opažena kombinirana oznaka v pravi datoteki - dvojna
+// pokritost, ne prava koda) sicer zavrnila CEL upsert. Tu se namesto tega
+// varno prezre in prijavi kot neujemanje, ne zruši ostalih pravilnih vpisov.
+function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki){
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const zapisi = [];
+  const neujemanja = new Set();
+  const stanje = { najdenDatum: false, najdenaGlava: false };
+  let i = 0;
+  while (i < vrsteVrstic.length) {
+    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][0]);
+    if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
+    i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImenFlexi, 0, (vrstica, glavaVrstica, datum) => {
+      const videneOsebe = new Set();
+      for (let c = 2; c < glavaVrstica.length; c++) {
+        const ime = (glavaVrstica[c] || "").trim();
+        if (!ime || !IME_S_PIKO_RX.test(ime.toUpperCase())) continue; // ni oblike "Priimek I." - opomba/naslov stolpca, ne oseba
+        const kljucIme = ime.toUpperCase();
+        if (videneOsebe.has(kljucIme)) continue; // ponovljen blok stolpcev - obdrži samo prvo (levo) pojavitev
+        videneOsebe.add(kljucIme);
+        const oddelek = (vrstica[c - 1] || "").trim().toUpperCase();
+        const sifra = (vrstica[c] || "").trim();
+        if (!oddelek && !sifra) continue;
+        const id = poKratkem[kljucIme];
+        if (!id) { neujemanja.add(ime); continue; }
+        if (!oddelek) continue; // izmena brez oddelka (npr. posebna opomba) - ni pravega vpisa za razpored
+        if (veljavniOddelki && !veljavniOddelki.has(oddelek)) {
+          neujemanja.add(`${ime} (${datum}): neznana oznaka oddelka "${oddelek}" - preskočeno`);
+          continue;
+        }
+        zapisi.push({ employee_id: id, department_code: oddelek, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
+      }
+    }, stanje);
+  }
+  return { zapisi, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
 async function uvoziOddelek(url, wardCode, ciljniMesec){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
   const { data: profili } = await client.from("profiles").select("id, full_name");
   const { poKratkem, podvojena } = kratkaImenaMapa(profili);
-  const { zapisi, neujemanja, najdenDatum, najdenaGlava } = obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem);
+  // FLEXI ima drugačno obliko (par stolpcev oddelek+izmena na osebo,
+  // department_code se prebere iz podatkov, ne fiksen za ves list) - glej
+  // obdelajFlexiVrstice. Potrebuje tudi seznam veljavnih kod oddelkov
+  // (tuji ključ na departments), da neznana/kombinirana oznaka (npr. "C/E2",
+  // opažena v pravi datoteki) ne zavrne celotnega zapisa.
+  let zapisiRes;
+  if (wardCode === "FLEXI") {
+    const { data: oddelkiDb } = await client.from("departments").select("code");
+    const veljavniOddelki = new Set((oddelkiDb || []).map(d => d.code.toUpperCase()));
+    zapisiRes = obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki);
+  } else {
+    zapisiRes = obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem);
+  }
+  const { zapisi, neujemanja, najdenDatum, najdenaGlava } = zapisiRes;
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   if (!zapisi.length) {
     if (!najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK — v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
@@ -1172,12 +1260,17 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   if (!listi || !listi.length) throw new Error("Prazna datoteka.");
   const { oddelki, preostali } = razvrstiListe(listi);
 
-  const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
+  const [{ data: profiliKratki }, { data: profiliParafa }, { data: oddelkiDb }] = await Promise.all([
     client.from("profiles").select("id, full_name"),
     client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026"),
+    client.from("departments").select("code"),
   ]);
   const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
   const { poParafi, podvojene } = parafaMapa(profiliParafa, ciljniMesec);
+  // Za obdelajFlexiVrstice - department_code ima tuji ključ na departments,
+  // zato neznana/kombinirana oznaka (npr. "C/E2", opažena v pravi datoteki)
+  // ne sme priti do zapisa (bi zavrnila celoten upsert).
+  const veljavniOddelki = new Set((oddelkiDb || []).map(d => d.code.toUpperCase()));
 
   const neujemanja = new Set();
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
@@ -1190,7 +1283,11 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   let steviloRazporeda = 0, steviloOdsotnosti = 0;
   const povzetekOddelki = [];
   for (const { koda, vrsteVrstic } of oddelki) {
-    const { zapisi, neujemanja: neu } = obdelajOddelekVrstice(vrsteVrstic, koda, ciljniMesec, poKratkem);
+    // FLEXI ima drugačno obliko (par stolpcev oddelek+izmena na osebo) -
+    // glej obdelajFlexiVrstice.
+    const { zapisi, neujemanja: neu } = koda === "FLEXI"
+      ? obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki)
+      : obdelajOddelekVrstice(vrsteVrstic, koda, ciljniMesec, poKratkem);
     neu.forEach(n => neujemanja.add(koda + ": " + n));
     if (!zapisi.length) continue;
     const { edinstveni, podvojeni } = zdruziPoKljucu(zapisi, z => z.employee_id + "|" + z.work_date);
