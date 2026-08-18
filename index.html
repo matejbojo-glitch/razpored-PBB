@@ -386,6 +386,28 @@ function MyScheduleView({ userId, month }){
     return () => { cancelled = true; };
   }, [userId, startISO, endISO]);
 
+  // Dežurni zdravnik (duty_doctors, glej uvoziZdravnike) - samo za prikaz
+  // poleg DEŽURSTVA, ni vezan na osebo/employee_id (zdravniki nimajo
+  // profila). "Dežurstvo ZDR" je prednostno pred "Urgenca ZDR", če sta
+  // oba za isti dan (redko, a možno) - "Dežurstvo ZDR" je bolj neposredno
+  // povezano z nočnim/vikend dežurstvom nege, ki ga ta zaslon prikazuje.
+  const [zdravnikiPoDatumu, setZdravnikiPoDatumu] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    setZdravnikiPoDatumu({});
+    client.from("duty_doctors").select("work_date, kind, full_name")
+      .gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const m = {};
+        data.forEach(r => {
+          if (!m[r.work_date] || r.kind === "dezurstvo") m[r.work_date] = r.full_name;
+        });
+        setZdravnikiPoDatumu(m);
+      });
+    return () => { cancelled = true; };
+  }, [startISO, endISO]);
+
   const byDate = useMemo(() => {
     const m = {};
     (entries || []).forEach(e => { m[e.work_date] = e.shift_code; });
@@ -419,6 +441,9 @@ function MyScheduleView({ userId, month }){
             <div>
               <div className="shiftName">{shiftLabel(todaySifra)}</div>
               <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
+              {todayCls === "dez" && zdravnikiPoDatumu[iso] && (
+                <div className="shiftTime">🩺 {zdravnikiPoDatumu[iso]}</div>
+              )}
             </div>
           </div>
         </div>
@@ -452,7 +477,14 @@ function MyScheduleView({ userId, month }){
                       color: cls==="dez" ? "#fff" : undefined,
                     }}>
                     <span className="dot" style={{background: cls==="dez" ? "#fff" : BARVE[cls]}}></span>
-                    <span className="txt">{shiftLabel(sifra)}</span>
+                    <span style={{minWidth:0, overflow:"hidden"}}>
+                      <span className="txt">{shiftLabel(sifra)}</span>
+                      {cls === "dez" && zdravnikiPoDatumu[dn.datum] && (
+                        <span className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
+                          🩺 {zdravnikiPoDatumu[dn.datum]}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 </div>
               );
@@ -807,6 +839,27 @@ async function shraniDopusteNzv(dopusti){
   }
 }
 
+// duty_doctors (glej obdelajZdravnikiVrstice) - ključ work_date+kind, ni
+// vezan na profile.id (zdravniki nimajo profila).
+async function shraniZapiseZdravnikov(zapisi){
+  for (let i = 0; i < zapisi.length; i += 200) {
+    const { error } = await client.from("duty_doctors").upsert(zapisi.slice(i, i + 200), { onConflict: "work_date,kind" });
+    if (error) throw error;
+  }
+}
+
+// Uvoz uradnega PDF "Razporeditev zaposlenih v UA in DEŽ" (glej
+// obdelajZdravnikiVrstice) - na voljo ne glede na izbrani oddelek/kontekst
+// zgoraj, ker duty_doctors ni vezan na oddelek.
+async function uvoziZdravnike(file, ciljniMesec){
+  const { vrsteVrstic } = await window.ImportUtils.preberiDatoteko(file);
+  if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
+  const { zapisi, najdenDatum } = obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec);
+  if (!najdenDatum) throw new Error(`V datoteki ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} - preveri, da gre za pravi mesečni dokument "Razporeditev zaposlenih v UA in DEŽ".`);
+  await shraniZapiseZdravnikov(zapisi);
+  return `Uvoženih ${zapisi.length} zapisov (dežurni zdravniki).`;
+}
+
 // Samo prava ISO oblika šteje za "vrstico s podatki" - podpisne vrstice na
 // dnu izvoza ("Zadnja sprememba:", "Pripravil/-a:" …) imajo v prvem
 // stolpcu besedilo, ki ga normalizirajDatum() vrne nespremenjeno (ni
@@ -1125,6 +1178,52 @@ function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
 // (leave_entries) - glej NZV_KIND_KODA. Zapisi zanje gredo v drugo tabelo,
 // zato jih uvoziNzv loči na dva izhodna seznama (zapisi/dopusti).
 const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
+
+// Uvoz uradnega dokumenta "Razporeditev zaposlenih v UA in DEŽ" (mesečni
+// PDF, glej pdfKoscjiVTabelo v import-utils.js - po njej ima ta dokument 3
+// stolpce: datum+dan+ime "Urgenca ZDR" (pogosto ena sama celica, ker sta si
+// datum in ime v izvirniku blizu), "Dežurstvo ZDR", "Dežurstvo dipl.
+// m.s./zn." - zadnji stolpec je isti 14-osebni krog, ki ga aplikacija že
+// pozna prek NZV uvoza (obdelajNzvVrstice, DEZ oddelek), zato ga TU
+// namenoma NE uvažamo ponovno - samo prva dva, ki ju aplikacija doslej ni
+// poznala (zdravniki nimajo profila/računa, glej duty_doctors v
+// schema.sql - namenjena SAMO prikazu imena, ne pravemu uporabniku).
+const ZDR_DATUM_RX = /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})\b\s*(.*)$/;
+const ZDR_DAN_RX = /^(PO|TO|SR|ČE|PE|SO|NE)\s*(.*)$/;
+function obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec){
+  const { startISO, endISO } = monthRange(ciljniMesec);
+  const zapisi = [];
+  let najdenDatum = false;
+  let zadnjiDatum = null;
+  for (const vrstica of (vrsteVrstic || [])) {
+    const prva = (vrstica[0] || "").trim();
+    const m = ZDR_DATUM_RX.exec(prva);
+    if (!m) continue;
+    const [, d, mo, y, ostanek] = m;
+    const datum = `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    // Dnevi si v pravem dokumentu sledijo po naraščajočem datumu - ko se
+    // datum ne poveča (ali se vrne nazaj), smo zapustili pravo tabelo
+    // (podpisni/opombni blok na dnu lahko naključno vsebuje niz, videti kot
+    // datum, npr. "Velja od: 1. 9. 2026" - potrjeno na pravi datoteki).
+    if (zadnjiDatum && datum <= zadnjiDatum) break;
+    zadnjiDatum = datum;
+    if (datum < startISO || datum > endISO) continue;
+    najdenDatum = true;
+    // Ime za "Urgenca ZDR" je v ostanku PRVE celice, po morebitni dnevni
+    // kratici (datum+dan+ime so v izvirniku pogosto ena sama celica).
+    const danM = ZDR_DAN_RX.exec(ostanek.trim());
+    const urgenca = (danM ? danM[2] : ostanek).trim();
+    if (urgenca) zapisi.push({ work_date: datum, kind: "urgenca", full_name: urgenca });
+    // "Dežurstvo ZDR": zapis "Ime Priimek (Drugo Ime Priimek)" pomeni
+    // zamenjavo (uporabnikom potrjeno) - PRVO ime je zdravnik, ki dejansko
+    // dela, drugo (v oklepaju) je bilo prvotno razporejeno. Uporabimo samo
+    // prvo ime.
+    const dezRaw = (vrstica[1] || "").trim();
+    const dez = dezRaw.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    if (dez) zapisi.push({ work_date: datum, kind: "dezurstvo", full_name: dez });
+  }
+  return { zapisi, najdenDatum };
+}
 
 // Ista vloga kot kratkaImenaMapa, samo za parafe (uvoziNzv/uvoziDatotekoPametno).
 // "datum" (mesec ali dan) izbere pravo stran prestopa 1.10.2026 (glej
@@ -1460,6 +1559,24 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
     }
   };
 
+  // Ločen uvoz za "Razporeditev zaposlenih v UA in DEŽ" (dežurni zdravniki -
+  // glej obdelajZdravnikiVrstice/duty_doctors) - na voljo ne glede na
+  // izbrani oddelek/kontekst, ker ti podatki niso vezani na oddelek.
+  const nalozizZdravnike = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy("zdravniki"); setMsg(null);
+    try {
+      const besedilo = await uvoziZdravnike(file, month);
+      setMsg({ ok: true, text: besedilo });
+    } catch (err) {
+      setMsg({ ok: false, text: err.message || String(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // Piše nazaj za navadne oddelke IN za NZV (uvoziOddelek/pripraviPosodobitveOddelka
   // in uvoziNzv/pripraviPosodobitveNzv obe najdeta iste koordinate, ki jih uvoz tudi
   // prebere) - samo "Moj razpored" te možnosti (še) nima, ker gre za osebno, ne
@@ -1507,6 +1624,18 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "datoteka" ? "Uvažam …" : "📁 Naloži datoteko (samodejno)"}
               <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
+            </label>
+          </div>
+
+          <p className="hint" style={{marginTop:0, marginBottom:6}}>
+            Ločeno: uradni mesečni PDF "Razporeditev zaposlenih v UA in DEŽ" — vpiše, kateri zdravnik je dežuren
+            (Urgenca ZDR/Dežurstvo ZDR), da se to imenu prikaže poleg dežurstva v "Moj razpored". Ni vezano na
+            izbrani oddelek zgoraj.
+          </p>
+          <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
+            <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
+              {busy === "zdravniki" ? "Uvažam …" : "🩺 Naloži dežurstvo zdravnikov (PDF)"}
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizZdravnike} />
             </label>
           </div>
 

@@ -115,6 +115,7 @@ dotakne.
 | `preveri-posodobi-parafe-oktober-2026.mjs` | `supabase/posodobi-parafe-oktober-2026.sql` na pravi bazi: vseh 21 vrstic se ujema s pravim profilom, `profiles.parafa` dobi NOVO parafo (velja od 1.10.2026), `profiles.parafa_pred_oktobrom_2026` STARO (veljala do 30.9.2026), 2 osebi brez dejanske spremembe imata obe polji enaki, drugi zagon je varen | lokalni PostgreSQL + `su postgres` |
 | `preveri-parafa-datumski-prestop.mjs` | `parafaOd`/`parafaMapa` (index.html) - oseba s spremenjeno parafo dobi STARO parafo za dneve/mesece pred 1.10.2026 in NOVO od tega datuma dalje (natančno na meji: 30.9. stara, 1.10. nova), oseba BREZ spremembe (velika večina kadra) je od datuma popolnoma neodvisna (regresija), `parafaMapa` (obratna preslikava za uvoz) uporabi pravo stran prestopa za cel ciljni mesec | nič |
 | `preveri-nzv-dezurstvo-ime.mjs` | `obdelajNzvVrstice` (index.html) - stolpec DEŽURSTVO uradne predloge se ujema po POLNEM IMENU (vreča besed), ne po parafi kot vsi ostali stolpci - potrjeno na pravi uporabnikovi datoteki, glej spodaj. Naziv pred imenom ("dr. ") se odstrani pred primerjavo, oseba brez profila konča v poročilu (ne izgine tiho), vsi ostali stolpci se ŠE VEDNO ujemajo po parafi (regresija) | nič |
+| `preveri-zdravniki-dezurstvo.mjs` | `obdelajZdravnikiVrstice` (index.html) - uvoz uradnega dokumenta "Razporeditev zaposlenih v UA in DEŽ" (dežurni zdravniki, `duty_doctors`) - datum+dan+ime "Urgenca ZDR" pogosto v ENI celici (glej `pdfKoscjiVTabelo`), zapis "Ime (Drugo Ime)" v "Dežurstvo ZDR" pomeni zamenjavo (uporabi samo prvo ime), vikend brez "Urgenca ZDR" ne ustvari napačnega zapisa, "Dežurstvo dipl. m.s./zn." (že pokrito prek NZV uvoza) se ne podvoji, podpisni blok na dnu z navidezno datumsko vsebino ne prepiše zadnjega pravega dne | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
@@ -237,3 +238,17 @@ stolpca združil v EN sam košček (namesto treh ločenih), kar tako vrstico
 izloči iz računanja pasov, a jo pusti pravilno izpisano (le morda nepopolno
 razdeljeno - vidno in popravljivo v predogledu, ne izgubljeno). Oba primera
 sta zdaj pokrita s testoma 6 in 7 v `preveri-pdf-stolpci.mjs`.
+
+Dry-run istega dokumenta ("Razporeditev zaposlenih v UA in DEŽ") je
+razkril, da vsebuje 3 stolpce dežurstev, ne enega: "Urgenca ZDR" in
+"Dežurstvo ZDR" sta dva ločena kroga ZDRAVNIKOV (npr. "Dr. Lea Žmuc
+Veranič"), ki jih aplikacija doslej ni poznala, "Dežurstvo dipl. m.s./zn."
+pa je isti 14-osebni krog, ki ga NZV uvoz že pozna. Uporabnik je potrdil:
+(1) zdravniki naj NIMAJO pravega profila/računa - samo prikaz imena poleg
+dežurstva v "Moj razpored" (nova tabela `duty_doctors`, brez FK na
+profiles); (2) zapis "Ime Priimek (Drugo Ime Priimek)" v stolpcu
+"Dežurstvo ZDR" pomeni ZAMENJAVO - prva oseba dejansko dela, druga (v
+oklepaju) je bila prvotno razporejena, zato se uporabi samo prva.
+`obdelajZdravnikiVrstice` (index.html) to prebere in shrani ločeno od
+`obdelajNzvVrstice` (ki še vedno pokriva "Dežurstvo dipl. m.s./zn." prek
+obstoječega NZV uvoza - ni podvojeno).
