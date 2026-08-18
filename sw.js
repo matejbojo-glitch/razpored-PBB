@@ -292,7 +292,18 @@
 // uporabnika; "kalup" ostaja ime rotacijskega vzorca A-E).
 // Spremenjeni index.html, admin.html.
 
-const CACHE = 'razpored-pbb-v57';
+// v58: zavihek "Oddelki" (admin.html) dobi razdelek "📥 Uvozi že sestavljen
+// razpored" z izbirnikom skupine - vseh 6 oddelkov + FLEXI + NZV. Uvoz sam
+// ostaja na ENEM mestu (index.html, uvoziDatotekoPametno - ista, testirana
+// pot za vse skupine), zavihek pa nanj napoti prek naslova
+// "index.html?uvoz=1&oddelek=…&mesec=…" z že izbrano skupino in mesecem;
+// index.html ta naslov prebere (preberiUvozIzNaslova), odpre uvozno okno in
+// parametre pobriše iz naslova, da se okno ob osveževanju ne odpira znova.
+// Namesto podvojitve uvozne logike (~300 vrstic, pokritih z več preizkusi)
+// je izbrano napotilo, da kopiji ne moreta zaiti iz sinhronizacije.
+// Spremenjeni index.html, admin.html. Nov preveri-uvoz-napotilo.mjs.
+
+const CACHE = 'razpored-pbb-v58';
 const ASSETS = [
   './',
   './index.html',
