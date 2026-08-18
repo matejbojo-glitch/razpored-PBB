@@ -3041,3 +3041,26 @@ end $$;
 --     supabase/posodobi-parafe-oktober-2026.sql.
 -- ---------------------------------------------------------------------
 alter table public.profiles add column if not exists parafa_pred_oktobrom_2026 text;
+
+-- ---------------------------------------------------------------------
+-- 32) duty_doctors — kateri ZDRAVNIK je dežuren na posamezen dan (dva
+--     ločena kroga: "Urgenca ZDR" in "Dežurstvo ZDR" - iz uradnega
+--     dokumenta "Razporeditev zaposlenih v UA in DEŽ"). Zdravniki NISO
+--     zaposleni v tej aplikaciji (nimajo profila/računa) - to je namerno
+--     samo za PRIKAZ imena poleg dežurstva v "Moj razpored", ne pravi
+--     profil/uporabnik. Ločeno od schedule_entries (ta tabela je za
+--     negovalno osebje, ki JE zaposleno v aplikaciji).
+-- ---------------------------------------------------------------------
+create table if not exists public.duty_doctors (
+  work_date date not null,
+  kind text not null check (kind in ('urgenca', 'dezurstvo')),
+  full_name text not null,
+  updated_at timestamptz not null default now(),
+  primary key (work_date, kind)
+);
+alter table public.duty_doctors enable row level security;
+drop policy if exists duty_doctors_select on public.duty_doctors;
+create policy duty_doctors_select on public.duty_doctors for select to authenticated using (true);
+drop policy if exists duty_doctors_write on public.duty_doctors;
+create policy duty_doctors_write on public.duty_doctors for all to authenticated
+  using (public.current_role_is('admin')) with check (public.current_role_is('admin'));

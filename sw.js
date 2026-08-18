@@ -272,7 +272,16 @@
 // naslovna/podpisna vrstica se s tem samodejno izloči. Spremenjena
 // import-utils.js, dopolnjen preveri-pdf-stolpci.mjs.
 
-const CACHE = 'razpored-pbb-v55';
+// v56: nov gumb v "Uvoz razporeda" (index.html) - "🩺 Naloži dežurstvo
+// zdravnikov (PDF)" prebere uradni mesečni dokument "Razporeditev
+// zaposlenih v UA in DEŽ" (Urgenca ZDR/Dežurstvo ZDR - dva kroga
+// zdravnikov, doslej neznana aplikaciji) in ime dežurnega zdravnika zdaj
+// prikaže poleg DEŽURSTVA v "Moj razpored" (nova tabela duty_doctors,
+// samo za prikaz - zdravniki nimajo profila/računa). Zapis "Ime (Drugo
+// Ime)" pomeni zamenjavo - uporabi se samo prvo (dejansko delajoče) ime.
+// Spremenjena index.html, supabase/schema.sql. Nov preveri-zdravniki-dezurstvo.mjs.
+
+const CACHE = 'razpored-pbb-v56';
 const ASSETS = [
   './',
   './index.html',
