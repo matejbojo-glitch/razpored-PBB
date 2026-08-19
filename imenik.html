@@ -95,6 +95,7 @@
 <script src="nav.js"></script>
 <script src="imena.js"></script>
 <script src="izmene.js"></script>
+<script src="datum.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="nzv-zasedba.js"></script>
@@ -1645,14 +1646,14 @@ function StanjeRazpredelnica({ oddelki }){
   // "id osebe" -> vrstica iz lead_departments (enote, nadomešča …)
   const [nosilci, setNosilci] = useState({});
 
+  // Koledarski izračuni so v datum.js, vikend pa v prazniki.js - en sam
+  // vir za vse strani.
   const dnevi = useMemo(() => {
     const [y, m] = mesec.split("-").map(Number);
-    const zadnji = new Date(y, m, 0).getDate();
     const out = [];
-    for (let d = 1; d <= zadnji; d++) {
-      const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const dow = new Date(iso + "T00:00:00").getDay();
-      out.push({ iso, dan: d, vikend: dow === 0 || dow === 6 });
+    for (let d = 1; d <= window.Datum.zadnjiDan(y, m); d++) {
+      const iso = window.Datum.iso(y, m, d);
+      out.push({ iso, dan: d, vikend: window.Prazniki.jeVikend(iso) });
     }
     return out;
   }, [mesec]);
@@ -1660,9 +1661,7 @@ function StanjeRazpredelnica({ oddelki }){
   useEffect(() => {
     let cancelled = false;
     setOsebe(null); setPoDnevih({});
-    const [y, m] = mesec.split("-").map(Number);
-    const startISO = `${y}-${String(m).padStart(2, "0")}-01`;
-    const endISO = `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+    const { startISO, endISO } = window.Datum.obseg(mesec);
     Promise.all([
       client.from("profiles").select("id, full_name, role, department_code").order("full_name"),
       // Nosilci oddelkov (vodje/administratorji): katere enote pokrivajo in

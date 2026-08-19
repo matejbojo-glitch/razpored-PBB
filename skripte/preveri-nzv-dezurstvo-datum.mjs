@@ -31,6 +31,7 @@ const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
 // v preveri-xlsx-datum.mjs - to NI mogoče v pravem brskalniku, kjer je
 // window.XLSX in ostala koda v isti globalni realnosti).
 const sandbox = { console };
+sandbox.window = sandbox; // skupni moduli se predstavijo prek window, kot v brskalniku
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "xlsx.core.min.js"), "utf8"), sandbox);
 if (!sandbox.XLSX) throw new Error("XLSX ni naložen iz xlsx.core.min.js.");
@@ -76,7 +77,11 @@ vm.runInContext(importUtilsKoda, sandbox);
 
 const indexKoda = [
   izvleciVrstico(htmlSrc, "const ISO_DATUM_RX"),
-  izvleciFn(htmlSrc, "monthRange"),
+  // Koledarski izračuni živijo v datum.js (skupni modul za vse strani),
+  // zato ga naložimo in monthRange samo preimenujemo - enako, kot to
+  // naredi index.html.
+  readFileSync(join(koren, "datum.js"), "utf8"),
+  "var monthRange = window.Datum.obseg;",
   constVKotVar(izvleciConst(htmlSrc, "NZV_ENOTE")),
   izvleciFn(htmlSrc, "nzvNazivVKodo"),
   izvleciFn(htmlSrc, "poisciEnoteNzv"),

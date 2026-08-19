@@ -155,6 +155,7 @@
 <script src="nav.js"></script>
 <script src="imena.js"></script>
 <script src="izmene.js"></script>
+<script src="datum.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -419,19 +420,13 @@ async function nalozizMinimume(koda){
   return map;
 }
 
-function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
-  const [y,m] = monthStr.split("-").map(Number);
-  const start = `${y}-${String(m).padStart(2,"0")}-01`;
-  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
-  return { startISO:start, endISO:end };
-}
-// Pomožne funkcije za VodjeTab (dnevi v mesecu, ISO datum, slovenski prazniki
-// 2026+) — ista logika kot v zelje.html, tu podvojena, ker ni skupnega
-// JS modula med statičnimi stranmi.
-const DNI_KRATKO = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
-function danovVMesecu2(monthStr){ const [y,m] = monthStr.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
-function isoZaMesec(monthStr, d){ const [y,m] = monthStr.split("-").map(Number); return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
+// Koledarski izračuni so v datum.js - en sam vir za vse strani (ta
+// različica je edina računala v UTC, ostale v lokalnem času).
+const monthRange = window.Datum.obseg;
+// Dnevi v mesecu in sestava ISO datuma prav tako iz datum.js. Kratica
+// dneva ostane trigla ("PON", "TOR" ...), kot je bila v tem pogledu.
+function danovVMesecu2(monthStr){ const [y,m] = monthStr.split("-").map(Number); return window.Datum.zadnjiDan(y, m); }
+function isoZaMesec(monthStr, d){ const [y,m] = monthStr.split("-").map(Number); return window.Datum.iso(y, m, d); }
 // Prazniki so v prazniki.js - en sam vir za vse zaslone. Tu je bila
 // doslej ČETRTA kopija izračuna (lasten velikonočni algoritem + svoj
 // seznam datumov). Ravno tako razpršeno pravilo je že trikrat povzročilo
@@ -1777,10 +1772,9 @@ function VodjeTab(){
     const objavaVrstice = [];
     for (let d = 1; d <= nd; d++) {
       const iso = isoZaMesec(month, d);
-      const wd = new Date(iso + "T00:00:00").getDay(); // 0=NED..6=SOB
-      const isVikend = wd === 0 || wd === 6;
+      const isVikend = window.Prazniki.jeVikend(iso);
       const isPraznik = window.Prazniki.jePraznik(iso);
-      const vrstica = { datum: iso, dan: DNI_KRATKO[wd], celice: {} };
+      const vrstica = { datum: iso, dan: window.Datum.dan3(iso), celice: {} };
       vodje.forEach(v => {
         const dolgaOdsotnost = v.odsotnost_do && iso <= v.odsotnost_do && v.odsotnost_tip;
         if (dolgaOdsotnost) {

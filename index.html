@@ -194,7 +194,6 @@ const { useState, useEffect, useMemo, useCallback } = React;
 const { client } = RazporedAuth;
 
 const DAN_IME = { PO:"ponedeljek", TO:"torek", SR:"sreda", ČE:"četrtek", PE:"petek", SO:"sobota", NE:"nedelja" };
-const DNI = ["PO","TO","SR","ČE","PE","SO","NE"];
 const MESECI = ["Januar","Februar","Marec","April","Maj","Junij","Julij","Avgust","September","Oktober","November","December"];
 
 // Datum kot v uradnih predlogah ("1. 9. 2026", brez vodilnih ničel) namesto
@@ -334,25 +333,11 @@ function currentMonthStr(){
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
-function monthRange(monthStr){
-  const [y,m] = monthStr.split("-").map(Number);
-  const start = `${y}-${String(m).padStart(2,"0")}-01`;
-  const lastDay = new Date(y, m, 0).getDate();
-  const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
-  return { startISO:start, endISO:end };
-}
-function daysInRange(startISO, endISO){
-  const out = [];
-  let d = new Date(startISO + "T00:00:00");
-  const end = new Date(endISO + "T00:00:00");
-  while (d.getTime() <= end.getTime()){
-    const wd = (d.getDay() + 6) % 7; // 0=PO..6=NE
-    const p = n => String(n).padStart(2,"0");
-    out.push({ datum: `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`, dan: DNI[wd] });
-    d.setDate(d.getDate() + 1);
-  }
-  return out;
-}
+// Koledarski izračuni so v datum.js - en sam vir za vse strani. Prej je
+// imela vsaka svojo različico istih računov, ponekod v lokalnem času in
+// drugod v UTC; izidi so bili enaki, a nič ni jamčilo, da tako ostane.
+const monthRange = window.Datum.obseg;
+const daysInRange = window.Datum.dnevi;
 
 // Delovnik NZV (vodje/administratorji) — pravilo, ki ga je uporabnik
 // večkrat izrecno ponovil in ga prikaz doslej ni upošteval:

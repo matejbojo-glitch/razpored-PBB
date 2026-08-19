@@ -100,9 +100,10 @@ vm.runInContext("var normalizirajImeNzv = window.Imena.normaliziraj;\n"
   + "var kljucImenaNzv = window.Imena.kljuc;", sandbox);
 
 vm.runInContext([
-  izvleciVrstico("const DNI ="),
-  izvleciFn("monthRange"),
-  izvleciFn("daysInRange"),
+  // Koledarski izračuni živijo v datum.js (skupni modul za vse strani).
+  readFileSync(join(koren, "datum.js"), "utf8"),
+  "var monthRange = window.Datum.obseg;",
+  "var daysInRange = window.Datum.dnevi;",
   izvleciFn("parafaOd"),
   izvleciConst("NZV_ENOTE"),
   izvleciFn("razvrstiSA"),

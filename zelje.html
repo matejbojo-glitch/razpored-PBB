@@ -282,7 +282,7 @@ const PEN_META = {
   bs: { label: "BS (bolniška)", barva: "#93C47D" },
   sti: { label: "STI (štud. dopust)", barva: "#B4A7D6" },
 };
-const DOW_SL = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
+
 const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
 
 // Prazniki so v prazniki.js - en sam vir za vse zaslone. Tu je bila PETA
@@ -290,11 +290,13 @@ const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avg
 // datumov). "m" je tu indeks meseca (0-11, kot ga vrne Date), zato ga
 // pretvorimo v ISO zapis, ki ga pričakuje skupni modul.
 function jeDanPraznik(y,m,d){ return window.Prazniki.jePraznik(isoZa(y,m,d)); }
-function danovVMesecu(y,m){ return new Date(y,m+1,0).getDate(); }
-function dowZa(y,m,d){ return DOW_SL[new Date(y,m,d).getDay()]; }
-function jeVikend(y,m,d){ const l = dowZa(y,m,d); return l==="SOB"||l==="NED"; }
-function pad2(n){ return String(n).padStart(2,"0"); }
-function isoZa(y,m,d){ return y+"-"+pad2(m+1)+"-"+pad2(d); }
+// Koledarski izračuni so v datum.js, vikend pa v prazniki.js - en sam
+// vir za vse strani. Tu je "m" indeks meseca (0-11, kot ga vrne Date),
+// modula pa delata z mesecem 1-12 in z ISO datumom, zato pretvorba.
+function danovVMesecu(y,m){ return window.Datum.zadnjiDan(y, m + 1); }
+function isoZa(y,m,d){ return window.Datum.iso(y, m + 1, d); }
+function dowZa(y,m,d){ return window.Datum.dan3(isoZa(y,m,d)); }
+function jeVikend(y,m,d){ return window.Prazniki.jeVikend(isoZa(y,m,d)); }
 
 // Slovenska sklanjatev za število (dvojina/množina): 1 vnos, 2 vnosa, 3-4 vnosi, 5+ vnosov.
 function steviloVnosov(n){
