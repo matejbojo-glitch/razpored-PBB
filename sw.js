@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v68: popravljen uvoz dežurnih zdravnikov (prej je zapisal kratico dneva
+//      namesto imena) + tabela vseh treh krogov pod NZV razporedom.
 // v67: pokrivanja iz tabele parov (vzajemna, večkratna) v obeh smereh.
 // v66: Razpredelnica pokaže enote in nadomeščanje nosilcev oddelkov.
 // v65: mreža NZV upošteva delovnik PON-PET (vikend prost razen dežurstva).
@@ -374,7 +376,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v67';
+const CACHE = 'razpored-pbb-v68';
 const ASSETS = [
   './',
   './index.html',
