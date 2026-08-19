@@ -52,12 +52,20 @@ const sandbox = { console };
 sandbox.window = sandbox; // imena.js se predstavi prek window, kot v brskalniku
 vm.createContext(sandbox);
 vm.runInContext([
-  izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
-  izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("jeProst"), izvleci("izmenaKratica"),
-  izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
-  // Ujemanje imen in kratko ime živita v imena.js (skupni modul za vse
-  // zaslone) - tu ju naložimo in preimenujemo v imeni, ki ju uporablja
-  // izluščena koda iz imenik.html.
+  izvleciConst("KIND_KRATICA"),
+  // Uradna legenda izmen, ujemanje imen in kratko ime živijo v skupnih
+  // modulih (izmene.js, imena.js) - tu jih naložimo in preimenujemo v
+  // imena, ki jih uporablja izluščena koda iz imenik.html.
+  readFileSync(join(koren, "izmene.js"), "utf8"),
+  "var STANJE_BARVA = window.Izmene.STANJE_BARVA;",
+  "var IZMENA_KRATICE = window.Izmene.KRATICE;",
+  "var izmenaVnos = window.Izmene.vnos;",
+  "var vnosPoKratici = window.Izmene.poKratici;",
+  "var jeProst = window.Izmene.jeProst;",
+  "var izmenaKratica = window.Izmene.kratica;",
+  "var izmenaBarva = window.Izmene.barva;",
+  "var stanjeIzKode = window.Izmene.stanje;",
+  "var barvaBesedila = window.Izmene.barvaBesedila;",
   readFileSync(join(koren, "imena.js"), "utf8"),
   "var imenaSeUjemataBrezStresic = window.Imena.seUjemata;",
   "var kratkoIme = window.Imena.kratkoIme;",

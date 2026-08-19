@@ -59,12 +59,15 @@ const stran = `<!doctype html><html><head><meta charset="utf-8">
 <style>body{padding:12px;max-width:420px;font-family:system-ui,sans-serif}</style>
 <script src="react.production.min.js"></script>
 <script src="react-dom.production.min.js"></script>
-<script src="babel.min.js"></script></head><body><div id="r"></div>
+<script src="babel.min.js"></script>
+<script src="izmene.js"></script></head><body><div id="r"></div>
 <script type="text/babel">
 const { useState } = React;
-${izvleciConst("STANJE_BARVA")}
-${izvleciConst("IZMENA_KRATICE")}
-${izvleci("barvaBesedila")}
+// Uradna legenda in barve so v izmene.js (skupni modul za vse zaslone) -
+// preizkus jo naloži enako kot prava stran, ne kot svojo kopijo.
+const STANJE_BARVA = window.Izmene.STANJE_BARVA;
+const IZMENA_KRATICE = window.Izmene.KRATICE;
+const barvaBesedila = window.Izmene.barvaBesedila;
 function L(){ const [legendaOdprta, setLegendaOdprta] = useState(false); return (<React.Fragment>
 ${kartica}
 </React.Fragment>); }

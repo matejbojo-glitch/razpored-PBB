@@ -89,6 +89,9 @@ vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 // Skupni vir pravila stalne zasedbe (isti modul uporablja tudi
 // imenik.html -> Razpredelnica in index.html -> Moj razpored).
 vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
+// classify živi v izmene.js (skupni modul za vse zaslone).
+vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
+vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
 // Ujemanje imen živi v imena.js (skupni modul za vse zaslone), zato ga
 // tu naložimo namesto da bi ga luščili iz index.html.
 vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
@@ -101,7 +104,6 @@ vm.runInContext([
   izvleciFn("monthRange"),
   izvleciFn("daysInRange"),
   izvleciFn("parafaOd"),
-  izvleciFn("classify"),
   izvleciConst("NZV_ENOTE"),
   izvleciFn("razvrstiSA"),
   izvleciBlok("const NZV_STOLPCI = (() => {", "})();"),

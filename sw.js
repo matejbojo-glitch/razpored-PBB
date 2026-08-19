@@ -363,6 +363,9 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v75: izmene.js - uradna legenda izmen (kratice, barve, časi) in
+//      razvrstitev sta en sam vir; barve v "Po oddelkih" so odslej enake
+//      kot v Imenik -> Razpredelnica.
 // v74: imena.js - ujemanje imen med viri je en sam vir za vse štiri
 //      zaslone; prej je imel vsak svojo, drugače strogo različico.
 // v73: admin.html (generator NZV) bere praznike iz prazniki.js - četrta
@@ -389,7 +392,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v74';
+const CACHE = 'razpored-pbb-v75';
 const ASSETS = [
   './',
   './index.html',
@@ -420,6 +423,7 @@ const ASSETS = [
   './prazniki.js',
   './nzv-zasedba.js',
   './imena.js',
+  './izmene.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',

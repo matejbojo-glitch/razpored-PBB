@@ -154,6 +154,7 @@
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="imena.js"></script>
+<script src="izmene.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -386,19 +387,13 @@ async function nalozizDezurniKader(startISO){
   });
 }
 
-function classify(sifra){
-  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
-  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
-  if (t.startsWith("ld")) return "off";
-  if (t.startsWith("kpu")) return "off";
-  if (t.includes("nočna12")) return "h12";
-  if (t.includes("dnevna12")) return "h12";
-  if (t.startsWith("nočna")) return "noc";
-  if (t.startsWith("dopoldan")) return "dop";
-  if (t.startsWith("popoldan")) return "pop";
-  return "off";
-}
-const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672" };
+// Razvrstitev izmen in barve živijo v izmene.js - en sam vir za vse
+// zaslone. Generator uporablja SVOJO različico razvrstitve: tu se šteje
+// DEJANSKA zasedba izmene na oddelku, zato letni dopust in dežurstvo
+// padeta v "off" (kdor je na dopustu, ni na izmeni). Prav ta razlika je
+// razlog, da funkciji nista zliti v eno - glej opombo v izmene.js.
+const classify = window.Izmene.skupinaGeneratorja;
+const BARVE = window.Izmene.SKUPINA_BARVA;
 
 // Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" — tu ju

@@ -176,6 +176,7 @@
 <script src="push-client.js"></script>
 <script src="nav.js"></script>
 <script src="imena.js"></script>
+<script src="izmene.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="nzv-zasedba.js"></script>
@@ -243,28 +244,11 @@ const DELOVNI_ČAS = Object.fromEntries(
 DELOVNI_ČAS["KPU"] = "koriščenje prostih ur";
 DELOVNI_ČAS["LD"] = "letni dopust";
 
-function classify(sifra){
-  // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
-  const t = (sifra || "").toLowerCase().replace(/\s+/g, "");
-  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dez";
-  if (t.startsWith("ld")) return "ld"; // letni dopust - lastna (zelena) barva, ločeno od KPU/prostega (sivo)
-  if (t.startsWith("kpu")) return "off";
-  if (t.startsWith("prisoten")) return "dop"; // pogled "Vodje" - na svojem oddelku (ni odsoten)
-  if (t.includes("nočna12")) return "h12";
-  if (t.includes("dnevna12")) return "h12";
-  if (t.startsWith("nočna")) return "noc";
-  if (t.startsWith("dopoldan")) return "dop";
-  if (t.startsWith("popoldan")) return "pop";
-  return "off";
-}
-// LD je bil doslej "#2F6B4A" - temno zelena, skoraj neločljiva od dop
-// ("#4F9B6B", ki ga dobi tudi PRISOTEN) pri 15% prosojnem ozadju v vrstici
-// dneva. Zdaj rdeča "#E06666", enako kot letni dopust v uradnih preglednicah
-// bolnišnice in v Želje → Razpredelnica (--ld) - torej barva, ki jo kader že
-// pozna. Dežurstvo ostane svoja, temnejša opekasta rdeča IN se izriše polno
-// zapolnjeno (glej dayRow spodaj), da se od LD loči tudi po teži, ne le
-// odtenku.
-const BARVE = { dop:"#4F9B6B", pop:"#C9713F", noc:"#4A67B0", h12:"#8560A8", off:"#8B8672", ld:"#E06666", dez:"#B3402A" };
+// Razvrstitev izmen in barve živijo v izmene.js - en sam vir za vse
+// zaslone. Prej je imel ta zaslon svojo, grobo različico (7 skupin),
+// Imenik pa polno uradno legendo (22 kratic z natančnimi barvami), zato
+// je bila ista izmena tu ena barva in tam druga.
+const classify = window.Izmene.skupina;
 
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
@@ -580,7 +564,10 @@ function MyScheduleView({ userId, month, jeNzv }){
         <div className="todayCard">
           <div className="lbl">Danes · {window.Datum.slo(iso)}</div>
           <div className="shift">
-            <span className="dot" style={{background: BARVE[todayCls]}}></span>
+            {/* Ista barva kot v vrstici tega dne spodaj - iz uradne
+                legende (izmene.js), ne iz grobe skupine. */}
+            <span className="dot" style={{background: todayPrikaz === "" || !todaySifra
+              ? window.Izmene.STANJE_BARVA.prosto.barva : window.Izmene.barva(todaySifra)}}></span>
             <div>
               <div className="shiftName">{shiftLabel(todayPrikaz)}</div>
               <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
@@ -607,6 +594,12 @@ function MyScheduleView({ userId, month, jeNzv }){
               // besedilo pa iz pravila NZV delovnika.
               const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum);
               const cls = classify(prikaz === "" ? "" : sifra);
+              // Barva iz URADNE legende (izmene.js), ista kot v Imenik →
+              // Razpredelnica in v "Po oddelkih". Prej je bila tu ena od
+              // sedmih grobih skupin, zato je bila npr. nočna 12 v enem
+              // pogledu vijolična in v drugem temno modra.
+              const jePrazno = !sifra || prikaz === "" || window.Izmene.jeProst(sifra);
+              const barvaDneva = jePrazno ? null : window.Izmene.barva(sifra);
               const isToday = dn.datum === iso;
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
               const d = new Date(dn.datum + "T00:00:00");
@@ -621,13 +614,13 @@ function MyScheduleView({ userId, month, jeNzv }){
                       pogled loči od letnega dopusta, ki je prav tako rdečkast,
                       a le rahlo obarvan. Ostale izmene ostanejo lahke
                       (15% podlaga + obroba v svoji barvi). */}
-                  <div className={"chip" + (cls==="off" ? " off" : "") + (cls==="dez" ? " polna" : "")}
+                  <div className={"chip" + (jePrazno ? " off" : "") + (cls==="dez" ? " polna" : "")}
                     style={{
-                      background: cls==="dez" ? BARVE.dez : (cls==="off" ? "transparent" : BARVE[cls] + "26"),
-                      border: "1px solid " + (cls==="off" ? "var(--line)" : BARVE[cls]),
-                      color: cls==="dez" ? "#fff" : undefined,
+                      background: cls==="dez" ? barvaDneva : (jePrazno ? "transparent" : barvaDneva + "26"),
+                      border: "1px solid " + (jePrazno ? "var(--line)" : barvaDneva),
+                      color: cls==="dez" ? window.Izmene.barvaBesedila(barvaDneva) : undefined,
                     }}>
-                    <span className="dot" style={{background: cls==="dez" ? "#fff" : BARVE[cls]}}></span>
+                    <span className="dot" style={{background: cls==="dez" ? "#fff" : (barvaDneva || "var(--off)")}}></span>
                     <span style={{minWidth:0, overflow:"hidden"}}>
                       <span className="txt">{shiftLabel(prikaz)}</span>
                       {cls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[dn.datum]).map(z => (
@@ -821,6 +814,29 @@ function WardView({ deptCode, month, myId }){
     return m;
   }, [entries]);
 
+  // Legenda pod tabelo: samo izmene, ki so ta mesec DEJANSKO v razporedu.
+  // Vir barv in nazivov je uradna legenda (izmene.js), ista kot v
+  // Imenik → Razpredelnica, zato se barva v legendi in barva v celici ne
+  // moreta razhajati. Vrstni red je vrstni red uradne legende, ne vrstni
+  // red pojavitve - da je seznam med meseci stabilen.
+  const legendaIzmen = useMemo(() => {
+    const videne = new Set();
+    (entries || []).forEach(e => { if (e.shift_code) videne.add(e.shift_code); });
+    const poKratici = new Map();
+    videne.forEach(sifra => {
+      const k = window.Izmene.kratica(sifra);
+      if (!k || poKratici.has(k)) return;
+      poKratici.set(k, {
+        kratica: k,
+        naziv: window.Izmene.naziv(sifra),
+        cas: window.Izmene.cas(sifra),
+        barva: window.Izmene.barva(sifra),
+      });
+    });
+    const vrstniRed = window.Izmene.KRATICE.map(v => v[1]);
+    return [...poKratici.values()].sort((a, b) => vrstniRed.indexOf(a.kratica) - vrstniRed.indexOf(b.kratica));
+  }, [entries]);
+
   if (employees === null || entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
   if (employees.length === 0) return <p className="sub" style={{marginTop:16}}>Za ta oddelek še ni dodeljenih zaposlenih.</p>;
 
@@ -869,7 +885,15 @@ function WardView({ deptCode, month, myId }){
                     // stolpci ne zasujejo z odvečno oznako.
                     const pokriva = zapis && (zapis.pokriva_oddelek
                       || (zapis.department_code !== deptCode ? zapis.department_code : null));
-                    const cls = classify(sifra);
+                    // Barva je iz URADNE legende (izmene.js), enaka kot v
+                    // Imenik -> Razpredelnica - prej je bila tu ena od
+                    // sedmih grobih skupin, zato je bila ista izmena tu
+                    // ena barva in tam druga. Besedilo v celici ostaja
+                    // POIMENSKO (cela koda izmene), ne kratica: ta pogled
+                    // ima široke stolpce in uporabnik bere ime izmene.
+                    const barvaIzmene = window.Izmene.barva(sifra);
+                    const opisIzmene = window.Izmene.naziv(sifra)
+                      + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "");
                     const isMe = z.id === myId;
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
@@ -880,7 +904,10 @@ function WardView({ deptCode, month, myId }){
                             RAZPORED"), vsaka druga pokaže celotno kodo. */}
                         {pokriva && <span className="pokriva" title={"Ta dan pokriva: " + pokriva}>{pokriva}</span>}
                         {sifra && (
-                          <span className={"swatch swatch-" + cls} title={sifra}>{sifra}</span>
+                          <span className="swatch" title={opisIzmene}
+                            style={{background: barvaIzmene, color: window.Izmene.barvaBesedila(barvaIzmene)}}>
+                            {sifra}
+                          </span>
                         )}
                       </td>
                     );

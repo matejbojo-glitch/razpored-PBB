@@ -46,7 +46,10 @@ function izvleciFn(ime) {
   }
   throw new Error("Konec funkcije " + ime + " ni najden.");
 }
-vm.runInContext([izvleciFn("classify"), izvleciFn("nzvPrikaz")].join("\n\n"), sandbox);
+// classify živi v izmene.js (skupni modul za vse zaslone).
+vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
+vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
+vm.runInContext(izvleciFn("nzvPrikaz"), sandbox);
 
 const { stalnaZasedba } = sandbox.window.NzvZasedba;
 const { nzvPrikaz } = sandbox;

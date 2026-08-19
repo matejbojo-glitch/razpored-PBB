@@ -164,17 +164,14 @@ h1.pageTitle, h2.pageTitle{
    modra, Dežurstvo/Urgentno = rdeča, Dopust = zelena, Prosto = siva …).
    Barve ostajajo iste spremenljivke kot doslej (samo zbrane tu namesto
    raztresene po inline stilih vsake strani). */
+/* Ozadje in barva pisave prideta iz uradne legende (izmene.js) prek
+   inline sloga - vsaka izmena ima svojo barvo, ne le ena od sedmih
+   skupin, tako da so barve enake kot v Imenik -> Razpredelnica. Zato tu
+   ni več .swatch-dop/.swatch-noc/… razredov. */
 .swatch{
   display:inline-block; padding:3px 7px; border-radius:6px; font-size:10.5px; font-weight:700;
-  color:#fff; line-height:1.3;
+  line-height:1.3;
 }
-.swatch-dop{ background: var(--dop); }
-.swatch-pop{ background: var(--pop); }
-.swatch-noc{ background: var(--noc); }
-.swatch-h12{ background: var(--h12); }
-.swatch-ld{ background: var(--ld); }
-.swatch-off{ background: var(--off); }
-.swatch-dez{ background: var(--danger); }
 .dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,.5) inset; }
 
 /* ---------- zložljiva pomoč/navodila ("?" gumb namesto stalnega besedila) ---------- */
