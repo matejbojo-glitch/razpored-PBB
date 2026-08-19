@@ -172,22 +172,15 @@ console.log("10) preslikava kod aplikacije v uradne kratice");
   eq(izmenaKratica("POMOČ DRUGJE"), "POM", "pomoč na drugem oddelku");
 }
 
-console.log("10b) delni FLEXI izmeni imata svoji kratici (DF7 / DP7)");
+console.log("10b) odstranjene kode (DF7 / DP7 / POM) so odslej neznane");
 {
-  // V oddelčnih zavihkih preglednice sta zapisani kot "dop. 7.h-13.h" in
-  // "pop. 14.h-20.h" (navzkrižno pokrivanje drugega oddelka).
-  eq(izmenaKratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne 07:00-13:00");
-  eq(izmenaKratica("pop. 14.h-20.h"), "DP7", "flexi popoldne 14:00-20:00");
-  eq(izmenaKratica("dop 7-13"), "DF7", "brez pik in 'h'");
-  eq(izmenaKratica("pop 14-20"), "DP7", "brez pik in 'h'");
-  // Ključno: NISTA isti izmeni kot navadni dopoldan/popoldan -
-  // 14:00-20:00 ni 13:50-21:00. Če bi se zlili, bi razpredelnica trdila,
-  // da nekdo dela izmeno, ki je ne dela.
-  trdi(izmenaKratica("dop. 7.h-13.h") !== izmenaKratica("dopoldan"), "DF7 != DOP");
-  trdi(izmenaKratica("pop. 14.h-20.h") !== izmenaKratica("popoldan"), "DP7 != PO7");
-  trdi(izmenaBarva("dop. 7.h-13.h") !== izmenaBarva("dopoldan"), "DF7 ima svojo barvo");
-  trdi(izmenaBarva("pop. 14.h-20.h") !== izmenaBarva("popoldan"), "DP7 ima svojo barvo");
-  eq(stanjeIzKode("dop. 7.h-13.h"), "delo", "flexi izmena šteje kot delo");
+  // Uporabnikova odločitev (avgust 2026): navzkrižno pokrivanje se ne
+  // vodi več kot svoja izmena. Kode ni več v legendi, a se ne sme
+  // izgubiti tiho - celica mora ostati vidna, le nevtralno siva.
+  eq(izmenaBarva("dop. 7.h-13.h"), "#8B8672", "flexi dopoldne je zdaj neznana koda");
+  eq(izmenaBarva("pop. 14.h-20.h"), "#8B8672", "flexi popoldne prav tako");
+  eq(izmenaBarva("POMOČ DRUGJE"), "#8B8672", "pomoč na drugem oddelku prav tako");
+  eq(stanjeIzKode("POMOČ DRUGJE"), "delo", "a še vedno šteje kot delo, ne kot prosto");
 }
 
 console.log("10c) kode, potrjene na PRAVI datoteki 2026_SMS_RAZPORED_2.xlsx");
@@ -229,8 +222,6 @@ console.log("10e) omejen delovni čas: DO6 / DO4 / PO4");
   // Ključno: te vzorce se NE sme sprožiti pri obstoječih kodah, kjer se
   // števka 4 ali 6 pojavi v urah. Preverjeno na vseh kodah iz prave
   // datoteke, ki se začnejo z "dop"/"pop".
-  eq(izmenaKratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne ostane DF7 (ne DO6)");
-  eq(izmenaKratica("pop. 14.h-20.h"), "DP7", "flexi popoldne ostane DP7 (ne PO4)");
   eq(izmenaKratica("dopoldan (7-15h)"), "DOP", "DMS dopoldan ostane DOP");
   eq(izmenaKratica("dopoldan"), "DOP", "navaden dopoldan ostane DOP");
   eq(izmenaKratica("popoldan"), "PO7", "navaden popoldan ostane PO7");

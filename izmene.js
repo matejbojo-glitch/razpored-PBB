@@ -27,6 +27,17 @@ window.Izmene = (function () {
     prosto:   { oznaka: "",    naziv: "Prosto / ni v razporedu", barva: "#D8D2BE" },
   };
 
+  // Odstranjene na uporabnikovo zahtevo (avgust 2026):
+  //   DF7 "Flexi dopoldne 07:00-13:00" in DP7 "Flexi popoldne 14:00-20:00"
+  //       - navzkrižno pokrivanje se ne vodi več kot svoja izmena; nobena
+  //         pot v aplikaciji teh dveh kod ni ustvarjala.
+  //   POM "Pomoč na drugem oddelku" - te vrstice v legendi ni več. Kodo
+  //       "POMOČ DRUGJE" pa generator (admin.html -> Kalup, tedenski
+  //       preklop LD/POM) še VEDNO lahko zapiše; taka celica se odslej
+  //       izriše kot neznana koda: nevtralno siva, z besedilom "POM".
+  //       Štetje pokritosti je nespremenjeno - "POMOČ DRUGJE" je bila že
+  //       prej izvzeta po imenu (admin.html), ne prek legende.
+  //
   // URADNA legenda kratic - stolpec "kratica za aplikacijo" v delovnik.xlsx
   // ("Razpored delovnega časa - Služba za ZN in oskrbo", veljavnost od
   // 1. 7. 2022). Kratice so največ 3 znaki; edina izjema je DF12
@@ -67,22 +78,11 @@ window.Izmene = (function () {
     [/^dop\D*4/,               "DO4",  "Dopoldan 4 ure",          "omejitev 4 ur/dan", "#A7DCC0", "delo"],
     [/^pop\D*4/,               "PO4",  "Popoldan 4 ure",          "omejitev 4 ur/dan", "#F0C08A", "delo"],
     [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
-    // Delni FLEXI izmeni: v oddelčnih zavihkih preglednice sta zapisani kot
-    // "dop. 7.h-13.h" in "pop. 14.h-20.h" (navzkrižno pokrivanje drugega
-    // oddelka). Nista isti kot navadni DOP/PO7 - 14:00-20:00 ni 13:50-21:00 -
-    // zato imata svoji kratici in svoji barvi.
-    [/^dop7h?-?13/,            "DF7",  "Flexi dopoldne",          "07:00-13:00", "#2E7D5B", "delo"],
-    [/^pop14h?-?20/,           "DP7",  "Flexi popoldne",          "14:00-20:00", "#A85A2A", "delo"],
     [/^do7|^dopoldan7/,        "DO7",  "Dopoldan (pripravnik)",   "PON-PET 07:00-14:00", "#8FCBA4", "delo"],
     // "PRISOTEN" je koda, ki jo aplikacija zapiše za NZV/vodje - to je po
     // uradni datoteki prva vrstica (DMS, PON-PET 07:00-15:00), torej DOP.
     // Ločene kratice "PRI" zato ni (uporabnikova izrecna zahteva).
     [/^dopoldan|^prisoten/,    "DOP",  "Dopoldan",                "PON-PET 05:50-14:00 · DMS/vodje 07:00-15:00", "#4F9B6B", "delo"],
-    // "POMOČ DRUGJE" ni izmena iz uradne datoteke, ampak oznaka, ki jo
-    // ustvari generator, kadar nekdo cel teden pomaga na drugem oddelku.
-    // Oseba TA DAN dela, zato celica ne sme ostati prazna - prazen dan bi
-    // pomenil, da jo koordinator lahko po nesreči razporedi še enkrat.
-    [/^pomoč|^pomoc/,          "POM",  "Pomoč na drugem oddelku", "", "#C9A227", "delo"],
     [/^kpu/,                   "KPU",  "Koriščenje prostih ur",   "", "#B8B29C", "prosto"],
     [/^ld/,                    "LD",   "Letni dopust",            "", "#E06666", "dopust"],
     [/^por/,                   "POR",  "Porodniški dopust",       "", "#E8A0C8", "dopust"],
