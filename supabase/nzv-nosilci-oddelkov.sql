@@ -50,7 +50,10 @@ values
   ('POGAČNIK TEJA', 'POG', '1058', 'E1', 'E1', 35, false, null, false, null, 'porodniška', '2027-07-31', null, 'trenutno porodniška - do julij 2027'),
   ('SALKIĆ MARUŠA', 'SAL', '925', 'C1', 'C1', 19, true, 1, true, null, null, null, null, '1x dežurstvo na mesec med tednom'),
   ('ŠUBIC PETRA', 'ŠUB', '905', 'B1B2', 'B1/SOB/NOB', 28, true, null, false, null, null, null, 'MAVRI TRATNIK MAGDALENA', 'ob odsotnosti (LD, BS) Magdalena Mavri Tratnik'),
-  ('TOMAŽEVIČ SIMONA', 'TOM', '793', 'A', 'A', 37, true, null, false, null, null, null, 'VELUŠČEK METKA', 'ob odsotnosti (LD, BS) nadomeščanje Velušček Metka'),
+  -- Nosilka enote A IN enote PO (uporabnikova navedba, avgust 2026) -
+  -- PO doslej ni imela nobenega nosilca, zato je stolpec v NZV mreži
+  -- ostajal prazen.
+  ('TOMAŽEVIČ SIMONA', 'TOM', '793', 'A', 'A/PO', 37, true, null, false, null, null, null, 'VELUŠČEK METKA', 'ob odsotnosti (LD, BS) nadomeščanje Velušček Metka'),
   ('TORKAR TANJA', 'TOR', '965', 'DB', 'DB', 23, true, null, false, null, null, null, 'HROVAT NINA', 'ob odsotnosti (LD, BS) nadomeščanje Hrovat Nina'),
   ('TRPIN SAŠA', 'TRP', '870', 'URGENCA', 'UA/SA', 17, true, 1, true, null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) Bizjak Tea, Musić Ines'),
   ('VELUŠČEK METKA', 'VEL', '834', 'SOBO', 'SOBO', 41, true, 2, false, null, null, null, 'DŽAMASTAGIĆ DENIS', 'ob odsotnosti (LD, BS) nadomeščanje Džamastagić Denis')

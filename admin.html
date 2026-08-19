@@ -659,7 +659,7 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
     rezultat.dnevi.forEach(dn => {
       const dejansko = rezultat.staff.filter(z => {
         const v = celica(z, dn);
-        return v && v !== "LD" && v !== "POMOČ DRUGJE";
+        return v && v !== "LD";
       }).length;
       const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
       const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
@@ -814,7 +814,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
   const vrstice = rezultat.dnevi.map(dn => {
     const dejansko = rezultat.staff.filter(z => {
       const v = celica(z, dn);
-      return v && v !== "LD" && v !== "POMOČ DRUGJE";
+      return v && v !== "LD";
     }).length;
     const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
     const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
@@ -894,8 +894,10 @@ function KalupTab(){
   const [koda, setKoda] = useState("B");
   const [month, setMonth] = useState("2026-11");
   const [letters, setLetters] = useState({}); // override startLetter po imenu
-  // "ime|monday" -> "LD" (letni dopust) | "POMOC" (začasno pomaga drugemu
-  // oddelku, ni na voljo za svoj kalup) | undefined (navadna rotacija).
+  // "ime|monday" -> "LD" (letni dopust) | undefined (navadna rotacija).
+  // Oznaka "POMOC" ("Pomoč na drugem oddelku") je bila odstranjena na
+  // uporabnikovo zahtevo - navzkrižno pokrivanje se ne vodi več prek
+  // generatorja, ampak z razporedom na ciljnem oddelku.
   const [tedenskoStanje, setTedenskoStanje] = useState({});
   const [samodejnoLdSt, setSamodejnoLdSt] = useState(0); // koliko tednov LD je bilo samodejno prebranih iz baze
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
@@ -942,14 +944,12 @@ function KalupTab(){
   const { startISO, endISO } = monthRange(month);
   const tedni = useMemo(() => mondaysInRange(startISO, endISO), [startISO, endISO]);
 
-  // Klik kroži: navadna rotacija -> LD -> Pomoč drugje -> navadna rotacija.
+  // Klik preklaplja: navadna rotacija <-> LD.
   const cikliTeden = (ime, monday) => {
     const key = ime + "|" + monday;
     setTedenskoStanje(t => {
-      const trenutno = t[key];
-      const novo = trenutno === "LD" ? "POMOC" : trenutno === "POMOC" ? undefined : "LD";
       const kopija = { ...t };
-      if (novo) kopija[key] = novo; else delete kopija[key];
+      if (t[key] === "LD") delete kopija[key]; else kopija[key] = "LD";
       return kopija;
     });
   };
@@ -996,14 +996,13 @@ function KalupTab(){
         startLetter: letters[ime] || defLetter,
         hsuffix: meta.hsuffix,
         dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
-        pomocTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "POMOC"),
         omejitve: omejitveMap[ime] || [],
       }));
       const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
       // Pokritost po dnevih: kar bi kalup ta dan običajno zasedel, ČE nihče
       // ne bi bil na dopustu/pomoči drugje (isto osebje/rotacija, brez
       // odsotnosti) — izhodišče za primerjavo z dejansko zasedbo spodaj.
-      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], pomocTedni: [], omejitve: [] }));
+      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], omejitve: [] }));
       const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
       const pricakovanoPoDnevih = {};
       bazno.dnevi.forEach(dn => {
@@ -1206,7 +1205,7 @@ function KalupTab(){
                 {tedni.map(mo => (
                   <td key={mo}>
                     <button className="weekToggle" aria-pressed={!!tedenskoStanje[ime+"|"+mo]} onClick={() => cikliTeden(ime, mo)}>
-                      {tedenskoStanje[ime+"|"+mo] === "LD" ? "LD" : tedenskoStanje[ime+"|"+mo] === "POMOC" ? "POM" : "—"}
+                      {tedenskoStanje[ime+"|"+mo] === "LD" ? "LD" : "—"}
                     </button>
                   </td>
                 ))}

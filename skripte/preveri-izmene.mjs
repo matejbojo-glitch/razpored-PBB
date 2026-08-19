@@ -148,15 +148,15 @@ console.log("4b) odstranjene kode (DF7, DP7, POM) se obravnavajo kot neznane");
   // vodi več kot svoja izmena, "Pomoč na drugem oddelku" pa ni več v
   // legendi. Nobena od teh kod ne sme ostati v legendi …
   ["DF7", "DP7", "POM"].forEach(k => trdi(!I.poKratici(k), `kratice ${k} ni več v legendi`));
-  // … in če se taka koda vseeno pojavi (generator "POMOČ DRUGJE" še zna
-  // zapisati), se mora obravnavati kot NEZNANA: siva, a z vidnim
+  // … in če se taka koda vseeno pojavi (stari objavljeni razporedi jo
+  // še vsebujejo), se mora obravnavati kot NEZNANA: siva, a z vidnim
   // besedilom - tiho prazna celica bi izgledala kot prost dan.
   eq(I.barva("POMOČ DRUGJE"), "#8B8672", "POMOČ DRUGJE dobi nevtralno sivo");
   eq(I.kratica("POMOČ DRUGJE"), "POM", "in ostane vidna kot 'POM'");
   eq(I.stanje("POMOČ DRUGJE"), "delo", "šteje se kot delo, ne kot prost dan");
   // Štetje pokritosti ostane, kar je bilo: "POMOČ DRUGJE" je bila že prej
   // izvzeta po imenu v admin.html, ne prek legende.
-  eq(I.skupinaGeneratorja("POMOČ DRUGJE"), "off", "generator je še naprej ne šteje k zasedbi");
+  eq(I.skupinaGeneratorja("POMOČ DRUGJE"), "off", "in se ne šteje k zasedbi izmene");
 }
 
 console.log("5) pisava je berljiva na vsaki barvi iz legende");
