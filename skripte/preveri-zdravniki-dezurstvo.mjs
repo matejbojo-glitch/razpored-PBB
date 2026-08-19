@@ -58,10 +58,16 @@ function trdi(pogoj, opis) {
 function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`)); }
 
 const sandbox = { console };
+sandbox.window = sandbox; // skupni moduli se predstavijo prek window, kot v brskalniku
 vm.createContext(sandbox);
 vm.runInContext([
   izvleciConst("ZDR_DAN_RX"), izvleciConst("ZDR_PRIVZETI_STOLPCI"),
-  izvleci("monthRange"), izvleci("zdrDatum"), izvleci("najdiStolpceZdravnikov"),
+  // Koledarski izračuni živijo v datum.js (skupni modul za vse strani),
+  // zato ga naložimo in monthRange samo preimenujemo - enako, kot to
+  // naredi index.html.
+  readFileSync(join(koren, "datum.js"), "utf8"),
+  "var monthRange = window.Datum.obseg;",
+  izvleci("zdrDatum"), izvleci("najdiStolpceZdravnikov"),
   izvleci("zdrIme"), izvleci("obdelajZdravnikiVrstice"),
 ].join("\n\n"), sandbox);
 const { obdelajZdravnikiVrstice, zdrDatum, zdrIme, najdiStolpceZdravnikov } = sandbox;

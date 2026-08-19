@@ -90,7 +90,11 @@ function jseq(a, b, opis) {
 
 const koda = [
   izvleciVrstico("const ISO_DATUM_RX"),
-  izvleci("monthRange"),
+  // Koledarski izračuni živijo v datum.js (skupni modul za vse strani),
+  // zato ga naložimo in monthRange samo preimenujemo - enako, kot to
+  // naredi index.html.
+  readFileSync(join(koren, "datum.js"), "utf8"),
+  "var monthRange = window.Datum.obseg;",
   constVKotVar(izvleciConst("NZV_ENOTE")),
   izvleci("razvrstiSA"),
   constVKotVar(izvleciConstIife("NZV_STOLPCI")),

@@ -71,7 +71,11 @@ const koda = [
   izvleciVrstico("const VLOGA_RX"),
   izvleci("priimekZacetnica"),
   izvleci("parafaOd"),
-  izvleci("monthRange"),
+  // Koledarski izračuni živijo v datum.js (skupni modul za vse strani),
+  // zato ga naložimo in monthRange samo preimenujemo - enako, kot to
+  // naredi index.html.
+  readFileSync(join(koren, "datum.js"), "utf8"),
+  "var monthRange = window.Datum.obseg;",
   constVKotVar(izvleciConst("PO_ODDELKIH_KODE")),
   izvleci("najdiVrsticoImen"),
   constVKotVar(izvleciConst("NZV_ENOTE")),
