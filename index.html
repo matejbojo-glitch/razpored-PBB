@@ -175,6 +175,7 @@
 <script src="supabase-client.js"></script>
 <script src="push-client.js"></script>
 <script src="nav.js"></script>
+<script src="imena.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="nzv-zasedba.js"></script>
@@ -940,31 +941,17 @@ const NZV_STOLPCI = (() => {
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
 const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
 
-// Kdo sploh sodi v NZV razpored: vodje in administratorji. Navadni
-// uporabniki ("user") so razporejeni po oddelkih (WardView), ne tukaj.
-const JE_NZV_VLOGA = new Set(["vodja", "admin"]);
+// Kdo sodi v NZV razpored, je v nzv-zasedba.js - isti nabor potrebuje
+// tudi Imenik -> Razpredelnica, zato en sam vir.
+const JE_NZV_VLOGA = new Set(window.NzvZasedba.VLOGE);
 
-// Znane, uporabnikom POTRJENE napake pri tipkanju v izvornih dokumentih
-// (ne domneva) - "Horvat" namesto "Hrovat" in "Tomažević" namesto
-// "Tomaževič" sta se v resnični NZV predlogi izmenično pojavljali za ISTI
-// osebi, kar bi brez tega povzročilo neujemanje - "vreča besed" prenese
-// samo vrstni red besed, ne posameznih napačnih črk. Namerno SAMO ti dve,
-// natančni besedi - splošno popravljanje "ć"/"č" bi bilo nevarno (obe črki
-// se legitimno pojavljata v resničnih priimkih, npr. "Alukić", "Sofrić").
-const IME_PSEVDONIM_NZV = { "HORVAT": "HROVAT", "TOMAŽEVIĆ": "TOMAŽEVIČ" };
-function normalizirajImeNzv(s){
-  return (s || "").trim().toUpperCase().replace(/\s+/g, " ")
-    .split(" ").map(b => IME_PSEVDONIM_NZV[b] || b).join(" ");
-}
-// Ista "vreča besed" primerjava kot imenaSeUjemata v zelje.html
-// (leave_entries.full_name je prosto besedilo iz statičnega roster-seznama,
-// ne nujno enak zapis kot profiles.full_name) - namerno podvojeno tu namesto
-// deljene datoteke, glej opombo ob classify()/BARVE v drugih straneh.
-function imenaSeUjemataNzv(a, b){
-  const na = normalizirajImeNzv(a), nb = normalizirajImeNzv(b);
-  if (!na || !nb) return false;
-  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
-}
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone.
+// Prej je imel vsak svojo, drugače strogo različico (ta je npr. poznala
+// potrjeni tipkarski napaki "Horvat"/"Tomažević", ni pa prenesla
+// izgubljenih strešic - Imenik pa ravno obratno), zato se je ista oseba
+// na enem zaslonu našla, na drugem pa ne.
+const imenaSeUjemataNzv = window.Imena.seUjemata;
+const kljucImenaNzv = window.Imena.kljuc;
 
 // Naziv stolpca (kot v uradni predlogi) -> notranja koda. Skupno za izris,
 // izvoz, uvoz IN pisanje nazaj, da se štirje kraji ne razidejo.
@@ -983,12 +970,6 @@ const saStolpec = window.NzvZasedba.saStolpec;
 function nzvEnoteVKode(enote, saKoda){
   return window.NzvZasedba.enoteVKode(enote, saKoda, NZV_STOLPCI.map(([k]) => k));
 }
-
-// Ključ za primerjavo imen med viri, ki jih pišejo različni ljudje
-// (lead_departments/nadomescanja v velikih črkah "ALUKIĆ DINO",
-// leave_entries "Dino Alukić", profiles "Alukić Dino") - ista "vreča
-// besed" kot imenaSeUjemataNzv, le v obliki, primerni za Set/slovar.
-function kljucImenaNzv(s){ return normalizirajImeNzv(s).split(" ").sort().join(" "); }
 
 // Skupno nalaganje podatkov za izris/izvoz/pisanje-nazaj NZV pogleda -
 // "podatki" = { "KODA|datum": "parafa, parafa2" } za vse enote + DEZ +

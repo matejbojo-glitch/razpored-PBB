@@ -49,12 +49,18 @@ function eq(a, b, opis) {
 }
 
 const sandbox = { console };
+sandbox.window = sandbox; // imena.js se predstavi prek window, kot v brskalniku
 vm.createContext(sandbox);
 vm.runInContext([
   izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
   izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("jeProst"), izvleci("izmenaKratica"),
   izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
-  izvleci("brezStresic"), izvleci("imenaSeUjemataBrezStresic"), izvleci("kratkoIme"),
+  // Ujemanje imen in kratko ime živita v imena.js (skupni modul za vse
+  // zaslone) - tu ju naložimo in preimenujemo v imeni, ki ju uporablja
+  // izluščena koda iz imenik.html.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  "var imenaSeUjemataBrezStresic = window.Imena.seUjemata;",
+  "var kratkoIme = window.Imena.kratkoIme;",
 ].join("\n\n"), sandbox);
 const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
         KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE,

@@ -83,9 +83,12 @@ const indexKoda = [
   izvleciFn(htmlSrc, "vrsticaJePrazna"),
   izvleciFn(htmlSrc, "obdelajBlok"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ODSOTNOST_KIND")),
-  constVKotVar(izvleciConst(htmlSrc, "IME_PSEVDONIM_NZV")),
-  izvleciFn(htmlSrc, "normalizirajImeNzv"),
-  izvleciFn(htmlSrc, "imenaSeUjemataNzv"),
+  // Ujemanje imen živi v imena.js (skupni modul), zato ga tu ne luščimo
+  // iz index.html, ampak naložimo in samo preimenujemo v stara imena, ki
+  // jih izluščene funkcije kličejo.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  "var normalizirajImeNzv = window.Imena.normaliziraj;",
+  "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
   izvleciFn(htmlSrc, "ocistiNazivOsebe"),
   izvleciFn(htmlSrc, "obdelajNzvVrstice"),

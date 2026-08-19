@@ -67,6 +67,9 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
+// Ujemanje imen živi v imena.js (skupni modul za vse zaslone).
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
+vm.runInContext("var imenaSeUjemataBrezStresic = window.Imena.seUjemata;", sandbox);
 vm.runInContext([
   izvleciBlok("const IZMENA_KRATICE = [", "\n];"),
   izvleciBlok("const STANJE_BARVA = {", "\n};"),
@@ -75,8 +78,6 @@ vm.runInContext([
   izvleciFn("izmenaKratica"),
   izvleciFn("izmenaBarva"),
   izvleciFn("stanjeIzKode"),
-  izvleciFn("brezStresic"),
-  izvleciFn("imenaSeUjemataBrezStresic"),
 ].join("\n\n"), sandbox);
 
 // Izsek iz useEffect-a v StanjeRazpredelnica: del, ki iz objavljenih

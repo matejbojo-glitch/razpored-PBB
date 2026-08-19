@@ -93,6 +93,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="imena.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="nzv-zasedba.js"></script>
@@ -1658,30 +1659,18 @@ function barvaBesedila(hex){
 // strešicam. Potrebno, ker lead_departments hrani ime kot prosto besedilo
 // (brez povezave na profil) in ga uradne opombe pišejo po svoje: "Dijana
 // Lelić" proti "Lelič Dijana".
-function brezStresic(s){
-  return String(s || "").toUpperCase()
-    .replace(/[ČĆ]/g, "C").replace(/Š/g, "S").replace(/Ž/g, "Z").replace(/Đ/g, "D");
-}
-// "MAVRI TRATNIK MAGDALENA" -> "Mavri T. M." bi bilo nečitljivo; v ozkem
-// stolpcu zadošča priimek (prva beseda), polno ime pa je v opisu ob kazalcu.
-function kratkoIme(polno){
-  const deli = String(polno || "").trim().split(/\s+/);
-  if (!deli.length) return "";
-  const priimek = deli[0];
-  return priimek.charAt(0) + priimek.slice(1).toLowerCase();
-}
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone. Prej
+// je imel vsak svojo, drugače strogo različico (ta je prenesla izgubljene
+// strešice, ni pa poznala potrjenih tipkarskih napak "Horvat"/"Tomažević"
+// - v "Moj razpored" pa ravno obratno), zato se je ista oseba na enem
+// zaslonu našla, na drugem pa ne.
+const imenaSeUjemataBrezStresic = window.Imena.seUjemata;
+const kratkoIme = window.Imena.kratkoIme;
 
-function imenaSeUjemataBrezStresic(a, b){
-  const razbij = x => brezStresic(x).trim().split(/\s+/).filter(Boolean).sort().join(" ");
-  const na = razbij(a), nb = razbij(b);
-  return !!na && na === nb;
-}
-
-// Kdo sodi v NZV (vodje/administratorji) - zanje velja delovnik
-// PON-PET, vikendi in prazniki prosti razen dežurstva. Isti nabor kot v
-// index.html; namerno ponovljen, ker imenik.html do njega ne more prek
-// <script src> (index.html je Babel).
-const JE_NZV_VLOGA = new Set(["vodja", "admin"]);
+// Kdo sodi v NZV (vodje/administratorji) - zanje velja delovnik PON-PET,
+// vikendi in prazniki prosti razen dežurstva. Nabor je v nzv-zasedba.js,
+// da se z "Moj razpored" in NZV mrežo ne more razdružiti.
+const JE_NZV_VLOGA = new Set(window.NzvZasedba.VLOGE);
 
 // leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.

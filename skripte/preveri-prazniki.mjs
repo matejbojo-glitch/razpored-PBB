@@ -117,8 +117,8 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
     "Razpredelnica: dopust/bolniška se za NZV vodita samo za delovne dni");
   trdi(/stanjeIzKode\(v\.shift_code\) !== "dezurstvo"/.test(imenik),
     "Razpredelnica: DEŽURSTVO ob prostem dnevu OSTANE");
-  trdi(/const JE_NZV_VLOGA = new Set\(\["vodja", "admin"\]\);/.test(imenik),
-    "Razpredelnica ve, kdo je NZV (vodja/admin)");
+  trdi(/const JE_NZV_VLOGA = new Set\(window\.NzvZasedba\.VLOGE\);/.test(imenik),
+    "Razpredelnica ve, kdo je NZV — nabor vlog iz skupnega vira");
   trdi(/select\("id, full_name, role, department_code"\)/.test(imenik),
     "in vlogo tudi res prebere (sicer bi bil filter vedno prazen)");
 

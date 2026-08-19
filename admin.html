@@ -153,6 +153,7 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="imena.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -1942,14 +1943,11 @@ function VodjeTab(){
 }
 
 // ---------------------------------------------------------------------
-// Ista logika kot imenaSeUjemata v zelje.html (vreča besed, vrstni red ni
-// pomemben) — tu podvojena, ker ni skupnega JS modula med statičnimi stranmi.
-function imenaSeUjemataAdmin(a, b){
-  const na = (a||"").trim().toUpperCase().replace(/\s+/g," ");
-  const nb = (b||"").trim().toUpperCase().replace(/\s+/g," ");
-  if (!na || !nb) return false;
-  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
-}
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone. Ta
+// različica je bila najbolj stroga od štirih (ni prenesla ne izgubljenih
+// strešic ne potrjenih tipkarskih napak iz uradnih predlog), zato je tu
+// kdo ostal nepovezan, čeprav se je na drugih zaslonih našel.
+const imenaSeUjemataAdmin = window.Imena.seUjemata;
 
 // Trije stalni administratorji (na izrecno, trajno navodilo) — nikoli se ne
 // ponastavijo na "Zaposleni", tudi ne pri množičnem ponastavljanju spodaj.
