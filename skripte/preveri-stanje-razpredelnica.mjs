@@ -188,6 +188,12 @@ console.log("10c) kode, potrjene na PRAVI datoteki 2026_SMS_RAZPORED_2.xlsx");
   eq(izmenaKratica("popoldan (M)"), "PO7", "isto za popoldan");
   eq(izmenaKratica("NOČNA od 19 (M)"), "N11", "isto za nočno od 19");
   eq(izmenaKratica("popoldan do 19"), "PO5", '"popoldan do 19" brez "h"');
+  // "popoldan do 20" ni v uradni legendi; uporabnik je potrdil PO6 po
+  // vzorcu PO5 = 5 ur, PO7 = 7 ur.
+  eq(izmenaKratica("popoldan do 20"), "PO6", '"popoldan do 20" (10x) -> PO6');
+  eq(izmenaKratica("popoldan do 20h"), "PO6", 'in različica z "h"');
+  trdi(new Set([izmenaKratica("popoldan do 19"), izmenaKratica("popoldan do 20"),
+    izmenaKratica("popoldan")]).size === 3, "vse tri popoldanske izmene ostanejo ločene");
   eq(izmenaKratica("POR"), "POR", '"POR" (70x) porodniški');
   eq(izmenaKratica("STI"), "STI", '"STI" strokovno izobraževanje');
 }
