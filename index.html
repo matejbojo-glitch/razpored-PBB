@@ -1544,7 +1544,7 @@ function kratkaImenaMapa(profili){
   const m = {};
   const podvojena = new Set();
   (profili || []).forEach(p => {
-    const kratko = priimekZacetnica(p.full_name).toUpperCase();
+    const kratko = window.Imena.kratkiKljuc(p.full_name);
     if (kratko in m) { podvojena.add(kratko); } else { m[kratko] = p.id; }
   });
   podvojena.forEach(k => delete m[k]);
@@ -1715,7 +1715,10 @@ function pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDa
   const poKratkem = {};
   const podvojena = new Set();
   (employees || []).forEach(z => {
-    const kratko = priimekZacetnica(z.full_name).toUpperCase();
+    // Isti ključ kot pri uvozu (window.Imena.kratkiKljuc) - dobesedna
+    // primerjava nizov je puščala neujemanja pri različnem zapisu
+    // strešic (Bećirović / Bečirović).
+    const kratko = window.Imena.kratkiKljuc(z.full_name);
     if (kratko in poKratkem) podvojena.add(kratko); else poKratkem[kratko] = z;
   });
   podvojena.forEach(k => delete poKratkem[k]);

@@ -90,6 +90,28 @@ console.log("4) na RESNIČNEM seznamu zaposlenih ne zlije dveh različnih oseb")
     + (nenajdene.length ? " — ne najde: " + nenajdene.slice(0, 5).join(", ") : ""));
 }
 
+console.log("4b) kratko ime iz preglednice se ujame s polnim imenom iz Imenika");
+{
+  // Preglednica "2026 SMS RAZPORED" ima v glavi stolpca "PRIIMEK X.",
+  // Imenik pa polno ime. Doslej sta se primerjala DOBESEDNO, zato je vsak
+  // drugačen zapis strešice pomenil neujemanje - in stolpec te osebe je
+  // pri uvozu tiho ostal prazen. Natanko to se je zgodilo Bećiroviću:
+  // preglednica ga piše "BEČIROVIĆ N." (Č), Imenik "Bećirović" (Ć).
+  const ujema = (polno, izPredloge) => I.kratkiKljuc(polno) === I.kratkiKljuc(izPredloge);
+  trdi(ujema("Bećirović Nelvedin", "BEČIROVIĆ N."), "Bećirović = BEČIROVIĆ N. (druga strešica)");
+  trdi(ujema("Gazibara Aldin", "GAZIBARA A."), "Gazibara Aldin = GAZIBARA A.");
+  trdi(ujema("Rozman Klara", "ROZMAN K."), "Rozman Klara = ROZMAN K.");
+  trdi(ujema("Mavri Tratnik Magdalena", "MAVRI TRATNIK M."), "priimek iz dveh besed");
+  trdi(ujema("Džinić Ana", "DZINIC A."), "brez strešic v preglednici");
+  trdi(ujema("  džinić   ana  ", "DŽINIĆ A."), "male črke in odvečni presledki");
+
+  // In kar se NE sme zliti: dva soimenjaka z različno začetnico imena.
+  trdi(!ujema("Rozman Klara", "ROZMAN A."), "Rozman Klara ni Rozman Anka");
+  trdi(!ujema("Novak Ana", "NOVAK B."), "različna začetnica imena");
+  trdi(!ujema("Novak Ana", "NOVAKOVIĆ A."), "podoben, a drug priimek");
+  eq(I.kratkiKljuc(""), "", "prazno ime nima ključa");
+}
+
 console.log("5) prazno in neveljavno se NE ujema z ničimer");
 {
   trdi(!I.seUjemata("", "Alukić Dino"), "prazno ime");

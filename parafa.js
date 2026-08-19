@@ -118,9 +118,13 @@ window.Parafa = (function () {
 
   // Kratko ime, prebrano IZ PREDLOGE, pretvori v ključ za iskanje po
   // Imeniku (kratkaImenaMapa gradi ključe iz full_name prek priimekZacetnica).
+  // Psevdonim se uporabi na ZAPISU IZ PREDLOGE (tam je "VALJAVEC A."),
+  // šele nato se oboje zvede na skupni ključ prek imena.js - ta prenese
+  // razlike v strešicah in okrajšano ime ("BEČIROVIĆ N." proti
+  // "Bećirović Nelvedin"), česar dobesedna primerjava ni.
   function kratkoKljuc(ime) {
     var k = String(ime || "").trim().toUpperCase();
-    return KRATKO_PSEVDONIM[k] || k;
+    return window.Imena.kratkiKljuc(KRATKO_PSEVDONIM[k] || k);
   }
 
   return { PRESTOP: PRESTOP, auto: auto, zaDatum: zaDatum, jeIzpeljana: jeIzpeljana, trki: trki,

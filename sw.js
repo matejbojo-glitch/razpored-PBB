@@ -363,6 +363,9 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v81: uvoz razporeda povezuje imena neobčutljivo na strešice - stolpci
+//      kot "BEČIROVIĆ N." doslej niso našli osebe in so ostali prazni.
+//      Ure vodij (PRISOTEN 07:00-15:00) štejejo v obračun.
 // v80: "SOB" ni enota SOBO (Mavri Tratnik in Šubic sta pristajala v
 //      tujem stolpcu); "PRISOTEN" se izpiše kot "dopoldan".
 // v79: ENA oblika datuma povsod (dan.mesec.leto) - odstranjeni vsi
@@ -401,7 +404,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v80';
+const CACHE = 'razpored-pbb-v81';
 const ASSETS = [
   './',
   './index.html',
