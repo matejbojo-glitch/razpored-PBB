@@ -1499,6 +1499,172 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 // profilu), tu je zbrano na enem mestu za vse. Bere isti profile_hr_details
 // vir, ki ga PR #15 že polni/posodablja ob uvozu HR podatkov.
 // ---------------------------------------------------------------------
+// Mesečna razpredelnica stanja po osebah — kdo je na dani dan na delu, na
+// dežurstvu, na dopustu, na bolniški ali prost. Uporabnikova izrecna
+// zahteva: pet stanj, en pogled, brez brskanja po posameznih profilih.
+//
+// Podatki pridejo iz DVEH virov, ki se dopolnjujeta:
+//   - schedule_entries: objavljen razpored (izmena ali dežurstvo);
+//   - leave_entries: barvna razpredelnica Želje (letni dopust, bolniška,
+//     študijski dopust) - ta pokriva tudi ljudi, ki objavljenega razporeda
+//     po osebi nimajo (NZV/vodje).
+// Kjer je za isti dan oboje, ima razpored prednost (dežurstvo/izmena je
+// dejansko opravljeno delo), razen odsotnosti, ki so izrecnejše od
+// privzete prisotnosti.
+const STANJE_BARVA = {
+  delo:     { oznaka: "D", naziv: "Na delu",    barva: "#4F9B6B" },
+  dezurstvo:{ oznaka: "DEŽ", naziv: "Dežurstvo", barva: "#B3402A" },
+  dopust:   { oznaka: "LD", naziv: "Dopust",    barva: "#E06666" },
+  bolniska: { oznaka: "BS", naziv: "Bolniška",  barva: "#8560A8" },
+  prosto:   { oznaka: "",  naziv: "Prosto / ni v razporedu", barva: "#D8D2BE" },
+};
+// Iz kode izmene (schedule_entries.shift_code) izpelje stanje. Kode so
+// proste besedilo, zato se ravnamo po istih predponah kot classify() v
+// index.html - tu poenostavljeno na pet stanj, ki jih zahteva pregled.
+function stanjeIzKode(sifra){
+  const t = (sifra || "").toLowerCase().replace(/\s+/g, "");
+  if (!t) return "prosto";
+  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dezurstvo";
+  if (t.startsWith("ld")) return "dopust";
+  if (t.startsWith("bs")) return "bolniska";
+  if (t.startsWith("kpu")) return "prosto";      // koriščenje prostih ur
+  if (t.startsWith("pomoč") || t.startsWith("pomoc")) return "delo";
+  return "delo";                                  // dopoldan/popoldan/nočna/…
+}
+const KIND_STANJE = { ld: "dopust", bs: "bolniska", sti: "dopust", omejitev: null };
+
+function StanjeRazpredelnica({ oddelki }){
+  const [mesec, setMesec] = useState(() => new Date().toISOString().slice(0, 7));
+  const [oddelek, setOddelek] = useState("");
+  const [osebe, setOsebe] = useState(null);
+  const [poDnevih, setPoDnevih] = useState({}); // "id|datum" -> stanje
+
+  const dnevi = useMemo(() => {
+    const [y, m] = mesec.split("-").map(Number);
+    const zadnji = new Date(y, m, 0).getDate();
+    const out = [];
+    for (let d = 1; d <= zadnji; d++) {
+      const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dow = new Date(iso + "T00:00:00").getDay();
+      out.push({ iso, dan: d, vikend: dow === 0 || dow === 6 });
+    }
+    return out;
+  }, [mesec]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOsebe(null); setPoDnevih({});
+    const [y, m] = mesec.split("-").map(Number);
+    const startISO = `${y}-${String(m).padStart(2, "0")}-01`;
+    const endISO = `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
+    Promise.all([
+      client.from("profiles").select("id, full_name, department_code").order("full_name"),
+      // "profiles!employee_id" je nujno: schedule_entries ima več tujih
+      // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
+      // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).
+      client.from("schedule_entries").select("employee_id, work_date, shift_code")
+        .gte("work_date", startISO).lte("work_date", endISO),
+      client.from("leave_entries").select("full_name, work_date, kind")
+        .gte("work_date", startISO).lte("work_date", endISO),
+    ]).then(([{ data: profili }, { data: vpisi }, { data: odsotnosti }]) => {
+      if (cancelled) return;
+      const seznam = profili || [];
+      setOsebe(seznam);
+      const m2 = {};
+      (vpisi || []).forEach(v => { m2[v.employee_id + "|" + v.work_date] = stanjeIzKode(v.shift_code); });
+      // Odsotnosti se vpisujejo po IMENU (leave_entries nima employee_id),
+      // zato jih povežemo prek imena; razpored ima prednost samo tam, kjer
+      // je izmena/dežurstvo - odsotnost prepiše privzeto "delo".
+      const poImenu = {};
+      seznam.forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
+      (odsotnosti || []).forEach(o => {
+        const stanje = KIND_STANJE[o.kind];
+        if (!stanje) return;
+        const id = poImenu[(o.full_name || "").trim().toUpperCase()];
+        if (!id) return;
+        const k = id + "|" + o.work_date;
+        if (m2[k] === "dezurstvo") return; // dežurstvo je dejansko opravljeno delo
+        m2[k] = stanje;
+      });
+      setPoDnevih(m2);
+    });
+    return () => { cancelled = true; };
+  }, [mesec]);
+
+  const prikazane = useMemo(() => {
+    if (!osebe) return [];
+    return oddelek ? osebe.filter(o => o.department_code === oddelek) : osebe;
+  }, [osebe, oddelek]);
+
+  return (
+    <React.Fragment>
+      <h2 className="section">Razpredelnica stanja</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost. Združuje objavljen razpored in
+        vpise iz Želja.
+      </p>
+      <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:10}}>
+        <div className="field" style={{marginBottom:0, maxWidth:200}}>
+          <label htmlFor="stanjeMesec">Mesec</label>
+          <input id="stanjeMesec" type="month" value={mesec} onChange={e => setMesec(e.target.value)} />
+        </div>
+        <div className="field" style={{marginBottom:0, maxWidth:220}}>
+          <label htmlFor="stanjeOddelek">Oddelek</label>
+          <select id="stanjeOddelek" value={oddelek} onChange={e => setOddelek(e.target.value)}>
+            <option value="">Vsi oddelki</option>
+            {(oddelki || []).map(o => <option key={o.code} value={o.code}>{o.code} — {o.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="card no-print" style={{display:"flex", gap:14, flexWrap:"wrap", marginBottom:10}}>
+        {Object.keys(STANJE_BARVA).map(k => (
+          <span key={k} style={{display:"flex", alignItems:"center", gap:6, fontSize:12}}>
+            <span style={{width:14, height:14, borderRadius:4, background:STANJE_BARVA[k].barva,
+              border:"1px solid var(--line)", display:"inline-block"}}></span>
+            {STANJE_BARVA[k].naziv}
+          </span>
+        ))}
+      </div>
+
+      {osebe === null && <p className="hint">Nalagam …</p>}
+      {osebe !== null && prikazane.length === 0 && <p className="hint">Za izbrani oddelek ni oseb.</p>}
+      {osebe !== null && prikazane.length > 0 && (
+        <div className="tableScroller">
+          <table className="wardTable">
+            <thead>
+              <tr>
+                <th className="name">Zaposleni</th>
+                {dnevi.map(d => (
+                  <th key={d.iso} style={d.vikend ? {color:"var(--pop)"} : null}>{d.dan}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {prikazane.map(o => (
+                <tr key={o.id}>
+                  <td className="name">{o.full_name}</td>
+                  {dnevi.map(d => {
+                    const stanje = poDnevih[o.id + "|" + d.iso] || "prosto";
+                    const meta = STANJE_BARVA[stanje];
+                    return (
+                      <td key={d.iso} title={`${o.full_name} · ${d.dan}. — ${meta.naziv}`}
+                        style={{background: meta.barva + (stanje === "prosto" ? "55" : "AA"),
+                          textAlign:"center", fontSize:10, fontWeight:700, color:"#2B2717"}}>
+                        {meta.oznaka}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
+
 function DopustPregled({ oddelki }){
   const [vrstice, setVrstice] = useState(null);
   const [q, setQ] = useState("");
@@ -1772,6 +1938,7 @@ function App(){
         <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
           <button role="tab" aria-selected={pogled==="seznam"} onClick={() => setPogled("seznam")}>Seznam</button>
           <button role="tab" aria-selected={pogled==="parafe"} onClick={() => setPogled("parafe")}>Parafe</button>
+          <button role="tab" aria-selected={pogled==="stanje"} onClick={() => setPogled("stanje")}>Razpredelnica</button>
           {myRole === "admin" && (
             <button role="tab" aria-selected={pogled==="dopust"} onClick={() => setPogled("dopust")}>Stanje dopusta</button>
           )}
@@ -1787,6 +1954,8 @@ function App(){
       )}
 
       {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} />}
+
+      {!odprtId && pogled === "stanje" && <StanjeRazpredelnica oddelki={oddelki} />}
 
       {!odprtId && pogled === "dopust" && myRole === "admin" && (
         <DopustPregled oddelki={oddelki} />
