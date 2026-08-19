@@ -102,7 +102,8 @@ dotakne.
 |---|---|---|
 | `preveri-delovni-cas.mjs` | `delovni-cas.js` in kopija v `supabase/functions/_shared/` sta identična | nič |
 | `preveri-foto-uvoz.mjs` | branje barv razpredelnice s fotografije (Želje) | nič |
-| `preveri-oseba-vrstica.mjs` | strnjena vrstica seznama zaposlenih: strnjeno je vidno samo ime, klik na vrstico razpre podatke, klik na ime odpre zapis | `playwright` |
+| `preveri-oseba-vrstica.mjs` | strnjena vrstica seznama zaposlenih: strnjeno je vidno samo ime, klik na vrstico razpre podatke, klik na ime odpre zapis | `playwright` + brskalnik (glej opombo pod tabelo) |
+| `preveri-legenda-kratic.mjs` | legenda kratic izmen (imenik.html → Razpredelnica) na PRAVEM izrisu: privzeto je zložena (odprta je na telefonu zavzela skoraj cel prvi zaslon), gumb "i" jo odpre in znova zapre, vse kratice so enako široke in poravnane pod isto navpičnico, razlaga stoji desno od kratice, nič ne sili v vodoravno drsenje. Kartica se izreže dobesedno iz `imenik.html`, zato preizkus ne more zaostati za stranjo | `playwright` + brskalnik (glej opombo pod tabelo) |
 | `preveri-izbris-osebe.mjs` | `schema.sql` postavi delujočo bazo iz nič; `odstrani-zaposlene.sql` se izvede po ukazih (vsak v svoji seji, kot v Supabase SQL Editorju) in za sabo ne pusti ne imena ne viseče povezave | lokalni PostgreSQL + `su postgres` |
 | `preveri-zapis-v-sheets.mjs` | `pripraviPosodobitveOddelka` (index.html) na fixture-ju v obliki resničnega dokumenta ("2026 SMS RAZPORED") — najde prave koordinate (vrstica, stolpec) za pisanje nazaj v Google Sheets, ločeno po mesecih z različnim naborom ljudi, prek prazne vmesne vrstice, brez pisanja v celico osebe, ki v listu nima stolpca | nič |
 | `preveri-sheets-mreza.mjs` | `pripraviPosodobitveOddelkaIzMreze` (sheets-mreza.js) — ista logika kot `preveri-zapis-v-sheets.mjs`, a za PREDOGLED iz Admin → Kalup (še ne objavljen v Supabase): uporabi vrednost, ki jo trenutno prikazuje predogled (torej VKLJUČNO z ročnim popravkom celice), ne surov izračun generatorja | nič |
@@ -123,6 +124,17 @@ dotakne.
 | `preveri-nzv-delovnik.mjs` | `nzvPrikaz` (index.html) — delovnik NZV v "Moj razpored": PON-PET redno, sobota/nedelja prosti razen ob dežurstvu, letni dopust samo za delovne dni, dežurstvo med tednom pomeni "PRISOTEN + DEŽURSTVO" (dežurstvo je po redni prisotnosti), vikend dežurstvo samo "DEŽURSTVO"; oddelčni kader (vikende dela normalno) se pravila NE dotakne | nič |
 | `preveri-stanje-razpredelnica.mjs` | `stanjeIzKode`/`KIND_STANJE`/`STANJE_BARVA` (imenik.html) — razvrščanje v pet stanj razpredelnice (na delu, dežurstvo, dopust, bolniška, prosto): prave kode izmen iz uradnih predlog, KPU je PROSTO in ne delo, dežurstvo ostane svoje stanje, `omejitev` ni odsotnost, neznana koda šteje kot delo (lažno prost dan bi lahko pomenil dvojno razporeditev) | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
+
+> **Brskalniški preizkusi.** `preveri-oseba-vrstica.mjs` in `preveri-legenda-kratic.mjs`
+> potrebujeta `playwright` (`npm install` v mapi `skripte/`) in nameščen Chromium.
+> Če brskalnik ni na Playwrightovi privzeti poti, jo podaj prek `CHROMIUM_PATH`:
+>
+> ```
+> CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node skripte/preveri-legenda-kratic.mjs
+> ```
+>
+> (Ta preizkusa sta bila nekaj časa napačno vpisana kot "znana napaka" — v resnici
+> je manjkal samo brskalnik, ne pa da bi bilo kaj narobe s stranjo.)
 
 `preveri-izbris-osebe.mjs` se sam preskoči (izhod 0), če PostgreSQL ni na
 voljo — ni pa nadomestila zanj: vse tri napake, ki jih lovi, so bile vidne

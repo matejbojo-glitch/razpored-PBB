@@ -235,6 +235,14 @@ console.log("16) legenda in menjave so v imenik.html res prikazane");
   const html2 = readFileSync(join(koren, "imenik.html"), "utf8");
   trdi(/IZMENA_KRATICE\.filter\(v => v\[5\] === skupina\)/.test(html2),
     "legenda je razvrščena po petih stanjih");
+  // Legenda mora biti zložena (na telefonu je odprta zavzela cel zaslon)
+  // in enakomerno poravnana: kratica vedno prva, vedno enako široka.
+  trdi(/legendaOdprta/.test(html2), "legenda se da zložiti/odpreti");
+  trdi(/useState\(false\);\n\n?\s*const dnevi|legendaOdprta, setLegendaOdprta\] = useState\(false\)/.test(html2),
+    "privzeto je zložena");
+  trdi(/gridTemplateColumns:"48px 1fr"/.test(html2),
+    "razlage so poravnane v mrežo s fiksnim stolpcem za kratico");
+  trdi(/className="infoToggle"/.test(html2), "odpira jo gumb 'i'");
   trdi(/barvaBesedila\(barva\)/.test(html2), "legenda in celice uporabljajo berljivo pisavo");
   trdi(/kratica: izmenaKratica\(v\.shift_code\)/.test(html2), "kratica se računa iz kode izmene v razporedu");
   trdi(/barva: izmenaBarva\(v\.shift_code\)/.test(html2), "barva celice pride iz kratice");
