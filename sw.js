@@ -351,7 +351,17 @@
 // zato jo odslej nalaga tudi admin.html (sheets-mreza.js).
 // Spremenjeni index.html, admin.html, parafa.js, sheets-mreza.js.
 
-const CACHE = 'razpored-pbb-v61';
+// v62: Imenik dobi zavihek "Razpredelnica" - mesečni pregled po osebah s
+// petimi stanji, kot jih je zahteval uporabnik: na delu, dežurstvo,
+// dopust, bolniška, prosto/ni v razporedu. Združuje DVA vira, ki se
+// dopolnjujeta: objavljen razpored (schedule_entries) in vpise iz Želja
+// (leave_entries) - slednji pokrijejo tudi ljudi brez objavljenega
+// razporeda po osebi (NZV/vodje). Filter po mesecu in oddelku, legenda z
+// barvami. Neznana koda izmene šteje kot "na delu" in ne "prosto":
+// lažno prost dan bi lahko pomenil, da koordinator nekoga po nesreči
+// razporedi še enkrat. Spremenjena imenik.html.
+
+const CACHE = 'razpored-pbb-v62';
 const ASSETS = [
   './',
   './index.html',
