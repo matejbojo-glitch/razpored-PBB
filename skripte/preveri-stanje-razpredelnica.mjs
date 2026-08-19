@@ -393,6 +393,22 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
     "Lelič ob Maglićevi odsotnosti pokrije samo E1 (ne E1/D)");
   trdi(/'ARNEŽ GREGA',\s+'LUNAR MATEJA',\s+'C',/.test(sql),
     "Lunar ob Arneževi odsotnosti pokrije samo C (ne C/C1)");
+
+  // Trojka UA/SA se kombinira med seboj - nobena od treh ne sme ostati
+  // brez kritja (uporabnikova izrecna navedba).
+  trdi(/'BIZJAK TEA',\s+'TRPIN SAŠA'/.test(sql) && /'BIZJAK TEA',\s+'MUŠIČ INES'/.test(sql),
+    "Bizjak nadomeščata Trpin in Mušič");
+  trdi(/'MUŠIČ INES',\s+'BIZJAK TEA'/.test(sql) && /'MUŠIČ INES',\s+'TRPIN SAŠA'/.test(sql),
+    "Mušič nadomeščata Bizjak in Trpin");
+  trdi(/'TRPIN SAŠA',\s+'BIZJAK TEA'/.test(sql) && /'TRPIN SAŠA',\s+'MUŠIČ INES'/.test(sql),
+    "Trpin nadomeščata Bizjak in Mušič");
+
+  // Pogačnik NAMENOMA ostaja brez - uporabnikova odločitev, ne pozabljen
+  // vnos. Če bi kdo pozneje "popravil" to kot manjkajoče, naj tu pade.
+  trdi(!/^\s*\('POGAČNIK TEJA',/m.test(sql),
+    "Pogačnik Teja namenoma ostaja brez nadomeščevalca");
+  trdi(/Pogačnik Teja NAMENOMA ostaja brez/.test(sql),
+    "in to je v skripti tudi zapisano, da se ne bere kot pomota");
 }
 
 console.log("");

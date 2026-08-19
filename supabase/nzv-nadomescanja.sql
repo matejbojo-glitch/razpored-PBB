@@ -25,7 +25,11 @@
 --
 -- "enota" je oddelek, ki ga nadomeščevalec DEJANSKO prevzame, in ni nujno
 -- ves nabor enot odsotnega: Lelič ob Maglićevi odsotnosti pokrije samo E1
--- (ne E1/D), Lunar ob Arneževi samo C (ne C/C1).
+-- (ne E1/D), Lunar ob Arneževi samo C (ne C/C1). Kjer uporabnik enote ni
+-- posebej navedel (trojka UA/SA), je vpisan cel nabor enot odsotnega.
+--
+-- Pogačnik Teja NAMENOMA ostaja brez nadomeščevalca (uporabnikova izrecna
+-- odločitev), čeprav je na porodniški do julija 2027.
 --
 -- "prednost" pove vrstni red: 1 = prvi na vrsti, 2 = če je tudi prvi
 -- odsoten. Tako se ohrani zapis iz uradne predloge ("nadomeščanje Dino
@@ -58,6 +62,11 @@ insert into public.nadomescanja (nosilec, nadomesca, enota, prednost) values
   ('ALUKIĆ DINO',             'BOJIĆ MATEJ',             'ŽO',          1),
   ('ALUKIĆ DINO',             'DŽAMASTAGIĆ DENIS',       'ŽO',          2),
   ('ARNEŽ GREGA',             'LUNAR MATEJA',            'C',           1),
+  -- Bizjak, Trpin in Mušič (vse tri UA/SA) se kombinirajo med seboj -
+  -- uporabnikova izrecna navedba. Trpin je že spodaj; tu sta dopolnjeni
+  -- še preostali dve smeri, da nobena od treh ne ostane brez kritja.
+  ('BIZJAK TEA',              'TRPIN SAŠA',              'UA/SA/B2',    1),
+  ('BIZJAK TEA',              'MUŠIČ INES',              'UA/SA/B2',    2),
   ('BOJIĆ MATEJ',             'ALUKIĆ DINO',             'MO',          1),
   ('BOJIĆ MATEJ',             'DŽAMASTAGIĆ DENIS',       'MO',          2),
   ('DŽAMASTAGIĆ DENIS',       'ALUKIĆ DINO',             'PDZN',        1),
@@ -69,6 +78,8 @@ insert into public.nadomescanja (nosilec, nadomesca, enota, prednost) values
   ('LUNAR MATEJA',            'ARNEŽ GREGA',             'B',           1),
   ('MAGLIĆ ALEKSANDER',       'LELIČ DIJANA',            'E1',          1),
   ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA',             'B1/SOB/NOB',  1),
+  ('MUŠIČ INES',              'BIZJAK TEA',              'UA/SA',       1),
+  ('MUŠIČ INES',              'TRPIN SAŠA',              'UA/SA',       2),
   ('PERVIZ AMAL',             'MAGLIĆ ALEKSANDER',       'D',           1),
   ('SALKIĆ MARUŠA',           'ARNEŽ GREGA',             'C1',          1),
   ('TOMAŽEVIČ SIMONA',        'VELUŠČEK METKA',          'A',           1),
