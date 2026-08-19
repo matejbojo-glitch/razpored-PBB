@@ -198,6 +198,32 @@ console.log("10c) kode, potrjene na PRAVI datoteki 2026_SMS_RAZPORED_2.xlsx");
   eq(izmenaKratica("STI"), "STI", '"STI" strokovno izobraževanje');
 }
 
+console.log("10e) omejen delovni čas: DO6 / DO4 / PO4");
+{
+  // Za zaposlene z omejitvijo delovnega časa na 4 oz. 6 ur na dan.
+  eq(izmenaKratica("dopoldan (6h)"), "DO6", '"dopoldan (6h)"');
+  eq(izmenaKratica("dopoldan 6 ur"), "DO6", '"dopoldan 6 ur"');
+  eq(izmenaKratica("dop. 6h"), "DO6", '"dop. 6h"');
+  eq(izmenaKratica("dopoldan (4h)"), "DO4", '"dopoldan (4h)"');
+  eq(izmenaKratica("dopoldan 4 ure"), "DO4", '"dopoldan 4 ure"');
+  eq(izmenaKratica("popoldan (4h)"), "PO4", '"popoldan (4h)"');
+  eq(izmenaKratica("pop. 4 ure"), "PO4", '"pop. 4 ure"');
+  eq(stanjeIzKode("dopoldan (4h)"), "delo", "omejen delovnik je še vedno delo");
+
+  // Ključno: te vzorce se NE sme sprožiti pri obstoječih kodah, kjer se
+  // števka 4 ali 6 pojavi v urah. Preverjeno na vseh kodah iz prave
+  // datoteke, ki se začnejo z "dop"/"pop".
+  eq(izmenaKratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne ostane DF7 (ne DO6)");
+  eq(izmenaKratica("pop. 14.h-20.h"), "DP7", "flexi popoldne ostane DP7 (ne PO4)");
+  eq(izmenaKratica("dopoldan (7-15h)"), "DOP", "DMS dopoldan ostane DOP");
+  eq(izmenaKratica("dopoldan"), "DOP", "navaden dopoldan ostane DOP");
+  eq(izmenaKratica("popoldan"), "PO7", "navaden popoldan ostane PO7");
+  eq(izmenaKratica("popoldan do 19"), "PO5", "popoldan do 19 ostane PO5");
+  eq(izmenaKratica("popoldan do 20"), "PO6", "popoldan do 20 ostane PO6");
+  eq(izmenaKratica("popoldan (M)"), "PO7", "popoldan z mentorstvom ostane PO7");
+  eq(izmenaKratica("dopoldan (M)"), "DOP", "dopoldan z mentorstvom ostane DOP");
+}
+
 console.log("10d) 'prost' pomeni prost dan, ne neznano kodo");
 {
   // V predlogi se enkrat pojavi izrecna beseda "prost". Brez tega pravila

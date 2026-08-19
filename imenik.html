@@ -1553,6 +1553,14 @@ const IZMENA_KRATICE = [
   // Uporabnik je potrdil novo kratico po istem vzorcu kot obstoječi dve:
   // PO5 = 5 ur (do 19), PO6 = 6 ur (do 20), PO7 = 7 ur (do 21).
   [/^popoldando20/,          "PO6",  "Popoldan do 20",          "PON-PET 13:50-20:00", "#D98E4E", "delo"],
+  // Omejen delovni čas (zdravstvena/zakonska omejitev na 4 oz. 6 ur na
+  // dan). Vzorec /^dop\D*6/ ujame zapise kot "dopoldan (6h)",
+  // "dopoldan 6 ur", "dop. 6h" - ne ujame pa "dop. 7.h-13.h" ali
+  // "dopoldan (7-15h)", ker \D* ne more preskočiti števke.
+  // MORA stati pred splošnima /^dopoldan/ in /^popoldan/.
+  [/^dop\D*6/,               "DO6",  "Dopoldan 6 ur",           "omejitev 6 ur/dan", "#63B588", "delo"],
+  [/^dop\D*4/,               "DO4",  "Dopoldan 4 ure",          "omejitev 4 ur/dan", "#A7DCC0", "delo"],
+  [/^pop\D*4/,               "PO4",  "Popoldan 4 ure",          "omejitev 4 ur/dan", "#F0C08A", "delo"],
   [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
   // Delni FLEXI izmeni: v oddelčnih zavihkih preglednice sta zapisani kot
   // "dop. 7.h-13.h" in "pop. 14.h-20.h" (navzkrižno pokrivanje drugega
