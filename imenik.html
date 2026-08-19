@@ -1640,6 +1640,9 @@ function StanjeRazpredelnica({ oddelki }){
   // v bazi), tu gre samo za vidno oznako, da se menjava tudi opazi.
   // Vidna je vsem zaposlenim in za vse mesece (pogled menjave_javno).
   const [menjani, setMenjani] = useState({});
+  // Legenda je privzeto zložena: na telefonu je odprta zavzela skoraj cel
+  // prvi zaslon in tabela je padla pod rob.
+  const [legendaOdprta, setLegendaOdprta] = useState(false);
 
   const dnevi = useMemo(() => {
     const [y, m] = mesec.split("-").map(Number);
@@ -1745,35 +1748,52 @@ function StanjeRazpredelnica({ oddelki }){
         </div>
       </div>
 
-      {/* Legenda nad tabelo - uradne kratice iz delovnik.xlsx, razvrščene
-          po petih stanjih. Vsaka kratica ima svojo barvo, ki je enaka
-          barvi celice v tabeli, da je preslikava očitna. */}
-      <div className="card" style={{marginBottom:10}}>
-        <div style={{fontSize:12, fontWeight:700, marginBottom:8}}>Legenda kratic</div>
-        {["delo", "dezurstvo", "dopust", "bolniska", "prosto"].map(skupina => {
-          const vnosi = IZMENA_KRATICE.filter(v => v[5] === skupina);
-          if (!vnosi.length) return null;
-          return (
-            <div key={skupina} style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:8}}>
-              <span style={{fontSize:11, color:"var(--muted)", minWidth:78}}>{STANJE_BARVA[skupina].naziv}</span>
-              {vnosi.map(([, kratica, naziv, cas, barva]) => (
-                <span key={kratica} title={cas || naziv}
-                  style={{display:"inline-flex", alignItems:"center", gap:6, fontSize:12,
-                    border:"1px solid var(--line)", borderRadius:6, padding:"2px 8px 2px 2px"}}>
-                  <b style={{background:barva, color:barvaBesedila(barva), borderRadius:4,
-                    padding:"2px 5px", fontSize:11, letterSpacing:".02em"}}>{kratica}</b>
-                  {naziv}{cas ? <span style={{color:"var(--muted)"}}>· {cas}</span> : null}
-                </span>
-              ))}
+      {/* Legenda je privzeto zložena za gumbom "i", da tabela ostane na
+          vrhu zaslona - na telefonu je zavzela skoraj cel prvi zaslon.
+          Odprta je mreža z DVEMA stolpcema (kratica | razlaga), da so vse
+          vrstice enako poravnane: kratica vedno prva in vedno enako
+          široka, razlaga vedno na isti navpičnici. */}
+      <div className="card" style={{marginBottom:10, padding:"10px 12px"}}>
+        <button type="button" onClick={() => setLegendaOdprta(o => !o)}
+          aria-expanded={legendaOdprta}
+          style={{display:"flex", alignItems:"center", gap:8, background:"none", border:"none",
+            padding:0, cursor:"pointer", font:"inherit", color:"inherit"}}>
+          <span className="infoToggle" aria-hidden="true">i</span>
+          <span style={{fontSize:12, fontWeight:700}}>Legenda kratic</span>
+          <span style={{fontSize:11, color:"var(--muted)"}}>{legendaOdprta ? "skrij" : "pokaži"}</span>
+        </button>
+
+        {legendaOdprta && (
+          <div className="infoPanel">
+            {["delo", "dezurstvo", "dopust", "bolniska", "prosto"].map(skupina => {
+              const vnosi = IZMENA_KRATICE.filter(v => v[5] === skupina);
+              if (!vnosi.length) return null;
+              return (
+                <div key={skupina} style={{marginBottom:10}}>
+                  <div style={{fontSize:11, color:"var(--muted)", marginBottom:4}}>{STANJE_BARVA[skupina].naziv}</div>
+                  <div style={{display:"grid", gridTemplateColumns:"48px 1fr", gap:"5px 10px", alignItems:"baseline"}}>
+                    {vnosi.map(([, kratica, naziv, cas, barva]) => (
+                      <React.Fragment key={kratica}>
+                        <b style={{background:barva, color:barvaBesedila(barva), borderRadius:4,
+                          padding:"2px 0", fontSize:11, textAlign:"center", letterSpacing:".02em"}}>{kratica}</b>
+                        <span style={{fontSize:12}}>
+                          {naziv}
+                          {cas ? <span style={{color:"var(--muted)"}}> · {cas}</span> : null}
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{fontSize:11, color:"var(--muted)", paddingTop:8, borderTop:"1px solid var(--line)"}}>
+              Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
+              v tej legendi — postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
+              izmena zamenjana s potrjeno menjavo. Vir kratic:
+              <i> Razpored delovnega časa — Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
             </div>
-          );
-        })}
-        <div style={{fontSize:11, color:"var(--muted)", marginTop:2, paddingTop:8, borderTop:"1px solid var(--line)"}}>
-          Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
-          v tej legendi — postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
-          izmena zamenjana s potrjeno menjavo. Vir kratic:
-          <i>Razpored delovnega časa — Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
-        </div>
+          </div>
+        )}
       </div>
 
       {osebe === null && <p className="hint">Nalagam …</p>}
