@@ -50,8 +50,11 @@ function eq(a, b, opis) {
 
 const sandbox = { console };
 vm.createContext(sandbox);
-vm.runInContext([izvleci("stanjeIzKode"), izvleciConst("KIND_STANJE"), izvleciConst("STANJE_BARVA")].join("\n\n"), sandbox);
-const { stanjeIzKode, KIND_STANJE, STANJE_BARVA } = sandbox;
+vm.runInContext([
+  izvleci("stanjeIzKode"), izvleci("izmenaKratica"),
+  izvleciConst("KIND_STANJE"), izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"),
+].join("\n\n"), sandbox);
+const { stanjeIzKode, izmenaKratica, KIND_STANJE, STANJE_BARVA, IZMENA_KRATICE } = sandbox;
 
 console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
 {
@@ -107,6 +110,60 @@ console.log("7) neznana koda šteje kot DELO (varneje kot 'prosto')");
   // pomenil, da koordinator nekoga po nesreči razporedi še enkrat.
   eq(stanjeIzKode("POMOČ DRUGJE"), "delo", '"POMOČ DRUGJE" -> na delu');
   eq(stanjeIzKode("nekaj novega"), "delo", "neznana koda -> na delu, ne prosto");
+}
+
+console.log("8) kratice izmen — največ 3 znaki (zahteva uporabnika)");
+{
+  IZMENA_KRATICE.forEach(([, kratica, naziv]) => {
+    trdi(typeof kratica === "string" && kratica.length > 0 && kratica.length <= 3,
+      `kratica "${kratica}" ima 1-3 znake`);
+    trdi(typeof naziv === "string" && naziv.length > 0, `kratica "${kratica}" ima razlago za legendo`);
+  });
+  const vse = IZMENA_KRATICE.map(v => v[1]);
+  trdi(new Set(vse).size === vse.length, "nobena kratica se ne ponovi (drugače legenda ne bi bila enolična)");
+}
+
+console.log("9) daljše kode se ne 'požrejo' krajšim (vrstni red pravil)");
+{
+  // To je najlažja napaka v takem seznamu: če bi /^nočna/ stalo pred
+  // /^nočna12/, bi vse nočne izgledale enako in razpored bi bil napačen.
+  eq(izmenaKratica("NOČNA12"), "N12", "NOČNA12 ni 'NOČ'");
+  eq(izmenaKratica("NOČNA od 19h"), "N19", "NOČNA od 19h ni 'NOČ'");
+  eq(izmenaKratica("NOČNA"), "NOČ", "navadna NOČNA");
+  eq(izmenaKratica("popoldan do 19h"), "P19", "popoldan do 19h ni 'POP'");
+  eq(izmenaKratica("popoldan"), "POP", "navaden popoldan");
+  eq(izmenaKratica("DNEVNA12"), "D12", "DNEVNA12");
+  eq(izmenaKratica("DNEVNA12F"), "D12", "DNEVNA12F (flexi različica) je ista izmena");
+  eq(izmenaKratica("dopoldan"), "DOP", "dopoldan");
+  eq(izmenaKratica("DEŽURSTVO"), "DEŽ", "dežurstvo");
+}
+
+console.log("10) presledki, pike in velikost črk ne motijo");
+{
+  eq(izmenaKratica("  NOČNA 12  "), "N12", "presledki okoli in znotraj");
+  eq(izmenaKratica("nočna od 19 h"), "N19", "presledki znotraj 'od 19 h'");
+  eq(izmenaKratica("pop. 14.h-20.h"), "POP", "pike v zapisu ur (kot v realnih preglednicah)");
+  eq(izmenaKratica("Dežurstvo"), "DEŽ", "mešana velikost črk");
+}
+
+console.log("11) prazna in neznana koda");
+{
+  eq(izmenaKratica(""), "", "prazna koda -> prazna celica (prost dan)");
+  eq(izmenaKratica(null), "", "manjkajoč zapis -> prazna celica");
+  // Neznana koda se NE sme tiho izgubiti - prazna celica bi izgledala kot
+  // prost dan, kar je za razpored nevarno.
+  eq(izmenaKratica("nekaj novega"), "NEK", "neznana koda -> prvi trije znaki, ne prazno");
+  trdi(izmenaKratica("POMOČ DRUGJE").length <= 3, "tudi neznane kratice ostanejo največ 3 znake");
+}
+
+console.log("12) legenda in kratice so v imenik.html res prikazane");
+{
+  const html2 = readFileSync(join(koren, "imenik.html"), "utf8");
+  trdi(/IZMENA_KRATICE\.map/.test(html2), "legenda kratic se izriše nad tabelo");
+  trdi(/kratica: izmenaKratica\(v\.shift_code\)/.test(html2), "kratica se računa iz kode izmene v razporedu");
+  trdi(/\{kratica\}/.test(html2), "kratica se izpiše v celici");
+  trdi(/kratica: STANJE_BARVA\[stanje\]\.oznaka/.test(html2),
+    "odsotnost iz Želja (brez kode izmene) v celici vseeno pokaže LD/BS");
 }
 
 console.log("");
