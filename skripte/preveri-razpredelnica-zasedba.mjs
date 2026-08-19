@@ -70,15 +70,16 @@ vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
 // Ujemanje imen živi v imena.js (skupni modul za vse zaslone).
 vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext("var imenaSeUjemataBrezStresic = window.Imena.seUjemata;", sandbox);
+// Uradna legenda in razvrstitev izmen živijo v izmene.js (skupni modul
+// za vse zaslone) - tu jih naložimo in preimenujemo v imena, ki jih
+// uporablja izluščena koda iz imenik.html.
+vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
 vm.runInContext([
-  izvleciBlok("const IZMENA_KRATICE = [", "\n];"),
-  izvleciBlok("const STANJE_BARVA = {", "\n};"),
-  izvleciFn("izmenaVnos"),
-  izvleciFn("vnosPoKratici"),
-  izvleciFn("izmenaKratica"),
-  izvleciFn("izmenaBarva"),
-  izvleciFn("stanjeIzKode"),
-].join("\n\n"), sandbox);
+  "var vnosPoKratici = window.Izmene.poKratici;",
+  "var izmenaKratica = window.Izmene.kratica;",
+  "var izmenaBarva = window.Izmene.barva;",
+  "var stanjeIzKode = window.Izmene.stanje;",
+].join("\n"), sandbox);
 
 // Izsek iz useEffect-a v StanjeRazpredelnica: del, ki iz objavljenih
 // vnosov, odsotnosti in nosilcev zgradi mrežo "id|datum". Prenesen

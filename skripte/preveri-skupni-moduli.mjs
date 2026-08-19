@@ -42,6 +42,8 @@ for (const stran of ["index.html","imenik.html","admin.html","zelje.html"]) {
           Imena: typeof window.Imena,
           Prazniki: typeof window.Prazniki,
           NzvZasedba: typeof window.NzvZasedba,
+          Izmene: typeof window.Izmene,
+          barvaNocne: window.Izmene ? window.Izmene.barva("NOČNA12") : null,
           ujem: window.Imena ? window.Imena.seUjemata("HORVAT NINA", "Hrovat Nina") : null,
           praznik: window.Prazniki ? window.Prazniki.jePraznik("2026-12-25") : null,
         }));
@@ -65,8 +67,12 @@ for (const stran of ["index.html","imenik.html","admin.html","zelje.html"]) {
   // Napake omrežja/prijave niso predmet tega preizkusa - zanimajo nas samo
   // sintaktične/JS napake ob nalaganju modulov.
   const relevantne = hude.filter(t => !/supabase|Failed to fetch|net::|401|400|NetworkError|sw\.js|ServiceWorker/i.test(t));
+  // admin/imenik/index nalagajo tudi izmene.js; zelje.html ga ne
+  // potrebuje (nima mreže izmen), zato ga tam ne zahtevamo.
+  const rabiIzmene = stran !== "zelje.html";
   const ok = moduli.Imena === "object" && moduli.Prazniki === "object" && moduli.ujem === true
-    && moduli.praznik === true && relevantne.length === 0;
+    && moduli.praznik === true && relevantne.length === 0
+    && (!rabiIzmene || (moduli.Izmene === "object" && moduli.barvaNocne === "#2F4785"));
   console.log((ok?"  ✓ ":"  ✗ ") + stran + " [" + url.split("/").pop() + "] — " + JSON.stringify(moduli) + (relevantne.length ? " NAPAKE: " + relevantne.join(" | ") : ""));
   if (!ok) napake++;
   await pg.close();

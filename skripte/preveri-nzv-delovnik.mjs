@@ -48,7 +48,10 @@ function eq(a, b, opis) {
 const sandbox = { console, window: {} };
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
-vm.runInContext([izvleci("classify"), izvleci("nzvPrikaz")].join("\n\n"), sandbox);
+// classify živi v izmene.js (skupni modul za vse zaslone).
+vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
+vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
+vm.runInContext(izvleci("nzvPrikaz"), sandbox);
 const { nzvPrikaz, classify } = sandbox;
 const jeVikendISO = sandbox.window.Prazniki.jeVikend;
 
