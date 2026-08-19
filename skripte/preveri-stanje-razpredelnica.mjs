@@ -54,9 +54,11 @@ vm.runInContext([
   izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
   izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("jeProst"), izvleci("izmenaKratica"),
   izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
+  izvleci("brezStresic"), izvleci("imenaSeUjemataBrezStresic"), izvleci("kratkoIme"),
 ].join("\n\n"), sandbox);
 const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
-        KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE } = sandbox;
+        KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE,
+        imenaSeUjemataBrezStresic, kratkoIme } = sandbox;
 
 console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
 {
@@ -326,6 +328,54 @@ console.log("16) legenda in menjave so v imenik.html res prikazane");
     "neprijavljeni (anon) do pogleda NIMAJO dostopa");
   trdi(/setMenjani\(mm\)/.test(html2), "dnevi s potrjeno menjavo se označijo");
   trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
+}
+
+console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
+{
+  // lead_departments hrani ime kot prosto besedilo, brez povezave na
+  // profil. Uradne opombe ga pišejo po svoje - drug vrstni red besed in
+  // druge strešice - zato primerjamo vrečo besed brez strešic.
+  trdi(imenaSeUjemataBrezStresic("Lelič Dijana", "Dijana Lelić"),
+    '"Lelič Dijana" = "Dijana Lelić" (obrnjeno IN druga strešica)');
+  trdi(imenaSeUjemataBrezStresic("MAVRI TRATNIK MAGDALENA", "Magdalena Mavri Tratnik"),
+    "tričlensko ime v obratnem vrstnem redu");
+  trdi(imenaSeUjemataBrezStresic("Bećirović Nelvedin", "BECIROVIC NELVEDIN"),
+    "velike/male črke in strešice");
+  trdi(!imenaSeUjemataBrezStresic("Pogačnik Teja", "Pogačnik Matej"),
+    "dva Pogačnika NISTA ista oseba");
+  trdi(!imenaSeUjemataBrezStresic("Lelič Dijana", ""), "prazno ime se ne ujema z nikomer");
+  trdi(!imenaSeUjemataBrezStresic("", ""), "dve prazni imeni se prav tako ne ujemata");
+
+  eq(kratkoIme("MAVRI TRATNIK MAGDALENA"), "Mavri", "v ozkem stolpcu se izpiše priimek");
+  eq(kratkoIme("BOJIĆ MATEJ"), "Bojić", "s pravilnimi šumniki");
+  eq(kratkoIme(""), "", "prazno ostane prazno");
+
+  const html3 = readFileSync(join(koren, "imenik.html"), "utf8");
+  trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote/.test(html3),
+    "razpredelnica bere nosilce oddelkov");
+  // Pokrivanje je VZAJEMNO in VEČKRATNO (Alukića nadomeščata Bojić IN
+  // Džamastagić), zato tabela parov in ne en sam stolpec.
+  trdi(/from\("nadomescanja"\)\.select\("nosilec, nadomesca, enota, prednost"\)/.test(html3),
+    "pokrivanja se berejo iz tabele parov");
+  trdi(/nadomescajoMene/.test(html3) && /pokrivam/.test(html3),
+    "izračunata se OBE smeri: kdo nadomešča mene in koga pokrivam jaz");
+  trdi(/\(a\.prednost \|\| 1\) - \(b\.prednost \|\| 1\)/.test(html3),
+    "nadomeščevalci so razvrščeni po prednosti (kdo je prvi na vrsti)");
+  trdi(/nadomešča: " \+ nosilec\.nadomescajoMene\.join/.test(html3),
+    "ob dopustu/bolniški opis pove, kdo pokriva");
+
+  const sql = readFileSync(join(koren, "supabase", "nzv-nadomescanja.sql"), "utf8");
+  trdi(/primary key \(nosilec, nadomesca\)/.test(sql),
+    "ključ je PAR - ista oseba ima lahko več nadomeščevalcev");
+  ["('ALUKIĆ DINO',             'BOJIĆ MATEJ'",
+   "('ALUKIĆ DINO',             'DŽAMASTAGIĆ DENIS'",
+   "('BOJIĆ MATEJ',             'ALUKIĆ DINO'",
+   "('BOJIĆ MATEJ',             'DŽAMASTAGIĆ DENIS'",
+   "('DŽAMASTAGIĆ DENIS',       'ALUKIĆ DINO'",
+   "('DŽAMASTAGIĆ DENIS',       'BOJIĆ MATEJ'",
+   "('VELUŠČEK METKA',          'DŽAMASTAGIĆ DENIS'"].forEach(v => {
+    trdi(sql.includes(v), "navzkrižno pokrivanje: " + v.replace(/\s+/g, " "));
+  });
 }
 
 console.log("");
