@@ -54,9 +54,11 @@ vm.runInContext([
   izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
   izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("jeProst"), izvleci("izmenaKratica"),
   izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
+  izvleci("brezStresic"), izvleci("imenaSeUjemataBrezStresic"), izvleci("kratkoIme"),
 ].join("\n\n"), sandbox);
 const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
-        KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE } = sandbox;
+        KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE,
+        imenaSeUjemataBrezStresic, kratkoIme } = sandbox;
 
 console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
 {
@@ -326,6 +328,33 @@ console.log("16) legenda in menjave so v imenik.html res prikazane");
     "neprijavljeni (anon) do pogleda NIMAJO dostopa");
   trdi(/setMenjani\(mm\)/.test(html2), "dnevi s potrjeno menjavo se označijo");
   trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
+}
+
+console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
+{
+  // lead_departments hrani ime kot prosto besedilo, brez povezave na
+  // profil. Uradne opombe ga pišejo po svoje - drug vrstni red besed in
+  // druge strešice - zato primerjamo vrečo besed brez strešic.
+  trdi(imenaSeUjemataBrezStresic("Lelič Dijana", "Dijana Lelić"),
+    '"Lelič Dijana" = "Dijana Lelić" (obrnjeno IN druga strešica)');
+  trdi(imenaSeUjemataBrezStresic("MAVRI TRATNIK MAGDALENA", "Magdalena Mavri Tratnik"),
+    "tričlensko ime v obratnem vrstnem redu");
+  trdi(imenaSeUjemataBrezStresic("Bećirović Nelvedin", "BECIROVIC NELVEDIN"),
+    "velike/male črke in strešice");
+  trdi(!imenaSeUjemataBrezStresic("Pogačnik Teja", "Pogačnik Matej"),
+    "dva Pogačnika NISTA ista oseba");
+  trdi(!imenaSeUjemataBrezStresic("Lelič Dijana", ""), "prazno ime se ne ujema z nikomer");
+  trdi(!imenaSeUjemataBrezStresic("", ""), "dve prazni imeni se prav tako ne ujemata");
+
+  eq(kratkoIme("MAVRI TRATNIK MAGDALENA"), "Mavri", "v ozkem stolpcu se izpiše priimek");
+  eq(kratkoIme("BOJIĆ MATEJ"), "Bojić", "s pravilnimi šumniki");
+  eq(kratkoIme(""), "", "prazno ostane prazno");
+
+  const html3 = readFileSync(join(koren, "imenik.html"), "utf8");
+  trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote, nadomesca/.test(html3),
+    "razpredelnica bere nosilce oddelkov");
+  trdi(/nadomešča: " \+ nosilec\.nadomesca/.test(html3),
+    "ob dopustu/bolniški opis pove, kdo pokriva");
 }
 
 console.log("");

@@ -1652,6 +1652,29 @@ function barvaBesedila(hex){
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#2B2717" : "#FFFFFF";
 }
 
+// Ali gre za isto osebo, kljub drugačnemu vrstnemu redu besed in drugačnim
+// strešicam. Potrebno, ker lead_departments hrani ime kot prosto besedilo
+// (brez povezave na profil) in ga uradne opombe pišejo po svoje: "Dijana
+// Lelić" proti "Lelič Dijana".
+function brezStresic(s){
+  return String(s || "").toUpperCase()
+    .replace(/[ČĆ]/g, "C").replace(/Š/g, "S").replace(/Ž/g, "Z").replace(/Đ/g, "D");
+}
+// "MAVRI TRATNIK MAGDALENA" -> "Mavri T. M." bi bilo nečitljivo; v ozkem
+// stolpcu zadošča priimek (prva beseda), polno ime pa je v opisu ob kazalcu.
+function kratkoIme(polno){
+  const deli = String(polno || "").trim().split(/\s+/);
+  if (!deli.length) return "";
+  const priimek = deli[0];
+  return priimek.charAt(0) + priimek.slice(1).toLowerCase();
+}
+
+function imenaSeUjemataBrezStresic(a, b){
+  const razbij = x => brezStresic(x).trim().split(/\s+/).filter(Boolean).sort().join(" ");
+  const na = razbij(a), nb = razbij(b);
+  return !!na && na === nb;
+}
+
 // leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
 const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
@@ -1671,6 +1694,8 @@ function StanjeRazpredelnica({ oddelki }){
   // Legenda je privzeto zložena: na telefonu je odprta zavzela skoraj cel
   // prvi zaslon in tabela je padla pod rob.
   const [legendaOdprta, setLegendaOdprta] = useState(false);
+  // "id osebe" -> vrstica iz lead_departments (enote, nadomešča …)
+  const [nosilci, setNosilci] = useState({});
 
   const dnevi = useMemo(() => {
     const [y, m] = mesec.split("-").map(Number);
@@ -1692,6 +1717,11 @@ function StanjeRazpredelnica({ oddelki }){
     const endISO = `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
     Promise.all([
       client.from("profiles").select("id, full_name, department_code").order("full_name"),
+      // Nosilci oddelkov (vodje/administratorji): katere enote pokrivajo in
+      // KDO jih nadomešča ob odsotnosti. Vir je uradna predloga NZV, glej
+      // supabase/nzv-nosilci-oddelkov.sql. Ločena tabela od profiles, ker
+      // gre za organizacijsko vlogo, ne za uporabniški račun.
+      client.from("lead_departments").select("full_name, inicialke, enote, nadomesca, odsotnost_tip, odsotnost_do"),
       // "profiles!employee_id" je nujno: schedule_entries ima več tujih
       // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
       // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).
@@ -1707,10 +1737,21 @@ function StanjeRazpredelnica({ oddelki }){
       // vsebuje izključno potrjene menjave.
       client.from("menjave_javno").select("vlagatelj_id, sodelavec_id, datum_a, datum_b")
         .or(`and(datum_a.gte.${startISO},datum_a.lte.${endISO}),and(datum_b.gte.${startISO},datum_b.lte.${endISO})`),
-    ]).then(([{ data: profili }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
+    ]).then(([{ data: profili }, { data: nosilci }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
       if (cancelled) return;
       const seznam = profili || [];
       setOsebe(seznam);
+
+      // Nosilce povežemo z osebami po imenu: lead_departments hrani ime kot
+      // besedilo (nima povezave na profil), zapis pa se lahko razlikuje po
+      // vrstnem redu besed in po strešicah ("Dijana Lelić" / "Lelič
+      // Dijana"), zato primerjamo vrečo besed brez strešic.
+      const nosilecPoOsebi = {};
+      (nosilci || []).forEach(n => {
+        const oseba = seznam.find(p => imenaSeUjemataBrezStresic(p.full_name, n.full_name));
+        if (oseba) nosilecPoOsebi[oseba.id] = n;
+      });
+      setNosilci(nosilecPoOsebi);
       const m2 = {};
       (vpisi || []).forEach(v => {
         m2[v.employee_id + "|" + v.work_date] = {
@@ -1838,9 +1879,25 @@ function StanjeRazpredelnica({ oddelki }){
               </tr>
             </thead>
             <tbody>
-              {prikazane.map(o => (
-                <tr key={o.id}>
-                  <td className="name">{o.full_name}</td>
+              {prikazane.map(o => {
+                const nosilec = nosilci[o.id];
+                return (
+                <tr key={o.id}>{/* nosilec = vrstica iz lead_departments, če oseba to je */}
+                  <td className="name">
+                    {o.full_name}
+                    {/* Nosilci oddelkov: katere enote pokrivajo in kdo jih
+                        nadomešča ob odsotnosti (LD/BS). Pri ostalih se ta
+                        vrstica sploh ne izriše, da seznam ostane čist. */}
+                    {nosilec && (
+                      <span style={{display:"block", fontSize:10, fontWeight:400, color:"var(--muted)", lineHeight:1.35}}>
+                        {nosilec.enote || ""}
+                        {nosilec.nadomesca ? <React.Fragment>
+                          {nosilec.enote ? " · " : ""}
+                          <span title={"Ob odsotnosti (LD, BS) nadomešča: " + nosilec.nadomesca}>↩ {kratkoIme(nosilec.nadomesca)}</span>
+                        </React.Fragment> : null}
+                      </span>
+                    )}
+                  </td>
                   {dnevi.map(d => {
                     const zapis = poDnevih[o.id + "|" + d.iso];
                     const kratica = zapis ? zapis.kratica : "";
@@ -1851,7 +1908,12 @@ function StanjeRazpredelnica({ oddelki }){
                       : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
                     return (
                       <td key={d.iso}
-                        title={`${o.full_name} · ${d.dan}. — ${opis}${zamenjano ? " (po potrjeni menjavi)" : ""}`}
+                        title={`${o.full_name} · ${d.dan}. — ${opis}${zamenjano ? " (po potrjeni menjavi)" : ""}`
+                          // Ob dopustu/bolniški je najbolj koristno vedeti, KDO
+                          // ta dan pokriva njegov oddelek.
+                          + ((nosilec && nosilec.nadomesca && zapis
+                              && (zapis.stanje === "dopust" || zapis.stanje === "bolniska"))
+                             ? " · nadomešča: " + nosilec.nadomesca : "")}
                         style={{background: zapis ? barva : barva + "55", position:"relative",
                           textAlign:"center", fontSize:10, fontWeight:700,
                           color: zapis ? barvaBesedila(barva) : "#2B2717"}}>
@@ -1864,7 +1926,8 @@ function StanjeRazpredelnica({ oddelki }){
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
