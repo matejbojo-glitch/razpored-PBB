@@ -177,6 +177,7 @@
 <script src="nav.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
+<script src="nzv-zasedba.js"></script>
 <script src="datum.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -948,64 +949,14 @@ function nzvNazivVKodo(){
   return m;
 }
 
-// Uradna predloga zapisuje enote nosilca kot prosto besedilo ("C/C1",
-// "UA/SA", "B1/SOB/NOB") - glej lead_departments.enote in
-// supabase/nzv-nosilci-oddelkov.sql. Tu jih prevedemo v kode stolpcev NZV
-// mreže. Neznana oznaka (npr. "NOB") se preskoči, da se v mrežo ne vrine
-// stolpec, ki ga v uradni predlogi ni.
-const NZV_ENOTA_PSEVDONIM = {
-  "\u017dO": "ZO", "UA": "URGENCA", "SOB": "SOBO", "B1": "B1B2", "B2": "B1B2",
-};
-// ISO številka tedna (1-53). Podlaga za izmenično tedensko zasedbo SA -
-// za razliko od "prvi/drugi teden v mesecu" teče neprekinjeno tudi čez
-// prelom meseca in leta, zato se izmenjava nikoli ne podvoji ali preskoči.
-function isoTeden(iso){
-  const d = new Date(iso + "T00:00:00");
-  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dan = t.getUTCDay() || 7;            // 1=PO … 7=NE
-  t.setUTCDate(t.getUTCDate() + 4 - dan);    // četrtek istega tedna določa leto
-  const zacetek = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  return Math.ceil(((t - zacetek) / 86400000 + 1) / 7);
-}
-
-// SA (specialistična ambulanta) ni stalno dopoldanska ali popoldanska:
-// izmenjuje se TEDENSKO (uporabnikova navedba - "SA je izmenično 1 teden
-// dop, drug popoldne"), poleti pa je samo dopoldne. Kateri teden je
-// dopoldanski in kateri meseci štejejo za poletje, ureja administrator
-// (tabela nzv_nastavitve, supabase/nzv-nastavitve.sql) - spodaj so samo
-// privzetki, ki veljajo, dokler tabele ni oz. dokler je ne popravi.
-const SA_PRIVZETO = { lihoTeden: "dop", poletniMeseci: [7, 8] };
-function saNastavitveIz(vrstice){
-  const m = {};
-  (vrstice || []).forEach(r => { m[r.kljuc] = r.vrednost; });
-  const zapisMesecev = m.sa_poletni_meseci == null ? "7,8" : m.sa_poletni_meseci;
-  return {
-    lihoTeden: m.sa_liho_teden === "pop" ? "pop" : "dop",
-    poletniMeseci: String(zapisMesecev).split(",")
-      .map(x => Number(x.trim())).filter(n => n >= 1 && n <= 12),
-  };
-}
-function saStolpec(datum, nastavitve){
-  const n = nastavitve || SA_PRIVZETO;
-  if ((n.poletniMeseci || []).indexOf(Number(datum.slice(5, 7))) >= 0) return "SADOP";
-  const vLihem = n.lihoTeden === "pop" ? "SAPOP" : "SADOP";
-  const vSodem = vLihem === "SADOP" ? "SAPOP" : "SADOP";
-  return isoTeden(datum) % 2 === 1 ? vLihem : vSodem;
-}
-
-// "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) - oznaka "SA"
-// med enotami nosilca se preslika vanj. Brez nje bi bila ista oseba
-// hkrati v dopoldanskem IN popoldanskem stolpcu, česar v resnici ni.
+// Izmenična zasedba SA in prevod enot nosilca v stolpce mreže živita v
+// nzv-zasedba.js - isto pravilo potrebuje tudi Imenik -> Razpredelnica,
+// zato je en sam vir (enaka odločitev kot pri prazniki.js). Tu so samo
+// kratki lokalni ovoji, da klici spodaj ostanejo berljivi.
+const saNastavitveIz = window.NzvZasedba.saNastavitveIz;
+const saStolpec = window.NzvZasedba.saStolpec;
 function nzvEnoteVKode(enote, saKoda){
-  const kode = [];
-  String(enote || "").split(/[\/,+]/).forEach(del => {
-    const t = del.trim().toUpperCase();
-    if (!t) return;
-    const koda = t === "SA" ? (saKoda || "SADOP") : (NZV_ENOTA_PSEVDONIM[t] || t);
-    if (!NZV_STOLPCI.some(([k]) => k === koda)) return;
-    if (kode.indexOf(koda) < 0) kode.push(koda);
-  });
-  return kode;
+  return window.NzvZasedba.enoteVKode(enote, saKoda, NZV_STOLPCI.map(([k]) => k));
 }
 
 // Ključ za primerjavo imen med viri, ki jih pišejo različni ljudje
@@ -1109,8 +1060,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     (vodje || []).forEach(v => { vodjaZaIme[kljucImenaNzv(v.full_name)] = v; });
     const jeOdsoten = (ime, datum) => {
       if (odsotenDan.has(kljucImenaNzv(ime) + "|" + datum)) return true;
-      const v = vodjaZaIme[kljucImenaNzv(ime)];
-      return !!(v && v.odsotnost_tip && (!v.odsotnost_do || datum <= v.odsotnost_do));
+      return window.NzvZasedba.trajnoOdsoten(vodjaZaIme[kljucImenaNzv(ime)], datum);
     };
     const nadomZa = {};
     (nadomescanja || []).forEach(n => {

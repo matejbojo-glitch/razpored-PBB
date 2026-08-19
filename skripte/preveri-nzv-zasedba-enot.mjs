@@ -86,6 +86,9 @@ const sandbox = { console, window: {} };
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
+// Skupni vir pravila stalne zasedbe (isti modul uporablja tudi
+// imenik.html -> Razpredelnica) - glej preveri-nzv-zasedba-modul.mjs.
+vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
 
 vm.runInContext([
   izvleciVrstico("const DNI ="),
@@ -101,11 +104,8 @@ vm.runInContext([
   izvleciConst("IME_PSEVDONIM_NZV"),
   izvleciFn("normalizirajImeNzv"),
   izvleciFn("imenaSeUjemataNzv"),
-  izvleciConst("NZV_ENOTA_PSEVDONIM"),
-  izvleciFn("isoTeden"),
-  izvleciConst("SA_PRIVZETO"),
-  izvleciFn("saNastavitveIz"),
-  izvleciFn("saStolpec"),
+  izvleciConst("saNastavitveIz"),
+  izvleciConst("saStolpec"),
   izvleciFn("nzvEnoteVKode"),
   izvleciFn("kljucImenaNzv"),
   izvleciAsyncFn("nalozizPodatkeNzv"),
@@ -237,8 +237,9 @@ const test = async () => {
   {
     // ISO tedni septembra 2026: 1.9. = 36 (sod), 8.9. = 37 (liho),
     // 15.9. = 38 (sod). Privzetek: liho = dopoldne.
-    eq(sandbox.isoTeden("2026-09-01"), 36, "1.9.2026 je ISO teden 36");
-    eq(sandbox.isoTeden("2026-09-08"), 37, "8.9.2026 je ISO teden 37");
+    const isoTeden = sandbox.window.NzvZasedba.isoTeden;
+    eq(isoTeden("2026-09-01"), 36, "1.9.2026 je ISO teden 36");
+    eq(isoTeden("2026-09-08"), 37, "8.9.2026 je ISO teden 37");
     const { podatki } = await poglej();
     eq(podatki["SAPOP|2026-09-01"], "BIZ", "sod teden -> popoldne");
     eq(podatki["SADOP|2026-09-08"], "BIZ", "naslednji (lih) teden -> dopoldne");
