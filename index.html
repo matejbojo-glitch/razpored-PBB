@@ -48,7 +48,18 @@
      osebe), osebe v stolpcih glave. Vikend obarva celo vrstico (kot v
      predlogi), ne posamezne celice; lastni stolpec (bralec sam) je rahlo
      poudarjen. */
-  table.wardTableT td.name, table.wardTableT th.name{ width:64px; min-width:0; text-align:center; white-space:nowrap; }
+  /* Datum mora biti viden CEL ("1.8.2026 PO"). Splošno pravilo za td.name
+     (theme.css) reže besedilo s "…", kar je pri 64 px pomenilo "1.8.20…". */
+  table.wardTableT td.name, table.wardTableT th.name{
+    width:88px; min-width:88px; text-align:center; white-space:nowrap;
+    overflow:visible; text-overflow:clip;
+  }
+  /* FLEXI: kateri oddelek oseba ta dan pokriva (lahko dva, npr. "C/E2") -
+     nad kodo izmene, v svoji vrstici, da se ne zamenja z izmeno. */
+  .pokriva{
+    display:block; font-size:9.5px; font-weight:800; letter-spacing:.03em;
+    color: var(--accent-2); margin-bottom:1px;
+  }
   table.wardTableT tbody tr.weekend td{ background: rgba(201,113,63,.08); }
   table.wardTableT thead th.me{ background: rgba(var(--accent-rgb),.15); }
 
@@ -64,7 +75,7 @@
   @media (min-width:900px), (orientation: landscape){
     .wardScroller{ overflow-x:visible; }
     table.wardTableT{ width:100%; table-layout:fixed; }
-    table.wardTableT th.name, table.wardTableT td.name{ width:70px; }
+    table.wardTableT th.name, table.wardTableT td.name{ width:88px; }
     table.wardTableT th:not(.name), table.wardTableT td:not(.name){ width:auto; min-width:0; }
     /* Cele kode izmen ("popoldan do 19", "NOČNA od 19") so predolge za
        enakomerno razdeljen stolpec pri table-layout:fixed - privzeti
@@ -109,7 +120,7 @@
      nikoli ne sproži, ne glede na to, kako ga uporabnik drži. */
   html.sirsiPogled .wardScroller{ overflow-x:visible; }
   html.sirsiPogled table.wardTableT{ width:100%; table-layout:fixed; }
-  html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:70px; }
+  html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:88px; }
   html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
 
@@ -731,7 +742,7 @@ function WardView({ deptCode, month, myId }){
     setEmployees(null); setEntries(null);
     client.from("profiles").select("id, full_name, role").eq("department_code", deptCode).order("full_name")
       .then(({ data }) => { if (!cancelled) setEmployees(data || []); });
-    client.from("schedule_entries").select("employee_id, work_date, shift_code, created_at, created_by, updated_at")
+    client.from("schedule_entries").select("employee_id, work_date, shift_code, pokriva_oddelek, created_at, created_by, updated_at")
       .eq("department_code", deptCode).gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data }) => { if (!cancelled) setEntries(data || []); });
     return () => { cancelled = true; };
@@ -739,7 +750,7 @@ function WardView({ deptCode, month, myId }){
 
   const byEmpDate = useMemo(() => {
     const m = {};
-    (entries || []).forEach(e => { m[e.employee_id + "|" + e.work_date] = e.shift_code; });
+    (entries || []).forEach(e => { m[e.employee_id + "|" + e.work_date] = e; });
     return m;
   }, [entries]);
 
@@ -778,7 +789,13 @@ function WardView({ deptCode, month, myId }){
                 <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
                   <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
                   {employees.map(z => {
-                    const sifra = byEmpDate[z.id + "|" + dn.datum];
+                    const zapis = byEmpDate[z.id + "|" + dn.datum];
+                    const sifra = zapis && zapis.shift_code;
+                    // FLEXI kader pokriva vsak dan lahko drug oddelek (tudi
+                    // dva hkrati, npr. "C/E2") - brez te oznake bi bila
+                    // celica videti kot navadna izmena in ne bi bilo
+                    // razvidno, KJE ta dan dela.
+                    const pokriva = zapis && zapis.pokriva_oddelek;
                     const cls = classify(sifra);
                     const isMe = z.id === myId;
                     return (
@@ -788,6 +805,7 @@ function WardView({ deptCode, month, myId }){
                             KPU se torej ni dalo ločiti od praznega dneva. Zdaj: prazna
                             celica ne izriše ničesar (kot v uradni predlogi "2026 SMS
                             RAZPORED"), vsaka druga pokaže celotno kodo. */}
+                        {pokriva && <span className="pokriva" title={"Ta dan pokriva: " + pokriva}>{pokriva}</span>}
                         {sifra && (
                           <span className={"swatch swatch-" + cls} title={sifra}>{sifra}</span>
                         )}
@@ -850,6 +868,10 @@ const NZV_STOLPCI = (() => {
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
 const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
 
+// Kdo sploh sodi v NZV razpored: vodje in administratorji. Navadni
+// uporabniki ("user") so razporejeni po oddelkih (WardView), ne tukaj.
+const JE_NZV_VLOGA = new Set(["vodja", "admin"]);
+
 // Znane, uporabnikom POTRJENE napake pri tipkanju v izvornih dokumentih
 // (ne domneva) - "Horvat" namesto "Hrovat" in "Tomažević" namesto
 // "Tomaževič" sta se v resnični NZV predlogi izmenično pojavljali za ISTI
@@ -895,15 +917,21 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // leave_entries prek ločene poizvedbe. Namig mora ostati tudi ob
     // morebitnem preimenovanju omejitve, zato je vezan na IME STOLPCA, ne na
     // ime tujega ključa.
-    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, parafa, parafa_pred_oktobrom_2026)")
+    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
       .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO),
     client.from("leave_entries").select("full_name, work_date, kind")
       .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
-    client.from("profiles").select("full_name, parafa, parafa_pred_oktobrom_2026"),
+    client.from("profiles").select("full_name, role, parafa, parafa_pred_oktobrom_2026"),
   ]);
   const podatki = {};
   (entries || []).forEach(r => {
     if (!r.profiles) return;
+    // V NZV razporedu so SAMO vodje in administratorji (uporabnikova
+    // izrecna zahteva). Brez tega filtra se je mreža polnila z oddelčnim
+    // kadrom: kode B/C/C1/D/E1/E2 so hkrati oddelki SMS/TZN kadra IN imena
+    // stolpcev v NZV predlogi, zato je stolpec "D" prikazal vseh devet
+    // sester oddelka D namesto vodij, ki to enoto tisti dan pokrivajo.
+    if (!JE_NZV_VLOGA.has(r.profiles.role)) return;
     const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
     const key = koda + "|" + r.work_date;
     const parafa = parafaOd(r.profiles, r.work_date);
@@ -913,7 +941,11 @@ async function nalozizPodatkeNzv(startISO, endISO){
     const koda = NZV_KIND_KODA[d.kind];
     if (!koda) return;
     const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
-    const parafa = ujem ? parafaOd(ujem, d.work_date) : d.full_name;
+    // Isto pravilo kot za enote zgoraj: stolpci LD/IZOB/BS uradne predloge
+    // se nanašajo na NZV kader, ne na oddelčne sestre. Oseba, ki je v
+    // leave_entries, a je ni med vodji/administratorji, sem ne sodi.
+    if (!ujem || !JE_NZV_VLOGA.has(ujem.role)) return;
+    const parafa = parafaOd(ujem, d.work_date);
     const key = koda + "|" + d.work_date;
     podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
   });
@@ -1018,10 +1050,30 @@ function preberiUvozIzNaslova(search){
 // dovoljeno samo adminu (RLS schedule_write_admin to tudi vsili na
 // strežniku, ne samo tu).
 // ---------------------------------------------------------------------
+// Če stolpec pokriva_oddelek v bazi še ne obstaja (shema, razdelek 34 -
+// supabase/dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne
+// CEL upsert. To ne sme pomeniti, da uvoz razporeda nenadoma sploh ne dela:
+// v tem primeru zapise shranimo brez tega polja in to POVEMO, namesto da bi
+// uporabnik dobil nerazumljivo napako o neznanem stolpcu.
+let opozoriloPokrivaOddelek = null;
+function jeManjkajocPokrivaOddelek(error){
+  if (!error) return false;
+  // 42703 = undefined_column; PostgREST vrne tudi PGRST204 s sporočilom o
+  // stolpcu, ki ga ni v predpomnilniku sheme.
+  return error.code === "42703" || error.code === "PGRST204"
+    || /pokriva_oddelek/i.test((error.message || "") + (error.details || ""));
+}
 async function shraniZapiseRazporeda(zapisi){
   for (let i = 0; i < zapisi.length; i += 200) {
-    const { error } = await client.from("schedule_entries").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_id,work_date" });
-    if (error) throw error;
+    const kos = zapisi.slice(i, i + 200);
+    const { error } = await client.from("schedule_entries").upsert(kos, { onConflict: "employee_id,work_date" });
+    if (!error) continue;
+    if (!jeManjkajocPokrivaOddelek(error)) throw error;
+    opozoriloPokrivaOddelek = "Stolpca za pokriti oddelek (FLEXI) v bazi še ni, zato je razpored shranjen brez njega. "
+      + "Administrator naj v Supabase požene supabase/dodaj-pokriva-oddelek.sql in uvoz ponovi.";
+    const brez = kos.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
+    const { error: e2 } = await client.from("schedule_entries").upsert(brez, { onConflict: "employee_id,work_date" });
+    if (e2) throw e2;
   }
 }
 
@@ -1219,12 +1271,19 @@ function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka){
   }
   return null;
 }
-// "veljavniOddelki" (Set velikih črk kod iz departments tabele) je nujen -
-// schedule_entries.department_code ima tuji ključ na departments.code, zato
-// bi npr. "C/E2" (opažena kombinirana oznaka v pravi datoteki - dvojna
-// pokritost, ne prava koda) sicer zavrnila CEL upsert. Tu se namesto tega
-// varno prezre in prijavi kot neujemanje, ne zruši ostalih pravilnih vpisov.
-function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki){
+// FLEXI kader gre VEDNO v department_code "FLEXI" (svojo skupino), oznaka
+// pokritega oddelka pa v pokriva_oddelek (shema, razdelek 34).
+//
+// Prej je šel v department_code pokriti oddelek, kar je imelo dve slabi
+// posledici: (1) kombinirane oznake ("C/E2", "C1/D" - oseba tisti dan
+// pokriva dva oddelka) tuji ključ na departments zavrne, zato jih je uvoz
+// PRESKOČIL - na avgustu 2026 je tako odpadlo 87 vpisov; (2) tisti, ki so
+// se shranili, so pristali pod tujim oddelkom, zato je zavihek FLEXI ostal
+// PRAZEN, čeprav je uvoz javil "FLEXI (87)".
+//
+// Tako je tudi bližje uradni preglednici: oddelčni zavihki pri teh ljudeh
+// nimajo vpisa, ampak samo opombo "glej razpored FLEXI".
+function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
   const { startISO, endISO } = monthRange(ciljniMesec);
   const zapisi = [];
   const neujemanja = new Set();
@@ -1247,11 +1306,11 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelk
         const id = poKratkem[kljucIme];
         if (!id) { neujemanja.add(ime); continue; }
         if (!oddelek) continue; // izmena brez oddelka (npr. posebna opomba) - ni pravega vpisa za razpored
-        if (veljavniOddelki && !veljavniOddelki.has(oddelek)) {
-          neujemanja.add(`${ime} (${datum}): neznana oznaka oddelka "${oddelek}" - preskočeno`);
-          continue;
-        }
-        zapisi.push({ employee_id: id, department_code: oddelek, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
+        zapisi.push({
+          employee_id: id, department_code: "FLEXI", work_date: datum,
+          shift_code: sifra === "Prosto" ? "" : sifra,
+          pokriva_oddelek: oddelek,
+        });
       }
     }, stanje);
   }
@@ -1270,9 +1329,7 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
   // opažena v pravi datoteki) ne zavrne celotnega zapisa.
   let zapisiRes;
   if (wardCode === "FLEXI") {
-    const { data: oddelkiDb } = await client.from("departments").select("code");
-    const veljavniOddelki = new Set((oddelkiDb || []).map(d => d.code.toUpperCase()));
-    zapisiRes = obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki);
+    zapisiRes = obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem);
   } else {
     zapisiRes = obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem);
   }
@@ -1283,8 +1340,10 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
     if (!najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z imeni oseb.");
     throw new Error(`Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: ${[...neujemanja].join(", ")}. Če so imena videti pravilna, je verjetno kriv napačen zavihek (glej zgoraj) — preveri, da povezava kaže na zavihek TEGA oddelka.`);
   }
+  opozoriloPokrivaOddelek = null;
   await shraniZapiseRazporeda(zapisi);
-  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "");
+  return `Uvoženih ${zapisi.length} vpisov.` + (neujemanja.size ? ` Brez ujemanja imena: ${[...neujemanja].join(", ")}.` : "")
+    + (opozoriloPokrivaOddelek ? " " + opozoriloPokrivaOddelek : "");
 }
 
 // ---------------------------------------------------------------------
@@ -1568,17 +1627,13 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   if (!listi || !listi.length) throw new Error("Prazna datoteka.");
   const { oddelki, preostali } = razvrstiListe(listi);
 
-  const [{ data: profiliKratki }, { data: profiliParafa }, { data: oddelkiDb }] = await Promise.all([
+  opozoriloPokrivaOddelek = null;
+  const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
     client.from("profiles").select("id, full_name"),
     client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026"),
-    client.from("departments").select("code"),
   ]);
   const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
   const { poParafi, podvojene } = parafaMapa(profiliParafa, ciljniMesec);
-  // Za obdelajFlexiVrstice - department_code ima tuji ključ na departments,
-  // zato neznana/kombinirana oznaka (npr. "C/E2", opažena v pravi datoteki)
-  // ne sme priti do zapisa (bi zavrnila celoten upsert).
-  const veljavniOddelki = new Set((oddelkiDb || []).map(d => d.code.toUpperCase()));
 
   const neujemanja = new Set();
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
@@ -1594,7 +1649,7 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
     // FLEXI ima drugačno obliko (par stolpcev oddelek+izmena na osebo) -
     // glej obdelajFlexiVrstice.
     const { zapisi, neujemanja: neu } = koda === "FLEXI"
-      ? obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelki)
+      ? obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem)
       : obdelajOddelekVrstice(vrsteVrstic, koda, ciljniMesec, poKratkem);
     neu.forEach(n => neujemanja.add(koda + ": " + n));
     if (!zapisi.length) continue;
@@ -1634,6 +1689,7 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
   let besedilo = `Uvoženih skupaj ${steviloRazporeda + steviloOdsotnosti} vpisov` + (deli.length ? " (" + deli.join("; ") + ")" : "") + ".";
   if (preskoceni.length) besedilo += ` Preskočeni listi (niso prepoznani kot oddelek ali NZV za izbrani mesec): ${preskoceni.join(", ")}.`;
   if (neujemanja.size) besedilo += ` Opombe: ${[...neujemanja].join(", ")}.`;
+  if (opozoriloPokrivaOddelek) besedilo += " " + opozoriloPokrivaOddelek;
   return besedilo;
 }
 
