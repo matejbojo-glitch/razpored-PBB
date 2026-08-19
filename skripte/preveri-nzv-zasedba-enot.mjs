@@ -86,6 +86,9 @@ const sandbox = { console, window: {} };
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
+// Skupni vir pravila stalne zasedbe (isti modul uporablja tudi
+// imenik.html -> Razpredelnica) - glej preveri-nzv-zasedba-modul.mjs.
+vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
 
 vm.runInContext([
   izvleciVrstico("const DNI ="),
@@ -101,7 +104,8 @@ vm.runInContext([
   izvleciConst("IME_PSEVDONIM_NZV"),
   izvleciFn("normalizirajImeNzv"),
   izvleciFn("imenaSeUjemataNzv"),
-  izvleciConst("NZV_ENOTA_PSEVDONIM"),
+  izvleciConst("saNastavitveIz"),
+  izvleciConst("saStolpec"),
   izvleciFn("nzvEnoteVKode"),
   izvleciFn("kljucImenaNzv"),
   izvleciAsyncFn("nalozizPodatkeNzv"),
@@ -166,6 +170,7 @@ async function poglej(dodatno = {}) {
     profiles: PROFILI,
     lead_departments: dodatno.vodje || VODJE,
     nadomescanja: dodatno.nadomescanja || NADOMESCANJA,
+    nzv_nastavitve: dodatno.nastavitve || [],
   });
   return sandbox.nalozizPodatkeNzv(MESEC.startISO, MESEC.endISO);
 }
@@ -208,8 +213,9 @@ const test = async () => {
     eq(podatki["B1B2|2026-09-01"], "TRA, BIZ", "\"B1/SOB/NOB\" -> B1 in \"UA/SA/B2\" -> B2, oba v stolpec B1,B2");
     eq(podatki["SOBO|2026-09-01"], "VEL, TRA", "\"SOB\" se prišteje k nosilki SOBO (enoto pokrivata dva)");
     eq(podatki["URGENCA|2026-09-01"], "BIZ", "\"UA\" -> URGENCA");
-    eq(podatki["SADOP|2026-09-01"], "BIZ", "\"SA\" -> SA DOP");
-    eq(podatki["SAPOP|2026-09-01"], "BIZ", "\"SA\" -> SA POP (nosilec je na enoti ves dan)");
+    // 1. 9. 2026 je ISO teden 36 (sod) -> po privzetku popoldanski teden.
+    eq(podatki["SADOP|2026-09-01"] || "", "", "\"SA\" v sodem tednu ni v SA DOP");
+    eq(podatki["SAPOP|2026-09-01"], "BIZ", "\"SA\" v sodem tednu je v SA POP");
     // "NOB" ni stolpec v uradni predlogi — ne sme se pojaviti nikjer.
     trdi(!Object.keys(podatki).some(k => k.startsWith("NOB|")), "neznana oznaka \"NOB\" ne ustvari stolpca");
   }
@@ -224,7 +230,52 @@ const test = async () => {
       ],
     });
     eq(podatki["URGENCA|2026-09-01"], "BIZ, TRP, MUŠ", "vse tri, ki pokrivajo UA/SA");
-    eq(podatki["SADOP|2026-09-01"], "BIZ, TRP, MUŠ", "isto v SA DOP");
+    eq(podatki["SAPOP|2026-09-01"], "BIZ, TRP, MUŠ", "isto v SA POP (sod teden)");
+  }
+
+  console.log("3c) SA se izmenjuje TEDENSKO, poleti je samo dopoldne");
+  {
+    // ISO tedni septembra 2026: 1.9. = 36 (sod), 8.9. = 37 (liho),
+    // 15.9. = 38 (sod). Privzetek: liho = dopoldne.
+    const isoTeden = sandbox.window.NzvZasedba.isoTeden;
+    eq(isoTeden("2026-09-01"), 36, "1.9.2026 je ISO teden 36");
+    eq(isoTeden("2026-09-08"), 37, "8.9.2026 je ISO teden 37");
+    const { podatki } = await poglej();
+    eq(podatki["SAPOP|2026-09-01"], "BIZ", "sod teden -> popoldne");
+    eq(podatki["SADOP|2026-09-08"], "BIZ", "naslednji (lih) teden -> dopoldne");
+    eq(podatki["SADOP|2026-09-01"] || "", "", "isti dan ni hkrati v obeh stolpcih");
+    eq(podatki["SAPOP|2026-09-08"] || "", "", "in obratno naslednji teden");
+    // Cel teden ima isto polovico dneva - ne se izmenjuje po dnevih.
+    eq(podatki["SADOP|2026-09-11"], "BIZ", "petek istega lihega tedna je še vedno dopoldne");
+  }
+  {
+    // Poletje: julij in avgust sta po privzetku samo dopoldne, ne glede na teden.
+    postaviOdjemalca({ schedule_entries: [], leave_entries: [], profiles: PROFILI, lead_departments: VODJE, nadomescanja: NADOMESCANJA, nzv_nastavitve: [] });
+    const { podatki } = await sandbox.nalozizPodatkeNzv("2026-07-01", "2026-07-31");
+    eq(podatki["SADOP|2026-07-01"], "BIZ", "1.7. (lih teden) dopoldne");
+    eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne — poletna izjema");
+    eq(podatki["SAPOP|2026-07-08"] || "", "", "poleti popoldanskega stolpca ni");
+  }
+  {
+    // Administrator obrne pravilo in nastavi drugačne poletne mesece.
+    const { podatki } = await poglej({
+      nastavitve: [
+        { kljuc: "sa_liho_teden", vrednost: "pop" },
+        { kljuc: "sa_poletni_meseci", vrednost: "9" },
+      ],
+    });
+    eq(podatki["SADOP|2026-09-01"], "BIZ", "september je zdaj poletni mesec -> samo dopoldne");
+    eq(podatki["SAPOP|2026-09-01"] || "", "", "popoldanskega stolpca septembra ni");
+  }
+  {
+    const { podatki } = await poglej({
+      nastavitve: [
+        { kljuc: "sa_liho_teden", vrednost: "pop" },
+        { kljuc: "sa_poletni_meseci", vrednost: "" },
+      ],
+    });
+    eq(podatki["SADOP|2026-09-01"], "BIZ", "obrnjeno pravilo: sod teden je zdaj dopoldne");
+    eq(podatki["SAPOP|2026-09-08"], "BIZ", "in lih teden popoldne");
   }
 
   console.log("4) Trajna odsotnost (porodniška) — nosilka se ne vpisuje");

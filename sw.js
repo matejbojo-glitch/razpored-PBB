@@ -363,6 +363,10 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v71: nzv-zasedba.js - stalna zasedba enot NZV (nosilec + nadomeščanje +
+//      izmenična SA) je zdaj en sam vir za NZV mrežo in za Imenik ->
+//      Razpredelnico; prej je bila napisana posebej in je na obeh
+//      zaslonih puščala prazne celice.
 // v70: prazniki.js - delovnik NZV (PON-PET, vikendi IN prazniki prosti
 //      razen dežurstva) je odslej EN vir za vse tri zaslone.
 // v69: pregled nadomeščanj v Imeniku + popravki iz Razpored_nadomescanj.xlsx.
@@ -379,7 +383,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v70';
+const CACHE = 'razpored-pbb-v71';
 const ASSETS = [
   './',
   './index.html',
@@ -408,6 +412,7 @@ const ASSETS = [
   './datum.js',
   './parafa.js',
   './prazniki.js',
+  './nzv-zasedba.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',
