@@ -338,7 +338,37 @@ function daysInRange(startISO, endISO){
   return out;
 }
 
-function MyScheduleView({ userId, month }){
+// Delovnik NZV (vodje/administratorji) — pravilo, ki ga je uporabnik
+// večkrat izrecno ponovil in ga prikaz doslej ni upošteval:
+//
+//   * redni delovnik je od PONEDELJKA DO PETKA;
+//   * SOBOTA in NEDELJA sta PROSTI - razen če je tisti dan dežurstvo;
+//   * letni dopust (LD) velja samo za delovne dni; vikend sredi dopusta
+//     ni "dopust", ampak navaden prost dan;
+//   * dežurstvo med tednom se opravlja PO redni prisotnosti (15:30-07:00,
+//     glej delovni-cas.js), zato tak dan pomeni oboje: "PRISOTEN +
+//     DEŽURSTVO". Vikend dežurstvo traja 07:00-07:00 in redne prisotnosti
+//     ob njem ni, zato ostane samo "DEŽURSTVO".
+//
+// Zakaj je to prikazno pravilo in ne popravek podatkov: schedule_entries
+// ima na (employee_id, work_date) en sam zapis, zato prisotnost in
+// dežurstvo istega dne ne moreta obstajati kot dve vrstici - ob uvozu
+// zadnji prepiše prejšnjega. Ker je "med tednom dežuren" po definiciji
+// tudi "med tednom prisoten", je oboje mogoče pravilno izpeljati iz enega
+// zapisa, brez spremembe sheme.
+//
+// Velja SAMO za NZV: oddelčni kader (B/C/C1/D/E1/E2/FLEXI) vikende dela
+// normalno in ima prave kode izmen (dopoldan, NOČNA12 …), ki se jih to
+// pravilo ne sme dotakniti.
+function nzvPrikaz(sifra, danKratica, jeNzv){
+  const vikend = danKratica === "SO" || danKratica === "NE";
+  const jeDezurstvo = classify(sifra) === "dez";
+  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "PRISOTEN + DEŽURSTVO";
+  if (!jeNzv || !vikend) return sifra;
+  return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
+}
+
+function MyScheduleView({ userId, month, jeNzv }){
   const [entries, setEntries] = useState(null);
   const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po leave_entries
   const { startISO, endISO } = monthRange(month);
@@ -404,8 +434,10 @@ function MyScheduleView({ userId, month }){
   }, [entries, dopustiLD]);
 
   const iso = todayISO();
+  const todayDan = (days.find(d => d.datum === iso) || {}).dan;
   const todaySifra = byDate[iso];
-  const todayCls = classify(todaySifra);
+  const todayPrikaz = nzvPrikaz(todaySifra, todayDan, jeNzv);
+  const todayCls = classify(todayPrikaz === "" ? "" : todaySifra);
 
   const tedni = useMemo(() => {
     const out = [];
@@ -427,7 +459,7 @@ function MyScheduleView({ userId, month }){
           <div className="shift">
             <span className="dot" style={{background: BARVE[todayCls]}}></span>
             <div>
-              <div className="shiftName">{shiftLabel(todaySifra)}</div>
+              <div className="shiftName">{shiftLabel(todayPrikaz)}</div>
               <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
               {todayCls === "dez" && zdravnikiPoDatumu[iso] && (
                 <div className="shiftTime">🩺 {zdravnikiPoDatumu[iso]}</div>
@@ -443,7 +475,11 @@ function MyScheduleView({ userId, month }){
             <div className="weekLabel">Teden {i+1}</div>
             {teden.map(dn => {
               const sifra = byDate[dn.datum];
-              const cls = classify(sifra);
+              // Barva se vedno računa iz IZVIRNE kode (npr. "PRISOTEN +
+              // DEŽURSTVO" se mora obarvati kot dežurstvo, ne kot prisotnost),
+              // besedilo pa iz pravila NZV delovnika.
+              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv);
+              const cls = classify(prikaz === "" ? "" : sifra);
               const isToday = dn.datum === iso;
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
               const d = new Date(dn.datum + "T00:00:00");
@@ -466,7 +502,7 @@ function MyScheduleView({ userId, month }){
                     }}>
                     <span className="dot" style={{background: cls==="dez" ? "#fff" : BARVE[cls]}}></span>
                     <span style={{minWidth:0, overflow:"hidden"}}>
-                      <span className="txt">{shiftLabel(sifra)}</span>
+                      <span className="txt">{shiftLabel(prikaz)}</span>
                       {cls === "dez" && zdravnikiPoDatumu[dn.datum] && (
                         <span className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
                           🩺 {zdravnikiPoDatumu[dn.datum]}
@@ -1081,7 +1117,7 @@ function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum) => {
       imena.forEach((ime, idx) => {
-        const id = poKratkem[(ime || "").trim().toUpperCase()];
+        const id = poKratkem[window.Parafa.kratkoKljuc(ime)];
         if (!id) { if (ime) neujemanja.add(ime); return; }
         const sifra = (vrstica[2 + idx] || "").trim();
         zapisi.push({ employee_id: id, department_code: wardCode, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
@@ -1135,7 +1171,7 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem, veljavniOddelk
       for (let c = 2; c < glavaVrstica.length; c++) {
         const ime = (glavaVrstica[c] || "").trim();
         if (!ime || !IME_S_PIKO_RX.test(ime.toUpperCase())) continue; // ni oblike "Priimek I." - opomba/naslov stolpca, ne oseba
-        const kljucIme = ime.toUpperCase();
+        const kljucIme = window.Parafa.kratkoKljuc(ime);
         if (videneOsebe.has(kljucIme)) continue; // ponovljen blok stolpcev - obdrži samo prvo (levo) pojavitev
         videneOsebe.add(kljucIme);
         const oddelek = (vrstica[c - 1] || "").trim().toUpperCase();
@@ -1219,7 +1255,7 @@ function pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDa
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum, j) => {
       imena.forEach((ime, idx) => {
-        const z = poKratkem[(ime || "").trim().toUpperCase()];
+        const z = poKratkem[window.Parafa.kratkoKljuc(ime)];
         if (!z) { if (ime) neujemanja.add(ime); return; }
         const trenutna = byEmpDate[z.id + "|" + datum] || "";
         posodobitve.push({ vrstica: j, stolpec: 2 + idx, vrednost: trenutna });
@@ -2246,7 +2282,8 @@ function App(){
         naZapri={() => setUvozOdprt(false)}
       />
 
-      {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month} />}
+      {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month}
+        jeNzv={!!profile && profile.department_code === "NZV"} />}
       {view==="ward" && wardCode && (
         wardCode === "NZV"
           ? <NzvView key={"nzv" + reloadKey} month={month} />
