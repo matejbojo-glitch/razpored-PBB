@@ -665,7 +665,7 @@ function RazporedPodpisi({ entries }){
   }, [pripravilId]);
 
   const oblikujDatum = (iso) => iso
-    ? new Date(iso).toLocaleString("sl-SI", {day:"numeric", month:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit"})
+    ? window.Datum.sloSCasom(iso)
     : "ni podatka";
 
   return (
@@ -2625,8 +2625,8 @@ function App(){
     ]);
     const nazivIme = (p) => p ? p.full_name + (p.job_title ? ", " + p.job_title : "") : "";
     const vrstice = [];
-    vrstice.push(["Datum objave razporeda:", objava && objava.created_at ? new Date(objava.created_at).toLocaleString("sl-SI") : "ni podatka", ...prazno.slice(2)]);
-    vrstice.push(["Zadnja sprememba:", zadnja ? new Date(zadnja).toLocaleString("sl-SI") : "ni podatka", ...prazno.slice(2)]);
+    vrstice.push(["Datum objave razporeda:", objava && objava.created_at ? window.Datum.sloSCasom(objava.created_at) : "ni podatka", ...prazno.slice(2)]);
+    vrstice.push(["Zadnja sprememba:", zadnja ? window.Datum.sloSCasom(zadnja) : "ni podatka", ...prazno.slice(2)]);
     if (pripravilProfil) vrstice.push(["Pripravil/-a:", nazivIme(pripravilProfil), ...prazno.slice(2)]);
     if (koord) vrstice.push(["Pregledal in odobril:", nazivIme(koord), ...prazno.slice(2)]);
     return vrstice;
@@ -2792,7 +2792,7 @@ function App(){
           <img className="logoSmall" src="logo-pbb.png" alt="" />
           <span className="mark">Razpored</span>
         </div>
-        <p className="sub">{new Date(month+"-01").toLocaleDateString("sl-SI",{month:"long", year:"numeric"})} · Psihiatrična bolnišnica Begunje</p>
+        <p className="sub">{window.Datum.mesecLeto(month)} · Psihiatrična bolnišnica Begunje</p>
         <div className="whoRow no-print">
           <span className="who">Prijavljen: <b>{profile ? profile.full_name : session.user.email}</b></span>
         </div>

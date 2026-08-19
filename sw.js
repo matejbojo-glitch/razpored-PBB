@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v79: ENA oblika datuma povsod (dan.mesec.leto) - odstranjeni vsi
+//      toLocale* klici, vsak izpis gre prek datum.js.
 // v78: koledarski izračuni (zadnji dan v mesecu, obseg meseca, seznam
 //      dni, kratica dneva) so v datum.js - en sam vir za vse strani.
 // v77: "Pomoč na drugem oddelku" odstranjena tudi iz generatorja -
@@ -397,7 +399,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v78';
+const CACHE = 'razpored-pbb-v79';
 const ASSETS = [
   './',
   './index.html',

@@ -975,7 +975,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
         ({ error } = await RazporedAuth.client.from("leave_entries").delete().eq("full_name", ime).eq("work_date", iso));
       }
       if (error) throw error;
-      setStatus("Shranjeno " + new Date().toLocaleTimeString("sl-SI", {hour:"2-digit", minute:"2-digit"}));
+      setStatus("Shranjeno " + window.Datum.cas(new Date()));
     } catch (e) {
       setStatus("Napaka: " + (e.message || String(e)));
     }
@@ -1319,7 +1319,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
           naslov={`zelje-${view.year}-${String(view.month+1).padStart(2,"0")}`}
           pripravi={() => [{
             ime: MESECI_SL[view.month] + " " + view.year,
-            glave: ["Ime", ...dnevi.map(d => isoZa(view.year, view.month, d)), "LD dni"],
+            glave: ["Ime", ...dnevi.map(d => window.Datum.slo(isoZa(view.year, view.month, d))), "LD dni"],
             vrstice: vsiLjudje.map(({ ime }) => [
               ime,
               ...dnevi.map(d => { const val = trenutnaVrednost(ime, isoZa(view.year, view.month, d)); return val ? PEN_META[val].label : ""; }),
@@ -1603,7 +1603,7 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
               <div className="top2">
                 <div>
                   {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
-                  <div className="datum">{new Date(e.created_at).toLocaleString("sl-SI", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"})}</div>
+                  <div className="datum">{window.Datum.sloSCasom(e.created_at)}</div>
                 </div>
                 {(jeKoordinator || e.profile_id === myId) && (
                   <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
