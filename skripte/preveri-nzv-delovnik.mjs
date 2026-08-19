@@ -9,7 +9,7 @@
  *     "dopust", ampak navaden prost dan (na posnetku zaslona je 1.8. v
  *     soboto kazalo "LD", 2.8. v nedeljo pa "PRISOTEN");
  *   - dežurstvo MED TEDNOM se opravlja PO redni prisotnosti (15:30-07:00),
- *     zato tak dan pomeni oboje: "PRISOTEN + DEŽURSTVO". Vikend dežurstvo
+ *     zato tak dan pomeni oboje: "dopoldan + DEŽURSTVO". Vikend dežurstvo
  *     traja 07:00-07:00 in redne prisotnosti ob njem ni.
  *
  * Ključno je tudi, česa pravilo NE sme spremeniti: oddelčni kader
@@ -59,9 +59,9 @@ const NZV = true, ODDELEK = false;
 
 console.log("1) NZV med tednom: dežurstvo pomeni PRISOTEN + DEŽURSTVO (dežurstvo je po redni prisotnosti)");
 {
-  eq(nzvPrikaz("DEŽURSTVO", "TO", NZV), "PRISOTEN + DEŽURSTVO", "torek z dežurstvom");
-  eq(nzvPrikaz("DEŽURSTVO", "PO", NZV), "PRISOTEN + DEŽURSTVO", "ponedeljek z dežurstvom");
-  eq(nzvPrikaz("DEŽURSTVO", "PE", NZV), "PRISOTEN + DEŽURSTVO", "petek z dežurstvom");
+  eq(nzvPrikaz("DEŽURSTVO", "TO", NZV), "dopoldan + DEŽURSTVO", "torek z dežurstvom");
+  eq(nzvPrikaz("DEŽURSTVO", "PO", NZV), "dopoldan + DEŽURSTVO", "ponedeljek z dežurstvom");
+  eq(nzvPrikaz("DEŽURSTVO", "PE", NZV), "dopoldan + DEŽURSTVO", "petek z dežurstvom");
 }
 
 console.log("2) NZV vikend: dežurstvo je SAMO dežurstvo (07:00-07:00, brez ločene prisotnosti)");
@@ -97,9 +97,9 @@ console.log("5) ODDELČNI kader se pravila NE dotakne — vikende dela normalno"
 console.log("6) barva: 'PRISOTEN + DEŽURSTVO' se mora obarvati kot DEŽURSTVO, ne kot prisotnost");
 {
   // V izrisu se barva računa iz IZVIRNE kode, prav zaradi tega primera -
-  // classify("PRISOTEN + DEŽURSTVO") bi se ujel na "prisoten" (zeleno).
+  // classify("dopoldan + DEŽURSTVO") bi se ujel na "prisoten" (zeleno).
   eq(classify("DEŽURSTVO"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
-  eq(classify("PRISOTEN + DEŽURSTVO"), "dop", "sestavljeno besedilo bi se obarvalo zeleno - zato se barva NE računa iz njega");
+  eq(classify("dopoldan + DEŽURSTVO"), "dop", "sestavljeno besedilo bi se obarvalo zeleno - zato se barva NE računa iz njega");
 }
 
 console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v 'Moj razpored'");

@@ -146,6 +146,7 @@ const PROFILI = [
   profil("Trpin Saša", "TRP"),
   profil("Mušič Ines", "MUŠ"),
   profil("Pogačnik Teja", "POG"),
+  profil("Salkić Maruša", "SAL"),
   profil("Novak Ana", "NOV", "user"), // navadna sestra — v NZV mrežo NE sodi
 ];
 const VODJE = [
@@ -153,8 +154,10 @@ const VODJE = [
   { full_name: "BOJIĆ MATEJ", enote: "MO", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "DŽAMASTAGIĆ DENIS", enote: "PDZN", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "VELUŠČEK METKA", enote: "SOBO", odsotnost_tip: null, odsotnost_do: null },
-  { full_name: "ARNEŽ GREGA", enote: "C/C1", odsotnost_tip: null, odsotnost_do: null },
-  { full_name: "MAVRI TRATNIK MAGDALENA", enote: "B1/SOB/NOB", odsotnost_tip: null, odsotnost_do: null },
+  { full_name: "ARNEŽ GREGA", enote: "C", odsotnost_tip: null, odsotnost_do: null },
+  { full_name: "SALKIĆ MARUŠA", enote: "C1", odsotnost_tip: null, odsotnost_do: null },
+  { full_name: "LUNAR MATEJA", enote: "B", odsotnost_tip: null, odsotnost_do: null },
+  { full_name: "MAVRI TRATNIK MAGDALENA", enote: "B1", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "BIZJAK TEA", enote: "UA/SA/B2", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "POGAČNIK TEJA", enote: "E1", odsotnost_tip: "porodniška", odsotnost_do: "2027-07-31" },
 ];
@@ -162,7 +165,9 @@ const NADOMESCANJA = [
   { nosilec: "ALUKIĆ DINO", nadomesca: "BOJIĆ MATEJ", enota: "ŽO", prednost: 1 },
   { nosilec: "ALUKIĆ DINO", nadomesca: "DŽAMASTAGIĆ DENIS", enota: "ŽO", prednost: 2 },
   { nosilec: "ARNEŽ GREGA", nadomesca: "LUNAR MATEJA", enota: "C", prednost: 1 },
-  { nosilec: "MAVRI TRATNIK MAGDALENA", nadomesca: "ŠUBIC PETRA", enota: "B1/SOB/NOB", prednost: 1 },
+  { nosilec: "LUNAR MATEJA", nadomesca: "ARNEŽ GREGA", enota: "B", prednost: 1 },
+  { nosilec: "SALKIĆ MARUŠA", nadomesca: "ARNEŽ GREGA", enota: "C1", prednost: 1 },
+  { nosilec: "MAVRI TRATNIK MAGDALENA", nadomesca: "ŠUBIC PETRA", enota: "B1", prednost: 1 },
 ];
 
 // September 2026: 1.9. je torek. 5./6.9. je vikend. 12./13.9. vikend.
@@ -185,7 +190,7 @@ const test = async () => {
   {
     const { podatki, izpeljano } = await poglej();
     eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. — PDZN");
-    eq(podatki["SOBO|2026-09-01"], "VEL, TRA", "torek 1.9. — SOBO (Velušček + Mavri Tratnik, ki ima SOB med enotami)");
+    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. — SOBO (samo nosilka Velušček)");
     eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. — MO");
     eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. — ŽO");
     eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. — PDZN (cel mesec, ne le prvi dan)");
@@ -213,10 +218,16 @@ const test = async () => {
   console.log("3) Sestavljene enote se razdelijo, neznane oznake se preskočijo");
   {
     const { podatki } = await poglej();
-    eq(podatki["C|2026-09-01"], "ARN", "\"C/C1\" -> stolpec C");
-    eq(podatki["C1|2026-09-01"], "ARN", "\"C/C1\" -> stolpec C1");
+    // "enote" vsebuje SAMO lastno enoto: C1 je Salkićin in Arnež nanj
+    // pride šele ob njeni odsotnosti (glej sklop 5).
+    eq(podatki["C|2026-09-01"], "ARN", "Arnež na svojem C");
+    eq(podatki["C1|2026-09-01"], "SAL", "C1 je Salkićin, ne Arnežev");
     eq(podatki["B1B2|2026-09-01"], "TRA, BIZ", "\"B1/SOB/NOB\" -> B1 in \"UA/SA/B2\" -> B2, oba v stolpec B1,B2");
-    eq(podatki["SOBO|2026-09-01"], "VEL, TRA", "\"SOB\" se prišteje k nosilki SOBO (enoto pokrivata dva)");
+    // "SOB" iz "B1/SOB/NOB" NI enota SOBO - napačna domneva, zaradi katere
+  // sta Mavri Tratnik in Šubic pristajala v tujem stolpcu (uporabnikova
+  // pripomba). Dokler ni pojasnjeno, kaj sta "SOB" in "NOB", se tiho
+  // preskočita, nosilka SOBO pa je samo Velušček Metka.
+  eq(podatki["SOBO|2026-09-01"], "VEL", "\"SOB\" ne pristane v stolpcu SOBO");
     eq(podatki["URGENCA|2026-09-01"], "BIZ", "\"UA\" -> URGENCA");
     // 1. 9. 2026 je ISO teden 36 (sod) -> po privzetku popoldanski teden.
     eq(podatki["SADOP|2026-09-01"] || "", "", "\"SA\" v sodem tednu ni v SA DOP");
@@ -289,36 +300,57 @@ const test = async () => {
     eq(podatki["E1|2026-09-01"] || "", "", "Pogačnik Teja je na porodniški do 31.7.2027 — E1 ostane prazen");
   }
 
-  console.log("5) Ob odsotnosti nosilca vskoči nadomeščevalec po vrstnem redu prednosti");
-  {
-    const { podatki } = await poglej({
-      dopusti: [{ full_name: "Dino Alukić", work_date: "2026-09-02", kind: "ld" }],
-    });
-    eq(podatki["ZO|2026-09-02"], "BOJ", "Alukić na LD -> ŽO pokrije Bojić (prednost 1)");
-    eq(podatki["ZO|2026-09-01"], "ALU", "dan prej je Alukić spet sam");
-    eq(podatki["LD|2026-09-02"], "ALU", "stolpec LD hkrati pokaže odsotnost");
-  }
-  {
-    const { podatki } = await poglej({
-      dopusti: [
-        { full_name: "Dino Alukić", work_date: "2026-09-02", kind: "ld" },
-        { full_name: "Bojić Matej", work_date: "2026-09-02", kind: "bs" },
-      ],
-    });
-    eq(podatki["ZO|2026-09-02"], "DŽA", "če je odsoten tudi prvi nadomeščevalec, vskoči drugi (prednost 2)");
-    eq(podatki["MO|2026-09-02"] || "", "", "Bojićeva lastna enota MO ostane prazna — zanjo ni vpisanega para");
-  }
-  {
-    // Nadomeščevalec prevzame SAMO enoto, zapisano v paru — Lunar ob
-    // Arneževi odsotnosti pokrije C, ne C1 (glej nzv-nadomescanja.sql).
-    const { podatki } = await poglej({
-      dopusti: [{ full_name: "Arnež Grega", work_date: "2026-09-03", kind: "ld" }],
-    });
-    eq(podatki["C|2026-09-03"], "LUN", "Lunar prevzame C");
-    eq(podatki["C1|2026-09-03"] || "", "", "C1 ostane prazen — para za C1 ni");
-  }
+  console.log("5) Ob odsotnosti: nadomeščevalec se PRESELI, tretji pokrije zapuščeno enoto");
+{
+  // Uporabnikov primer, dobesedno: "Salkić odsotna gre Arnež na C1,
+  // Lunar ima B in C". Arneža torej na njegovem C tisti dan NI.
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-02", kind: "ld" }],
+  });
+  eq(podatki["C1|2026-09-02"], "ARN", "Arnež se preseli na C1");
+  eq(podatki["C|2026-09-02"], "LUN", "na Arneževem C je Lunar - Arneža tam NI");
+  eq(podatki["B|2026-09-02"], "LUN", "Lunar obdrži tudi svoj B");
+  eq(podatki["LD|2026-09-02"], "SAL", "stolpec LD pokaže odsotnost");
+  // Dan prej je vse po starem.
+  eq(podatki["C1|2026-09-01"], "SAL", "dan prej je Salkić na svojem C1");
+  eq(podatki["C|2026-09-01"], "ARN", "in Arnež na svojem C");
+  eq(podatki["B|2026-09-01"], "LUN", "Lunar samo na B");
+}
 
-  console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
+console.log("5b) Veriga se ustavi pri tretjem - ta se NE preseli");
+{
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-02", kind: "ld" }],
+  });
+  // Lunar je tretji: dobi C POLEG B. Če bi se tudi ona preselila, bi B
+  // ostal prazen in veriga bi tekla v nedogled.
+  trdi((podatki["B|2026-09-02"] || "").includes("LUN") && (podatki["C|2026-09-02"] || "").includes("LUN"),
+    "tretji je na OBEH enotah hkrati");
+}
+
+console.log("5c) Če je prvi nadomeščevalec tudi odsoten, vskoči drugi");
+{
+  const { podatki } = await poglej({
+    dopusti: [
+      { full_name: "Dino Alukić", work_date: "2026-09-02", kind: "ld" },
+      { full_name: "Bojić Matej", work_date: "2026-09-02", kind: "bs" },
+    ],
+  });
+  eq(podatki["ZO|2026-09-02"], "DŽA", "ŽO prevzame drugi po prednosti");
+  eq(podatki["PDZN|2026-09-02"] || "", "", "Džamastagić je preseljen - na svojem PDZN ga ni");
+}
+
+console.log("5d) Nihče ne more biti hkrati preseljen in prevzemnik");
+{
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-02", kind: "ld" }],
+  });
+  const vseCelice = Object.keys(podatki).filter(k => k.endsWith("|2026-09-02"));
+  const kjeJeArn = vseCelice.filter(k => (podatki[k] || "").split(", ").includes("ARN"));
+  eq(kjeJeArn.join(","), "C1|2026-09-02", "Arnež je samo na C1, nikjer drugje");
+}
+
+console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
   {
     const { podatki, izpeljano } = await poglej({
       entries: [{

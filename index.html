@@ -249,8 +249,14 @@ DELOVNI_ČAS["LD"] = "letni dopust";
 // je bila ista izmena tu ena barva in tam druga.
 const classify = window.Izmene.skupina;
 
+// Kar se izpiše v celici. "PRISOTEN" je notranja koda, ki jo aplikacija
+// zapiše za vodje/administratorje na njihovi enoti; uporabniku pa se mora
+// brati kot navadna izmena - "dopoldan" (uporabnikova izrecna zahteva).
+// Zapisana koda se NE spremeni: po nji se ravna obračun ur (glej NI_DELO
+// v delovni-cas.js), zato bi tiha zamenjava kode spremenila zavihek Plače.
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
+  if (/^prisoten$/i.test(String(sifra).trim())) return "dopoldan";
   return sifra;
 }
 
@@ -367,7 +373,7 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum){
   const vikend = danKratica === "SO" || danKratica === "NE"
     || (datum ? window.Prazniki.jePraznik(datum) : false);
   const jeDezurstvo = classify(sifra) === "dez";
-  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "PRISOTEN + DEŽURSTVO";
+  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "dopoldan + DEŽURSTVO";
   if (!jeNzv || !vikend) return sifra;
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
 }
@@ -1076,16 +1082,10 @@ async function nalozizPodatkeNzv(startISO, endISO){
     (dopusti || []).forEach(d => odsotenDan.add(kljucImenaNzv(d.full_name) + "|" + d.work_date));
     const vodjaZaIme = {};
     (vodje || []).forEach(v => { vodjaZaIme[kljucImenaNzv(v.full_name)] = v; });
-    const jeOdsoten = (ime, datum) => {
+    const jeOdsotenNa = (ime, datum) => {
       if (odsotenDan.has(kljucImenaNzv(ime) + "|" + datum)) return true;
       return window.NzvZasedba.trajnoOdsoten(vodjaZaIme[kljucImenaNzv(ime)], datum);
     };
-    const nadomZa = {};
-    (nadomescanja || []).forEach(n => {
-      const k = kljucImenaNzv(n.nosilec);
-      (nadomZa[k] = nadomZa[k] || []).push(n);
-    });
-    Object.keys(nadomZa).forEach(k => nadomZa[k].sort((a, b) => (a.prednost || 1) - (b.prednost || 1)));
 
     // Enoto lahko pokriva VEČ nosilcev hkrati (URGENCA: Bizjak, Trpin,
     // Mušič) - zato se izpeljane parafe seštevajo, tako kot se seštevajo
@@ -1101,37 +1101,27 @@ async function nalozizPodatkeNzv(startISO, endISO){
       izpeljano[key] = true;
     };
 
+    const veljavneKode = NZV_STOLPCI.map(([k]) => k);
     daysInRange(startISO, endISO).forEach(dn => {
       if (window.Prazniki.jeDelaProstDan(dn.datum)) return;
-      const saKoda = saStolpec(dn.datum, saNast);
-      nosilci.forEach(v => {
-        const kode = nzvEnoteVKode(v.enote, saKoda);
-        if (!kode.length) return;
-        if (zeVpisan.has(kljucImenaNzv(v.full_name) + "|" + dn.datum)) return;
-        if (!jeOdsoten(v.full_name, dn.datum)) {
-          const profil = profilZaIme(v.full_name);
-          if (!profil || !JE_NZV_VLOGA.has(profil.role)) return;
-          const parafa = parafaOd(profil, dn.datum);
-          kode.forEach(koda => vpisiIzpeljano(koda, dn.datum, parafa));
-          return;
-        }
-        // Nosilec je odsoten - prvi nadomeščevalec po prednosti, ki tisti
-        // dan ni odsoten tudi sam.
-        const kandidati = nadomZa[kljucImenaNzv(v.full_name)] || [];
-        for (let i = 0; i < kandidati.length; i++) {
-          const n = kandidati[i];
-          if (jeOdsoten(n.nadomesca, dn.datum)) continue;
-          const profilN = profilZaIme(n.nadomesca);
-          if (!profilN || !JE_NZV_VLOGA.has(profilN.role)) continue;
-          const parafaN = parafaOd(profilN, dn.datum);
-          // "enota" pove, katero enoto nadomeščevalec DEJANSKO prevzame -
-          // ni nujno ves nabor enot odsotnega (Lelič ob Maglićevi
-          // odsotnosti pokrije samo E1, ne E1/D). Kjer ni zapisana, velja
-          // cel nabor odsotnega.
-          const kodeN = nzvEnoteVKode(n.enota, saKoda);
-          (kodeN.length ? kodeN : kode).forEach(koda => vpisiIzpeljano(koda, dn.datum, parafaN));
-          break;
-        }
+      // Kdo je ta dan na kateri enoti (vključno s preselitvijo ob
+      // odsotnosti in prevzemom zapuščene enote) - eno samo pravilo v
+      // nzv-zasedba.js, glej razporedDneva.
+      window.NzvZasedba.razporedDneva({
+        nosilci,
+        pari: nadomescanja || [],
+        kljuc: kljucImenaNzv,
+        jeOdsoten: ime => jeOdsotenNa(ime, dn.datum),
+        saKoda: saStolpec(dn.datum, saNast),
+        veljavne: veljavneKode,
+      }).forEach(({ nosilec, kode }) => {
+        // Kdor je tisti dan že v mreži iz objavljenega razporeda, se ne
+        // podvoji - objava je merodajna.
+        if (zeVpisan.has(kljucImenaNzv(nosilec.full_name) + "|" + dn.datum)) return;
+        const profil = profilZaIme(nosilec.full_name);
+        if (!profil || !JE_NZV_VLOGA.has(profil.role)) return;
+        const parafa = parafaOd(profil, dn.datum);
+        kode.forEach(koda => vpisiIzpeljano(koda, dn.datum, parafa));
       });
     });
   }

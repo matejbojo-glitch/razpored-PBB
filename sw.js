@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v80: "SOB" ni enota SOBO (Mavri Tratnik in Šubic sta pristajala v
+//      tujem stolpcu); "PRISOTEN" se izpiše kot "dopoldan".
 // v79: ENA oblika datuma povsod (dan.mesec.leto) - odstranjeni vsi
 //      toLocale* klici, vsak izpis gre prek datum.js.
 // v78: koledarski izračuni (zadnji dan v mesecu, obseg meseca, seznam
@@ -399,7 +401,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v79';
+const CACHE = 'razpored-pbb-v80';
 const ASSETS = [
   './',
   './index.html',

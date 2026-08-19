@@ -23,10 +23,12 @@
 --     sicer ostal brez vsakega nadomeščevalca. Če to ne drži, se izbriše
 --     ena vrstica.
 --
--- "enota" je oddelek, ki ga nadomeščevalec DEJANSKO prevzame, in ni nujno
--- ves nabor enot odsotnega: Lelič ob Maglićevi odsotnosti pokrije samo E1
--- (ne E1/D), Lunar ob Arneževi samo C (ne C/C1). Kjer uporabnik enote ni
--- posebej navedel (trojka UA/SA), je vpisan cel nabor enot odsotnega.
+-- "enota" je enota ODSOTNEGA, ki jo nadomeščevalec prevzame - ne enota
+-- nadomeščevalca. Nadomeščevalec se nanjo PRESELI: svojo enoto tisti dan
+-- zapusti, prevzame pa jo naslednji v verigi, in to POLEG svoje
+-- (uporabnikovo pravilo, glej supabase/nzv-lastne-enote.sql):
+--
+--   Salkić (C1) odsotna -> Arnež se preseli na C1 -> Lunar ima B in C
 --
 -- Pogačnik Teja NAMENOMA ostaja brez nadomeščevalca (uporabnikova izrecna
 -- odločitev), čeprav je na porodniški do julija 2027.
@@ -74,10 +76,10 @@ insert into public.nadomescanja (nosilec, nadomesca, enota, prednost) values
   ('HROVAT NINA',             'TORKAR TANJA',            'DB',          1),
   ('HUMAR SAŠA',              'BIZJAK TEA',              'SA',          1),
   ('HUMAR SAŠA',              'TRPIN SAŠA',              'SA',          2),
-  ('LELIČ DIJANA',            'MAGLIĆ ALEKSANDER',       'E2/E1',       1),
+  ('LELIČ DIJANA',            'MAGLIĆ ALEKSANDER',       'E2',          1),
   ('LUNAR MATEJA',            'ARNEŽ GREGA',             'B',           1),
   ('MAGLIĆ ALEKSANDER',       'LELIČ DIJANA',            'E1',          1),
-  ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA',             'B1/SOB/NOB',  1),
+  ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA',             'B1',          1),
   ('MUŠIČ INES',              'BIZJAK TEA',              'UA/SA',       1),
   ('MUŠIČ INES',              'TRPIN SAŠA',              'UA/SA',       2),
   ('PERVIZ AMAL',             'MAGLIĆ ALEKSANDER',       'D',           1),
@@ -89,7 +91,7 @@ insert into public.nadomescanja (nosilec, nadomesca, enota, prednost) values
   ('VELUŠČEK METKA',          'DŽAMASTAGIĆ DENIS',       'SOBO',        1),
   ('VELUŠČEK METKA',          'ALUKIĆ DINO',             'SOBO',        2),
   ('VELUŠČEK METKA',          'BOJIĆ MATEJ',             'SOBO',        3),
-  ('ŠUBIC PETRA',             'MAVRI TRATNIK MAGDALENA', 'B1/SOB/NOB',  1)
+  ('ŠUBIC PETRA',             'MAVRI TRATNIK MAGDALENA', 'B1',          1)
 on conflict (nosilec, nadomesca) do update set
   enota = excluded.enota,
   prednost = excluded.prednost;
