@@ -1721,7 +1721,11 @@ function StanjeRazpredelnica({ oddelki }){
       // KDO jih nadomešča ob odsotnosti. Vir je uradna predloga NZV, glej
       // supabase/nzv-nosilci-oddelkov.sql. Ločena tabela od profiles, ker
       // gre za organizacijsko vlogo, ne za uporabniški račun.
-      client.from("lead_departments").select("full_name, inicialke, enote, nadomesca, odsotnost_tip, odsotnost_do"),
+      client.from("lead_departments").select("full_name, inicialke, enote, odsotnost_tip, odsotnost_do"),
+      // Pokrivanja so VZAJEMNA in VEČKRATNA (npr. Alukića nadomeščata
+      // Bojić IN Džamastagić), zato svoja tabela parov, ne en stolpec -
+      // glej supabase/nzv-nadomescanja.sql.
+      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
       // "profiles!employee_id" je nujno: schedule_entries ima več tujih
       // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
       // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).
@@ -1737,7 +1741,7 @@ function StanjeRazpredelnica({ oddelki }){
       // vsebuje izključno potrjene menjave.
       client.from("menjave_javno").select("vlagatelj_id, sodelavec_id, datum_a, datum_b")
         .or(`and(datum_a.gte.${startISO},datum_a.lte.${endISO}),and(datum_b.gte.${startISO},datum_b.lte.${endISO})`),
-    ]).then(([{ data: profili }, { data: nosilci }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
+    ]).then(([{ data: profili }, { data: nosilci }, { data: pokrivanja }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
       if (cancelled) return;
       const seznam = profili || [];
       setOsebe(seznam);
@@ -1750,6 +1754,20 @@ function StanjeRazpredelnica({ oddelki }){
       (nosilci || []).forEach(n => {
         const oseba = seznam.find(p => imenaSeUjemataBrezStresic(p.full_name, n.full_name));
         if (oseba) nosilecPoOsebi[oseba.id] = n;
+      });
+
+      // Obe smeri iz iste tabele parov:
+      //   mene  = kdo nadomešča MENE (po vrstnem redu prednosti),
+      //   jaz   = koga (in katero enoto) pokrivam JAZ.
+      const vrsti = [...(pokrivanja || [])].sort((a, b) => (a.prednost || 1) - (b.prednost || 1));
+      seznam.forEach(p => {
+        const mene = vrsti.filter(v => imenaSeUjemataBrezStresic(p.full_name, v.nosilec));
+        const jaz  = vrsti.filter(v => imenaSeUjemataBrezStresic(p.full_name, v.nadomesca));
+        if (!mene.length && !jaz.length) return;
+        nosilecPoOsebi[p.id] = Object.assign({}, nosilecPoOsebi[p.id] || {}, {
+          nadomescajoMene: mene.map(v => v.nadomesca),
+          pokrivam: jaz.map(v => ({ koga: v.nosilec, enota: v.enota })),
+        });
       });
       setNosilci(nosilecPoOsebi);
       const m2 = {};
@@ -1891,10 +1909,22 @@ function StanjeRazpredelnica({ oddelki }){
                     {nosilec && (
                       <span style={{display:"block", fontSize:10, fontWeight:400, color:"var(--muted)", lineHeight:1.35}}>
                         {nosilec.enote || ""}
-                        {nosilec.nadomesca ? <React.Fragment>
-                          {nosilec.enote ? " · " : ""}
-                          <span title={"Ob odsotnosti (LD, BS) nadomešča: " + nosilec.nadomesca}>↩ {kratkoIme(nosilec.nadomesca)}</span>
-                        </React.Fragment> : null}
+                        {(nosilec.nadomescajoMene || []).length > 0 && (
+                          <React.Fragment>
+                            {nosilec.enote ? " · " : ""}
+                            <span title={"Ob moji odsotnosti (LD, BS) me nadomešča: "
+                              + nosilec.nadomescajoMene.join(", ") + " (po tem vrstnem redu)"}>
+                              ↩ {nosilec.nadomescajoMene.map(kratkoIme).join(", ")}
+                            </span>
+                          </React.Fragment>
+                        )}
+                        {(nosilec.pokrivam || []).length > 0 && (
+                          <span style={{display:"block"}}
+                            title={"Ob odsotnosti drugih pokrivam: "
+                              + nosilec.pokrivam.map(x => x.koga + (x.enota ? " (" + x.enota + ")" : "")).join(", ")}>
+                            ↪ pokriva {nosilec.pokrivam.map(x => x.enota || kratkoIme(x.koga)).join(", ")}
+                          </span>
+                        )}
                       </span>
                     )}
                   </td>
@@ -1911,9 +1941,9 @@ function StanjeRazpredelnica({ oddelki }){
                         title={`${o.full_name} · ${d.dan}. — ${opis}${zamenjano ? " (po potrjeni menjavi)" : ""}`
                           // Ob dopustu/bolniški je najbolj koristno vedeti, KDO
                           // ta dan pokriva njegov oddelek.
-                          + ((nosilec && nosilec.nadomesca && zapis
+                          + ((nosilec && (nosilec.nadomescajoMene || []).length && zapis
                               && (zapis.stanje === "dopust" || zapis.stanje === "bolniska"))
-                             ? " · nadomešča: " + nosilec.nadomesca : "")}
+                             ? " · nadomešča: " + nosilec.nadomescajoMene.join(", ") : "")}
                         style={{background: zapis ? barva : barva + "55", position:"relative",
                           textAlign:"center", fontSize:10, fontWeight:700,
                           color: zapis ? barvaBesedila(barva) : "#2B2717"}}>

@@ -363,6 +363,7 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v67: pokrivanja iz tabele parov (vzajemna, večkratna) v obeh smereh.
 // v66: Razpredelnica pokaže enote in nadomeščanje nosilcev oddelkov.
 // v65: mreža NZV upošteva delovnik PON-PET (vikend prost razen dežurstva).
 // v64: KLJUČEN POPRAVEK. cache.addAll je datoteke jemal iz brskalnikovega
@@ -373,7 +374,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v66';
+const CACHE = 'razpored-pbb-v67';
 const ASSETS = [
   './',
   './index.html',

@@ -351,10 +351,31 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
   eq(kratkoIme(""), "", "prazno ostane prazno");
 
   const html3 = readFileSync(join(koren, "imenik.html"), "utf8");
-  trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote, nadomesca/.test(html3),
+  trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote/.test(html3),
     "razpredelnica bere nosilce oddelkov");
-  trdi(/nadomešča: " \+ nosilec\.nadomesca/.test(html3),
+  // Pokrivanje je VZAJEMNO in VEČKRATNO (Alukića nadomeščata Bojić IN
+  // Džamastagić), zato tabela parov in ne en sam stolpec.
+  trdi(/from\("nadomescanja"\)\.select\("nosilec, nadomesca, enota, prednost"\)/.test(html3),
+    "pokrivanja se berejo iz tabele parov");
+  trdi(/nadomescajoMene/.test(html3) && /pokrivam/.test(html3),
+    "izračunata se OBE smeri: kdo nadomešča mene in koga pokrivam jaz");
+  trdi(/\(a\.prednost \|\| 1\) - \(b\.prednost \|\| 1\)/.test(html3),
+    "nadomeščevalci so razvrščeni po prednosti (kdo je prvi na vrsti)");
+  trdi(/nadomešča: " \+ nosilec\.nadomescajoMene\.join/.test(html3),
     "ob dopustu/bolniški opis pove, kdo pokriva");
+
+  const sql = readFileSync(join(koren, "supabase", "nzv-nadomescanja.sql"), "utf8");
+  trdi(/primary key \(nosilec, nadomesca\)/.test(sql),
+    "ključ je PAR - ista oseba ima lahko več nadomeščevalcev");
+  ["('ALUKIĆ DINO',             'BOJIĆ MATEJ'",
+   "('ALUKIĆ DINO',             'DŽAMASTAGIĆ DENIS'",
+   "('BOJIĆ MATEJ',             'ALUKIĆ DINO'",
+   "('BOJIĆ MATEJ',             'DŽAMASTAGIĆ DENIS'",
+   "('DŽAMASTAGIĆ DENIS',       'ALUKIĆ DINO'",
+   "('DŽAMASTAGIĆ DENIS',       'BOJIĆ MATEJ'",
+   "('VELUŠČEK METKA',          'DŽAMASTAGIĆ DENIS'"].forEach(v => {
+    trdi(sql.includes(v), "navzkrižno pokrivanje: " + v.replace(/\s+/g, " "));
+  });
 }
 
 console.log("");
