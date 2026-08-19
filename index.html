@@ -336,6 +336,18 @@ function monthRange(monthStr){
   const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
   return { startISO:start, endISO:end };
 }
+// Ali je dani delovni datum ("LLLL-MM-DD") sobota ali nedelja.
+// Datum se razčleni kot BESEDILO in sestavi ob 12:00 lokalnega časa - z
+// "new Date(iso)" bi ga brskalnik v časovnem pasu za UTC premaknil na
+// prejšnji dan in petek bi izpadel kot četrtek (ista past je bila že
+// odpravljena v datum.js).
+function jeVikendISO(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  if (!m) return false;
+  const dan = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getDay();
+  return dan === 0 || dan === 6;
+}
+
 function daysInRange(startISO, endISO){
   const out = [];
   let d = new Date(startISO + "T00:00:00");
@@ -926,6 +938,12 @@ async function nalozizPodatkeNzv(startISO, endISO){
   const podatki = {};
   (entries || []).forEach(r => {
     if (!r.profiles) return;
+    // Delovnik NZV je PON-PET; sobota in nedelja sta prosti, razen če je
+    // oseba tisti dan DEŽURNA. Isto pravilo kot nzvPrikaz v "Moj
+    // razpored" - brez njega je mreža ob vikendih kazala vodje na
+    // enotah, čeprav takrat ne delajo.
+    if (jeVikendISO(r.work_date) && classify(r.shift_code) !== "dez"
+        && r.department_code !== "DEZ") return;
     // V NZV razporedu so SAMO vodje in administratorji (uporabnikova
     // izrecna zahteva). Brez tega filtra se je mreža polnila z oddelčnim
     // kadrom: kode B/C/C1/D/E1/E2 so hkrati oddelki SMS/TZN kadra IN imena
@@ -940,6 +958,9 @@ async function nalozizPodatkeNzv(startISO, endISO){
   (dopusti || []).forEach(d => {
     const koda = NZV_KIND_KODA[d.kind];
     if (!koda) return;
+    // Odsotnost (LD/IZOB/BS) se prav tako vodi samo za delovne dni -
+    // "letni dopust v soboto" ni stvar; vikend je prost sam po sebi.
+    if (jeVikendISO(d.work_date)) return;
     const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
     // Isto pravilo kot za enote zgoraj: stolpci LD/IZOB/BS uradne predloge
     // se nanašajo na NZV kader, ne na oddelčne sestre. Oseba, ki je v
