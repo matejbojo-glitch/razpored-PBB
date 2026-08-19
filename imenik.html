@@ -1547,6 +1547,12 @@ const IZMENA_KRATICE = [
   [/^nočna|^nocna/,          "N10",  "Nočna",                   "PON-PET 20:50-06:00", "#4A67B0", "delo"],
   [/^popoldando19/,          "PO5",  "Popoldan do 19",          "PON-PET 13:50-19:00", "#E8A867", "delo"],
   [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
+  // Delni FLEXI izmeni: v oddelčnih zavihkih preglednice sta zapisani kot
+  // "dop. 7.h-13.h" in "pop. 14.h-20.h" (navzkrižno pokrivanje drugega
+  // oddelka). Nista isti kot navadni DOP/PO7 - 14:00-20:00 ni 13:50-21:00 -
+  // zato imata svoji kratici in svoji barvi.
+  [/^dop7h?-?13/,            "DF7",  "Flexi dopoldne",          "07:00-13:00", "#2E7D5B", "delo"],
+  [/^pop14h?-?20/,           "DP7",  "Flexi popoldne",          "14:00-20:00", "#A85A2A", "delo"],
   [/^do7|^dopoldan7/,        "DO7",  "Dopoldan (pripravnik)",   "PON-PET 07:00-14:00", "#8FCBA4", "delo"],
   // "PRISOTEN" je koda, ki jo aplikacija zapiše za NZV/vodje - to je po
   // uradni datoteki prva vrstica (DMS, PON-PET 07:00-15:00), torej DOP.
@@ -1632,6 +1638,7 @@ function StanjeRazpredelnica({ oddelki }){
   // "id|datum" za dneve, ki jih je spremenila POTRJENA menjava. Sama izmena
   // je v schedule_entries že zamenjana (to naredi obrazec_potrdi_koordinator
   // v bazi), tu gre samo za vidno oznako, da se menjava tudi opazi.
+  // Vidna je vsem zaposlenim in za vse mesece (pogled menjave_javno).
   const [menjani, setMenjani] = useState({});
 
   const dnevi = useMemo(() => {
@@ -1661,12 +1668,14 @@ function StanjeRazpredelnica({ oddelki }){
         .gte("work_date", startISO).lte("work_date", endISO),
       client.from("leave_entries").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
-      // Potrjene menjave v tem mesecu - samo za oznako v celici. RLS
+      // Potrjene menjave - samo za oznako v celici. Beremo iz pogleda
+      // menjave_javno (shema, sekcija 33), ne iz obrazci: RLS na obrazci
       // navadnemu uporabniku pokaže tuje menjave le za TEKOČI mesec, zato
-      // oznaka za pretekle/prihodnje mesece lahko manjka; podatek o izmeni
-      // je kljub temu pravilen, ker je menjava zapisana v schedule_entries.
-      client.from("obrazci").select("vlagatelj_id, sodelavec_id, polja")
-        .eq("vrsta", "menjava_sluzbe").eq("status", "zakljucen"),
+      // je oznaka za druge mesece manjkala. Pogled izpostavi samo kdo/s
+      // kom/katera dva dneva - brez opomb in razlogov iz obrazca - in
+      // vsebuje izključno potrjene menjave.
+      client.from("menjave_javno").select("vlagatelj_id, sodelavec_id, datum_a, datum_b")
+        .or(`and(datum_a.gte.${startISO},datum_a.lte.${endISO}),and(datum_b.gte.${startISO},datum_b.lte.${endISO})`),
     ]).then(([{ data: profili }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
       if (cancelled) return;
       const seznam = profili || [];
@@ -1701,9 +1710,8 @@ function StanjeRazpredelnica({ oddelki }){
 
       const mm = {};
       (menjave || []).forEach(o => {
-        const pol = o.polja || {};
-        if (o.vlagatelj_id && pol.datum_a) mm[o.vlagatelj_id + "|" + pol.datum_a] = true;
-        if (o.sodelavec_id && pol.datum_b) mm[o.sodelavec_id + "|" + pol.datum_b] = true;
+        if (o.vlagatelj_id && o.datum_a) mm[o.vlagatelj_id + "|" + o.datum_a] = true;
+        if (o.sodelavec_id && o.datum_b) mm[o.sodelavec_id + "|" + o.datum_b] = true;
       });
       setMenjani(mm);
     });
@@ -1720,7 +1728,7 @@ function StanjeRazpredelnica({ oddelki }){
       <h2 className="section">Razpredelnica stanja</h2>
       <p className="hint" style={{marginTop:0}}>
         Kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost. Združuje objavljen razpored in
-        vpise iz Želja, vključno s <b>potrjenimi menjavami</b> (te so v razporedu že zamenjane, v celici pa označene z ↔).
+        vpise iz Želja, vključno s <b>potrjenimi menjavami</b> za vse mesece (te so v razporedu že zamenjane, v celici pa označene z ↔).
         Kratice so uradne, iz dokumenta <i>Razpored delovnega časa</i> — vsaka ima svojo barvo, glej legendo spodaj.
       </p>
       <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:10}}>
@@ -1762,8 +1770,8 @@ function StanjeRazpredelnica({ oddelki }){
         })}
         <div style={{fontSize:11, color:"var(--muted)", marginTop:2, paddingTop:8, borderTop:"1px solid var(--line)"}}>
           Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
-          v tej legendi (npr. delna flexi izmena »pop. 14.h-20.h«) — postavi kazalec nanjo za izvirni zapis.
-          Kotna oznaka <b>↔</b> pomeni, da je bila izmena zamenjana s potrjeno menjavo. Vir kratic:
+          v tej legendi — postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
+          izmena zamenjana s potrjeno menjavo. Vir kratic:
           <i>Razpored delovnega časa — Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
         </div>
       </div>

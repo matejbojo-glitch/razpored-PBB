@@ -156,6 +156,24 @@ console.log("10) preslikava kod aplikacije v uradne kratice");
   eq(izmenaKratica("POMOČ DRUGJE"), "POM", "pomoč na drugem oddelku");
 }
 
+console.log("10b) delni FLEXI izmeni imata svoji kratici (DF7 / DP7)");
+{
+  // V oddelčnih zavihkih preglednice sta zapisani kot "dop. 7.h-13.h" in
+  // "pop. 14.h-20.h" (navzkrižno pokrivanje drugega oddelka).
+  eq(izmenaKratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne 07:00-13:00");
+  eq(izmenaKratica("pop. 14.h-20.h"), "DP7", "flexi popoldne 14:00-20:00");
+  eq(izmenaKratica("dop 7-13"), "DF7", "brez pik in 'h'");
+  eq(izmenaKratica("pop 14-20"), "DP7", "brez pik in 'h'");
+  // Ključno: NISTA isti izmeni kot navadni dopoldan/popoldan -
+  // 14:00-20:00 ni 13:50-21:00. Če bi se zlili, bi razpredelnica trdila,
+  // da nekdo dela izmeno, ki je ne dela.
+  trdi(izmenaKratica("dop. 7.h-13.h") !== izmenaKratica("dopoldan"), "DF7 != DOP");
+  trdi(izmenaKratica("pop. 14.h-20.h") !== izmenaKratica("popoldan"), "DP7 != PO7");
+  trdi(izmenaBarva("dop. 7.h-13.h") !== izmenaBarva("dopoldan"), "DF7 ima svojo barvo");
+  trdi(izmenaBarva("pop. 14.h-20.h") !== izmenaBarva("popoldan"), "DP7 ima svojo barvo");
+  eq(stanjeIzKode("dop. 7.h-13.h"), "delo", "flexi izmena šteje kot delo");
+}
+
 console.log("11) 'PRISOTEN' je DOP, ne svoja kratica (uporabnik: PRI odstrani)");
 {
   // Uradna datoteka ima DMS/vodje PON-PET 07:00-15:00 pod kratico DOP,
@@ -185,15 +203,11 @@ console.log("13) presledki, pike in velikost črk ne motijo");
   // flexi navzkrižno pokrivanje v zavihku KALUP). To NISO uradne izmene:
   // 14:00-20:00 ni isto kot popoldan 13:50-21:00. Če bi jih preslikali v
   // PO7, bi razpredelnica trdila, da nekdo dela izmeno, ki je ne dela.
-  trdi(izmenaKratica("pop. 14.h-20.h") !== "PO7", "delna flexi izmena se NE izdaja za popoldan");
-  trdi(izmenaKratica("pop. 14.h-20.h").length <= 3, "vseeno ostane največ 3 znake");
-  // Skrajšava lahko po naključju izpade enako kot uradna kratica
-  // ("dop. 7.h-13.h" -> "DOP"). Loči ju BARVA: neprepoznane kode dobijo
-  // nevtralno sivo, uradne pa svojo barvo iz legende.
-  trdi(izmenaBarva("dop. 7.h-13.h") !== izmenaBarva("dopoldan"),
+  // Skrajšava neznane kode lahko po naključju izpade enako kot uradna
+  // kratica. Loči ju BARVA: neprepoznane kode dobijo nevtralno sivo,
+  // uradne pa svojo barvo iz legende.
+  trdi(izmenaBarva("dopust brez placila") !== izmenaBarva("dopoldan"),
     "neprepoznana koda ima drugo barvo kot uradni dopoldan");
-  trdi(izmenaBarva("pop. 14.h-20.h") !== izmenaBarva("popoldan"),
-    "neprepoznana koda ima drugo barvo kot uradni popoldan");
 }
 
 console.log("14) prazna in neznana koda");
@@ -226,8 +240,22 @@ console.log("16) legenda in menjave so v imenik.html res prikazane");
   trdi(/barva: izmenaBarva\(v\.shift_code\)/.test(html2), "barva celice pride iz kratice");
   // Menjava: izmene v schedule_entries zamenja baza (obrazec_potrdi_koordinator),
   // razpredelnica jih zato vidi samodejno - tu preverjamo samo vidno oznako.
-  trdi(/\.eq\("vrsta", "menjava_sluzbe"\)\.eq\("status", "zakljucen"\)/.test(html2),
-    "berejo se samo POTRJENE menjave");
+  // Menjave se berejo iz pogleda menjave_javno (shema, sekcija 33), ne iz
+  // obrazci: RLS na obrazci pokaže tuje menjave le za tekoči mesec, zato
+  // je oznaka za druge mesece manjkala.
+  trdi(/from\("menjave_javno"\)/.test(html2), "menjave se berejo iz pogleda menjave_javno");
+  trdi(!/from\("obrazci"\)/.test(html2), "ne bere se več neposredno iz obrazci (ozek RLS)");
+  const shema = readFileSync(join(koren, "supabase", "schema.sql"), "utf8");
+  const pogled = shema.slice(shema.indexOf("create view public.menjave_javno"));
+  trdi(/status = 'zakljucen'/.test(pogled.slice(0, 600)), "pogled vsebuje SAMO potrjene menjave");
+  trdi(!/opomba|razlog_zavrnitve/.test(pogled.slice(0, 600)),
+    "pogled ne izpostavi opomb ne razlogov zavrnitve (samo kdo/kdaj)");
+  trdi(!/security_invoker/.test(pogled.slice(0, 600)),
+    "pogled teče s pravicami lastnika - to je edini način, da pokaže vse mesece");
+  trdi(/grant select on public\.menjave_javno to authenticated/.test(shema),
+    "pogled je berljiv vsem prijavljenim");
+  trdi(/revoke all on public\.menjave_javno from anon/.test(shema),
+    "neprijavljeni (anon) do pogleda NIMAJO dostopa");
   trdi(/setMenjani\(mm\)/.test(html2), "dnevi s potrjeno menjavo se označijo");
   trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
 }

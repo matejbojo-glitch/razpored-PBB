@@ -3064,3 +3064,42 @@ create policy duty_doctors_select on public.duty_doctors for select to authentic
 drop policy if exists duty_doctors_write on public.duty_doctors;
 create policy duty_doctors_write on public.duty_doctors for all to authenticated
   using (public.current_role_is('admin')) with check (public.current_role_is('admin'));
+
+-- ---------------------------------------------------------------------
+-- 33) menjave_javno — kdaj je bila izmena zamenjana s POTRJENO menjavo,
+--     vidno vsem zaposlenim in za VSE mesece.
+--
+--     Zakaj pogled in ne širša politika na obrazci: obrazci_select
+--     (sekcija 28) navadnemu uporabniku pokaže tuje menjave samo za
+--     tekoči mesec, zato je oznaka "zamenjano" v razpredelnici za
+--     pretekle in prihodnje mesece manjkala. Politiko bi lahko razširili,
+--     a bi s tem vsem razkrili tudi polje "polja" (opomba/razlog
+--     menjave) in razlog zavrnitve - to so občutljivi podatki, ki jih za
+--     oznako sploh ne potrebujemo.
+--
+--     Pogled zato izpostavi SAMO štiri stvari, ki so nujne: kdo, s kom,
+--     in katera dva dneva. Sama izmena tistega dne je itak že javna -
+--     razpored vidijo vsi (schedule_entries_select) - in menjava je vanj
+--     že vpisana (obrazec_potrdi_koordinator), zato oznaka ne razkriva
+--     ničesar, česar zaposleni ne bi mogel prebrati iz razporeda.
+--
+--     Pogled NAMENOMA nima security_invoker: teče s pravicami lastnika,
+--     zato zaobide RLS na obrazci in pokaže vse mesece - to je celoten
+--     namen. Ker izbira samo status='zakljucen', osnutki in zavrnjene
+--     menjave ostanejo skriti.
+-- ---------------------------------------------------------------------
+drop view if exists public.menjave_javno;
+create view public.menjave_javno as
+  select
+    o.vlagatelj_id,
+    o.sodelavec_id,
+    (o.polja ->> 'datum_a')::date as datum_a,
+    (o.polja ->> 'datum_b')::date as datum_b
+  from public.obrazci o
+  where o.vrsta = 'menjava_sluzbe'
+    and o.status = 'zakljucen'
+    and o.polja ? 'datum_a'
+    and o.polja ? 'datum_b';
+
+revoke all on public.menjave_javno from anon;
+grant select on public.menjave_javno to authenticated;
