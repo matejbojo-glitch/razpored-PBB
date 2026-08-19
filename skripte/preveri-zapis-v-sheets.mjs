@@ -86,6 +86,8 @@ vm.createContext(sandbox);
 // kratkoKljuc) - tam so uporabnikom potrjeni popravki zapisov, npr.
 // "VALJAVEC A." -> "VALJAVEC E." Peskovnik jo mora imeti naloženo, sicer
 // izvlečena koda kliče nedefiniran window.Parafa.
+// parafa.js kratka imena zvede na skupni ključ prek imena.js.
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 vm.runInContext(koda, sandbox);
 const { pripraviPosodobitveOddelka } = sandbox;

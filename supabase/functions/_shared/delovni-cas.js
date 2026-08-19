@@ -42,10 +42,16 @@
     // aplikacija še nima. Zato dežurstvo tudi ne šteje v obračun ur
     // (glej zavihek Plače, kjer je prikazano kot število, ne ure).
     "DEŽURSTVO":        { zacetek: "15:30", konec: "07:00", ure: null,       nocna: true },
+    // Vodje in administratorji (DMS): redni delovnik 07:00-15:00, torej
+    // natanko 8 ur brez 10-minutne predaje, ki jo imajo oddelčne izmene.
+    // "PRISOTEN" je koda, ki jo aplikacija zapiše ob objavi razporeda NZV
+    // (admin.html -> NZV). Doslej je bila med NI_DELO in ni štela v ure -
+    // na uporabnikovo izrecno odločitev odslej šteje.
+    "PRISOTEN":         { zacetek: "07:00", konec: "15:00", ure: 8,          nocna: false },
   };
 
   // Kode, ki NISO delo (odsotnost/prosto) — ne štejejo v počitek niti v ure.
-  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", "PRISOTEN", ""];
+  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", ""];
 
   // Privzeta delovnopravna pravila. NAMENOMA nastavljiva (in ne trdo
   // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih

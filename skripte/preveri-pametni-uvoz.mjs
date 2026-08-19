@@ -115,6 +115,8 @@ vm.createContext(sandbox);
 // kratkoKljuc) - tam so uporabnikom potrjeni popravki zapisov, npr.
 // "VALJAVEC A." -> "VALJAVEC E." Peskovnik jo mora imeti naloženo, sicer
 // izvlečena koda kliče nedefiniran window.Parafa.
+// parafa.js kratka imena zvede na skupni ključ prek imena.js.
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 vm.runInContext(koda, sandbox);
 const { razvrstiListe, obdelajOddelekVrstice, obdelajNzvVrstice, zdruziPoKljucu } = sandbox;
@@ -141,7 +143,7 @@ console.log("2) obdelajOddelekVrstice na C1-oblikovanem listu");
     ["1. 6. 2026", "PO", "LD", "NOČNA"],
     ["2. 6. 2026", "TO", "popoldan", "KPU"],
   ];
-  const poKratkem = { "DŽINIĆ A.": "dzinic-id", "STARC E.": "starc-id" };
+  const poKratkem = { "DZINIC|A": "dzinic-id", "STARC|E": "starc-id" };
   const { zapisi, najdenDatum, najdenaGlava, neujemanja } = obdelajOddelekVrstice(vrsteVrstic, "C1", "2026-06", poKratkem);
   trdi(najdenDatum && najdenaGlava, "najde datume in glavo");
   jseq(zapisi.length, 4, "4 zapisi (2 osebi x 2 dneva)");
@@ -211,7 +213,7 @@ console.log("6) resnični scenarij, ki je javil Postgres napako: ista oseba, ist
     ["", "", "SMS / TZN", "SMS / TZN"],
     ["1. 9. 2026", "TO", "dopoldan", "popoldan"], // različni vrednosti za isto osebo/dan v istem zavihku
   ];
-  const poKratkem = { "DOLAR T.": "dolar-id" };
+  const poKratkem = { "DOLAR|T": "dolar-id" };
   const { zapisi } = obdelajOddelekVrstice(bVrstice, "B", "2026-09", poKratkem);
   jseq(zapisi.length, 2, "obdelajOddelekVrstice sam po sebi NE združuje - vrne oba (to bi šlo v en sam upsert in padlo)");
   const { edinstveni, podvojeni } = zdruziPoKljucu(zapisi, z => z.employee_id + "|" + z.work_date);

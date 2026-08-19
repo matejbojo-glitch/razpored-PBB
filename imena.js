@@ -61,6 +61,24 @@ window.Imena = (function () {
     return !!ka && ka === kb;
   }
 
+  // Ključ za KRATKO obliko "PRIIMEK X.", kot jo uporablja preglednica
+  // "2026 SMS RAZPORED" v glavi stolpca. Primerjati ga mora s polnim
+  // imenom iz Imenika, zato se oboje zvede na isto: priimek (lahko iz več
+  // besed) + prva črka imena.
+  //
+  //   "Bećirović Nelvedin"  -> "BECIROVIC|N"
+  //   "BEČIROVIĆ N."        -> "BECIROVIC|N"   (druga strešica, ista oseba)
+  //
+  // Prav ta razlika (Ć proti Č) je povzročila, da se Bećirović pri uvozu
+  // ni povezal in je njegov stolpec ostal prazen - dobesedna primerjava
+  // nizov tega ni prenesla.
+  function kratkiKljuc(s) {
+    var besede = brezStresic(normaliziraj(s)).replace(/\./g, " ").split(/\s+/).filter(Boolean);
+    if (!besede.length) return "";
+    if (besede.length === 1) return besede[0] + "|";
+    return besede.slice(0, -1).join(" ") + "|" + besede[besede.length - 1].charAt(0);
+  }
+
   // "MAVRI TRATNIK MAGDALENA" -> "Mavri". V ozkem stolpcu zadošča priimek
   // (prva beseda), polno ime je v opisu ob kazalcu.
   function kratkoIme(polno) {
@@ -76,6 +94,7 @@ window.Imena = (function () {
     normaliziraj: normaliziraj,
     kljuc: kljuc,
     seUjemata: seUjemata,
+    kratkiKljuc: kratkiKljuc,
     kratkoIme: kratkoIme,
   };
 })();

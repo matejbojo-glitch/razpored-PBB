@@ -87,6 +87,8 @@ vm.createContext(sandbox);
 // kratkoKljuc) - tam so uporabnikom potrjeni popravki zapisov, npr.
 // "VALJAVEC A." -> "VALJAVEC E." Peskovnik jo mora imeti naloženo, sicer
 // izvlečena koda kliče nedefiniran window.Parafa.
+// parafa.js kratka imena zvede na skupni ključ prek imena.js.
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 vm.runInContext(koda, sandbox);
 const { obdelajFlexiVrstice } = sandbox;
@@ -115,10 +117,12 @@ for (const v of [GLAVA, VLOGA, DAN1, DAN2]) {
 }
 
 const VRSTICE = [GLAVA, VLOGA, DAN1, DAN2];
+// Ključi so v obliki, ki jo gradi window.Imena.kratkiKljuc (priimek brez
+// strešic + prva črka imena) - ista na obeh straneh primerjave.
 const poKratkem = {
-  "ZAPLOTNIK A.": "zaplotnik-id", // ne obstaja v resnici (izbrisana oseba) - tu namenoma OBSTAJA, da preverimo prezrtje ponovljenega bloka
-  "DJEDOVIĆ M.": "djedovic-id",
-  "MISOTIČ R.": "misotic-id",
+  "ZAPLOTNIK|A": "zaplotnik-id", // ne obstaja v resnici (izbrisana oseba) - tu namenoma OBSTAJA, da preverimo prezrtje ponovljenega bloka
+  "DJEDOVIC|M": "djedovic-id",
+  "MISOTIC|R": "misotic-id",
   // "BURNAR S." namenoma NI v poKratkem - preveri "ni najden profil"
 };
 

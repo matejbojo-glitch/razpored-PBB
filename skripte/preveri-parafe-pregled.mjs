@@ -31,6 +31,8 @@ function eq(a, b, opis) {
 
 const sandbox = { window: {}, console, String, Object };
 vm.createContext(sandbox);
+// parafa.js kratka imena zvede na skupni ključ prek imena.js.
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 const Parafa = sandbox.window.Parafa;
 
@@ -93,12 +95,12 @@ console.log("7) potrjeni popravki kratkih zapisov iz predlog (Priimek I.)");
   // V uradni predlogi piše "VALJAVEC A.", oseba pa je Valjavec Enej -
   // uporabnik je to izrecno potrdil. Brez tega popravka uvoz njegovih
   // izmen tiho ne bi zapisal (ime bi pristalo med "brez ujemanja").
-  eq(Parafa.kratkoKljuc("VALJAVEC A."), "VALJAVEC E.", "VALJAVEC A. -> VALJAVEC E. (potrjeno: Valjavec Enej)");
-  eq(Parafa.kratkoKljuc("valjavec a."), "VALJAVEC E.", "male črke se najprej normalizirajo");
-  eq(Parafa.kratkoKljuc("  VALJAVEC A.  "), "VALJAVEC E.", "presledki okoli ne motijo");
+  eq(Parafa.kratkoKljuc("VALJAVEC A."), "VALJAVEC|E", "VALJAVEC A. -> VALJAVEC E. (potrjeno: Valjavec Enej)");
+  eq(Parafa.kratkoKljuc("valjavec a."), "VALJAVEC|E", "male črke se najprej normalizirajo");
+  eq(Parafa.kratkoKljuc("  VALJAVEC A.  "), "VALJAVEC|E", "presledki okoli ne motijo");
   // Seznam mora ostati OZEK - vsak vpis pomeni izmeno, pripisano konkretni
   // osebi, zato sme sem samo uporabnikom potrjen zapis.
-  eq(Parafa.kratkoKljuc("KARNIČAR J."), "KARNIČAR J.", "nepotrjena imena ostanejo nespremenjena");
+  eq(Parafa.kratkoKljuc("KARNIČAR J."), "KARNICAR|J", "ime brez potrjenega psevdonima se samo zvede na ključ");
   trdi(Object.keys(Parafa.KRATKO_PSEVDONIM).length === 1,
     `seznam popravkov je ozek: ${Object.keys(Parafa.KRATKO_PSEVDONIM).length} vpis(ov)`);
 }

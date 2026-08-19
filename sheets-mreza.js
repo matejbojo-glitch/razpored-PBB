@@ -47,14 +47,6 @@ window.SheetsMreza = (function () {
     return j;
   }
 
-  function priimekZacetnica(fullName){
-    const deli = (fullName || "").trim().split(/\s+/);
-    if (deli.length < 2) return (fullName || "").toUpperCase();
-    const ime = deli[deli.length - 1];
-    const priimek = deli.slice(0, -1).join(" ");
-    return `${priimek} ${ime[0]}.`.toUpperCase();
-  }
-
   function najdiVrsticoImen(vrsteVrstic, zacetekBloka){
     for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
       const vrstica = vrsteVrstic[i] || [];
@@ -78,7 +70,10 @@ window.SheetsMreza = (function () {
     const poKratkem = {};
     const podvojena = new Set();
     (staff || []).forEach(z => {
-      const kratko = priimekZacetnica(z.ime).toUpperCase();
+      // Isti ključ kot pri uvozu (window.Imena.kratkiKljuc): priimek brez
+      // strešic + prva črka imena. Dobesedna primerjava nizov je puščala
+      // neujemanja pri različnem zapisu strešic (Bećirović / Bečirović).
+      const kratko = window.Imena.kratkiKljuc(z.ime);
       if (kratko in poKratkem) podvojena.add(kratko); else poKratkem[kratko] = z;
     });
     podvojena.forEach(k => delete poKratkem[k]);
