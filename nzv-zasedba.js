@@ -142,6 +142,94 @@ window.NzvZasedba = (function () {
     return out;
   }
 
+  // --- Kdo je ta dan na kateri enoti -----------------------------------
+  // Uporabnikovo pravilo (avgust 2026), povedano na primeru:
+  //
+  //   Salkić (C1) je odsotna  ->  Arnež PRESELI na C1 (na svojem C ga ni)
+  //                           ->  Lunar poleg svojega B pokrije še C
+  //
+  // Torej dve različni ravni, ki se ne smeta zamešati:
+  //   1. nadomeščevalec odsotnega se PRESELI - prevzame njegovo enoto in
+  //      svojo zapusti;
+  //   2. tretji, ki pokrije zapuščeno enoto, se NE preseli - to enoto
+  //      dobi POLEG svoje. Tu se veriga ustavi.
+  //
+  // Vhod:
+  //   nosilci      vrstice lead_departments (full_name, enote, odsotnost_*)
+  //   pari         vrstice nadomescanja (nosilec, nadomesca, enota, prednost)
+  //   kljuc(ime)   normalizacija imena v primerljiv ključ (glej imena.js)
+  //   jeOdsoten(ime) -> bool za ta dan
+  //   saKoda       stolpec SA, ki ta dan velja (glej saStolpec)
+  //   veljavne     nabor kod, ki v mreži obstajajo
+  //
+  // Vrne [{ nosilec, kode }] - kdo je ta dan na katerih enotah.
+  function razporedDneva(opts) {
+    var nosilci = opts.nosilci || [], pari = opts.pari || [];
+    var kljuc = opts.kljuc, jeOdsoten = opts.jeOdsoten;
+    var vKode = function (enote) { return enoteVKode(enote, opts.saKoda, opts.veljavne); };
+
+    var poKljucu = {};
+    nosilci.forEach(function (v) { poKljucu[kljuc(v.full_name)] = v; });
+
+    // Nadomeščevalci posameznega nosilca, urejeni po prednosti.
+    var zaNosilca = {};
+    pari.slice()
+      .sort(function (a, b) { return (a.prednost || 1) - (b.prednost || 1); })
+      .forEach(function (n) {
+        var k = kljuc(n.nosilec);
+        (zaNosilca[k] = zaNosilca[k] || []).push(n);
+      });
+
+    // 1. raven: kdo se preseli in kam.
+    var preseljen = {};   // ključ nadomeščevalca -> kode enot, ki jih prevzame
+    // Vrstni red mora biti določen (ne po naključju iz baze), sicer bi ob
+    // dveh hkratnih odsotnostih isti nadomeščevalec enkrat pripadel enemu
+    // in drugič drugemu.
+    nosilci.slice()
+      .sort(function (a, b) { return String(a.full_name).localeCompare(String(b.full_name)); })
+      .forEach(function (v) {
+        if (!v.enote || !jeOdsoten(v.full_name)) return;
+        var kandidati = zaNosilca[kljuc(v.full_name)] || [];
+        for (var i = 0; i < kandidati.length; i++) {
+          var kn = kljuc(kandidati[i].nadomesca);
+          if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kn]) continue;
+          var kode = vKode(kandidati[i].enota || v.enote);
+          if (!kode.length) continue;
+          preseljen[kn] = kode;
+          break;
+        }
+      });
+
+    // 2. raven: zapuščene enote prevzame naslednji, in to POLEG svojih.
+    var dodatno = {};
+    Object.keys(preseljen).forEach(function (kb) {
+      var b = poKljucu[kb];
+      if (!b || !b.enote) return;
+      var kandidati = zaNosilca[kb] || [];
+      for (var i = 0; i < kandidati.length; i++) {
+        var kc = kljuc(kandidati[i].nadomesca);
+        // Kdor je sam odsoten ali se je že preselil, ne more prevzeti še
+        // ene enote - sicer bi bil hkrati na dveh koncih.
+        if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kc]) continue;
+        dodatno[kc] = (dodatno[kc] || []).concat(vKode(b.enote));
+        break;
+      }
+    });
+
+    var out = [];
+    nosilci.forEach(function (v) {
+      if (!v.enote || jeOdsoten(v.full_name)) return;
+      var k = kljuc(v.full_name);
+      // Preseljeni NIMA več svoje enote - to je bistvo preselitve.
+      var kode = preseljen[k] ? preseljen[k].slice() : vKode(v.enote);
+      (dodatno[k] || []).forEach(function (koda) {
+        if (kode.indexOf(koda) < 0) kode.push(koda);
+      });
+      if (kode.length) out.push({ nosilec: v, kode: kode });
+    });
+    return out;
+  }
+
   return {
     VLOGE: VLOGE,
     jeNzvVloga: jeNzvVloga,
@@ -154,5 +242,6 @@ window.NzvZasedba = (function () {
     dolgaOdsotnostKratica: dolgaOdsotnostKratica,
     IZMENA_PRISOTEN: IZMENA_PRISOTEN,
     stalnaZasedba: stalnaZasedba,
+    razporedDneva: razporedDneva,
   };
 })();
