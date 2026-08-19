@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v73: admin.html (generator NZV) bere praznike iz prazniki.js - četrta
+//      kopija izračuna je odstranjena.
 // v72: stalna zasedba velja tudi v "Moj razpored" - vodja je prej videl
 //      prazne delovne dneve, čeprav vsak dan dela na svoji enoti.
 // v71: nzv-zasedba.js - stalna zasedba enot NZV (nosilec + nadomeščanje +
@@ -385,7 +387,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v72';
+const CACHE = 'razpored-pbb-v73';
 const ASSETS = [
   './',
   './index.html',

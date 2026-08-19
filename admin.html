@@ -154,6 +154,7 @@
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="parafa.js"></script>
+<script src="prazniki.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
@@ -435,32 +436,10 @@ function monthRange(monthStr){ // "2026-11" -> {startISO, endISO}
 const DNI_KRATKO = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
 function danovVMesecu2(monthStr){ const [y,m] = monthStr.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
 function isoZaMesec(monthStr, d){ const [y,m] = monthStr.split("-").map(Number); return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
-function easterSunday2(year){
-  const a=year%19, b=Math.floor(year/100), c=year%100;
-  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
-  const g=Math.floor((b-f+1)/3);
-  const h=(19*a+b-d-g+15)%30;
-  const i=Math.floor(c/4), k=c%4;
-  const l=(32+2*e+2*i-h-k)%7;
-  const m=Math.floor((a+11*h+22*l)/451);
-  const month=Math.floor((h+l-7*m+114)/31);
-  const day=((h+l-7*m+114)%31)+1;
-  return new Date(Date.UTC(year, month-1, day));
-}
-const FIXED_HOLIDAYS2 = [[1,1],[1,2],[2,8],[4,27],[5,1],[5,2],[6,25],[8,15],[10,31],[11,1],[12,25],[12,26]];
-const holidayCache2 = {};
-function jeDanPraznik2(iso){
-  const [y,m,d] = iso.split("-").map(Number);
-  if (!holidayCache2[y]) {
-    const set = new Set(FIXED_HOLIDAYS2.map(([mm,dd]) => mm+"-"+dd));
-    const es = easterSunday2(y);
-    set.add((es.getUTCMonth()+1)+"-"+es.getUTCDate());
-    const em = new Date(es.getTime()); em.setUTCDate(es.getUTCDate()+1);
-    set.add((em.getUTCMonth()+1)+"-"+em.getUTCDate());
-    holidayCache2[y] = set;
-  }
-  return holidayCache2[y].has(m+"-"+d);
-}
+// Prazniki so v prazniki.js - en sam vir za vse zaslone. Tu je bila
+// doslej ČETRTA kopija izračuna (lasten velikonočni algoritem + svoj
+// seznam datumov). Ravno tako razpršeno pravilo je že trikrat povzročilo
+// napačen razpored, zato tudi generator zdaj bere iz skupnega vira.
 function mondaysInRange(startISO, endISO){
   const { toDate, mondayOfWeek, fromDate, addDays } = Generator.util;
   const out = [];
@@ -1805,7 +1784,7 @@ function VodjeTab(){
       const iso = isoZaMesec(month, d);
       const wd = new Date(iso + "T00:00:00").getDay(); // 0=NED..6=SOB
       const isVikend = wd === 0 || wd === 6;
-      const isPraznik = jeDanPraznik2(iso);
+      const isPraznik = window.Prazniki.jePraznik(iso);
       const vrstica = { datum: iso, dan: DNI_KRATKO[wd], celice: {} };
       vodje.forEach(v => {
         const dolgaOdsotnost = v.odsotnost_do && iso <= v.odsotnost_do && v.odsotnost_tip;
