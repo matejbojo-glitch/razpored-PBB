@@ -17,6 +17,13 @@
 window.NzvZasedba = (function () {
   "use strict";
 
+  // Kdo sodi v NZV: vodje in administratorji. Zanje velja delovnik
+  // PON-PET (vikendi in prazniki prosti, razen dežurstva) in zanje se
+  // izpeljuje stalna zasedba. Navadni uporabniki ("user") so razporejeni
+  // po oddelkih in vikende delajo normalno.
+  var VLOGE = ["vodja", "admin"];
+  function jeNzvVloga(vloga) { return VLOGE.indexOf(vloga) >= 0; }
+
   // --- Izmenična zasedba SA -------------------------------------------
   // "SA je izmenično 1 teden dop, drug popoldne … poleti je samo
   // dopoldne" (uporabnikova navedba). Izmenjava teče po ISO tednu in ne
@@ -131,6 +138,8 @@ window.NzvZasedba = (function () {
   }
 
   return {
+    VLOGE: VLOGE,
+    jeNzvVloga: jeNzvVloga,
     isoTeden: isoTeden,
     SA_PRIVZETO: SA_PRIVZETO,
     saNastavitveIz: saNastavitveIz,

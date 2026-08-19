@@ -86,9 +86,12 @@ const koda = [
   izvleci("nzvNazivVKodo"),
   constVKotVar(izvleciConst("NZV_KIND_KODA")),
   constVKotVar(izvleciConst("NZV_ODSOTNOST_KIND")),
-  constVKotVar(izvleciConst("IME_PSEVDONIM_NZV")),
-  izvleci("normalizirajImeNzv"),
-  izvleci("imenaSeUjemataNzv"),
+  // Ujemanje imen živi v imena.js (skupni modul), zato ga tu ne luščimo
+  // iz index.html, ampak naložimo in samo preimenujemo v stara imena, ki
+  // jih izluščene funkcije kličejo.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  "var normalizirajImeNzv = window.Imena.normaliziraj;",
+  "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),
   izvleci("ocistiNazivOsebe"),
   izvleci("obdelajNzvVrstice"),

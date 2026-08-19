@@ -192,6 +192,8 @@
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="prazniki.js"></script>
+<script src="imena.js"></script>
 <script src="datum.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="exceljs.min.js"></script>
@@ -283,33 +285,11 @@ const PEN_META = {
 const DOW_SL = ["NED","PON","TOR","SRE","ČET","PET","SOB"];
 const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
 
-function easterSunday(year){
-  const a=year%19, b=Math.floor(year/100), c=year%100;
-  const d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
-  const g=Math.floor((b-f+1)/3);
-  const h=(19*a+b-d-g+15)%30;
-  const i=Math.floor(c/4), k=c%4;
-  const l=(32+2*e+2*i-h-k)%7;
-  const m=Math.floor((a+11*h+22*l)/451);
-  const month=Math.floor((h+l-7*m+114)/31);
-  const day=((h+l-7*m+114)%31)+1;
-  return new Date(year, month-1, day);
-}
-const FIXED_HOLIDAYS = [
-  [1,1],[1,2],[2,8],[4,27],[5,1],[5,2],[6,25],[8,15],[10,31],[11,1],[12,25],[12,26],
-];
-const holidayCache = {};
-function holidaySetFor(year){
-  if (holidayCache[year]) return holidayCache[year];
-  const set = new Set(FIXED_HOLIDAYS.map(([m,d]) => m+"-"+d));
-  const es = easterSunday(year);
-  set.add((es.getMonth()+1)+"-"+es.getDate());
-  const em = new Date(es); em.setDate(es.getDate()+1);
-  set.add((em.getMonth()+1)+"-"+em.getDate());
-  holidayCache[year] = set;
-  return set;
-}
-function jeDanPraznik(y,m,d){ return holidaySetFor(y).has((m+1)+"-"+d); }
+// Prazniki so v prazniki.js - en sam vir za vse zaslone. Tu je bila PETA
+// kopija izračuna (lasten velikonočni algoritem in lasten seznam
+// datumov). "m" je tu indeks meseca (0-11, kot ga vrne Date), zato ga
+// pretvorimo v ISO zapis, ki ga pričakuje skupni modul.
+function jeDanPraznik(y,m,d){ return window.Prazniki.jePraznik(isoZa(y,m,d)); }
 function danovVMesecu(y,m){ return new Date(y,m+1,0).getDate(); }
 function dowZa(y,m,d){ return DOW_SL[new Date(y,m,d).getDay()]; }
 function jeVikend(y,m,d){ const l = dowZa(y,m,d); return l==="SOB"||l==="NED"; }
@@ -324,15 +304,11 @@ function steviloVnosov(n){
   return "vnosov";
 }
 
-function normalizirajIme(s){ return (s||"").trim().toUpperCase().replace(/\s+/g," "); }
-function imenaSeUjemata(a, b){
-  // Primerja kot "vrečo besed" (ne glede na vrstni red) — roster uporablja
-  // "PRIIMEK IME" (npr. "MAVRI TRATNIK MAGDALENA"), profiles.full_name pa
-  // karkoli je oseba vpisala ob registraciji (npr. "Magdalena Mavri Tratnik").
-  const na = normalizirajIme(a), nb = normalizirajIme(b);
-  if (!na || !nb) return false;
-  return na.split(" ").sort().join(" ") === nb.split(" ").sort().join(" ");
-}
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone.
+// Roster uporablja "PRIIMEK IME" ("MAVRI TRATNIK MAGDALENA"),
+// profiles.full_name pa karkoli je oseba vpisala ob registraciji
+// ("Magdalena Mavri Tratnik"), izvozi pa vmes izgubijo še strešice.
+const imenaSeUjemata = window.Imena.seUjemata;
 
 // ---------------------------------------------------------------------
 // Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.

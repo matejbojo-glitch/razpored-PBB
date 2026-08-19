@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v74: imena.js - ujemanje imen med viri je en sam vir za vse štiri
+//      zaslone; prej je imel vsak svojo, drugače strogo različico.
 // v73: admin.html (generator NZV) bere praznike iz prazniki.js - četrta
 //      kopija izračuna je odstranjena.
 // v72: stalna zasedba velja tudi v "Moj razpored" - vodja je prej videl
@@ -387,7 +389,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v73';
+const CACHE = 'razpored-pbb-v74';
 const ASSETS = [
   './',
   './index.html',
@@ -417,6 +419,7 @@ const ASSETS = [
   './parafa.js',
   './prazniki.js',
   './nzv-zasedba.js',
+  './imena.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',

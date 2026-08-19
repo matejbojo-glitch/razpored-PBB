@@ -193,7 +193,7 @@ console.log("7) NZV razpored vsebuje samo vodje in administratorje");
   // v NZV predlogi, zato je NZV mreža brez filtra prikazala oddelčne
   // sestre namesto vodij, ki enoto tisti dan pokrivajo.
   const html2 = readFileSync(join(koren, "index.html"), "utf8");
-  trdi(/const JE_NZV_VLOGA = new Set\(\["vodja", "admin"\]\);/.test(html2),
+  trdi(/const JE_NZV_VLOGA = new Set\(window\.NzvZasedba\.VLOGE\);/.test(html2),
     "vloge, ki sodijo v NZV, so opredeljene na enem mestu");
   trdi(/if \(!JE_NZV_VLOGA\.has\(r\.profiles\.role\)\) return;/.test(html2),
     "enote (schedule_entries) so filtrirane po vlogi");
