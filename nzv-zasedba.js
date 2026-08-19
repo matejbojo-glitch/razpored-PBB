@@ -102,6 +102,34 @@ window.NzvZasedba = (function () {
   // "PON-PET 07:00-15:00").
   var IZMENA_PRISOTEN = "PRISOTEN";
 
+  // Stalna zasedba ene osebe čez dano obdobje — kaj bi imel nosilec enote
+  // na posamezen dan, če ni objavljenega vnosa. Vrne SAMO dopolnitve;
+  // kam in kako se vpišejo, je stvar klicatelja, ker vsak od treh
+  // zaslonov riše drugače (šifra izmene, celica z barvo, parafa).
+  //
+  //   zapisNosilca  vrstica iz lead_departments (enote, odsotnost_tip/do)
+  //   datumi        seznam ISO datumov (npr. cel mesec)
+  //   jeZapolnjen   f(datum) -> true, če dan že ima objavljen vnos
+  //
+  // Vrne [{ datum, sifra, odsotnost }]. "odsotnost" pove, da gre za
+  // daljšo odsotnost (POR/BS) in ne za prisotnost.
+  function stalnaZasedba(zapisNosilca, datumi, jeZapolnjen) {
+    var out = [];
+    if (!zapisNosilca || !zapisNosilca.enote) return out;
+    var dolga = dolgaOdsotnostKratica(zapisNosilca.odsotnost_tip);
+    (datumi || []).forEach(function (datum) {
+      if (jeZapolnjen && jeZapolnjen(datum)) return;
+      // Delovnik NZV je PON-PET; vikendi in dela prosti prazniki so prosti.
+      if (window.Prazniki.jeDelaProstDan(datum)) return;
+      if (trajnoOdsoten(zapisNosilca, datum)) {
+        if (dolga) out.push({ datum: datum, sifra: dolga, odsotnost: true });
+        return;
+      }
+      out.push({ datum: datum, sifra: IZMENA_PRISOTEN, odsotnost: false });
+    });
+    return out;
+  }
+
   return {
     isoTeden: isoTeden,
     SA_PRIVZETO: SA_PRIVZETO,
@@ -111,5 +139,6 @@ window.NzvZasedba = (function () {
     trajnoOdsoten: trajnoOdsoten,
     dolgaOdsotnostKratica: dolgaOdsotnostKratica,
     IZMENA_PRISOTEN: IZMENA_PRISOTEN,
+    stalnaZasedba: stalnaZasedba,
   };
 })();

@@ -87,7 +87,7 @@ vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 // Skupni vir pravila stalne zasedbe (isti modul uporablja tudi
-// imenik.html -> Razpredelnica) - glej preveri-nzv-zasedba-modul.mjs.
+// imenik.html -> Razpredelnica in index.html -> Moj razpored).
 vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
 
 vm.runInContext([

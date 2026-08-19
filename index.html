@@ -514,12 +514,37 @@ function MyScheduleView({ userId, month, jeNzv }){
     return () => { cancelled = true; };
   }, [startISO, endISO]);
 
+  // Stalna zasedba nosilca enote: za vodje se dnevni razpored ne objavlja,
+  // zato je "Moj razpored" tem osebam kazal prazne delovne dneve - isti
+  // manjko kot v NZV mreži in v Imenik -> Razpredelnici. Pravilo je v
+  // nzv-zasedba.js (en sam vir); tu preberemo samo SVOJ zapis nosilca.
+  const [mojNosilec, setMojNosilec] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setMojNosilec(null);
+    if (!jeNzv) return;
+    client.from("profiles").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
+      if (cancelled || !profil) return;
+      return client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do")
+        .then(({ data }) => {
+          if (cancelled) return;
+          const moj = (data || []).find(n => n.enote && imenaSeUjemataNzv(n.full_name, profil.full_name));
+          setMojNosilec(moj || null);
+        });
+    });
+    return () => { cancelled = true; };
+  }, [userId, jeNzv]);
+
   const byDate = useMemo(() => {
     const m = {};
     (entries || []).forEach(e => { m[e.work_date] = e.shift_code; });
     dopustiLD.forEach(datum => { if (!m[datum]) m[datum] = "LD"; });
+    // Izpeljana prisotnost zapolni samo prazne delovne dneve - objavljena
+    // izmena, dežurstvo in dopust imajo vedno prednost.
+    window.NzvZasedba.stalnaZasedba(mojNosilec, days.map(dn => dn.datum), d => !!m[d])
+      .forEach(x => { m[x.datum] = x.sifra; });
     return m;
-  }, [entries, dopustiLD]);
+  }, [entries, dopustiLD, mojNosilec, days]);
 
   const iso = todayISO();
   const todayDan = (days.find(d => d.datum === iso) || {}).dan;
@@ -2621,6 +2646,19 @@ function App(){
       const { data } = await client.from("schedule_entries").select("work_date, shift_code")
         .eq("employee_id", auth.session.user.id).gte("work_date", startISO).lte("work_date", endISO);
       const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
+      // Isto dopolnjevanje kot na zaslonu (glej MyScheduleView): brez tega
+      // je bil izvoz za vodje skoraj prazen, čeprav je zaslon poln.
+      // auth.profile in ne kasneje razstavljeni "profile": ta je v tej
+      // funkciji deklariran šele NIŽE, zato bi bralec upravičeno podvomil
+      // v vrstni red - tu ni razloga za to negotovost.
+      const jaz = auth.profile;
+      if (jaz && jaz.department_code === "NZV" && jaz.full_name) {
+        const { data: nosilci } = await client.from("lead_departments")
+          .select("full_name, enote, odsotnost_tip, odsotnost_do");
+        const moj = (nosilci || []).find(n => n.enote && imenaSeUjemataNzv(n.full_name, jaz.full_name));
+        window.NzvZasedba.stalnaZasedba(moj, days.map(dn => dn.datum), d => !!byDate[d])
+          .forEach(x => { byDate[x.datum] = x.sifra; });
+      }
       return [{
         ime: "Moj razpored",
         glave: ["Datum", "Dan", "Izmena"],
