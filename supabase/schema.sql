@@ -3053,7 +3053,9 @@ alter table public.profiles add column if not exists parafa_pred_oktobrom_2026 t
 -- ---------------------------------------------------------------------
 create table if not exists public.duty_doctors (
   work_date date not null,
-  kind text not null check (kind in ('urgenca', 'dezurstvo')),
+  -- "sestra" = dežurna dipl. m.s./zn., tretji stolpec uradnega dokumenta.
+  -- Dodana pozneje; za obstoječe baze glej supabase/dodaj-dezurno-sestro.sql.
+  kind text not null check (kind in ('urgenca', 'dezurstvo', 'sestra')),
   full_name text not null,
   updated_at timestamptz not null default now(),
   primary key (work_date, kind)

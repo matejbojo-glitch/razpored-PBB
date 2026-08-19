@@ -1034,6 +1034,93 @@ function NzvView({ month }){
         pregled na enem mestu. Prazna celica pomeni, da za ta dan/enoto (še) ni objavljenega vnosa oz. odsotnosti.
       </InfoToggle>
       <RazporedPodpisi entries={entries} />
+      <DezurstvaZdravnikiTabela month={month} />
+    </div>
+  );
+}
+
+// Uradni dokument "Razporeditev zaposlenih v UA in DEŽ" ima tri kroge:
+// Urgenca ZDR, Dežurstvo ZDR in Dežurstvo dipl. m.s./zn. Doslej se je iz
+// njega bralo samo ime zdravnika ob DEŽURSTVU v "Moj razpored" - celotnega
+// razporeda ni bilo videti nikjer, čeprav ga potrebuje ves NZV.
+//
+// Umeščen je POD mrežo NZV, v isti obliki kot uradni dokument (dan v
+// vrstici, trije krogi v stolpcih), da je primerjava s papirjem
+// neposredna. Viden je vsem, ki vidijo NZV razpored.
+function DezurstvaZdravnikiTabela({ month }){
+  const [vrstice, setVrstice] = useState(null);
+  const [stanje, setStanje] = useState("nalagam"); // "nalagam" | "ok" | "ni-tabele" | "prazno"
+  const { startISO, endISO } = monthRange(month);
+  const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setVrstice(null); setStanje("nalagam");
+    client.from("duty_doctors").select("work_date, kind, full_name")
+      .gte("work_date", startISO).lte("work_date", endISO)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
+          setStanje(manjkaTabela ? "ni-tabele" : "prazno");
+          setVrstice({});
+          return;
+        }
+        const m = {};
+        (data || []).forEach(r => {
+          if (!m[r.work_date]) m[r.work_date] = {};
+          m[r.work_date][r.kind] = r.full_name;
+        });
+        setVrstice(m);
+        setStanje(Object.keys(m).length ? "ok" : "prazno");
+      });
+    return () => { cancelled = true; };
+  }, [startISO, endISO]);
+
+  if (stanje === "nalagam") return null;
+  if (stanje !== "ok") {
+    return (
+      <div className="warnBox no-print" style={{marginTop:16}}>
+        🩺 {stanje === "ni-tabele"
+          ? "Tabele dežurnih zdravnikov še ni v bazi. Administrator naj v Supabase požene supabase/schema.sql (razdelek 32) in supabase/dodaj-dezurno-sestro.sql."
+          : "Za ta mesec ni naloženega razporeda dežurstev. Administrator ga naloži z ikono 📥 zgoraj desno → »🩺 Naloži dežurstvo zdravnikov (PDF)«."}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{marginTop:20}}>
+      <h3 className="section" style={{marginBottom:6}}>Dežurstva — urgenca in NZV</h3>
+      <p className="hint" style={{marginTop:0}}>
+        Iz uradnega dokumenta <i>Razporeditev zaposlenih v urgentno ambulanto in neprekinjeno zdravstveno varstvo</i>.
+        Ob vikendih urgentne ambulante ni, zato je tisti stolpec prazen.
+      </p>
+      <div className="tableScroller">
+        <table className="wardTable">
+          <thead>
+            <tr>
+              <th className="name">Datum</th>
+              <th>Urgenca ZDR</th>
+              <th>Dežurstvo ZDR</th>
+              <th>Dežurstvo dipl. m.s./zn.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {days.map(dn => {
+              const r = vrstice[dn.datum] || {};
+              const vikend = dn.dan === "SO" || dn.dan === "NE";
+              return (
+                <tr key={dn.datum} className={vikend ? "weekend" : ""}>
+                  <td className="name">{window.Datum.slo(dn.datum)} {dn.dan}</td>
+                  <td>{r.urgenca || ""}</td>
+                  <td>{r.dezurstvo || ""}</td>
+                  <td>{r.sestra || ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1481,19 +1568,71 @@ const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
 // namenoma NE uvažamo ponovno - samo prva dva, ki ju aplikacija doslej ni
 // poznala (zdravniki nimajo profila/računa, glej duty_doctors v
 // schema.sql - namenjena SAMO prikazu imena, ne pravemu uporabniku).
-const ZDR_DATUM_RX = /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})\b\s*(.*)$/;
-const ZDR_DAN_RX = /^(PO|TO|SR|ČE|PE|SO|NE)\s*(.*)$/;
+// Uradni dokument "Razporeditev zaposlenih v UA in DEŽ" ima PET stolpcev:
+//   datum | dan | Urgenca ZDR | Dežurstvo ZDR | Dežurstvo dipl. m.s./zn.
+//
+// Prej je koda predpostavljala, da sta datum IN ime v isti celici, za
+// "Dežurstvo ZDR" pa je jemala stolpec 1 - to je kratica dneva. Posledica
+// je bila, da je v "Moj razpored" ob dežurstvu pisalo "DEŽ: TO" oziroma
+// "DEŽ: ČE" namesto imena zdravnika. Potrjeno na pravi datoteki
+// (september 2026), zato se stolpci odslej poiščejo po GLAVI, ne po
+// fiksnih mestih.
+const ZDR_DAN_RX = /^(PO|TO|SR|ČE|PE|SO|NE)$/;
+
+// Datum v PDF-ju je pogosto razbit s presledki - tudi znotraj števke
+// ("1 0 . 9 . 2026" je 10. 9. 2026), zato pred primerjavo odstranimo VSE
+// presledke. Vrne "LLLL-MM-DD" ali null.
+function zdrDatum(celica){
+  const t = String(celica || "").replace(/\s+/g, "");
+  const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(t);
+  if (!m) return null;
+  return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+}
+
+// Mesta stolpcev iz vrstice z naslovi. Če je ni (drugačna izdaja
+// dokumenta), pade nazaj na razpored, kakršen je v vseh doslej videnih
+// datotekah.
+const ZDR_PRIVZETI_STOLPCI = { urgenca: 2, dezurstvo: 3, sestra: 4 };
+function najdiStolpceZdravnikov(vrsteVrstic){
+  for (const v of (vrsteVrstic || [])) {
+    let urgenca = -1, dezurstvo = -1, sestra = -1;
+    v.forEach((c, i) => {
+      const t = String(c || "").toLowerCase().replace(/\s+/g, " ").trim();
+      if (t.startsWith("urgenca")) urgenca = i;
+      else if (t.startsWith("dežurstvo zdr") || t.startsWith("dezurstvo zdr")) dezurstvo = i;
+      else if (t.includes("m.s.") || t.includes("dipl. m")) sestra = i;
+    });
+    if (urgenca >= 0 && dezurstvo >= 0) {
+      return { urgenca, dezurstvo, sestra: sestra >= 0 ? sestra : dezurstvo + 1 };
+    }
+  }
+  return ZDR_PRIVZETI_STOLPCI;
+}
+
+// "Tjaša Petrič ( Vlade Milanović )" pomeni zamenjavo (uporabnikom
+// potrjeno): PRVO ime je zdravnik, ki dejansko dela, ime v oklepaju je
+// bilo prvotno razporejeno. Oklepaj se v PDF-ju včasih razlije v naslednji
+// stolpec in ostane NEZAPRT ("Tjaša Petrič ( Špela Žagar Gabron"), zato
+// režemo od prvega oklepaja naprej, ne šele od zaprtega.
+function zdrIme(celica){
+  return String(celica || "").split("(")[0].replace(/\s+/g, " ").trim();
+}
+
 function obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec){
   const { startISO, endISO } = monthRange(ciljniMesec);
+  const stolpci = najdiStolpceZdravnikov(vrsteVrstic);
   const zapisi = [];
   let najdenDatum = false;
   let zadnjiDatum = null;
   for (const vrstica of (vrsteVrstic || [])) {
-    const prva = (vrstica[0] || "").trim();
-    const m = ZDR_DATUM_RX.exec(prva);
-    if (!m) continue;
-    const [, d, mo, y, ostanek] = m;
-    const datum = `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    // Datum je lahko v prvi ali (redkeje) drugi celici - poiščemo ga,
+    // namesto da bi vztrajali pri stolpcu 0.
+    let datum = null;
+    for (let i = 0; i < Math.min(2, vrstica.length); i++) {
+      datum = zdrDatum(vrstica[i]);
+      if (datum) break;
+    }
+    if (!datum) continue;
     // Dnevi si v pravem dokumentu sledijo po naraščajočem datumu - ko se
     // datum ne poveča (ali se vrne nazaj), smo zapustili pravo tabelo
     // (podpisni/opombni blok na dnu lahko naključno vsebuje niz, videti kot
@@ -1502,18 +1641,21 @@ function obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec){
     zadnjiDatum = datum;
     if (datum < startISO || datum > endISO) continue;
     najdenDatum = true;
-    // Ime za "Urgenca ZDR" je v ostanku PRVE celice, po morebitni dnevni
-    // kratici (datum+dan+ime so v izvirniku pogosto ena sama celica).
-    const danM = ZDR_DAN_RX.exec(ostanek.trim());
-    const urgenca = (danM ? danM[2] : ostanek).trim();
+
+    const vzemi = (i) => {
+      const c = zdrIme(vrstica[i]);
+      // Kratica dneva ni ime - varovalka, če se stolpci kdaj zamaknejo.
+      return (!c || ZDR_DAN_RX.test(c.toUpperCase())) ? "" : c;
+    };
+    const urgenca = vzemi(stolpci.urgenca);
+    const dezurstvo = vzemi(stolpci.dezurstvo);
+    const sestra = vzemi(stolpci.sestra);
     if (urgenca) zapisi.push({ work_date: datum, kind: "urgenca", full_name: urgenca });
-    // "Dežurstvo ZDR": zapis "Ime Priimek (Drugo Ime Priimek)" pomeni
-    // zamenjavo (uporabnikom potrjeno) - PRVO ime je zdravnik, ki dejansko
-    // dela, drugo (v oklepaju) je bilo prvotno razporejeno. Uporabimo samo
-    // prvo ime.
-    const dezRaw = (vrstica[1] || "").trim();
-    const dez = dezRaw.replace(/\s*\([^)]*\)\s*$/, "").trim();
-    if (dez) zapisi.push({ work_date: datum, kind: "dezurstvo", full_name: dez });
+    if (dezurstvo) zapisi.push({ work_date: datum, kind: "dezurstvo", full_name: dezurstvo });
+    // Tretji stolpec je dežurna dipl. m.s./zn. - iz NZV uvoza je znana samo
+    // takrat, ko je naložena TISTA datoteka; tu jo dobimo iz uradnega
+    // dokumenta, da so vsi trije krogi vidni na enem mestu.
+    if (sestra) zapisi.push({ work_date: datum, kind: "sestra", full_name: sestra });
   }
   return { zapisi, najdenDatum };
 }
