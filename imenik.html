@@ -1569,14 +1569,26 @@ function NadomescanjaPregled(){
     Promise.all([
       client.from("lead_departments").select("full_name, enote").order("full_name"),
       client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
-    ]).then(([{ data: nosilci }, { data: pary }]) => {
+      client.from("profiles").select("full_name"),
+    ]).then(([{ data: nosilci }, { data: pary }, { data: osebe }]) => {
       if (cancelled) return;
       const p = [...(pary || [])].sort((a, b) => (a.prednost || 1) - (b.prednost || 1));
-      setVrstice((nosilci || []).map(n => ({
+      // Prikažemo SAMO vrstice, ki se povežejo z resnično osebo v
+      // aplikaciji. V bazi so se namreč znašle podvojene vrstice s
+      // pokvarjenim zapisom imena ("ALUKIÄ† DINO" namesto "ALUKIĆ DINO" -
+      // UTF-8, prebran kot Latin-1). Te se z nikomer ne ujamejo in so bile
+      // v pregledu videti kot prazne vrstice. Očistijo se s skripto
+      // supabase/nzv-pocisti-pokvarjena-imena.sql; ta filter pa poskrbi,
+      // da tak zapis nikoli ne pride na zaslon.
+      const jeResnicna = ime => (osebe || []).some(o => imenaSeUjemataBrezStresic(o.full_name, ime));
+      // Imena primerjamo prek skupnega modula in ne dobesedno - viri jih
+      // pišejo z različnimi strešicami in v drugem vrstnem redu.
+      const ujem = (a, b) => imenaSeUjemataBrezStresic(a, b);
+      setVrstice((nosilci || []).filter(n => jeResnicna(n.full_name)).map(n => ({
         oseba: n.full_name,
         enote: n.enote || "",
-        mene: p.filter(v => v.nosilec === n.full_name).map(v => kratkoIme(v.nadomesca)),
-        pokrivam: p.filter(v => v.nadomesca === n.full_name)
+        mene: p.filter(v => ujem(v.nosilec, n.full_name)).map(v => kratkoIme(v.nadomesca)),
+        pokrivam: p.filter(v => ujem(v.nadomesca, n.full_name))
           .map(v => kratkoIme(v.nosilec) + (v.enota ? " (" + v.enota + ")" : "")),
       })));
     });
@@ -1777,6 +1789,41 @@ function StanjeRazpredelnica({ oddelki }){
       // Isto pravilo kot v NZV mreži (Po oddelkih -> NZV): en sam vir v
       // nzv-zasedba.js. Objavljen vnos in odsotnost imata prednost -
       // izpeljava zapolni samo tisto, kar je ostalo prazno.
+      // Na kateri enoti je NZV oseba posamezen dan PO DEJANSKEM RAZPOREDU
+      // (upoštevaje preselitev ob tuji odsotnosti in prevzem zapuščene
+      // enote) - isto pravilo kot v NZV mreži, glej nzv-zasedba.js.
+      // Brez tega je bilo pod imenom videti samo stalno enoto, ki ob
+      // nadomeščanju ni bila resnična.
+      const nosilciSeznam = Object.keys(zapisNosilca).map(id => zapisNosilca[id]);
+      const idPoKljucu = {};
+      Object.keys(zapisNosilca).forEach(id => {
+        idPoKljucu[window.Imena.kljuc(zapisNosilca[id].full_name)] = id;
+      });
+      const enotaNaDan = {}; // "id|datum" -> "C1" oz. "B, C"
+      if (nosilciSeznam.length) {
+        const odsotenDan = new Set();
+        (odsotnosti || []).forEach(o => {
+          if (o.kind === "ld" || o.kind === "bs" || o.kind === "sti") {
+            odsotenDan.add(window.Imena.kljuc(o.full_name) + "|" + o.work_date);
+          }
+        });
+        dnevi.forEach(d => {
+          if (window.Prazniki.jeDelaProstDan(d.iso)) return;
+          window.NzvZasedba.razporedDneva({
+            nosilci: nosilciSeznam,
+            pari: pokrivanja || [],
+            kljuc: window.Imena.kljuc,
+            jeOdsoten: ime => odsotenDan.has(window.Imena.kljuc(ime) + "|" + d.iso)
+              || window.NzvZasedba.trajnoOdsoten(
+                   nosilciSeznam.find(v => window.Imena.kljuc(v.full_name) === window.Imena.kljuc(ime)), d.iso),
+            saKoda: "SA",
+          }).forEach(({ nosilec, enote }) => {
+            const id = idPoKljucu[window.Imena.kljuc(nosilec.full_name)];
+            if (id && enote) enotaNaDan[id + "|" + d.iso] = enote;
+          });
+        });
+      }
+
       Object.keys(zapisNosilca).forEach(id => {
         // Katere dneve dopolniti in s čim, pove skupni modul - pravilo
         // (delovni dan, daljša odsotnost, prednost objavljenega vnosa) je
@@ -1796,6 +1843,14 @@ function StanjeRazpredelnica({ oddelki }){
             izpeljano: true,
           };
         });
+      });
+      // Enota se pripne na celico, ki tisti dan že obstaja - torej samo
+      // tam, kjer oseba res dela. Ob dopustu ali bolniški je ne izpišemo,
+      // ker tisti dan ni na nobeni enoti.
+      Object.keys(enotaNaDan).forEach(k => {
+        if (m2[k] && m2[k].stanje !== "dopust" && m2[k].stanje !== "bolniska") {
+          m2[k] = { ...m2[k], enota: enotaNaDan[k] };
+        }
       });
       setPoDnevih(m2);
 
@@ -1949,6 +2004,7 @@ function StanjeRazpredelnica({ oddelki }){
                     return (
                       <td key={d.iso}
                         title={`${o.full_name} · ${d.dan}. — ${opis}`
+                          + (zapis && zapis.enota ? " · enota: " + zapis.enota : "")
                           + (zamenjano ? " (po potrjeni menjavi)" : "")
                           + (zapis && zapis.izpeljano ? " (stalna zasedba enote, ne objavljen vnos)" : "")
                           // Ob dopustu/bolniški je najbolj koristno vedeti, KDO
@@ -1965,6 +2021,15 @@ function StanjeRazpredelnica({ oddelki }){
                           opacity: zapis && zapis.izpeljano ? .7 : 1,
                           fontStyle: zapis && zapis.izpeljano ? "italic" : "normal",
                           color: zapis ? barvaBesedila(barva) : "#2B2717"}}>
+                        {/* Enota, na kateri je oseba TA DAN po dejanskem
+                            razporedu - ne stalna enota. Ob nadomeščanju se
+                            spremeni (Arnež gre s C na C1), zato je edino
+                            tu razvidno, kje kdo v resnici je. */}
+                        {zapis && zapis.enota && (
+                          <span style={{display:"block", fontSize:8, fontWeight:600, opacity:.85, lineHeight:1.1}}>
+                            {zapis.enota}
+                          </span>
+                        )}
                         {kratica}
                         {zamenjano && (
                           <span aria-hidden="true" style={{position:"absolute", top:0, right:1, fontSize:8,
