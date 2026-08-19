@@ -137,6 +137,20 @@
      nadomeščevalec. Bledeje, da se na prvi pogled loči od objavljenega
      razporeda; glej nalozizPodatkeNzv. */
   table.wardTableNzv td.enotaCell.izpeljano{ opacity:.62; font-style:italic; }
+  /* Vrstica z nastavitvijo izmenične zasedbe SA (samo administrator).
+     Nad mrežo, ker je učinek takoj viden v stolpcih SA DOP/SA POP. */
+  .saNastavitve{
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+    margin:0 0 10px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:var(--radius-sm); background:var(--surface-2);
+    color:var(--text); font-size:13px;
+  }
+  .saNastavitve select, .saNastavitve input{
+    padding:4px 6px; border:1px solid var(--line); border-radius:8px;
+    background:var(--surface); color:var(--text); font:inherit;
+  }
+  .saNastavitve .napaka{ color:var(--danger); flex-basis:100%; }
+  @media print{ .saNastavitve{ display:none; } }
   table.wardTableNzv th.dez, table.wardTableNzv td.dez{ background: rgba(179,64,42,.07); font-weight:700; }
   table.wardTableNzv tbody tr.weekend td{ background: rgba(201,113,63,.08); }
   @media (min-width:900px), (orientation: landscape){
@@ -942,20 +956,54 @@ function nzvNazivVKodo(){
 const NZV_ENOTA_PSEVDONIM = {
   "\u017dO": "ZO", "UA": "URGENCA", "SOB": "SOBO", "B1": "B1B2", "B2": "B1B2",
 };
-function nzvEnoteVKode(enote){
+// ISO številka tedna (1-53). Podlaga za izmenično tedensko zasedbo SA -
+// za razliko od "prvi/drugi teden v mesecu" teče neprekinjeno tudi čez
+// prelom meseca in leta, zato se izmenjava nikoli ne podvoji ali preskoči.
+function isoTeden(iso){
+  const d = new Date(iso + "T00:00:00");
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dan = t.getUTCDay() || 7;            // 1=PO … 7=NE
+  t.setUTCDate(t.getUTCDate() + 4 - dan);    // četrtek istega tedna določa leto
+  const zacetek = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - zacetek) / 86400000 + 1) / 7);
+}
+
+// SA (specialistična ambulanta) ni stalno dopoldanska ali popoldanska:
+// izmenjuje se TEDENSKO (uporabnikova navedba - "SA je izmenično 1 teden
+// dop, drug popoldne"), poleti pa je samo dopoldne. Kateri teden je
+// dopoldanski in kateri meseci štejejo za poletje, ureja administrator
+// (tabela nzv_nastavitve, supabase/nzv-nastavitve.sql) - spodaj so samo
+// privzetki, ki veljajo, dokler tabele ni oz. dokler je ne popravi.
+const SA_PRIVZETO = { lihoTeden: "dop", poletniMeseci: [7, 8] };
+function saNastavitveIz(vrstice){
+  const m = {};
+  (vrstice || []).forEach(r => { m[r.kljuc] = r.vrednost; });
+  const zapisMesecev = m.sa_poletni_meseci == null ? "7,8" : m.sa_poletni_meseci;
+  return {
+    lihoTeden: m.sa_liho_teden === "pop" ? "pop" : "dop",
+    poletniMeseci: String(zapisMesecev).split(",")
+      .map(x => Number(x.trim())).filter(n => n >= 1 && n <= 12),
+  };
+}
+function saStolpec(datum, nastavitve){
+  const n = nastavitve || SA_PRIVZETO;
+  if ((n.poletniMeseci || []).indexOf(Number(datum.slice(5, 7))) >= 0) return "SADOP";
+  const vLihem = n.lihoTeden === "pop" ? "SAPOP" : "SADOP";
+  const vSodem = vLihem === "SADOP" ? "SAPOP" : "SADOP";
+  return isoTeden(datum) % 2 === 1 ? vLihem : vSodem;
+}
+
+// "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) - oznaka "SA"
+// med enotami nosilca se preslika vanj. Brez nje bi bila ista oseba
+// hkrati v dopoldanskem IN popoldanskem stolpcu, česar v resnici ni.
+function nzvEnoteVKode(enote, saKoda){
   const kode = [];
   String(enote || "").split(/[\/,+]/).forEach(del => {
     const t = del.trim().toUpperCase();
     if (!t) return;
-    // "SA" je v predlogi ena sama enota, v mreži pa dva stolpca (dopoldan/
-    // popoldan) - nosilec je na svoji enoti ves delovni dan, zato gre v
-    // oba. Ko za ta dan obstaja izrecno objavljen vnos s šifro izmene,
-    // ta prevlada (glej razvrstiSA) in do te izpeljave sploh ne pride.
-    const kandidati = t === "SA" ? ["SADOP", "SAPOP"] : [NZV_ENOTA_PSEVDONIM[t] || t];
-    kandidati.forEach(koda => {
-      if (!NZV_STOLPCI.some(([k]) => k === koda)) return;
-      if (kode.indexOf(koda) < 0) kode.push(koda);
-    });
+    const koda = t === "SA" ? (saKoda || "SADOP") : (NZV_ENOTA_PSEVDONIM[t] || t);
+    if (!NZV_STOLPCI.some(([k]) => k === koda)) return;
+    if (kode.indexOf(koda) < 0) kode.push(koda);
   });
   return kode;
 }
@@ -971,7 +1019,7 @@ function kljucImenaNzv(s){ return normalizirajImeNzv(s).split(" ").sort().join("
 // LD/IZOB/BS (iz leave_entries, ujemano po imenu na profiles).
 async function nalozizPodatkeNzv(startISO, endISO){
   const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
-  const [{ data: entries }, { data: dopusti }, { data: profili }, { data: vodje }, { data: nadomescanja }] = await Promise.all([
+  const [{ data: entries }, { data: dopusti }, { data: profili }, { data: vodje }, { data: nadomescanja }, { data: nastavitveVrstice }] = await Promise.all([
     // "profiles!employee_id(...)" in NE samo "profiles(...)": schedule_entries
     // ima TRI tuje ključe na profiles (employee_id, created_by, updated_by -
     // zadnja dva dodana pozneje, sekcija 30 sheme). Ob nedoločenem vgnezdenem
@@ -992,7 +1040,9 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // objavljeni vnosi), namesto da bi se sesula.
     client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
     client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
+    client.from("nzv_nastavitve").select("kljuc, vrednost"),
   ]);
+  const saNast = saNastavitveIz(nastavitveVrstice);
   const podatki = {};
   // Katere celice so IZPELJANE (ne izrecno objavljene) - za bledejši izris
   // in za pojasnilo pod mrežo. Izvoz in pisanje v Sheets uporabljata samo
@@ -1085,8 +1135,9 @@ async function nalozizPodatkeNzv(startISO, endISO){
 
     daysInRange(startISO, endISO).forEach(dn => {
       if (window.Prazniki.jeDelaProstDan(dn.datum)) return;
+      const saKoda = saStolpec(dn.datum, saNast);
       nosilci.forEach(v => {
-        const kode = nzvEnoteVKode(v.enote);
+        const kode = nzvEnoteVKode(v.enote, saKoda);
         if (!kode.length) return;
         if (zeVpisan.has(kljucImenaNzv(v.full_name) + "|" + dn.datum)) return;
         if (!jeOdsoten(v.full_name, dn.datum)) {
@@ -1109,19 +1160,72 @@ async function nalozizPodatkeNzv(startISO, endISO){
           // ni nujno ves nabor enot odsotnega (Lelič ob Maglićevi
           // odsotnosti pokrije samo E1, ne E1/D). Kjer ni zapisana, velja
           // cel nabor odsotnega.
-          const kodeN = nzvEnoteVKode(n.enota);
+          const kodeN = nzvEnoteVKode(n.enota, saKoda);
           (kodeN.length ? kodeN : kode).forEach(koda => vpisiIzpeljano(koda, dn.datum, parafaN));
           break;
         }
       });
     });
   }
-  return { podatki, entries: entries || [], izpeljano };
+  return { podatki, entries: entries || [], izpeljano, saNast };
 }
 
-function NzvView({ month }){
+// Administrator ureja izmenično zasedbo SA kar nad mrežo, kjer je učinek
+// takoj viden - dve kratki kontroli, brez posebnega zaslona z nastavitvami.
+// Vsi ostali vidijo isto pravilo zapisano v razlagi pod mrežo.
+function SaNastavitveUrejanje({ saNast, naShranjeno }){
+  const [lihoTeden, setLihoTeden] = useState(saNast.lihoTeden);
+  const [meseci, setMeseci] = useState((saNast.poletniMeseci || []).join(","));
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  const spremenjeno = lihoTeden !== saNast.lihoTeden
+    || meseci.replace(/\s/g, "") !== (saNast.poletniMeseci || []).join(",");
+
+  const shrani = async () => {
+    setBusy(true); setNapaka(null);
+    const ocisceni = meseci.split(",").map(x => Number(x.trim()))
+      .filter(n => n >= 1 && n <= 12).join(",");
+    const { error } = await client.from("nzv_nastavitve").upsert([
+      { kljuc: "sa_liho_teden", vrednost: lihoTeden },
+      { kljuc: "sa_poletni_meseci", vrednost: ocisceni },
+    ], { onConflict: "kljuc" });
+    setBusy(false);
+    if (error) {
+      // Tabele še ni -> administrator mora pognati SQL. Povemo katerega.
+      const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
+      setNapaka(manjkaTabela
+        ? "Tabele nzv_nastavitve še ni — v Supabase poženi supabase/nzv-nastavitve.sql."
+        : (error.message || "Shranjevanje ni uspelo."));
+      return;
+    }
+    setMeseci(ocisceni);
+    naShranjeno();
+  };
+
+  return (
+    <div className="saNastavitve">
+      <span>SA se izmenjuje tedensko: v <b>lihem</b> tednu</span>
+      <select value={lihoTeden} onChange={e => setLihoTeden(e.target.value)}>
+        <option value="dop">dopoldne</option>
+        <option value="pop">popoldne</option>
+      </select>
+      <span>· poleti samo dopoldne v mesecih</span>
+      <input value={meseci} onChange={e => setMeseci(e.target.value)}
+        placeholder="7,8" size={6} inputMode="numeric" aria-label="Poletni meseci, ločeni z vejico" />
+      <button className="btn btn-ghost btn-sm" disabled={!spremenjeno || busy} onClick={shrani}>
+        {busy ? "Shranjujem …" : "Shrani"}
+      </button>
+      {napaka && <span className="napaka">{napaka}</span>}
+    </div>
+  );
+}
+
+function NzvView({ month, profile }){
   const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "parafa, parafa2" }
   const [izpeljano, setIzpeljano] = useState({}); // iste ključe, a le za izpeljane celice (glej nalozizPodatkeNzv)
+  const [saNast, setSaNast] = useState(null); // izmenična zasedba SA (glej saStolpec)
+  const [osvezi, setOsvezi] = useState(0);
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
@@ -1129,19 +1233,23 @@ function NzvView({ month }){
   useEffect(() => {
     let cancelled = false;
     setPodatki(null); setEntries(null);
-    nalozizPodatkeNzv(startISO, endISO).then(({ podatki, entries, izpeljano }) => {
+    nalozizPodatkeNzv(startISO, endISO).then(({ podatki, entries, izpeljano, saNast }) => {
       if (cancelled) return;
       setEntries(entries);
       setIzpeljano(izpeljano || {});
+      setSaNast(saNast);
       setPodatki(podatki);
     });
     return () => { cancelled = true; };
-  }, [startISO, endISO]);
+  }, [startISO, endISO, osvezi]);
 
   if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
     <div className="wardPrintArea">
+      {profile && profile.role === "admin" && saNast && (
+        <SaNastavitveUrejanje saNast={saNast} naShranjeno={() => setOsvezi(k => k + 1)} />
+      )}
       <div className="wardScroller">
         <table className="wardTable wardTableNzv">
           <thead>
@@ -1184,6 +1292,9 @@ function NzvView({ month }){
         pregled na enem mestu. <b>Bledeje</b> zapisana parafa ni objavljen vnos, ampak izpeljana stalna zasedba:
         nosilec enote (Imenik → Razpredelnica → Nadomeščanja) je na svoji enoti vsak delovni dan, ob njegovi
         odsotnosti pa je prikazan njegov nadomeščevalec. Objavljen razpored ima vedno prednost pred izpeljavo.
+        Stolpca <b>SA DOP</b> in <b>SA POP</b> se izmenjujeta tedensko (v poletnih mesecih je SA samo dopoldne) —
+        administrator pravilo popravi v vrstici nad mrežo. <b>URGENCA 2 (U2)</b> nima samodejnega pravila: kdo je
+        tam, določi administrator z objavo razporeda (uvoz iz Google Sheets, stolpec »U2«).
         Prazna celica pomeni, da enota nima nosilca in za ta dan ni objavljenega vnosa.
       </InfoToggle>
       <RazporedPodpisi entries={entries} />
@@ -2757,7 +2868,7 @@ function App(){
         jeNzv={!!profile && profile.department_code === "NZV"} />}
       {view==="ward" && wardCode && (
         wardCode === "NZV"
-          ? <NzvView key={"nzv" + reloadKey} month={month} />
+          ? <NzvView key={"nzv" + reloadKey} month={month} profile={profile} />
           : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} />
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
