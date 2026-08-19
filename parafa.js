@@ -64,6 +64,47 @@ window.Parafa = (function () {
     return out;
   }
 
+  // Kdo je LASTNIK posamezne parafe za dani datum.
+  //
+  // Ključno pravilo: IZRECNO nastavljena parafa premaga IZPELJANO.
+  // Izpeljana parafa (prve tri črke priimka) je samo privzetek aplikacije,
+  // ne pa oznaka, ki bi jo oseba kdaj imela na papirju. Brez tega pravila
+  // je vsak par sodelavcev z enakim začetkom priimka videti kot trk in
+  // uvoz obe osebi preskoči - čeprav v uradnem registru paraf oznako
+  // nedvoumno nosi samo ena od njiju.
+  //
+  // Resnično stanje iz uradnega izvoza paraf (14. 8. 2026):
+  //   POG - izrecno jo ima Pogačnik Teja (do 30. 9. 2026; od 1. 10. "PT").
+  //         Pogačnik Matej uradne parafe NIMA, aplikacija mu jo je le
+  //         izpeljala iz priimka. "POG" v dokumentu torej pomeni Tejo.
+  //   TOM - izrecno jo ima Tomaževič Simona (od 1. 10. "ST").
+  //         Tomašić Nikolina uradne parafe nima.
+  // Po 1. 10. 2026, ko se Teja/Simona preimenujeta, oznaki POG/TOM
+  // ostaneta prosti in ju prevzameta Matej oz. Nikolina - to pravilo
+  // izpelje samo od sebe, brez posebnega primera.
+  //
+  // Vrne { poParafi, podvojene }: "poParafi" so enolično razrešene oznake,
+  // "podvojene" pa tiste, ki jih res ni mogoče razrešiti (dve IZRECNI
+  // parafi sta enaki, ali pa nobena ni izrecna in je izpeljanih več).
+  function lastniki(profili, datum) {
+    var skupine = {};
+    (profili || []).forEach(function (p) {
+      var k = zaDatum(p, datum).toUpperCase();
+      if (!k) return;
+      (skupine[k] = skupine[k] || []).push(p);
+    });
+    var poParafi = {};
+    var podvojene = [];
+    Object.keys(skupine).forEach(function (k) {
+      var vsi = skupine[k];
+      var izrecni = vsi.filter(function (p) { return !jeIzpeljana(p, datum); });
+      var kandidati = izrecni.length ? izrecni : vsi;
+      if (kandidati.length === 1) poParafi[k] = kandidati[0];
+      else podvojene.push(k);
+    });
+    return { poParafi: poParafi, podvojene: podvojene };
+  }
+
   // Uporabnikom IZRECNO POTRJENI popravki kratkih zapisov ("Priimek I.") iz
   // uradnih predlog, kjer se zapis v datoteki razlikuje od Imenika. Ključ je
   // to, kar piše v PREDLOGI, vrednost pa pravilna oblika iz Imenika.
@@ -83,5 +124,5 @@ window.Parafa = (function () {
   }
 
   return { PRESTOP: PRESTOP, auto: auto, zaDatum: zaDatum, jeIzpeljana: jeIzpeljana, trki: trki,
-           kratkoKljuc: kratkoKljuc, KRATKO_PSEVDONIM: KRATKO_PSEVDONIM };
+           lastniki: lastniki, kratkoKljuc: kratkoKljuc, KRATKO_PSEVDONIM: KRATKO_PSEVDONIM };
 })();

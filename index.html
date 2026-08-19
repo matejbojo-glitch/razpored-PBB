@@ -1425,14 +1425,11 @@ function obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec){
 // parafaOd) - vsak klic je za EN ciljni mesec, ki nikoli ne sega čez
 // prestop, zato zadostuje ena skupna vrednost za ves seznam profilov.
 function parafaMapa(profili, datum){
-  const m = {};
-  const podvojene = new Set();
-  (profili || []).forEach(p => {
-    const parafa = parafaOd(p, datum).toUpperCase();
-    if (parafa in m) { podvojene.add(parafa); } else { m[parafa] = p; }
-  });
-  podvojene.forEach(k => delete m[k]);
-  return { poParafi: m, podvojene };
+  // Razreševanje živi v parafa.js (window.Parafa.lastniki): izrecno
+  // nastavljena parafa premaga izpeljano, zato dva sodelavca z enakim
+  // začetkom priimka nista več videti kot trk. Prej je uvoz OBA preskočil.
+  const { poParafi, podvojene } = window.Parafa.lastniki(profili, datum);
+  return { poParafi, podvojene: new Set(podvojene) };
 }
 
 // Uradna predloga piše stolpec DEŽURSTVO drugače kot vse ostale enote: NE

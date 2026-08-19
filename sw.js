@@ -361,7 +361,9 @@
 // lažno prost dan bi lahko pomenil, da koordinator nekoga po nesreči
 // razporedi še enkrat. Spremenjena imenik.html.
 
-const CACHE = 'razpored-pbb-v62';
+// v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
+//      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+const CACHE = 'razpored-pbb-v63';
 const ASSETS = [
   './',
   './index.html',
