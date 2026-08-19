@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v70: prazniki.js - delovnik NZV (PON-PET, vikendi IN prazniki prosti
+//      razen dežurstva) je odslej EN vir za vse tri zaslone.
 // v69: pregled nadomeščanj v Imeniku + popravki iz Razpored_nadomescanj.xlsx.
 // v68: popravljen uvoz dežurnih zdravnikov (prej je zapisal kratico dneva
 //      namesto imena) + tabela vseh treh krogov pod NZV razporedom.
@@ -377,7 +379,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v69';
+const CACHE = 'razpored-pbb-v70';
 const ASSETS = [
   './',
   './index.html',
@@ -405,6 +407,7 @@ const ASSETS = [
   './nav.js',
   './datum.js',
   './parafa.js',
+  './prazniki.js',
   './push-client.js',
   './delovni-cas.js',
   './xlsx.core.min.js',

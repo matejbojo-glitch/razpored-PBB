@@ -45,10 +45,12 @@ function eq(a, b, opis) {
   trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`));
 }
 
-const sandbox = { console };
+const sandbox = { console, window: {} };
 vm.createContext(sandbox);
-vm.runInContext([izvleci("classify"), izvleci("nzvPrikaz"), izvleci("jeVikendISO")].join("\n\n"), sandbox);
-const { nzvPrikaz, classify, jeVikendISO } = sandbox;
+vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
+vm.runInContext([izvleci("classify"), izvleci("nzvPrikaz")].join("\n\n"), sandbox);
+const { nzvPrikaz, classify } = sandbox;
+const jeVikendISO = sandbox.window.Prazniki.jeVikend;
 
 const NZV = true, ODDELEK = false;
 
@@ -110,18 +112,32 @@ console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v '
   trdi(!jeVikendISO(null), "manjkajoč datum prav tako ne");
   trdi(!jeVikendISO("nekaj"), "neveljaven zapis prav tako ne");
 
-  // Datum se mora razčleniti kot BESEDILO: z "new Date(iso)" bi ga
-  // brskalnik v časovnem pasu za UTC premaknil na prejšnji dan.
-  trdi(/new Date\(Number\(m\[1\]\), Number\(m\[2\]\) - 1, Number\(m\[3\]\), 12\)/.test(html),
-    "datum se sestavi po delih ob 12:00, ne prek new Date(iso)");
-
-  // In da je pravilo res vgrajeno v nalaganje NZV podatkov:
-  trdi(/if \(jeVikendISO\(r\.work_date\) && classify\(r\.shift_code\) !== "dez"/.test(html),
-    "enote: vikend brez dežurstva se izpusti");
+  // Izračun prostega dne živi v prazniki.js (en sam vir za vse zaslone) -
+  // podrobnosti pokriva skripte/preveri-prazniki.mjs.
+  trdi(/window\.Prazniki\.jeDelaProstDan\(r\.work_date\) && classify\(r\.shift_code\) !== "dez"/.test(html),
+    "enote: prost dan brez dežurstva se izpusti");
   trdi(/r\.department_code !== "DEZ"/.test(html),
-    "dežurni stolpec (DEZ) ob vikendu OSTANE");
-  trdi(/if \(jeVikendISO\(d\.work_date\)\) return;/.test(html),
-    "stolpci LD/IZOB/BS: vikend se izpusti (dopust velja za delovne dni)");
+    "dežurni stolpec (DEZ) ob prostem dnevu OSTANE");
+  trdi(/window\.Prazniki\.jeDelaProstDan\(d\.work_date\)/.test(html),
+    "stolpci LD/IZOB/BS: prost dan se izpusti (dopust velja za delovne dni)");
+}
+
+console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila)");
+{
+  // 15. 8. 2026 je sobota, zato za pravilo ni dokaz. Vzemimo praznik, ki
+  // pade na DELOVNI dan: velikonočni ponedeljek 6. 4. 2026.
+  eq(nzvPrikaz("dopoldan", "PO", NZV, "2026-04-06"), "",
+    "velikonočni ponedeljek: NZV je prost, čeprav je ponedeljek");
+  eq(nzvPrikaz("LD", "PO", NZV, "2026-04-06"), "",
+    "in dopust se tisti dan ne vodi");
+  eq(nzvPrikaz("DEŽURSTVO", "PO", NZV, "2026-04-06"), "DEŽURSTVO",
+    "dežurstvo na praznik OSTANE - in samo dežurstvo, brez prisotnosti");
+  eq(nzvPrikaz("dopoldan", "PO", NZV, "2026-04-07"), "dopoldan",
+    "naslednji dan (torek) je spet navaden delovnik");
+  eq(nzvPrikaz("dopoldan", "PO", ODDELEK, "2026-04-06"),  "dopoldan",
+    "oddelčnega kadra se praznik ne dotakne");
+  // Brez datuma mora ostati staro vedenje (klic iz starejše kode).
+  eq(nzvPrikaz("dopoldan", "PO", NZV), "dopoldan", "brez datuma se praznik ne more upoštevati");
 }
 
 console.log("");
