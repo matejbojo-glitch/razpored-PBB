@@ -1913,24 +1913,23 @@ function StanjeRazpredelnica({ oddelki }){
       // nzv-zasedba.js. Objavljen vnos in odsotnost imata prednost -
       // izpeljava zapolni samo tisto, kar je ostalo prazno.
       Object.keys(zapisNosilca).forEach(id => {
-        const n = zapisNosilca[id];
-        // Daljša odsotnost (npr. porodniška do julija 2027): cel mesec z
-        // uradno kratico, ne prazna vrstica.
-        const dolga = window.NzvZasedba.dolgaOdsotnostKratica(n.odsotnost_tip);
-        dnevi.forEach(d => {
-          const k = id + "|" + d.iso;
-          if (m2[k]) return;
-          if (window.Prazniki.jeDelaProstDan(d.iso)) return;
-          if (window.NzvZasedba.trajnoOdsoten(n, d.iso)) {
-            if (!dolga) return;
-            const vnosD = vnosPoKratici(dolga);
-            m2[k] = { stanje: vnosD ? vnosD[5] : "dopust", kratica: dolga,
-              barva: vnosD ? vnosD[4] : "#E06666", sifra: dolga, izpeljano: true };
-            return;
-          }
-          const sifra = window.NzvZasedba.IZMENA_PRISOTEN;
-          m2[k] = { stanje: stanjeIzKode(sifra), kratica: izmenaKratica(sifra),
-            barva: izmenaBarva(sifra), sifra, izpeljano: true };
+        // Katere dneve dopolniti in s čim, pove skupni modul - pravilo
+        // (delovni dan, daljša odsotnost, prednost objavljenega vnosa) je
+        // eno samo za vse tri zaslone. Tu ga samo prevedemo v celico z
+        // uradno kratico in barvo iz legende.
+        window.NzvZasedba.stalnaZasedba(
+          zapisNosilca[id],
+          dnevi.map(d => d.iso),
+          iso => !!m2[id + "|" + iso],
+        ).forEach(x => {
+          const vnos = vnosPoKratici(x.sifra) || vnosPoKratici(izmenaKratica(x.sifra));
+          m2[id + "|" + x.datum] = {
+            stanje: vnos ? vnos[5] : stanjeIzKode(x.sifra),
+            kratica: izmenaKratica(x.sifra),
+            barva: izmenaBarva(x.sifra),
+            sifra: x.sifra,
+            izpeljano: true,
+          };
         });
       });
       setPoDnevih(m2);

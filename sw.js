@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v72: stalna zasedba velja tudi v "Moj razpored" - vodja je prej videl
+//      prazne delovne dneve, čeprav vsak dan dela na svoji enoti.
 // v71: nzv-zasedba.js - stalna zasedba enot NZV (nosilec + nadomeščanje +
 //      izmenična SA) je zdaj en sam vir za NZV mrežo in za Imenik ->
 //      Razpredelnico; prej je bila napisana posebej in je na obeh
@@ -383,7 +385,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v71';
+const CACHE = 'razpored-pbb-v72';
 const ASSETS = [
   './',
   './index.html',
