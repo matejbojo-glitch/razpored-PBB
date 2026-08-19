@@ -45,7 +45,7 @@
   };
 
   // Kode, ki NISO delo (odsotnost/prosto) — ne štejejo v počitek niti v ure.
-  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", "PRISOTEN", "POMOČ DRUGJE", ""];
+  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", "PRISOTEN", ""];
 
   // Privzeta delovnopravna pravila. NAMENOMA nastavljiva (in ne trdo
   // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih

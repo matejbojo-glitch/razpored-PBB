@@ -74,9 +74,7 @@
    * opts.startISO / opts.endISO — razpon dni, ki jih generiramo (vključno)
    * opts.staff — [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool,
    *                 dopustTedni: ["YYYY-MM-DD" (ponedeljek tistega tedna), ...],
-   *                 pomocTedni: ["YYYY-MM-DD" (ponedeljek), ...], omejitve: ["YYYY-MM-DD", ...] }]
-   *   pomocTedni — tedni, ko oseba začasno pomaga drugemu oddelku (ni na voljo za svoj kalup, a to
-   *   NI dopust — izpiše se "POMOČ DRUGJE", ne "LD"). Cilj oddelek to osebo za ta teden doda ročno.
+   *                 omejitve: ["YYYY-MM-DD", ...] }]
    *   omejitve — dnevi "rumene" omejitve (iz Razpredelnice Želje): če oseba ta dan po kalupu dela,
    *   generator poišče nadomestilo med preostalim osebjem istega oddelka, ki je ta dan naravno prosto
    *   (prazna izmena po LASTNEM vzorcu — NE nekdo na LD/pomoči, da se ne krati zaslužen prost teden) in
@@ -99,7 +97,6 @@
       var izmene = {};
 
       opts.staff.forEach(function (z) {
-        if ((z.pomocTedni || []).indexOf(mondayISO) !== -1) { izmene[z.ime] = "POMOČ DRUGJE"; return; }
         var forced = (z.dopustTedni || []).indexOf(mondayISO) !== -1 ? "C" : null;
         izmene[z.ime] = shiftFor(z.startLetter, d, anchorMonday, !!z.hsuffix, forced);
       });
@@ -107,7 +104,7 @@
       opts.staff.forEach(function (z) {
         if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
         var trenutna = izmene[z.ime];
-        if (!trenutna) return; // že prost ta dan (vzorec/LD/pomoč) — omejitev je brezpredmetna
+        if (!trenutna) return; // že prost ta dan (vzorec/LD) — omejitev je brezpredmetna
 
         var kandidati = opts.staff.filter(function (k) {
           if (k.ime === z.ime) return false;

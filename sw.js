@@ -363,6 +363,8 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v77: "Pomoč na drugem oddelku" odstranjena tudi iz generatorja -
+//      tedenski preklop v Kalupu je zdaj samo še LD.
 // v76: iz legende odstranjene DF7, DP7 in POM (uporabnikova zahteva).
 // v75: izmene.js - uradna legenda izmen (kratice, barve, časi) in
 //      razvrstitev sta en sam vir; barve v "Po oddelkih" so odslej enake
@@ -393,7 +395,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v76';
+const CACHE = 'razpored-pbb-v77';
 const ASSETS = [
   './',
   './index.html',

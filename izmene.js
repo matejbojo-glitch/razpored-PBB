@@ -31,12 +31,12 @@ window.Izmene = (function () {
   //   DF7 "Flexi dopoldne 07:00-13:00" in DP7 "Flexi popoldne 14:00-20:00"
   //       - navzkrižno pokrivanje se ne vodi več kot svoja izmena; nobena
   //         pot v aplikaciji teh dveh kod ni ustvarjala.
-  //   POM "Pomoč na drugem oddelku" - te vrstice v legendi ni več. Kodo
-  //       "POMOČ DRUGJE" pa generator (admin.html -> Kalup, tedenski
-  //       preklop LD/POM) še VEDNO lahko zapiše; taka celica se odslej
-  //       izriše kot neznana koda: nevtralno siva, z besedilom "POM".
-  //       Štetje pokritosti je nespremenjeno - "POMOČ DRUGJE" je bila že
-  //       prej izvzeta po imenu (admin.html), ne prek legende.
+  //   POM "Pomoč na drugem oddelku" - odstranjena tudi iz generatorja
+  //       (tedenski preklop v admin.html -> Kalup zdaj samo še LD),
+  //       zato nobena pot te kode ne ustvarja več. Če se v starih
+  //       objavljenih razporedih vseeno pojavi, se izriše kot neznana
+  //       koda: nevtralno siva, z besedilom "POM" - namenoma NE prazna,
+  //       ker bi prazen dan izgledal kot prosto.
   //
   // URADNA legenda kratic - stolpec "kratica za aplikacijo" v delovnik.xlsx
   // ("Razpored delovnega časa - Služba za ZN in oskrbo", veljavnost od
