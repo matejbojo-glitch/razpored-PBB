@@ -94,6 +94,7 @@
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="parafa.js"></script>
+<script src="prazniki.js"></script>
 <script src="xlsx.core.min.js"></script>
 <script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
@@ -1675,6 +1676,12 @@ function imenaSeUjemataBrezStresic(a, b){
   return !!na && na === nb;
 }
 
+// Kdo sodi v NZV (vodje/administratorji) - zanje velja delovnik
+// PON-PET, vikendi in prazniki prosti razen dežurstva. Isti nabor kot v
+// index.html; namerno ponovljen, ker imenik.html do njega ne more prek
+// <script src> (index.html je Babel).
+const JE_NZV_VLOGA = new Set(["vodja", "admin"]);
+
 // leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
 const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
@@ -1790,7 +1797,7 @@ function StanjeRazpredelnica({ oddelki }){
     const startISO = `${y}-${String(m).padStart(2, "0")}-01`;
     const endISO = `${y}-${String(m).padStart(2, "0")}-${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
     Promise.all([
-      client.from("profiles").select("id, full_name, department_code").order("full_name"),
+      client.from("profiles").select("id, full_name, role, department_code").order("full_name"),
       // Nosilci oddelkov (vodje/administratorji): katere enote pokrivajo in
       // KDO jih nadomešča ob odsotnosti. Vir je uradna predloga NZV, glej
       // supabase/nzv-nosilci-oddelkov.sql. Ločena tabela od profiles, ker
@@ -1845,7 +1852,20 @@ function StanjeRazpredelnica({ oddelki }){
       });
       setNosilci(nosilecPoOsebi);
       const m2 = {};
+      // Kdo je NZV: vodje in administratorji. Zanje velja poseben
+      // delovnik (glej nzvProstDan spodaj); oddelčni kader dela vikende
+      // in praznike normalno.
+      const jeNzvOseba = {};
+      seznam.forEach(p => { jeNzvOseba[p.id] = JE_NZV_VLOGA.has(p.role); });
+
       (vpisi || []).forEach(v => {
+        // PRAVILO NZV: ponedeljek-petek redni delovnik; sobota, nedelja in
+        // dela prosti prazniki so PROSTI, razen če je tisti dan dežurstvo.
+        // Brez tega je razpredelnica kazala vodjo na delu v nedeljo
+        // (Alukić Dino 2. 8. "LD", 9. in 16. 8. "DOP").
+        if (jeNzvOseba[v.employee_id]
+            && window.Prazniki.jeDelaProstDan(v.work_date)
+            && stanjeIzKode(v.shift_code) !== "dezurstvo") return;
         m2[v.employee_id + "|" + v.work_date] = {
           stanje: stanjeIzKode(v.shift_code),
           kratica: izmenaKratica(v.shift_code),
@@ -1865,6 +1885,9 @@ function StanjeRazpredelnica({ oddelki }){
         if (!id) return;
         const k = id + "|" + o.work_date;
         if (m2[k] && m2[k].stanje === "dezurstvo") return; // dežurstvo je dejansko opravljeno delo
+        // Dopust/bolniška se za NZV vodijo samo za DELOVNE dni - vikend ali
+        // praznik sredi dopusta je navaden prost dan, ne "LD".
+        if (jeNzvOseba[id] && window.Prazniki.jeDelaProstDan(o.work_date)) return;
         // Odsotnost iz Želja nima kode izmene, poznamo pa vrsto, zato jo
         // preslikamo v isto uradno kratico (LD / BS / STI).
         const vnos = vnosPoKratici(kratica);
@@ -1965,9 +1988,15 @@ function StanjeRazpredelnica({ oddelki }){
             <thead>
               <tr>
                 <th className="name">Zaposleni</th>
-                {dnevi.map(d => (
-                  <th key={d.iso} style={d.vikend ? {color:"var(--pop)"} : null}>{d.dan}</th>
-                ))}
+                {dnevi.map(d => {
+                  const praznik = window.Prazniki.naziv(d.iso);
+                  return (
+                    <th key={d.iso} title={praznik || undefined}
+                      style={(d.vikend || praznik) ? {color:"var(--pop)"} : null}>
+                      {d.dan}{praznik ? "*" : ""}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>

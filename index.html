@@ -158,6 +158,7 @@
 <script src="push-client.js"></script>
 <script src="nav.js"></script>
 <script src="parafa.js"></script>
+<script src="prazniki.js"></script>
 <script src="datum.js"></script>
 <script src="print-fit.js"></script>
 <script src="xlsx.core.min.js"></script>
@@ -336,18 +337,6 @@ function monthRange(monthStr){
   const end = `${y}-${String(m).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
   return { startISO:start, endISO:end };
 }
-// Ali je dani delovni datum ("LLLL-MM-DD") sobota ali nedelja.
-// Datum se razčleni kot BESEDILO in sestavi ob 12:00 lokalnega časa - z
-// "new Date(iso)" bi ga brskalnik v časovnem pasu za UTC premaknil na
-// prejšnji dan in petek bi izpadel kot četrtek (ista past je bila že
-// odpravljena v datum.js).
-function jeVikendISO(iso){
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
-  if (!m) return false;
-  const dan = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12).getDay();
-  return dan === 0 || dan === 6;
-}
-
 function daysInRange(startISO, endISO){
   const out = [];
   let d = new Date(startISO + "T00:00:00");
@@ -383,8 +372,11 @@ function daysInRange(startISO, endISO){
 // Velja SAMO za NZV: oddelčni kader (B/C/C1/D/E1/E2/FLEXI) vikende dela
 // normalno in ima prave kode izmen (dopoldan, NOČNA12 …), ki se jih to
 // pravilo ne sme dotakniti.
-function nzvPrikaz(sifra, danKratica, jeNzv){
-  const vikend = danKratica === "SO" || danKratica === "NE";
+// "datum" je neobvezen; kadar je podan, se poleg sobote/nedelje upošteva
+// tudi dela prost PRAZNIK (uporabnikova izrecna dopolnitev pravila).
+function nzvPrikaz(sifra, danKratica, jeNzv, datum){
+  const vikend = danKratica === "SO" || danKratica === "NE"
+    || (datum ? window.Prazniki.jePraznik(datum) : false);
   const jeDezurstvo = classify(sifra) === "dez";
   if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "PRISOTEN + DEŽURSTVO";
   if (!jeNzv || !vikend) return sifra;
@@ -513,7 +505,7 @@ function MyScheduleView({ userId, month, jeNzv }){
   const iso = todayISO();
   const todayDan = (days.find(d => d.datum === iso) || {}).dan;
   const todaySifra = byDate[iso];
-  const todayPrikaz = nzvPrikaz(todaySifra, todayDan, jeNzv);
+  const todayPrikaz = nzvPrikaz(todaySifra, todayDan, jeNzv, iso);
   const todayCls = classify(todayPrikaz === "" ? "" : todaySifra);
 
   const tedni = useMemo(() => {
@@ -568,7 +560,7 @@ function MyScheduleView({ userId, month, jeNzv }){
               // Barva se vedno računa iz IZVIRNE kode (npr. "PRISOTEN +
               // DEŽURSTVO" se mora obarvati kot dežurstvo, ne kot prisotnost),
               // besedilo pa iz pravila NZV delovnika.
-              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv);
+              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum);
               const cls = classify(prikaz === "" ? "" : sifra);
               const isToday = dn.datum === iso;
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
@@ -942,7 +934,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // oseba tisti dan DEŽURNA. Isto pravilo kot nzvPrikaz v "Moj
     // razpored" - brez njega je mreža ob vikendih kazala vodje na
     // enotah, čeprav takrat ne delajo.
-    if (jeVikendISO(r.work_date) && classify(r.shift_code) !== "dez"
+    if (window.Prazniki.jeDelaProstDan(r.work_date) && classify(r.shift_code) !== "dez"
         && r.department_code !== "DEZ") return;
     // V NZV razporedu so SAMO vodje in administratorji (uporabnikova
     // izrecna zahteva). Brez tega filtra se je mreža polnila z oddelčnim
@@ -960,7 +952,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     if (!koda) return;
     // Odsotnost (LD/IZOB/BS) se prav tako vodi samo za delovne dni -
     // "letni dopust v soboto" ni stvar; vikend je prost sam po sebi.
-    if (jeVikendISO(d.work_date)) return;
+    if (window.Prazniki.jeDelaProstDan(d.work_date)) return;
     const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
     // Isto pravilo kot za enote zgoraj: stolpci LD/IZOB/BS uradne predloge
     // se nanašajo na NZV kader, ne na oddelčne sestre. Oseba, ki je v
