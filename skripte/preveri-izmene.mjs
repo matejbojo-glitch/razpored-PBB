@@ -2,7 +2,7 @@
 /* Preizkus izmene.js — uradna legenda, barve in razvrstitev izmen.
  *
  * Zakaj obstaja: iste stvari so bile na treh mestih in vsako je poznalo
- * drug del resnice — imenik.html polno uradno legendo (22 kratic z
+ * drug del resnice — imenik.html polno uradno legendo (19 kratic z
  * natančnimi barvami), index.html in admin.html pa vsak svojo grobo
  * razvrstitev v 7 oz. 5 skupin. Posledica: ista izmena je bila v Imeniku
  * ena barva in v Razporedu druga.
@@ -109,7 +109,7 @@ console.log("2) razvrstitvi se RAZLIKUJETA točno tam, kjer se morata");
 
 console.log("3) uradna legenda je popolna in nedvoumna");
 {
-  eq(I.KRATICE.length, 22, "22 vrstic uradne legende");
+  eq(I.KRATICE.length, 19, "19 vrstic uradne legende");
   const kratice = I.KRATICE.map(v => v[1]);
   eq(new Set(kratice).size, kratice.length, "nobena kratica se ne ponovi");
   const predolge = kratice.filter(k => k.length > 3 && k !== "DF12");
@@ -135,13 +135,28 @@ console.log("4) barve in kratice za resnične kode");
   eq(I.kratica("popoldan"), "PO7", "navaden popoldan");
   eq(I.kratica("dopoldan (6h)"), "DO6", "omejitev 6 ur");
   eq(I.kratica("popoldan (4h)"), "PO4", "omejitev 4 ure - pred splošnim popoldnem");
-  eq(I.kratica("pop. 14.h-20.h"), "DP7", "flexi popoldne");
-  eq(I.kratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne");
   eq(I.kratica("PRISOTEN"), "DOP", "PRISOTEN je po uradni datoteki dopoldan");
   eq(I.kratica("prost"), "", "'prost' je prost dan, ne kratica");
   eq(I.kratica("nekaj čisto drugega"), "NEK", "neznana koda se ne izgubi tiho");
   eq(I.barva("nekaj čisto drugega"), "#8B8672", "neznana koda dobi nevtralno sivo");
   eq(I.barva(""), I.STANJE_BARVA.prosto.barva, "prazno je barva prostega dne");
+}
+
+console.log("4b) odstranjene kode (DF7, DP7, POM) se obravnavajo kot neznane");
+{
+  // Uporabnikova odločitev (avgust 2026): navzkrižno pokrivanje se ne
+  // vodi več kot svoja izmena, "Pomoč na drugem oddelku" pa ni več v
+  // legendi. Nobena od teh kod ne sme ostati v legendi …
+  ["DF7", "DP7", "POM"].forEach(k => trdi(!I.poKratici(k), `kratice ${k} ni več v legendi`));
+  // … in če se taka koda vseeno pojavi (generator "POMOČ DRUGJE" še zna
+  // zapisati), se mora obravnavati kot NEZNANA: siva, a z vidnim
+  // besedilom - tiho prazna celica bi izgledala kot prost dan.
+  eq(I.barva("POMOČ DRUGJE"), "#8B8672", "POMOČ DRUGJE dobi nevtralno sivo");
+  eq(I.kratica("POMOČ DRUGJE"), "POM", "in ostane vidna kot 'POM'");
+  eq(I.stanje("POMOČ DRUGJE"), "delo", "šteje se kot delo, ne kot prost dan");
+  // Štetje pokritosti ostane, kar je bilo: "POMOČ DRUGJE" je bila že prej
+  // izvzeta po imenu v admin.html, ne prek legende.
+  eq(I.skupinaGeneratorja("POMOČ DRUGJE"), "off", "generator je še naprej ne šteje k zasedbi");
 }
 
 console.log("5) pisava je berljiva na vsaki barvi iz legende");
