@@ -66,6 +66,7 @@ const sandbox = { console };
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
+vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "nzv-zasedba.js"), "utf8"), sandbox);
 // Ujemanje imen živi v imena.js (skupni modul za vse zaslone).
 vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
@@ -95,7 +96,8 @@ const izsek = html.slice(zacetekIzseka, konecIzseka);
 vm.runInContext(`
 var JE_NZV_VLOGA = new Set(["vodja", "admin"]);
 var KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
-function zgradiMrezo(seznam, nosilci, vpisi, odsotnosti, dnevi){
+function zgradiMrezo(seznam, nosilci, vpisi, odsotnosti, dnevi, pokrivanja){
+  pokrivanja = pokrivanja || [];
   var jeNzvOseba = {};
   seznam.forEach(function (p) { jeNzvOseba[p.id] = JE_NZV_VLOGA.has(p.role); });
 ${izsek.replace(/^ {6}const m2 = \{\};/m, "  var m2 = {};")
@@ -110,13 +112,20 @@ const SEZNAM = [
   profil("m", "Mušič Ines"),
   profil("t", "Tomaževič Simona"),
   profil("p", "Pogačnik Teja"),
+  profil("t2", "Torkar Tanja"),
   profil("n", "Novak Ana", "user"),
+];
+// Pari nadomeščanj - potrebni, ker mreža odslej računa tudi enoto, na
+// kateri je oseba TA DAN (preselitev ob tuji odsotnosti).
+const POKRIVANJA = [
+  { nosilec: "ALUKIĆ DINO", nadomesca: "TORKAR TANJA", enota: "ŽO", prednost: 1 },
 ];
 const NOSILCI = [
   { full_name: "ALUKIĆ DINO", inicialke: "ALU", enote: "ŽO", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "MUŠIČ INES", inicialke: "MUŠ", enote: "UA/SA", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "TOMAŽEVIČ SIMONA", inicialke: "TOM", enote: "A", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "POGAČNIK TEJA", inicialke: "POG", enote: "E1", odsotnost_tip: "porodniška", odsotnost_do: "2027-07-31" },
+  { full_name: "TORKAR TANJA", inicialke: "TOR", enote: "DB", odsotnost_tip: null, odsotnost_do: null },
 ];
 
 // September 2026 (30 dni). 1.9. je torek, 5./6., 12./13., 19./20., 26./27. vikendi.
@@ -133,7 +142,7 @@ function dneviMeseca(leto, mesec) {
 const DNEVI = dneviMeseca(2026, 9);
 
 function mreza({ vpisi = [], odsotnosti = [], nosilci = NOSILCI, dnevi = DNEVI } = {}) {
-  return sandbox.zgradiMrezo(SEZNAM, nosilci, vpisi, odsotnosti, dnevi);
+  return sandbox.zgradiMrezo(SEZNAM, nosilci, vpisi, odsotnosti, dnevi, POKRIVANJA);
 }
 
 console.log("1) Nosilec ima vnos za VSAK delovni dan — do konca meseca, ne le do določenega dne");
@@ -179,6 +188,23 @@ console.log("4) Objavljen vnos in odsotnost imata prednost pred izpeljavo");
   eq(m["m|2026-09-03"].kratica, "LD", "letni dopust obvelja pred izpeljano prisotnostjo");
   eq(m["a|2026-09-01"].kratica, "DOP", "ostali dnevi so še vedno izpeljani");
   trdi(m["a|2026-09-01"].izpeljano === true, "izpeljana celica je označena");
+}
+
+console.log("4b) Celica pove tudi ENOTO, in to po dejanskem razporedu");
+{
+  // Uporabnikova zahteva: v Razpredelnici mora biti vidno, na katerem
+  // oddelku je oseba - pravilno glede na vnešen razpored, ne le stalna
+  // enota. Ob nadomeščanju se ta spremeni.
+  const m = mreza();
+  eq(m["a|2026-09-01"].enota, "ŽO", "Alukić na svoji enoti");
+  eq(m["m|2026-09-01"].enota, "UA/SA", "Mušič na svojih enotah");
+
+  // Ko je Alukić odsoten, ga po tabeli pokrivanj nadomesti Torkar - ta se
+  // PRESELI na ŽO in na svojem DB je tisti dan ni.
+  const m2 = mreza({ odsotnosti: [{ full_name: "Alukić Dino", work_date: "2026-09-02", kind: "ld" }] });
+  eq(m2["t2|2026-09-02"] && m2["t2|2026-09-02"].enota, "ŽO", "Torkar se preseli na ŽO");
+  eq(m2["a|2026-09-02"].kratica, "LD", "Alukić je tisti dan na dopustu");
+  trdi(!m2["a|2026-09-02"].enota, "ob dopustu se enota ne izpiše - tisti dan ni na nobeni");
 }
 
 console.log("5) Oddelčni kader se NE izpeljuje — nima zapisa nosilca");

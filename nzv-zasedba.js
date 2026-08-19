@@ -162,7 +162,8 @@ window.NzvZasedba = (function () {
   //   saKoda       stolpec SA, ki ta dan velja (glej saStolpec)
   //   veljavne     nabor kod, ki v mreži obstajajo
   //
-  // Vrne [{ nosilec, kode }] - kdo je ta dan na katerih enotah.
+  // Vrne [{ nosilec, kode, enote }] - kdo je ta dan na katerih enotah;
+  // "kode" so stolpci mreže, "enote" berljiv zapis za izpis.
   function razporedDneva(opts) {
     var nosilci = opts.nosilci || [], pari = opts.pari || [];
     var kljuc = opts.kljuc, jeOdsoten = opts.jeOdsoten;
@@ -182,6 +183,7 @@ window.NzvZasedba = (function () {
 
     // 1. raven: kdo se preseli in kam.
     var preseljen = {};   // ključ nadomeščevalca -> kode enot, ki jih prevzame
+    var preseljenBesedilo = {}; // isti ključ -> berljiv zapis ("C1"), za izpis
     // Vrstni red mora biti določen (ne po naključju iz baze), sicer bi ob
     // dveh hkratnih odsotnostih isti nadomeščevalec enkrat pripadel enemu
     // in drugič drugemu.
@@ -196,12 +198,14 @@ window.NzvZasedba = (function () {
           var kode = vKode(kandidati[i].enota || v.enote);
           if (!kode.length) continue;
           preseljen[kn] = kode;
+          preseljenBesedilo[kn] = kandidati[i].enota || v.enote;
           break;
         }
       });
 
     // 2. raven: zapuščene enote prevzame naslednji, in to POLEG svojih.
     var dodatno = {};
+    var dodatnoBesedilo = {};
     Object.keys(preseljen).forEach(function (kb) {
       var b = poKljucu[kb];
       if (!b || !b.enote) return;
@@ -212,6 +216,7 @@ window.NzvZasedba = (function () {
         // ene enote - sicer bi bil hkrati na dveh koncih.
         if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kc]) continue;
         dodatno[kc] = (dodatno[kc] || []).concat(vKode(b.enote));
+        dodatnoBesedilo[kc] = (dodatnoBesedilo[kc] || []).concat([b.enote]);
         break;
       }
     });
@@ -225,7 +230,13 @@ window.NzvZasedba = (function () {
       (dodatno[k] || []).forEach(function (koda) {
         if (kode.indexOf(koda) < 0) kode.push(koda);
       });
-      if (kode.length) out.push({ nosilec: v, kode: kode });
+      // Berljiv zapis enot za izpis ("C1", "B, C") - kode so namenjene
+      // stolpcem mreže in za človeka niso najbolj razumljive ("SADOP",
+      // "B1B2"). Vrstni red je isti kot pri kodah.
+      var besedilo = [preseljen[k] ? preseljenBesedilo[k] : v.enote]
+        .concat(dodatnoBesedilo[k] || [])
+        .filter(Boolean).join(", ");
+      if (kode.length) out.push({ nosilec: v, kode: kode, enote: besedilo });
     });
     return out;
   }

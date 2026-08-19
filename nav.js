@@ -247,6 +247,62 @@
     );
   }
 
+  // -------------------------------------------------------------------
+  // Nova različica aplikacije: prevzem BREZ ročnega dvojnega osveževanja
+  //
+  // Service worker že kliče skipWaiting() + clients.claim(), a stran, ki
+  // je TA HIP odprta, je svoje .js datoteke naložila že prej - iz starega
+  // predpomnilnika. Zato je bilo treba osvežiti DVAKRAT: prvič se je nova
+  // različica namestila, šele drugič se je videla. Uporabnik je to
+  // upravičeno bral kot "nič se ni spremenilo".
+  //
+  // Odslej stran ob prevzemu nove različice sama enkrat osveži. Zaščite:
+  //   - samo če je stran PREJ že imela svojega delavca (ob prvem obisku
+  //     se delavec šele namesti in osveževanje ni potrebno);
+  //   - samo enkrat (zastavica), da ne nastane zanka;
+  //   - NE, če je uporabnik že karkoli vtipkal - v Menjavi bi tak
+  //     samodejni skok pomenil izgubljen vnos. Takrat se prikaže vrstica
+  //     z gumbom in odloči uporabnik.
+  function samodejnoOsvezevanje() {
+    if (!("serviceWorker" in navigator)) return;
+    var imelDelavca = !!navigator.serviceWorker.controller;
+    var zeOsvezeno = false;
+    var uporabnikTipkal = false;
+    ["input", "change"].forEach(function (dogodek) {
+      document.addEventListener(dogodek, function (e) {
+        var t = e.target;
+        if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) uporabnikTipkal = true;
+      }, true);
+    });
+
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!imelDelavca || zeOsvezeno) return;
+      zeOsvezeno = true;
+      if (!uporabnikTipkal) { location.reload(); return; }
+      ponudiOsvezitev();
+    });
+  }
+
+  function ponudiOsvezitev() {
+    if (document.querySelector(".rpNovaRazlicica")) return;
+    var trak = document.createElement("div");
+    trak.className = "rpNovaRazlicica no-print";
+    trak.textContent = "Na voljo je nova različica. ";
+    var gumb = document.createElement("button");
+    gumb.textContent = "Osveži";
+    gumb.onclick = function () { location.reload(); };
+    trak.appendChild(gumb);
+    document.body.appendChild(trak);
+  }
+
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", samodejnoOsvezevanje);
+    } else {
+      samodejnoOsvezevanje();
+    }
+  }
+
   root.RazporedNav = RazporedNav;
   root.RazporedLogout = RazporedLogout;
   root.RazporedOgledTrak = RazporedOgledTrak;

@@ -371,8 +371,15 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
 
   trdi(/function NadomescanjaPregled\(\)/.test(html3),
     "pregled nadomeščanj (Oseba | Enote | Nadomeščajo mene | Pokrivam) obstaja");
-  trdi(/v\.nadomesca === n\.full_name/.test(html3) && /v\.nosilec === n\.full_name/.test(html3),
+  // Primerjava imen ne sme biti dobesedna (viri pišejo strešice različno),
+  // zato gre prek skupnega modula - a OBE smeri morata še vedno brati iz
+  // istega seznama parov, sicer se lahko razideta.
+  trdi(/ujem\(v\.nadomesca, n\.full_name\)/.test(html3) && /ujem\(v\.nosilec, n\.full_name\)/.test(html3),
     "obe smeri se izpeljeta iz ISTE tabele parov - ne moreta se razhajati");
+  trdi(/const ujem = \(a, b\) => imenaSeUjemataBrezStresic\(a, b\)/.test(html3),
+    "in imena se primerjajo prek skupnega modula, ne dobesedno");
+  trdi(/filter\(n => jeResnicna\(n\.full_name\)\)/.test(html3),
+    "prikažejo se samo vrstice, ki se povežejo z resnično osebo (pokvarjeni zapisi odpadejo)");
 
   const sql = readFileSync(join(koren, "supabase", "nzv-nadomescanja.sql"), "utf8");
   trdi(/primary key \(nosilec, nadomesca\)/.test(sql),

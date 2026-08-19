@@ -363,6 +363,10 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v83: Razpredelnica pove tudi enoto po dejanskem razporedu; pokvarjeni
+//      zapisi imen se ne prikazujejo več.
+// v82: stran ob prevzemu nove različice sama osveži - doslej je bilo
+//      treba osvežiti dvakrat in je izgledalo, kot da se nič ne spremeni.
 // v81: uvoz razporeda povezuje imena neobčutljivo na strešice - stolpci
 //      kot "BEČIROVIĆ N." doslej niso našli osebe in so ostali prazni.
 //      Ure vodij (PRISOTEN 07:00-15:00) štejejo v obračun.
@@ -404,7 +408,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v81';
+const CACHE = 'razpored-pbb-v83';
 const ASSETS = [
   './',
   './index.html',
