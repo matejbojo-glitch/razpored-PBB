@@ -1540,12 +1540,27 @@ const STANJE_BARVA = {
 // Zapis: [vzorec, kratica, naziv, delovni čas, barva, stanje]
 const IZMENA_KRATICE = [
   [/^dežurstvo|^dezurstvo/,  "DEŽ",  "Dežurstvo (NZV)",         "PON-PET 15:30-07:00 · SO/NE in prazniki 07:00-07:00", "#B3402A", "dezurstvo"],
-  [/^dnevna12f/,             "DF12", "Dnevna 12 (7-19)",        "SO/NE in prazniki 07:00-19:00", "#B49BD0", "delo"],
+  // "DNEVNA12 (7-19)" je v predlogi zapisana tudi tako (49-krat v
+  // 2026_SMS_RAZPORED); MORA stati pred /^dnevna12/, sicer pade na D12,
+  // kar je DRUGA izmena (05:50-18:00 namesto 07:00-19:00).
+  [/^dnevna12\(7-19\)|^dnevna12f/, "DF12", "Dnevna 12 (7-19)",  "SO/NE in prazniki 07:00-19:00", "#B49BD0", "delo"],
   [/^dnevna12/,              "D12",  "Dnevna 12",               "SO/NE in prazniki 05:50-18:00", "#8560A8", "delo"],
   [/^nočna12|^nocna12/,      "N12",  "Nočna 12",                "SO/NE in prazniki 17:50-06:00", "#2F4785", "delo"],
   [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11", "Nočna 11 (od 19)", "PON-PET 18:50-06:00", "#7C90CE", "delo"],
   [/^nočna|^nocna/,          "N10",  "Nočna",                   "PON-PET 20:50-06:00", "#4A67B0", "delo"],
   [/^popoldando19/,          "PO5",  "Popoldan do 19",          "PON-PET 13:50-19:00", "#E8A867", "delo"],
+  // "popoldan do 20" (10x v 2026_SMS_RAZPORED_2) je v uradni legendi NI.
+  // Uporabnik je potrdil novo kratico po istem vzorcu kot obstoječi dve:
+  // PO5 = 5 ur (do 19), PO6 = 6 ur (do 20), PO7 = 7 ur (do 21).
+  [/^popoldando20/,          "PO6",  "Popoldan do 20",          "PON-PET 13:50-20:00", "#D98E4E", "delo"],
+  // Omejen delovni čas (zdravstvena/zakonska omejitev na 4 oz. 6 ur na
+  // dan). Vzorec /^dop\D*6/ ujame zapise kot "dopoldan (6h)",
+  // "dopoldan 6 ur", "dop. 6h" - ne ujame pa "dop. 7.h-13.h" ali
+  // "dopoldan (7-15h)", ker \D* ne more preskočiti števke.
+  // MORA stati pred splošnima /^dopoldan/ in /^popoldan/.
+  [/^dop\D*6/,               "DO6",  "Dopoldan 6 ur",           "omejitev 6 ur/dan", "#63B588", "delo"],
+  [/^dop\D*4/,               "DO4",  "Dopoldan 4 ure",          "omejitev 4 ur/dan", "#A7DCC0", "delo"],
+  [/^pop\D*4/,               "PO4",  "Popoldan 4 ure",          "omejitev 4 ur/dan", "#F0C08A", "delo"],
   [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
   // Delni FLEXI izmeni: v oddelčnih zavihkih preglednice sta zapisani kot
   // "dop. 7.h-13.h" in "pop. 14.h-20.h" (navzkrižno pokrivanje drugega
@@ -1577,6 +1592,10 @@ const IZMENA_KRATICE = [
 function izmenaVnos(sifra){
   const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
   if (!t) return null;
+  // "prost" se v predlogi pojavi kot izrecna beseda, pomeni pa isto kot
+  // prazna celica - ne sme dobiti kratice "PRO", ki bi izgledala kot
+  // neznana izmena.
+  if (t === "prost" || t === "prosto") return null;
   for (let i = 0; i < IZMENA_KRATICE.length; i++) {
     if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i];
   }
@@ -1598,13 +1617,21 @@ function vnosPoKratici(kratica){
 function izmenaKratica(sifra){
   const v = izmenaVnos(sifra);
   if (v) return v[1];
+  if (jeProst(sifra)) return "";
   return String(sifra || "").trim().slice(0, 3).toUpperCase();
+}
+
+// "prost" v predlogi = prost dan, isto kot prazna celica.
+function jeProst(sifra){
+  const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
+  return t === "prost" || t === "prosto";
 }
 
 // Barva celice; neznana koda dobi nevtralno sivo, da se loči od znanih.
 function izmenaBarva(sifra){
   const v = izmenaVnos(sifra);
-  return v ? v[4] : (String(sifra || "").trim() ? "#8B8672" : STANJE_BARVA.prosto.barva);
+  if (v) return v[4];
+  return (String(sifra || "").trim() && !jeProst(sifra)) ? "#8B8672" : STANJE_BARVA.prosto.barva;
 }
 
 // Iz kode izmene izpelje eno od petih stanj. Vir je ista tabela kot za
@@ -1612,6 +1639,7 @@ function izmenaBarva(sifra){
 function stanjeIzKode(sifra){
   const v = izmenaVnos(sifra);
   if (v) return v[5];
+  if (jeProst(sifra)) return "prosto";
   return String(sifra || "").trim() ? "delo" : "prosto";
 }
 

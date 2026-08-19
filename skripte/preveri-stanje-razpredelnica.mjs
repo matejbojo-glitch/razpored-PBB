@@ -52,7 +52,7 @@ const sandbox = { console };
 vm.createContext(sandbox);
 vm.runInContext([
   izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
-  izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("izmenaKratica"),
+  izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("jeProst"), izvleci("izmenaKratica"),
   izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
 ].join("\n\n"), sandbox);
 const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
@@ -172,6 +172,66 @@ console.log("10b) delni FLEXI izmeni imata svoji kratici (DF7 / DP7)");
   trdi(izmenaBarva("dop. 7.h-13.h") !== izmenaBarva("dopoldan"), "DF7 ima svojo barvo");
   trdi(izmenaBarva("pop. 14.h-20.h") !== izmenaBarva("popoldan"), "DP7 ima svojo barvo");
   eq(stanjeIzKode("dop. 7.h-13.h"), "delo", "flexi izmena šteje kot delo");
+}
+
+console.log("10c) kode, potrjene na PRAVI datoteki 2026_SMS_RAZPORED_2.xlsx");
+{
+  // Vse kode izmen, ki se v tej datoteki dejansko pojavijo (zavihek FLEXI,
+  // junij-september 2026), s številom pojavitev iz suhega zagona.
+  eq(izmenaKratica("DNEVNA12 (7-19)"), "DF12",
+    '"DNEVNA12 (7-19)" (49x) je DF12, NE D12 - to sta dve različni izmeni');
+  eq(izmenaKratica("DNEVNA12"), "D12", '"DNEVNA12" (48x) ostane D12');
+  trdi(izmenaKratica("DNEVNA12 (7-19)") !== izmenaKratica("DNEVNA12"),
+    "zapisa se ne smeta zliti (07:00-19:00 proti 05:50-18:00)");
+  eq(izmenaKratica("dopoldan (7-15h)"), "DOP", '"dopoldan (7-15h)" (48x) - DMS urnik, isti DOP');
+  eq(izmenaKratica("dopoldan (M)"), "DOP", '"(M)" = mentor pripravniku, izmena ostane ista');
+  eq(izmenaKratica("popoldan (M)"), "PO7", "isto za popoldan");
+  eq(izmenaKratica("NOČNA od 19 (M)"), "N11", "isto za nočno od 19");
+  eq(izmenaKratica("popoldan do 19"), "PO5", '"popoldan do 19" brez "h"');
+  // "popoldan do 20" ni v uradni legendi; uporabnik je potrdil PO6 po
+  // vzorcu PO5 = 5 ur, PO7 = 7 ur.
+  eq(izmenaKratica("popoldan do 20"), "PO6", '"popoldan do 20" (10x) -> PO6');
+  eq(izmenaKratica("popoldan do 20h"), "PO6", 'in različica z "h"');
+  trdi(new Set([izmenaKratica("popoldan do 19"), izmenaKratica("popoldan do 20"),
+    izmenaKratica("popoldan")]).size === 3, "vse tri popoldanske izmene ostanejo ločene");
+  eq(izmenaKratica("POR"), "POR", '"POR" (70x) porodniški');
+  eq(izmenaKratica("STI"), "STI", '"STI" strokovno izobraževanje');
+}
+
+console.log("10e) omejen delovni čas: DO6 / DO4 / PO4");
+{
+  // Za zaposlene z omejitvijo delovnega časa na 4 oz. 6 ur na dan.
+  eq(izmenaKratica("dopoldan (6h)"), "DO6", '"dopoldan (6h)"');
+  eq(izmenaKratica("dopoldan 6 ur"), "DO6", '"dopoldan 6 ur"');
+  eq(izmenaKratica("dop. 6h"), "DO6", '"dop. 6h"');
+  eq(izmenaKratica("dopoldan (4h)"), "DO4", '"dopoldan (4h)"');
+  eq(izmenaKratica("dopoldan 4 ure"), "DO4", '"dopoldan 4 ure"');
+  eq(izmenaKratica("popoldan (4h)"), "PO4", '"popoldan (4h)"');
+  eq(izmenaKratica("pop. 4 ure"), "PO4", '"pop. 4 ure"');
+  eq(stanjeIzKode("dopoldan (4h)"), "delo", "omejen delovnik je še vedno delo");
+
+  // Ključno: te vzorce se NE sme sprožiti pri obstoječih kodah, kjer se
+  // števka 4 ali 6 pojavi v urah. Preverjeno na vseh kodah iz prave
+  // datoteke, ki se začnejo z "dop"/"pop".
+  eq(izmenaKratica("dop. 7.h-13.h"), "DF7", "flexi dopoldne ostane DF7 (ne DO6)");
+  eq(izmenaKratica("pop. 14.h-20.h"), "DP7", "flexi popoldne ostane DP7 (ne PO4)");
+  eq(izmenaKratica("dopoldan (7-15h)"), "DOP", "DMS dopoldan ostane DOP");
+  eq(izmenaKratica("dopoldan"), "DOP", "navaden dopoldan ostane DOP");
+  eq(izmenaKratica("popoldan"), "PO7", "navaden popoldan ostane PO7");
+  eq(izmenaKratica("popoldan do 19"), "PO5", "popoldan do 19 ostane PO5");
+  eq(izmenaKratica("popoldan do 20"), "PO6", "popoldan do 20 ostane PO6");
+  eq(izmenaKratica("popoldan (M)"), "PO7", "popoldan z mentorstvom ostane PO7");
+  eq(izmenaKratica("dopoldan (M)"), "DOP", "dopoldan z mentorstvom ostane DOP");
+}
+
+console.log("10d) 'prost' pomeni prost dan, ne neznano kodo");
+{
+  // V predlogi se enkrat pojavi izrecna beseda "prost". Brez tega pravila
+  // bi dobila kratico "PRO" in sivo barvo, kot da je neprepoznana izmena.
+  eq(izmenaKratica("prost"), "", '"prost" -> prazna celica');
+  eq(izmenaKratica("Prosto"), "", '"Prosto" prav tako');
+  eq(stanjeIzKode("prost"), "prosto", "in šteje kot prosto, ne kot delo");
+  eq(izmenaBarva("prost"), izmenaBarva(""), "ista barva kot prazen dan");
 }
 
 console.log("11) 'PRISOTEN' je DOP, ne svoja kratica (uporabnik: PRI odstrani)");
