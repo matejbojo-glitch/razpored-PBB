@@ -2191,7 +2191,10 @@ function App(){
 
   useEffect(() => {
     if ("serviceWorker" in navigator){
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+      // updateViaCache:"none" prepreči, da bi brskalnik sam sw.js stregel
+      // iz HTTP predpomnilnika - sicer nova različica (in s tem osvežene
+      // skupne .js datoteke) do uporabnika lahko pride šele čez ure.
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
     }
     const onPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener("beforeinstallprompt", onPrompt);

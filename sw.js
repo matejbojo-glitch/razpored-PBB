@@ -363,7 +363,15 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
-const CACHE = 'razpored-pbb-v63';
+// v64: KLJUČEN POPRAVEK. cache.addAll je datoteke jemal iz brskalnikovega
+//      HTTP predpomnilnika, zato je ob dvigu različice v NOV predpomnilnik
+//      shranil STARO vsebino. Posledica: index.html (network-first, torej
+//      svež) je klical funkcijo iz parafa.js (cache-first, torej star) in
+//      padel z "window.Parafa.lastniki is not a function". Odslej se ob
+//      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
+//      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
+//      skupne .js datoteke.
+const CACHE = 'razpored-pbb-v64';
 const ASSETS = [
   './',
   './index.html',
@@ -399,12 +407,22 @@ const ASSETS = [
   './gsheets-client.js',
   './export-buttons.js',
   './sheets-mreza.js',
-  './oseba-vrstica.js'
+  './oseba-vrstica.js',
+  // Manjkali sta na seznamu, zato brez omrežja nista bili na voljo:
+  // print-fit.js (tiskanje/PDF na vseh straneh) in exceljs.min.js (izvoz
+  // v Excel v Željah). Odkrila ju je skripte/preveri-sw-osvezitev.mjs.
+  './print-fit.js',
+  './exceljs.min.js'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) =>
+      // {cache:"reload"} je nujen: brez njega addAll vzame datoteko iz
+      // HTTP predpomnilnika brskalnika in v nov predpomnilnik shrani staro
+      // vsebino - dvig različice takrat ne pomeni nič.
+      cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))
+    ).then(() => self.skipWaiting())
   );
 });
 
