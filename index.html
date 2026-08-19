@@ -368,6 +368,43 @@ function nzvPrikaz(sifra, danKratica, jeNzv){
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
 }
 
+// Zdravniki posameznega dne, pripravljeni za izpis. Uradni dokument ima
+// dva stolpca in isti dan sta lahko zasedena z različnima zdravnikoma, zato
+// se izpišeta oba, vsak s svojo kratico ("DEŽ" = Dežurstvo ZDR, "URG" =
+// Urgenca ZDR). Dežurstvo gre prvo, ker je za dežurno medicinsko sestro
+// najbolj neposredno relevantno.
+function zdravnikiZaDan(zapis){
+  if (!zapis) return [];
+  const out = [];
+  if (zapis.dezurstvo) out.push({ oznaka: "DEŽ", ime: zapis.dezurstvo });
+  if (zapis.urgenca) out.push({ oznaka: "URG", ime: zapis.urgenca });
+  return out;
+}
+
+// Zakaj imena dežurnega zdravnika ni - kot besedilo, ki ga vidi uporabnik.
+// Vrne null, kadar opozorila NI treba prikazati.
+//
+// Brez tega je odpoved TIHA: če tabele duty_doctors ni (shema še ni
+// pognana) ali za mesec ni naloženega PDF-ja, poizvedba ne vrne nič in
+// poleg DEŽURSTVA se preprosto ne izpiše nič - uporabnik nima načina
+// izvedeti, zakaj. Isti razred napake kot prazna NZV mreža ob dvoumnem
+// PostgREST joinu.
+//
+// Opozorilo se prikaže SAMO, kadar ima oseba ta mesec res kakšno
+// dežurstvo - sicer bi ga videli vsi, tudi tisti, ki jih zdravniki sploh
+// ne zadevajo.
+function zdravnikiOpozoriloBesedilo(imamDezurstvo, stanje){
+  if (!imamDezurstvo) return null;
+  if (stanje === "nalagam" || stanje === "ok") return null;
+  if (stanje === "ni-tabele") {
+    return "Imena dežurnega zdravnika še ni mogoče prikazati: v bazi manjka tabela dežurnih zdravnikov. " +
+      "Administrator naj v Supabase (SQL Editor) požene supabase/schema.sql - razdelek 32.";
+  }
+  return "Za ta mesec ni naloženega razporeda dežurnih zdravnikov. Administrator ga naloži z ikono 📥 " +
+    "zgoraj desno → »🩺 Naloži dežurstvo zdravnikov (PDF)« - uradni mesečni dokument " +
+    "»Razporeditev zaposlenih v UA in DEŽ«.";
+}
+
 function MyScheduleView({ userId, month, jeNzv }){
   const [entries, setEntries] = useState(null);
   const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po leave_entries
@@ -404,24 +441,41 @@ function MyScheduleView({ userId, month, jeNzv }){
     return () => { cancelled = true; };
   }, [userId, startISO, endISO]);
 
-  // Dežurni zdravnik (duty_doctors, glej uvoziZdravnike) - samo za prikaz
-  // poleg DEŽURSTVA, ni vezan na osebo/employee_id (zdravniki nimajo
-  // profila). "Dežurstvo ZDR" je prednostno pred "Urgenca ZDR", če sta
-  // oba za isti dan (redko, a možno) - "Dežurstvo ZDR" je bolj neposredno
-  // povezano z nočnim/vikend dežurstvom nege, ki ga ta zaslon prikazuje.
+  // Dežurni zdravniki (duty_doctors, glej uvoziZdravnike) - samo za prikaz
+  // poleg DEŽURSTVA, niso vezani na osebo/employee_id (zdravniki nimajo
+  // profila). Uradni dokument ima DVA ločena stolpca - "Urgenca ZDR" in
+  // "Dežurstvo ZDR" - in isti dan sta lahko zasedena z RAZLIČNIMA
+  // zdravnikoma. Prej se je izpisal samo eden (prednost "Dežurstvo ZDR"),
+  // kar je za nekoga, ki je tisto noč dežuren, premalo: sodeluje z obema.
+  // Zato hranimo oba, ključ je datum -> { dezurstvo, urgenca }.
   const [zdravnikiPoDatumu, setZdravnikiPoDatumu] = useState({});
+  // Če te poizvedbe ni mogoče izvesti (tabela še ne obstaja) ali za mesec
+  // ni podatkov, se je to doslej TIHO požrlo in ime zdravnika se preprosto
+  // ni izpisalo - uporabnik ni imel načina izvedeti, zakaj. Stanje zato
+  // hranimo in ga spodaj pojasnimo (ista past kot pri prazni NZV mreži).
+  const [zdravnikiStanje, setZdravnikiStanje] = useState("nalagam"); // "nalagam" | "ok" | "ni-tabele" | "prazno"
   useEffect(() => {
     let cancelled = false;
     setZdravnikiPoDatumu({});
+    setZdravnikiStanje("nalagam");
     client.from("duty_doctors").select("work_date, kind, full_name")
       .gte("work_date", startISO).lte("work_date", endISO)
-      .then(({ data }) => {
-        if (cancelled || !data) return;
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          // 42P01 = relacija ne obstaja (shema še ni pognana).
+          const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
+          setZdravnikiStanje(manjkaTabela ? "ni-tabele" : "prazno");
+          return;
+        }
         const m = {};
-        data.forEach(r => {
-          if (!m[r.work_date] || r.kind === "dezurstvo") m[r.work_date] = r.full_name;
+        (data || []).forEach(r => {
+          if (!r.full_name) return;
+          if (!m[r.work_date]) m[r.work_date] = {};
+          m[r.work_date][r.kind] = r.full_name;
         });
         setZdravnikiPoDatumu(m);
+        setZdravnikiStanje(Object.keys(m).length ? "ok" : "prazno");
       });
     return () => { cancelled = true; };
   }, [startISO, endISO]);
@@ -449,6 +503,15 @@ function MyScheduleView({ userId, month, jeNzv }){
     return out;
   }, [days]);
 
+  // Ime dežurnega zdravnika se izpiše samo ob dnevih z dežurstvom. Če ima
+  // uporabnik ta mesec dežurstvo, imena pa ni nikjer, je to okvara, ki jo
+  // je treba POJASNITI - drugače izgleda, kot da aplikacija ne dela.
+  const imamDezurstvo = useMemo(
+    () => days.some(dn => classify(byDate[dn.datum]) === "dez"),
+    [days, byDate]
+  );
+  const zdravnikiOpozorilo = zdravnikiOpozoriloBesedilo(imamDezurstvo, zdravnikiStanje);
+
   if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
@@ -461,12 +524,16 @@ function MyScheduleView({ userId, month, jeNzv }){
             <div>
               <div className="shiftName">{shiftLabel(todayPrikaz)}</div>
               <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
-              {todayCls === "dez" && zdravnikiPoDatumu[iso] && (
-                <div className="shiftTime">🩺 {zdravnikiPoDatumu[iso]}</div>
-              )}
+              {todayCls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[iso]).map(z => (
+                <div key={z.oznaka} className="shiftTime">🩺 {z.oznaka}: {z.ime}</div>
+              ))}
             </div>
           </div>
         </div>
+      )}
+
+      {zdravnikiOpozorilo && (
+        <div className="warnBox">🩺 {zdravnikiOpozorilo}</div>
       )}
 
       <div className="weeksGrid">
@@ -503,11 +570,11 @@ function MyScheduleView({ userId, month, jeNzv }){
                     <span className="dot" style={{background: cls==="dez" ? "#fff" : BARVE[cls]}}></span>
                     <span style={{minWidth:0, overflow:"hidden"}}>
                       <span className="txt">{shiftLabel(prikaz)}</span>
-                      {cls === "dez" && zdravnikiPoDatumu[dn.datum] && (
-                        <span className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
-                          🩺 {zdravnikiPoDatumu[dn.datum]}
+                      {cls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[dn.datum]).map(z => (
+                        <span key={z.oznaka} className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
+                          🩺 {z.oznaka}: {z.ime}
                         </span>
-                      )}
+                      ))}
                     </span>
                   </div>
                 </div>
