@@ -38,7 +38,12 @@ for (const stran of ["index.html","imenik.html","admin.html","zelje.html"]) {
   await pg.addInitScript(() => {
     document.addEventListener("DOMContentLoaded", () => {
       try {
-        sessionStorage.setItem("__smoke__", JSON.stringify({
+        // Ključ po strani, ne skupen: ta zapis teče tudi na login.html, kamor
+        // nas preusmeri prijavni ovoj, tam pa teh modulov ni. S skupnim
+        // ključem je login.html prepisal dobro meritev s samimi "undefined"
+        // - kdo od obeh pride prvi, je bila stvar naključja (dirka se je
+        // obrnila, ko pisava ni več zadrževala skript).
+        sessionStorage.setItem("__smoke__" + location.pathname, JSON.stringify({
           Imena: typeof window.Imena,
           Prazniki: typeof window.Prazniki,
           NzvZasedba: typeof window.NzvZasedba,
@@ -63,7 +68,8 @@ for (const stran of ["index.html","imenik.html","admin.html","zelje.html"]) {
   await pg.waitForLoadState("load").catch(() => {});
   await pg.waitForTimeout(300);
   const url = pg.url();
-  const moduli = JSON.parse(await pg.evaluate(() => sessionStorage.getItem("__smoke__")).catch(() => null) || "{}");
+  const moduli = JSON.parse(await pg.evaluate(
+    (ime) => sessionStorage.getItem("__smoke__/" + ime), stran).catch(() => null) || "{}");
   // Napake omrežja/prijave niso predmet tega preizkusa - zanimajo nas samo
   // sintaktične/JS napake ob nalaganju modulov.
   const relevantne = hude.filter(t => !/supabase|Failed to fetch|net::|401|400|NetworkError|sw\.js|ServiceWorker/i.test(t));

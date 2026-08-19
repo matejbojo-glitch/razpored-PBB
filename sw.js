@@ -408,7 +408,21 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v83';
+// v84: zunanja pisava (fonts.googleapis.com) ne zadržuje več strani.
+// Slogovna datoteka BLOKIRA izvajanje vseh skript za sabo, zato je stran
+// ob nedosegljivem Google Fonts (ni signala, počasno omrežje, bolnišnični
+// požarni zid) obtičala na beli in nav.js se sploh ni izvedel — samodejna
+// osvežitev na novo različico je torej sicer stekla, uporabnik pa je dobil
+// prazno stran. Popravljeno na dveh mestih:
+//   1. theme.css nima več @import, vsaka stran pisavo vključi neblokirno
+//      (media="print" + onload) — to velja tudi ob PRVEM obisku, ko service
+//      workerja še ni (prijavna stran!);
+//   2. sw.js spodaj da tem zahtevam rok in rezervo, hkrati pa uspešno
+//      naloženo pisavo predpomni za delo brez signala.
+// Ker sta spremenjena theme.css in vseh 9 strani, je dvig verzije nujen.
+// Odkrila skripte/preveri-sw-posodobitev-brskalnik.mjs.
+
+const CACHE = 'razpored-pbb-v84';
 const ASSETS = [
   './',
   './index.html',
@@ -475,11 +489,66 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Kako dolgo čakamo na zunanjo pisavo, preden odnehamo. Pisava je zgolj
+// okras — theme.css ima pošteno rezervo (ui-serif, Georgia, serif) — zato
+// je bolje takoj nadaljevati z rezervno pisavo kot pustiti prazno stran.
+const PISAVA_ROK_MS = 3000;
+
+// Samo gostitelja Google Fonts. NAMENOMA ozko: Supabase teče prav tako
+// prek tujega izvora, njegove poizvedbe pa ne smejo dobiti ne roka ne
+// predpomnilnika — sicer bi počasna poizvedba tiho vrnila napako.
+function jePisava(url) {
+  return url.hostname === 'fonts.googleapis.com'
+    || url.hostname === 'fonts.gstatic.com';
+}
+
+function rezervnaPisava(request) {
+  // Slogovna datoteka: prazen, a veljaven CSS, da razčlenjevalnik strani
+  // takoj nadaljuje in se skripte za njo izvedejo.
+  if (request.destination === 'style') {
+    return new Response('/* zunanja pisava ni dosegljiva - rezervna pisava */', {
+      status: 200,
+      headers: { 'Content-Type': 'text/css; charset=utf-8' }
+    });
+  }
+  return Response.error();
+}
+
+function pisavaZRokom(request) {
+  return caches.match(request).then((cached) => {
+    if (cached) return cached;
+    return new Promise((resolve) => {
+      let koncano = false;
+      const koncaj = (odgovor) => {
+        if (koncano) return;
+        koncano = true;
+        resolve(odgovor);
+      };
+      setTimeout(() => koncaj(rezervnaPisava(request)), PISAVA_ROK_MS);
+      fetch(request).then((res) => {
+        if (res && res.ok) {
+          const kopija = res.clone();
+          caches.open(CACHE)
+            .then((cache) => cache.put(request, kopija))
+            .catch(() => {});
+        }
+        koncaj(res);
+      }).catch(() => koncaj(rezervnaPisava(request)));
+    });
+  });
+}
+
 // network-first za HTML/JSON (da uporabnik vedno dobi svežo objavo in svež
 // razpored, brez čakanja na novo različico service workerja), cache-first
 // samo za nespremenljive knjižnice — rezerva iz cacha ostane, če ni signala.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  if (jePisava(url)) {
+    event.respondWith(pisavaZRokom(event.request));
+    return;
+  }
+
   const isHtmlOrData = event.request.mode === 'navigate'
     || url.pathname.endsWith('.html')
     || url.pathname.endsWith('.json')

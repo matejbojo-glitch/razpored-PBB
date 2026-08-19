@@ -7,7 +7,13 @@
    videz na vseh straneh dosleden.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+/* Pisava Fraunces se NE nalaga tu z @import: @import v slogovni
+   datoteki zadržuje izvajanje vseh skript za njo, zato je stran ob
+   nedosegljivem Google Fonts (požarni zid, ni signala) obtičala na
+   beli - tudi prijavna stran. Vsaka stran jo namesto tega vključi
+   neblokirno v <head> (media="print" + onload). Rezerva spodaj
+   (--font-display: ui-serif, Georgia, serif) je zato normalno
+   stanje, ne napaka. */
 
 :root{
   /* --- barve: identične prejšnjim, samo zbrane na enem mestu --- */
