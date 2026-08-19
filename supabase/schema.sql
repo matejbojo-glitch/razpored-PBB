@@ -3103,3 +3103,23 @@ create view public.menjave_javno as
 
 revoke all on public.menjave_javno from anon;
 grant select on public.menjave_javno to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 34) schedule_entries.pokriva_oddelek — kateri oddelek oseba TA DAN
+--     pokriva, kadar to ni njen matični oddelek (FLEXI kader).
+--
+--     Zakaj ločen stolpec in ne department_code: v zavihku FLEXI uradne
+--     preglednice ima vsaka oseba PAR stolpcev (oznaka oddelka + koda
+--     izmene), oznaka pa je pogosto KOMBINIRANA - "C/E2", "C1/D" - ker
+--     človek tisti dan pokriva dva oddelka hkrati. To niso kode iz
+--     departments in tuji ključ jih zavrne, zato jih je uvoz doslej
+--     preskočil: cel zavihek FLEXI je ostal prazen (87 vpisov zavrženih
+--     na avgustu 2026).
+--
+--     Odslej gre FLEXI kader v department_code = 'FLEXI' (njegova skupina,
+--     tako kot v preglednici, kjer imajo oddelčni zavihki le opombo "glej
+--     razpored FLEXI"), pokriti oddelek pa v ta stolpec - kot prosto
+--     besedilo, NAMENOMA brez tujega ključa, ker "C/E2" ni koda oddelka,
+--     ampak oznaka dvojne pokritosti.
+-- ---------------------------------------------------------------------
+alter table public.schedule_entries add column if not exists pokriva_oddelek text;

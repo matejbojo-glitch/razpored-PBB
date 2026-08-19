@@ -5,8 +5,8 @@
  *
  * FLEXI ima DRUGAČNO obliko kot ostalih 6 oddelkov: vsaka oseba zaseda
  * PAR stolpcev (oddelek te izmene + izmena), ker flexi kader vsak dan
- * pokriva DRUG oddelek - department_code se torej prebere iz podatkov, ne
- * fiksen za ves list. Fixture spodaj je zvest posnetek REALNE strukture
+ * pokriva DRUG oddelek - ta oznaka se torej prebere iz podatkov in gre v
+ * pokriva_oddelek, ne v department_code. Fixture spodaj je zvest posnetek REALNE strukture
  * (dry-run uporabnikove prave datoteke, avgust/september 2026, ne v
  * repozitoriju), vključno z dvema posebnostma, ki ju ima SAMO ta zavihek:
  *   1. ime osebe je v glavi NAD stolpcem IZMENE (drugi od dveh), stolpec
@@ -15,9 +15,15 @@
  *      drugačnimi vrednostmi za isti dan - uporabi se samo prva (leva)
  *      pojavitev vsakega imena.
  *
- * Preverja tudi, da neznana/kombinirana oznaka oddelka (npr. "C/E2",
- * opažena v pravi datoteki) NE pride do zapisa - department_code ima tuji
- * ključ na departments, zato bi tak zapis zavrnil CEL upsert.
+ * FLEXI kader gre VEDNO v department_code "FLEXI", pokriti oddelek pa v
+ * pokriva_oddelek (shema, razdelek 34). Prej je šel v department_code
+ * pokriti oddelek, kar je imelo dve slabi posledici:
+ *   1. kombinirane oznake ("C/E2" - oseba tisti dan pokriva dva oddelka)
+ *      tuji ključ na departments zavrne, zato jih je uvoz PRESKOČIL: na
+ *      avgustu 2026 je tako odpadlo 87 vpisov;
+ *   2. tisti, ki so se shranili, so pristali pod TUJIM oddelkom, zato je
+ *      zavihek FLEXI ostal PRAZEN, čeprav je uvoz javil "FLEXI (87)".
+ * Oba primera sta preverjena spodaj (sklopa 1 in 3).
  *
  * Zagon: node skripte/preveri-flexi-uvoz.mjs
  */
@@ -111,48 +117,90 @@ const poKratkem = {
   "MISOTIČ R.": "misotic-id",
   // "BURNAR S." namenoma NI v poKratkem - preveri "ni najden profil"
 };
-const veljavniOddelki = new Set(["C", "E2", "FLEXI"]);
 
-console.log("1) osnovno branje: oddelek+izmena par, department_code prebran iz podatkov (ne fiksen)");
+console.log("1) osnovno branje: oddelek gre v pokriva_oddelek, skupina ostane FLEXI");
 {
-  const { zapisi, najdenDatum, najdenaGlava } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem, veljavniOddelki);
+  const { zapisi, najdenDatum, najdenaGlava } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem);
   trdi(najdenDatum && najdenaGlava, "najde datume in glavo");
   const zaplotnik1 = zapisi.find(z => z.employee_id === "zaplotnik-id" && z.work_date === "2026-06-01");
-  trdi(!!zaplotnik1 && zaplotnik1.department_code === "C" && zaplotnik1.shift_code === "popoldan",
-    `ZAPLOTNIK A. / 1.6. -> department_code="C" (iz podatkov), shift_code="popoldan" (dobil ${JSON.stringify(zaplotnik1)})`);
+  trdi(!!zaplotnik1 && zaplotnik1.department_code === "FLEXI" && zaplotnik1.pokriva_oddelek === "C"
+    && zaplotnik1.shift_code === "popoldan",
+    `ZAPLOTNIK A. / 1.6. -> FLEXI, pokriva "C", izmena "popoldan" (dobil ${JSON.stringify(zaplotnik1)})`);
   const djedovic2 = zapisi.find(z => z.employee_id === "djedovic-id" && z.work_date === "2026-06-02");
-  trdi(!!djedovic2 && djedovic2.department_code === "C" && djedovic2.shift_code === "popoldan",
-    "DJEDOVIĆ M. / 2.6. -> department_code='C', shift_code='popoldan'");
+  trdi(!!djedovic2 && djedovic2.department_code === "FLEXI" && djedovic2.pokriva_oddelek === "C"
+    && djedovic2.shift_code === "popoldan",
+    "DJEDOVIĆ M. / 2.6. -> FLEXI, pokriva 'C', izmena 'popoldan'");
+  // Bistvo popravka: prav zato, ker gre VSE v FLEXI, zavihek FLEXI ni več prazen.
+  trdi(zapisi.every(z => z.department_code === "FLEXI"),
+    "prav VSI zapisi iz tega zavihka gredo v skupino FLEXI (sicer bi bil zavihek FLEXI prazen)");
 }
 
 console.log("2) ponovljen blok stolpcev v isti vrstici - uporabi SAMO prvo (levo) pojavitev");
 {
-  const { zapisi } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem, veljavniOddelki);
+  const { zapisi } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem);
   const zaplotnikVsi = zapisi.filter(z => z.employee_id === "zaplotnik-id" && z.work_date === "2026-06-01");
   trdi(zaplotnikVsi.length === 1, `ZAPLOTNIK A. / 1.6. -> natanko EN zapis, ne dva (dobil ${zaplotnikVsi.length})`);
   trdi(zaplotnikVsi[0] && zaplotnikVsi[0].shift_code === "popoldan",
     "uporabljena je vrednost iz PRVEGA (levega) bloka ('popoldan'), ne ponovljenega drugega ('NOČNA')");
 }
 
-console.log("3) neznana/kombinirana oznaka oddelka (npr. 'C/E2') se NE zapiše (tuji ključ bi zavrnil cel upsert)");
+console.log("3) kombinirana oznaka ('C/E2' = dvojna pokritost) se OHRANI, ne preskoči");
 {
-  const { zapisi, neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem, veljavniOddelki);
+  // To je bil glavni vzrok praznega zavihka FLEXI: taka oznaka ni koda
+  // oddelka, zato jo je tuji ključ zavrnil in uvoz je vrstico izpustil.
+  // Zdaj gre v pokriva_oddelek, ki tujega ključa NIMA prav zaradi tega.
+  const { zapisi, neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem);
   const misotic1 = zapisi.find(z => z.employee_id === "misotic-id" && z.work_date === "2026-06-01");
-  trdi(!misotic1, "MISOTIČ R. / 1.6. (oddelek 'C/E2') ni v zapisih");
+  trdi(!!misotic1, "MISOTIČ R. / 1.6. (oddelek 'C/E2') JE v zapisih - ni več preskočen");
+  trdi(!!misotic1 && misotic1.pokriva_oddelek === "C/E2",
+    "kombinirana oznaka se ohrani nespremenjena v pokriva_oddelek");
+  trdi(!!misotic1 && misotic1.department_code === "FLEXI",
+    "v department_code gre FLEXI (koda, ki v departments obstaja - tuji ključ je zadovoljen)");
   const jePrijavljeno = [...neujemanja].some(n => n.includes("MISOTIČ R.") && n.includes("C/E2"));
-  trdi(jePrijavljeno, "neznana oznaka je prijavljena v neujemanjih, ne tiho izgubljena");
+  trdi(!jePrijavljeno, "ni več prijavljeno kot neujemanje (ker ni več napaka)");
 }
 
 console.log("4) oseba brez profila konča v poročilu (ne izgine tiho)");
 {
-  const { neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem, veljavniOddelki);
+  const { neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem);
   trdi(neujemanja.has("BURNAR S."), "'BURNAR S.' (ni v poKratkem) je v neujemanjih");
 }
 
 console.log("5) stolpec brez oblike 'Priimek I.' (npr. 'DODATNO C/E2 7-19') se prezre, ne poskuša ujeti kot oseba");
 {
-  const { neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem, veljavniOddelki);
+  const { neujemanja } = obdelajFlexiVrstice(VRSTICE, "2026-06", poKratkem);
   trdi(![...neujemanja].some(n => n.includes("DODATNO")), "'DODATNO C/E2 7-19' se NE pojavi v neujemanjih");
+}
+
+console.log("6) varovalka: če stolpca pokriva_oddelek v bazi še ni, uvoz ne sme odpovedati");
+{
+  // Baza brez razdelka 34 sheme zavrne CEL upsert z neznanim stolpcem.
+  // To ne sme pomeniti, da uvoz razporeda nenadoma sploh ne dela.
+  const html2 = readFileSync(join(koren, "index.html"), "utf8");
+  trdi(/function jeManjkajocPokrivaOddelek/.test(html2), "manjkajoč stolpec se prepozna");
+  trdi(/42703/.test(html2), "po kodi 42703 (undefined_column)");
+  trdi(/PGRST204/.test(html2), "in po PostgREST kodi za stolpec izven predpomnilnika sheme");
+  trdi(/const brez = kos\.map\(\(\{ pokriva_oddelek, \.\.\.ostalo \}\) => ostalo\);/.test(html2),
+    "v tem primeru se zapiše brez tega polja (razpored se vseeno shrani)");
+  trdi(/opozoriloPokrivaOddelek \? " " \+ opozoriloPokrivaOddelek/.test(html2),
+    "in uporabniku se to POVE v poročilu uvoza, ne tiho");
+  trdi(/dodaj-pokriva-oddelek\.sql/.test(html2), "sporočilo pove, katero datoteko pognati");
+}
+
+console.log("7) NZV razpored vsebuje samo vodje in administratorje");
+{
+  // Kode B/C/C1/D/E1/E2 so HKRATI oddelki SMS/TZN kadra IN imena stolpcev
+  // v NZV predlogi, zato je NZV mreža brez filtra prikazala oddelčne
+  // sestre namesto vodij, ki enoto tisti dan pokrivajo.
+  const html2 = readFileSync(join(koren, "index.html"), "utf8");
+  trdi(/const JE_NZV_VLOGA = new Set\(\["vodja", "admin"\]\);/.test(html2),
+    "vloge, ki sodijo v NZV, so opredeljene na enem mestu");
+  trdi(/if \(!JE_NZV_VLOGA\.has\(r\.profiles\.role\)\) return;/.test(html2),
+    "enote (schedule_entries) so filtrirane po vlogi");
+  trdi(/if \(!ujem \|\| !JE_NZV_VLOGA\.has\(ujem\.role\)\) return;/.test(html2),
+    "tudi stolpci LD/IZOB/BS (leave_entries) so filtrirani po isti vlogi");
+  trdi(/profiles!employee_id\(full_name, role,/.test(html2),
+    "poizvedba res prebere vlogo (sicer bi bil filter vedno prazen)");
 }
 
 console.log("");
