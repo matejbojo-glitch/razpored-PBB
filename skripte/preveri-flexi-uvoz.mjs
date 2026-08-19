@@ -73,6 +73,11 @@ const koda = [
 
 const sandbox = { window: { ImportUtils: { normalizirajDatum } }, console };
 vm.createContext(sandbox);
+// Kratka imena iz predlog gredo skozi skupno parafa.js (window.Parafa.
+// kratkoKljuc) - tam so uporabnikom potrjeni popravki zapisov, npr.
+// "VALJAVEC A." -> "VALJAVEC E." Peskovnik jo mora imeti naloženo, sicer
+// izvlečena koda kliče nedefiniran window.Parafa.
+vm.runInContext(readFileSync(join(koren, "parafa.js"), "utf8"), sandbox);
 vm.runInContext(koda, sandbox);
 const { obdelajFlexiVrstice } = sandbox;
 

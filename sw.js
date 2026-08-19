@@ -333,7 +333,25 @@
 // vir resnice; podvojena bi bila nevarna, ker gre za preslikavo oznaka →
 // OSEBA v razporedu). Spremenjena index.html, imenik.html; nova parafa.js.
 
-const CACHE = 'razpored-pbb-v60';
+// v61: "Moj razpored" upošteva DELOVNIK NZV (vodje/administratorji) -
+// pravilo, ki ga je uporabnik večkrat izrecno ponovil, prikaz pa ga ni
+// upošteval: redni delovnik je PON-PET; sobota in nedelja sta PROSTI,
+// razen ob dežurstvu; letni dopust velja samo za delovne dni (vikend
+// sredi dopusta je navaden prost dan, doslej je kazalo "LD"); dežurstvo
+// MED TEDNOM se opravlja PO redni prisotnosti (15:30-07:00), zato tak dan
+// pomeni oboje - "PRISOTEN + DEŽURSTVO" - vikend dežurstvo (07:00-07:00)
+// pa ostane samo "DEŽURSTVO". Gre za PRIKAZNO pravilo: schedule_entries
+// ima na (employee_id, work_date) en sam zapis, zato prisotnost in
+// dežurstvo istega dne ne moreta obstajati kot dve vrstici, je pa oboje
+// pravilno izpeljati iz enega. Oddelčnega kadra (B/C/C1/D/E1/E2/FLEXI),
+// ki vikende dela normalno, se pravilo NE dotakne.
+// Dodan tudi uporabnikom potrjen popravek kratkega zapisa iz predloge:
+// "VALJAVEC A." -> "VALJAVEC E." (oseba je Valjavec Enej; brez tega so
+// njegove izmene tiho ostale neuvožene). Popravki so v skupni parafa.js,
+// zato jo odslej nalaga tudi admin.html (sheets-mreza.js).
+// Spremenjeni index.html, admin.html, parafa.js, sheets-mreza.js.
+
+const CACHE = 'razpored-pbb-v61';
 const ASSETS = [
   './',
   './index.html',

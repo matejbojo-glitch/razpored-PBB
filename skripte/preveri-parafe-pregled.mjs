@@ -88,6 +88,21 @@ console.log("6) prazen/neveljaven vhod ne zruši pregleda");
   eq(Parafa.zaDatum(null, "2026-09"), "", "zaDatum(null) -> prazen niz");
 }
 
+console.log("7) potrjeni popravki kratkih zapisov iz predlog (Priimek I.)");
+{
+  // V uradni predlogi piše "VALJAVEC A.", oseba pa je Valjavec Enej -
+  // uporabnik je to izrecno potrdil. Brez tega popravka uvoz njegovih
+  // izmen tiho ne bi zapisal (ime bi pristalo med "brez ujemanja").
+  eq(Parafa.kratkoKljuc("VALJAVEC A."), "VALJAVEC E.", "VALJAVEC A. -> VALJAVEC E. (potrjeno: Valjavec Enej)");
+  eq(Parafa.kratkoKljuc("valjavec a."), "VALJAVEC E.", "male črke se najprej normalizirajo");
+  eq(Parafa.kratkoKljuc("  VALJAVEC A.  "), "VALJAVEC E.", "presledki okoli ne motijo");
+  // Seznam mora ostati OZEK - vsak vpis pomeni izmeno, pripisano konkretni
+  // osebi, zato sme sem samo uporabnikom potrjen zapis.
+  eq(Parafa.kratkoKljuc("KARNIČAR J."), "KARNIČAR J.", "nepotrjena imena ostanejo nespremenjena");
+  trdi(Object.keys(Parafa.KRATKO_PSEVDONIM).length === 1,
+    `seznam popravkov je ozek: ${Object.keys(Parafa.KRATKO_PSEVDONIM).length} vpis(ov)`);
+}
+
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

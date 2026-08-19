@@ -92,7 +92,7 @@ window.SheetsMreza = (function () {
       if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
       i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum, j) => {
         imena.forEach((ime, idx) => {
-          const z = poKratkem[(ime || "").trim().toUpperCase()];
+          const z = poKratkem[window.Parafa.kratkoKljuc(ime)];
           if (!z) { if (ime) neujemanja.add(ime); return; }
           posodobitve.push({ vrstica: j, stolpec: 2 + idx, vrednost: vrednostZa(z.ime, datum) });
         });
