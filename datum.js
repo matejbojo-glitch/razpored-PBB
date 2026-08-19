@@ -49,6 +49,14 @@ window.Datum = (function () {
     return p ? p.d + "." + p.m + "." : "";
   }
 
+  // "13:51" — samo ura, kadar je dan razviden iz konteksta (npr.
+  // "Shranjeno 13:51" takoj po shranjevanju).
+  function cas(vrednost) {
+    var d = vrednost instanceof Date ? vrednost : new Date(vrednost);
+    if (isNaN(d.getTime())) return "";
+    return dvomestno(d.getHours()) + ":" + dvomestno(d.getMinutes());
+  }
+
   // "27.10.2026 13:51" — za časovne žige (dnevnik sprememb ipd.).
   function sloSCasom(vrednost) {
     var p = razcleni(vrednost);
@@ -115,6 +123,18 @@ window.Datum = (function () {
     return d ? DAN3[d.getDay()] : "";
   }
 
+  // "2026-08" -> "avgust 2026". Ime meseca je zapisano tu in ne prek
+  // toLocaleDateString("sl-SI"): tam bi bilo treba sestaviti Date iz
+  // "2026-08-01", kar je polnoč UTC in v pasu za UTC vrne julij.
+  var MESECI = ["januar", "februar", "marec", "april", "maj", "junij",
+                "julij", "avgust", "september", "oktober", "november", "december"];
+  function mesecLeto(mesecStr) {
+    var d = String(mesecStr || "").split("-");
+    var m = Number(d[1]);
+    if (!(m >= 1 && m <= 12)) return "";
+    return MESECI[m - 1] + " " + d[0];
+  }
+
   // Vsi dnevi med dvema ISO datuma (oba vključena):
   //   [{ datum: "2026-11-01", dan: "NE" }, ...]
   function dnevi(startISO, endISO) {
@@ -129,8 +149,8 @@ window.Datum = (function () {
   }
 
   return {
-    slo: slo, sloBrezLeta: sloBrezLeta, sloSCasom: sloSCasom,
-    zadnjiDan: zadnjiDan, iso: iso, obseg: obseg,
+    slo: slo, sloBrezLeta: sloBrezLeta, sloSCasom: sloSCasom, cas: cas,
+    zadnjiDan: zadnjiDan, iso: iso, obseg: obseg, mesecLeto: mesecLeto, MESECI: MESECI,
     dan2: dan2, dan3: dan3, dnevi: dnevi,
   };
 })();

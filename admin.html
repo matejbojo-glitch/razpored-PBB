@@ -791,7 +791,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
           <tbody>
             {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj }) => (
               <tr key={dn.datum + b}>
-                <td>{dn.dan} {dn.datum}</td>
+                <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
                 <td>{IZMENA_LABEL[b]}</td>
                 <td>{dejansko}</td>
                 <td>{minVsota}</td>
@@ -827,7 +827,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
         <tbody>
           {vrstice.map(({ dn, dejansko, prag, samodejniPrag, primanjkljaj }) => (
             <tr key={dn.datum}>
-              <td>{dn.dan} {dn.datum}</td>
+              <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
               <td>{dejansko}</td>
               <td>
                 <input type="number" min="0" style={{width:56}} value={prag}
@@ -1223,7 +1223,7 @@ function KalupTab(){
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
-              <ul>{rezultat.opozorila.map((o, i) => <li key={i}>{o.datum}: {o.sporocilo}</li>)}</ul>
+              <ul>{rezultat.opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
             </div>
           )}
           <p className="hint no-print">
@@ -1244,7 +1244,7 @@ function KalupTab(){
                   <th className="name">Zaposleni</th>
                   {rezultat.dnevi.map(dn => (
                     <th key={dn.datum} style={dn.dan==="SO"||dn.dan==="NE" ? {color:"var(--pop)"} : null}>
-                      {new Date(dn.datum+"T00:00:00Z").getUTCDate()}<br/>{dn.dan}
+                      {Number(dn.datum.slice(8, 10))}<br/>{dn.dan}
                     </th>
                   ))}
                 </tr>
@@ -1288,7 +1288,7 @@ function KalupTab(){
               if (!rezultat) throw new Error("Najprej ustvari kalup.");
               return [{
                 ime: rezultat.koda,
-                glave: ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)],
+                glave: ["Zaposleni", ...rezultat.dnevi.map(dn => window.Datum.slo(dn.datum))],
                 vrstice: rezultat.staff.map(z => [z.ime, ...rezultat.dnevi.map(dn => celica(z, dn))]),
               }];
             }}
@@ -1659,7 +1659,7 @@ function DezurstvaTab(){
           {rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} dni brez samodejne rešitve</div>
-              <ul>{rezultat.opozorila.map(o => <li key={o.datum}>{o.datum}: {o.sporocilo}</li>)}</ul>
+              <ul>{rezultat.opozorila.map(o => <li key={o.datum}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
             </div>
           )}
 
@@ -1670,7 +1670,7 @@ function DezurstvaTab(){
               <tbody>
                 {rezultat.razpored.map(r => (
                   <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
-                    <td>{r.datum}</td><td>{r.dan}</td>
+                    <td>{window.Datum.slo(r.datum)}</td><td>{r.dan}</td>
                     <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
                   </tr>
                 ))}
@@ -1884,7 +1884,7 @@ function VodjeTab(){
               <tbody>
                 {rezultat.dnevi.map(dn => (
                   <tr key={dn.datum}>
-                    <td className="name">{new Date(dn.datum+"T00:00:00").getUTCDate()}. {dn.dan}</td>
+                    <td className="name">{window.Datum.slo(dn.datum)} {dn.dan}</td>
                     {stolpciPrikaz.map(k => (
                       <td key={k}>
                         <input type="text" value={celica(dn, k)} onChange={e => nastaviPopravek(dn, k, e.target.value)}
@@ -1913,7 +1913,7 @@ function VodjeTab(){
                 ime: "Vodje",
                 glave: ["Datum", "Dan", ...stolpciPrikaz, "Izjeme in opombe"],
                 vrstice: rezultat.dnevi.map(dn => [
-                  dn.datum, dn.dan,
+                  window.Datum.slo(dn.datum), dn.dan,
                   ...stolpciPrikaz.map(k => celica(dn, k)),
                   izjeme[dn.datum] || "",
                 ]),
@@ -2716,7 +2716,7 @@ function RevizijaPravic(){
                 {POLJE_NAZIV[v.polje] || v.polje}: {prikaz(v.stara_vrednost)} → <b>{prikaz(v.nova_vrednost)}</b>
               </div>
               <div className="revNoga">
-                {new Date(v.changed_at).toLocaleString("sl-SI")} · spremenil: {v.changed_by_name || "(sistem)"}
+                {window.Datum.sloSCasom(v.changed_at)} · spremenil: {v.changed_by_name || "(sistem)"}
               </div>
             </div>
           ))}
@@ -2791,12 +2791,12 @@ function RevizijaRazporeda(){
             <tbody>
               {filtrirani.map(v => (
                 <tr key={v.id}>
-                  <td style={{whiteSpace:"nowrap"}}>{new Date(v.changed_at).toLocaleString("sl-SI")}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{window.Datum.sloSCasom(v.changed_at)}</td>
                   <td>{v.urednik}</td>
                   <td>{AKCIJA_NAZIV[v.action] || v.action}</td>
                   <td style={{textAlign:"left"}}>{v.zaposleni}</td>
                   <td>{v.department_code}</td>
-                  <td>{v.work_date}</td>
+                  <td>{window.Datum.slo(v.work_date)}</td>
                   <td>{(v.old_shift_code || "prosto") + " → " + (v.new_shift_code || "prosto")}</td>
                 </tr>
               ))}

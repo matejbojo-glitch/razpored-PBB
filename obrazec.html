@@ -132,7 +132,7 @@ function fmtDatum(iso){
   return window.Datum.slo(iso);
 }
 function fmtCas(iso){
-  return new Date(iso).toLocaleString("sl-SI", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+  return window.Datum.sloSCasom(iso);
 }
 
 // Vsak vidi samo tisto, kar je zanj relevantno - namesto enega dolgega
