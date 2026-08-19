@@ -363,6 +363,7 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v65: mreža NZV upošteva delovnik PON-PET (vikend prost razen dežurstva).
 // v64: KLJUČEN POPRAVEK. cache.addAll je datoteke jemal iz brskalnikovega
 //      HTTP predpomnilnika, zato je ob dvigu različice v NOV predpomnilnik
 //      shranil STARO vsebino. Posledica: index.html (network-first, torej
@@ -371,7 +372,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v64';
+const CACHE = 'razpored-pbb-v65';
 const ASSETS = [
   './',
   './index.html',

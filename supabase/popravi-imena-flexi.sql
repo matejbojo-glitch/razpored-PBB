@@ -29,15 +29,15 @@ declare
 begin
   for v in
     select * from (values
-      ('nelvedin.becirovic@pb-begunje.si', 'BEĆIROVIĆ NELVEDIN'),
-      ('jaka.susnik@pb-begunje.si',        'SUŠNIK JAKA'),
-      ('luka.rant@pb-begunje.si',          'RANT LUKA'),
-      ('barbara.sodja@pb-begunje.si',      'SODJA BARBARA'),
-      ('marko.kvrzic@pb-begunje.si',       'KVRŽIĆ MARKO'),
-      ('ajla.huseinbasic@pb-begunje.si',   'HUSEINBAŠIĆ AJLA'),
+      ('nelvedin.becirovic@pb-begunje.si', 'Bećirović Nelvedin'),
+      ('jaka.susnik@pb-begunje.si',        'Sušnik Jaka'),
+      ('luka.rant@pb-begunje.si',          'Rant Luka'),
+      ('barbara.sodja@pb-begunje.si',      'Sodja Barbara'),
+      ('marko.kvrzic@pb-begunje.si',       'Kvržić Marko'),
+      ('ajla.huseinbasic@pb-begunje.si',   'Huseinbašić Ajla'),
       -- Vrevc Maja je v Imeniku zapisana obrnjeno ("Maja Vrevc"), zato
       -- se v razporedu prikaže kot "MAJA V." namesto "VREVC M.".
-      (null,                               'VREVC MAJA')
+      (null,                               'Vrevc Maja')
     ) as t(email, pravo_ime)
   loop
     v_id := null;
@@ -84,6 +84,33 @@ begin
   else
     raise notice 'Vseh sedem oseb je v Imeniku.';
   end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Splošno: imena, zapisana SAMO z velikimi črkami, poenoti z ostalimi
+--
+-- Uradni izvozi (Kadris, seznami zaposlenih) pišejo imena v CAPS, Imenik
+-- pa jih povsod prikazuje kot "Priimek Ime" (npr. "Bojić Matej"). Kdor
+-- pride v Imenik prek uvoza, zato izstopa iz seznama.
+--
+-- Pravilo je namenoma ozko: popravijo se SAMO zapisi brez ene same male
+-- črke. Ime, ki že ima malo črko (torej ga je nekdo namerno zapisal), se
+-- ne dotakne.
+-- ---------------------------------------------------------------------
+do $$
+declare v_st int;
+begin
+  with popravljeni as (
+    update public.profiles
+    set full_name = initcap(full_name)
+    where full_name is not null
+      and full_name <> ''
+      and full_name = upper(full_name)   -- ni nobene male črke
+      and full_name <> initcap(full_name)
+    returning 1
+  )
+  select count(*) into v_st from popravljeni;
+  raise notice 'Imen, poenotenih iz VELIKIH ČRK v "Priimek Ime": %', v_st;
 end $$;
 
 -- Kontrola: kako so te osebe zapisane zdaj.

@@ -47,8 +47,8 @@ function eq(a, b, opis) {
 
 const sandbox = { console };
 vm.createContext(sandbox);
-vm.runInContext([izvleci("classify"), izvleci("nzvPrikaz")].join("\n\n"), sandbox);
-const { nzvPrikaz, classify } = sandbox;
+vm.runInContext([izvleci("classify"), izvleci("nzvPrikaz"), izvleci("jeVikendISO")].join("\n\n"), sandbox);
+const { nzvPrikaz, classify, jeVikendISO } = sandbox;
 
 const NZV = true, ODDELEK = false;
 
@@ -95,6 +95,33 @@ console.log("6) barva: 'PRISOTEN + DEŽURSTVO' se mora obarvati kot DEŽURSTVO, 
   // classify("PRISOTEN + DEŽURSTVO") bi se ujel na "prisoten" (zeleno).
   eq(classify("DEŽURSTVO"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
   eq(classify("PRISOTEN + DEŽURSTVO"), "dop", "sestavljeno besedilo bi se obarvalo zeleno - zato se barva NE računa iz njega");
+}
+
+console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v 'Moj razpored'");
+{
+  // Uporabnikova pripomba: mreža NZV je ob vikendih še vedno kazala vodje
+  // na enotah. Tam ni kratice dneva (kot v nzvPrikaz), ampak samo delovni
+  // datum, zato se vikend ugotovi iz njega.
+  trdi(jeVikendISO("2026-08-01"), "1.8.2026 je sobota");
+  trdi(jeVikendISO("2026-08-02"), "2.8.2026 je nedelja");
+  trdi(!jeVikendISO("2026-07-31"), "31.7.2026 je petek - ni vikend");
+  trdi(!jeVikendISO("2026-08-03"), "3.8.2026 je ponedeljek - ni vikend");
+  trdi(!jeVikendISO(""), "prazen datum ne sme veljati za vikend");
+  trdi(!jeVikendISO(null), "manjkajoč datum prav tako ne");
+  trdi(!jeVikendISO("nekaj"), "neveljaven zapis prav tako ne");
+
+  // Datum se mora razčleniti kot BESEDILO: z "new Date(iso)" bi ga
+  // brskalnik v časovnem pasu za UTC premaknil na prejšnji dan.
+  trdi(/new Date\(Number\(m\[1\]\), Number\(m\[2\]\) - 1, Number\(m\[3\]\), 12\)/.test(html),
+    "datum se sestavi po delih ob 12:00, ne prek new Date(iso)");
+
+  // In da je pravilo res vgrajeno v nalaganje NZV podatkov:
+  trdi(/if \(jeVikendISO\(r\.work_date\) && classify\(r\.shift_code\) !== "dez"/.test(html),
+    "enote: vikend brez dežurstva se izpusti");
+  trdi(/r\.department_code !== "DEZ"/.test(html),
+    "dežurni stolpec (DEZ) ob vikendu OSTANE");
+  trdi(/if \(jeVikendISO\(d\.work_date\)\) return;/.test(html),
+    "stolpci LD/IZOB/BS: vikend se izpusti (dopust velja za delovne dni)");
 }
 
 console.log("");
