@@ -113,7 +113,7 @@ console.log("4) Kar zaslon izpiše (nzvPrikaz) je smiselno");
 {
   const m = mojRazpored({ "2026-09-02": "DEŽURSTVO" });
   eq(nzvPrikaz(m["2026-09-01"], "TO", true, "2026-09-01"), "PRISOTEN", "navaden delovni dan");
-  eq(nzvPrikaz(m["2026-09-02"], "SR", true, "2026-09-02"), "PRISOTEN + DEŽURSTVO",
+  eq(nzvPrikaz(m["2026-09-02"], "SR", true, "2026-09-02"), "dopoldan + DEŽURSTVO",
     "dežurstvo med tednom je po redni prisotnosti");
   eq(nzvPrikaz(m["2026-09-05"], "SO", true, "2026-09-05"), "", "sobota ostane prazna");
 }

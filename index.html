@@ -249,8 +249,14 @@ DELOVNI_ČAS["LD"] = "letni dopust";
 // je bila ista izmena tu ena barva in tam druga.
 const classify = window.Izmene.skupina;
 
+// Kar se izpiše v celici. "PRISOTEN" je notranja koda, ki jo aplikacija
+// zapiše za vodje/administratorje na njihovi enoti; uporabniku pa se mora
+// brati kot navadna izmena - "dopoldan" (uporabnikova izrecna zahteva).
+// Zapisana koda se NE spremeni: po nji se ravna obračun ur (glej NI_DELO
+// v delovni-cas.js), zato bi tiha zamenjava kode spremenila zavihek Plače.
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
+  if (/^prisoten$/i.test(String(sifra).trim())) return "dopoldan";
   return sifra;
 }
 
@@ -367,7 +373,7 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum){
   const vikend = danKratica === "SO" || danKratica === "NE"
     || (datum ? window.Prazniki.jePraznik(datum) : false);
   const jeDezurstvo = classify(sifra) === "dez";
-  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "PRISOTEN + DEŽURSTVO";
+  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "dopoldan + DEŽURSTVO";
   if (!jeNzv || !vikend) return sifra;
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
 }

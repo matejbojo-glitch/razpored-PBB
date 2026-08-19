@@ -66,7 +66,12 @@ window.NzvZasedba = (function () {
   // --- Enote nosilca ---------------------------------------------------
   // Uradna predloga zapisuje enote kot prosto besedilo ("C/C1", "UA/SA",
   // "B1/SOB/NOB") — glej supabase/nzv-nosilci-oddelkov.sql.
-  var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "SOB": "SOBO", "B1": "B1B2", "B2": "B1B2" };
+  // Pozor: "SOB" iz zapisa "B1/SOB/NOB" NI enota SOBO. To je bila napačna
+  // domneva, zaradi katere sta se Mavri Tratnik in Šubic prikazovala v
+  // stolpcu SOBO, kjer nimata kaj iskati - nosilka SOBO je Velušček Metka
+  // (njen zapis se glasi natanko "SOBO"). Dokler ni pojasnjeno, kaj sta
+  // "SOB" in "NOB", se kot neznani oznaki tiho preskočita.
+  var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "B1": "B1B2", "B2": "B1B2" };
 
   // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) — oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v

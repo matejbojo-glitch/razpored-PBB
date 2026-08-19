@@ -185,7 +185,7 @@ const test = async () => {
   {
     const { podatki, izpeljano } = await poglej();
     eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. — PDZN");
-    eq(podatki["SOBO|2026-09-01"], "VEL, TRA", "torek 1.9. — SOBO (Velušček + Mavri Tratnik, ki ima SOB med enotami)");
+    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. — SOBO (samo nosilka Velušček)");
     eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. — MO");
     eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. — ŽO");
     eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. — PDZN (cel mesec, ne le prvi dan)");
@@ -216,7 +216,11 @@ const test = async () => {
     eq(podatki["C|2026-09-01"], "ARN", "\"C/C1\" -> stolpec C");
     eq(podatki["C1|2026-09-01"], "ARN", "\"C/C1\" -> stolpec C1");
     eq(podatki["B1B2|2026-09-01"], "TRA, BIZ", "\"B1/SOB/NOB\" -> B1 in \"UA/SA/B2\" -> B2, oba v stolpec B1,B2");
-    eq(podatki["SOBO|2026-09-01"], "VEL, TRA", "\"SOB\" se prišteje k nosilki SOBO (enoto pokrivata dva)");
+    // "SOB" iz "B1/SOB/NOB" NI enota SOBO - napačna domneva, zaradi katere
+  // sta Mavri Tratnik in Šubic pristajala v tujem stolpcu (uporabnikova
+  // pripomba). Dokler ni pojasnjeno, kaj sta "SOB" in "NOB", se tiho
+  // preskočita, nosilka SOBO pa je samo Velušček Metka.
+  eq(podatki["SOBO|2026-09-01"], "VEL", "\"SOB\" ne pristane v stolpcu SOBO");
     eq(podatki["URGENCA|2026-09-01"], "BIZ", "\"UA\" -> URGENCA");
     // 1. 9. 2026 je ISO teden 36 (sod) -> po privzetku popoldanski teden.
     eq(podatki["SADOP|2026-09-01"] || "", "", "\"SA\" v sodem tednu ni v SA DOP");
