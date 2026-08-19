@@ -363,6 +363,7 @@
 
 // v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
+// v69: pregled nadomeščanj v Imeniku + popravki iz Razpored_nadomescanj.xlsx.
 // v68: popravljen uvoz dežurnih zdravnikov (prej je zapisal kratico dneva
 //      namesto imena) + tabela vseh treh krogov pod NZV razporedom.
 // v67: pokrivanja iz tabele parov (vzajemna, večkratna) v obeh smereh.
@@ -376,7 +377,7 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v68';
+const CACHE = 'razpored-pbb-v69';
 const ASSETS = [
   './',
   './index.html',

@@ -364,6 +364,11 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
   trdi(/nadomešča: " \+ nosilec\.nadomescajoMene\.join/.test(html3),
     "ob dopustu/bolniški opis pove, kdo pokriva");
 
+  trdi(/function NadomescanjaPregled\(\)/.test(html3),
+    "pregled nadomeščanj (Oseba | Enote | Nadomeščajo mene | Pokrivam) obstaja");
+  trdi(/v\.nadomesca === n\.full_name/.test(html3) && /v\.nosilec === n\.full_name/.test(html3),
+    "obe smeri se izpeljeta iz ISTE tabele parov - ne moreta se razhajati");
+
   const sql = readFileSync(join(koren, "supabase", "nzv-nadomescanja.sql"), "utf8");
   trdi(/primary key \(nosilec, nadomesca\)/.test(sql),
     "ključ je PAR - ista oseba ima lahko več nadomeščevalcev");
@@ -376,6 +381,18 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
    "('VELUŠČEK METKA',          'DŽAMASTAGIĆ DENIS'"].forEach(v => {
     trdi(sql.includes(v), "navzkrižno pokrivanje: " + v.replace(/\s+/g, " "));
   });
+
+  // Popravki iz uporabnikove razpredelnice (Razpored_nadomescanj.xlsx):
+  trdi(/'VELUŠČEK METKA',\s+'ALUKIĆ DINO'/.test(sql) && /'VELUŠČEK METKA',\s+'BOJIĆ MATEJ'/.test(sql),
+    "Velušček nadomeščajo VSI TRIJE administratorji, ne samo Džamastagić");
+  trdi(/'SALKIĆ MARUŠA',\s+'ARNEŽ GREGA',\s+'C1'/.test(sql),
+    "Salkić Marušo pokriva Arnež (C1) - prej ni imela nikogar");
+  // Enota je tisto, kar nadomeščevalec DEJANSKO prevzame, ne ves nabor
+  // enot odsotnega: Lelič ob Maglićevi odsotnosti pokrije samo E1.
+  trdi(/'MAGLIĆ ALEKSANDER',\s+'LELIČ DIJANA',\s+'E1',/.test(sql),
+    "Lelič ob Maglićevi odsotnosti pokrije samo E1 (ne E1/D)");
+  trdi(/'ARNEŽ GREGA',\s+'LUNAR MATEJA',\s+'C',/.test(sql),
+    "Lunar ob Arneževi odsotnosti pokrije samo C (ne C/C1)");
 }
 
 console.log("");

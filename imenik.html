@@ -1679,6 +1679,80 @@ function imenaSeUjemataBrezStresic(a, b){
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
 const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
 
+// Pregled nadomeščanj v isti obliki kot uporabnikova razpredelnica
+// (Razpored_nadomescanj.xlsx): Oseba | Enote | Nadomeščajo mene | Pokrivam.
+//
+// Obe smeri se izpeljeta iz ISTE tabele parov (nadomescanja), zato se ne
+// moreta razhajati - v izvirni preglednici sta bili zapisani ločeno in sta
+// si na dveh mestih nasprotovali.
+function NadomescanjaPregled(){
+  const [vrstice, setVrstice] = useState(null);
+  const [odprto, setOdprto] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      client.from("lead_departments").select("full_name, enote").order("full_name"),
+      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
+    ]).then(([{ data: nosilci }, { data: pary }]) => {
+      if (cancelled) return;
+      const p = [...(pary || [])].sort((a, b) => (a.prednost || 1) - (b.prednost || 1));
+      setVrstice((nosilci || []).map(n => ({
+        oseba: n.full_name,
+        enote: n.enote || "",
+        mene: p.filter(v => v.nosilec === n.full_name).map(v => kratkoIme(v.nadomesca)),
+        pokrivam: p.filter(v => v.nadomesca === n.full_name)
+          .map(v => kratkoIme(v.nosilec) + (v.enota ? " (" + v.enota + ")" : "")),
+      })));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!vrstice || !vrstice.length) return null;
+  return (
+    <div className="card" style={{marginTop:16, padding:"10px 12px"}}>
+      <button type="button" onClick={() => setOdprto(o => !o)} aria-expanded={odprto}
+        style={{display:"flex", alignItems:"center", gap:8, background:"none", border:"none",
+          padding:0, cursor:"pointer", font:"inherit", color:"inherit"}}>
+        <span className="infoToggle" aria-hidden="true">i</span>
+        <span style={{fontSize:12, fontWeight:700}}>Pregled nadomeščanj</span>
+        <span style={{fontSize:11, color:"var(--muted)"}}>{odprto ? "skrij" : "pokaži"}</span>
+      </button>
+      {odprto && (
+        <div className="infoPanel">
+          <p className="hint" style={{marginTop:0}}>
+            Kdo koga nadomešča ob odsotnosti (letni dopust, bolniška). Puščica pomeni vrstni red: kdo je prvi na
+            vrsti in kdo prevzame, če je odsoten tudi prvi. V oklepaju je enota, ki jo nadomeščevalec dejansko
+            prevzame — ta ni nujno cel nabor enot odsotnega.
+          </p>
+          <div className="tableScroller">
+            <table className="wardTable">
+              <thead>
+                <tr>
+                  <th className="name">Oseba</th>
+                  <th>Enote</th>
+                  <th>Nadomeščajo mene</th>
+                  <th>Pokrivam</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vrstice.map(v => (
+                  <tr key={v.oseba}>
+                    <td className="name">{v.oseba}</td>
+                    <td>{v.enote}</td>
+                    <td>{v.mene.length ? v.mene.join(" → ") : <span style={{color:"var(--muted)"}}>— ni zapisano —</span>}</td>
+                    <td>{v.pokrivam.length ? v.pokrivam.join(", ") : <span style={{color:"var(--muted)"}}>—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StanjeRazpredelnica({ oddelki }){
   const [mesec, setMesec] = useState(() => new Date().toISOString().slice(0, 7));
   const [oddelek, setOddelek] = useState("");
@@ -1962,6 +2036,8 @@ function StanjeRazpredelnica({ oddelki }){
           </table>
         </div>
       )}
+
+      <NadomescanjaPregled />
     </React.Fragment>
   );
 }
