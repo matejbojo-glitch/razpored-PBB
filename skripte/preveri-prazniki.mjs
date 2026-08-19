@@ -92,9 +92,11 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
 {
   const index = readFileSync(join(koren, "index.html"), "utf8");
   const imenik = readFileSync(join(koren, "imenik.html"), "utf8");
+  const admin = readFileSync(join(koren, "admin.html"), "utf8");
 
   trdi(/<script src="prazniki\.js"><\/script>/.test(index), "index.html nalaga prazniki.js");
   trdi(/<script src="prazniki\.js"><\/script>/.test(imenik), "imenik.html nalaga prazniki.js");
+  trdi(/<script src="prazniki\.js"><\/script>/.test(admin), "admin.html nalaga prazniki.js");
 
   // a) Moj razpored
   trdi(/datum \? window\.Prazniki\.jePraznik\(datum\) : false/.test(index),
@@ -120,9 +122,18 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(/select\("id, full_name, role, department_code"\)/.test(imenik),
     "in vlogo tudi res prebere (sicer bi bil filter vedno prazen)");
 
+  // d) Generator (admin.html -> NZV): tu je bila ČETRTA kopija, ki je ta
+  // preizkus dotlej sploh ni pokrival - lasten velikonočni algoritem in
+  // svoj seznam datumov. Prav tako tiha razlika bi se pokazala šele v
+  // letu, ko se datuma razideta.
+  trdi(/const isPraznik = window\.Prazniki\.jePraznik\(iso\);/.test(admin),
+    "admin.html (NZV razpored) upošteva praznike iz skupnega vira");
+
   // Nobene lastne kopije pravila več.
   trdi(!/function jeVikendISO/.test(index),
     "index.html nima več svoje kopije izračuna vikenda");
+  trdi(!/function easterSunday2|FIXED_HOLIDAYS2|function jeDanPraznik2/.test(admin),
+    "admin.html nima več svoje kopije izračuna praznikov");
 }
 
 console.log("");
