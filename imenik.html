@@ -1511,77 +1511,128 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 // Kjer je za isti dan oboje, ima razpored prednost (dežurstvo/izmena je
 // dejansko opravljeno delo), razen odsotnosti, ki so izrecnejše od
 // privzete prisotnosti.
+// Pet stanj, po katerih so kratice razvrščene v legendi (uporabnikova
+// zahteva iz prejšnjega kroga). Barva celice zdaj pride iz KRATICE, ne iz
+// stanja - stanje ostane kot naslov skupine, da je legenda pregledna.
 const STANJE_BARVA = {
-  delo:     { oznaka: "D", naziv: "Na delu",    barva: "#4F9B6B" },
-  dezurstvo:{ oznaka: "DEŽ", naziv: "Dežurstvo", barva: "#B3402A" },
-  dopust:   { oznaka: "LD", naziv: "Dopust",    barva: "#E06666" },
-  bolniska: { oznaka: "BS", naziv: "Bolniška",  barva: "#8560A8" },
-  prosto:   { oznaka: "",  naziv: "Prosto / ni v razporedu", barva: "#D8D2BE" },
+  delo:     { oznaka: "D",   naziv: "Na delu",    barva: "#4F9B6B" },
+  dezurstvo:{ oznaka: "DEŽ", naziv: "Dežurstvo",  barva: "#B3402A" },
+  dopust:   { oznaka: "LD",  naziv: "Dopust",     barva: "#E06666" },
+  bolniska: { oznaka: "BS",  naziv: "Bolniška",   barva: "#3F8F86" },
+  prosto:   { oznaka: "",    naziv: "Prosto / ni v razporedu", barva: "#D8D2BE" },
 };
-// Iz kode izmene (schedule_entries.shift_code) izpelje stanje. Kode so
-// proste besedilo, zato se ravnamo po istih predponah kot classify() v
-// index.html - tu poenostavljeno na pet stanj, ki jih zahteva pregled.
-function stanjeIzKode(sifra){
-  const t = (sifra || "").toLowerCase().replace(/\s+/g, "");
-  if (!t) return "prosto";
-  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return "dezurstvo";
-  if (t.startsWith("ld")) return "dopust";
-  if (t.startsWith("bs")) return "bolniska";
-  if (t.startsWith("kpu")) return "prosto";      // koriščenje prostih ur
-  if (t.startsWith("pomoč") || t.startsWith("pomoc")) return "delo";
-  return "delo";                                  // dopoldan/popoldan/nočna/…
-}
-const KIND_STANJE = { ld: "dopust", bs: "bolniska", sti: "dopust", omejitev: null };
 
-// Kratice izmen za razpredelnico - največ 3 znaki, ker mora v celico enega
-// dneva na telefonu (uporabnikova izrecna zahteva: "max 3 črke, zaradi
-// lažje preglednosti").
+// URADNA legenda kratic - stolpec "kratica za aplikacijo" v delovnik.xlsx
+// ("Razpored delovnega časa - Služba za ZN in oskrbo", veljavnost od
+// 1. 7. 2022). Kratice so največ 3 znaki; edina izjema je DF12
+// (Dnevna 12 (7-19)), ki ima po dogovoru 4.
 //
-// PREDLOG, ki ga je mogoče kadarkoli zamenjati: uporabnik je napovedal, da
-// bo poslal svojo legendo. Ko pride, se spremeni SAMO ta seznam - barve,
-// stanja in celotna tabela ostanejo nedotaknjeni.
+// Časi so vzeti iz LEGENDE na DNU datoteke, ne iz stolpca "Prisotnost" v
+// sredinski tabeli: pri N12/D12/DF12 sta si zapisa nasprotovala (videti je,
+// kot da so se vrstice zamaknile za eno), spodnja legenda pa je sama s
+// seboj skladna - nočna izmena je res ponoči, "(7-19)" je res 07:00-19:00 -
+// in se ujema z vrstico za pripravnike. Uporabnik je to izbiro potrdil.
 //
-// Vrstni red JE pomemben: prvo ujemanje obvelja, zato morajo daljše/bolj
-// določne kode stati pred krajšimi ("NOČNA12" in "NOČNA od 19" pred
-// "NOČNA", "popoldan do 19" pred "popoldan"). Časi so iz uradne legende
-// "Razpored delovnega časa - Služba za ZN in oskrbo" (velja od 1.7.2022).
+// Vrstni red JE pomemben: prvo ujemanje obvelja, zato daljše/bolj določne
+// kode stojijo pred krajšimi ("DNEVNA12F" pred "DNEVNA12", "NOČNA12" in
+// "NOČNA od 19" pred "NOČNA", "popoldan do 19" pred "popoldan").
+//
+// Zapis: [vzorec, kratica, naziv, delovni čas, barva, stanje]
 const IZMENA_KRATICE = [
-  [/^dežurstvo|^dezurstvo/, "DEŽ", "Dežurstvo"],
-  [/^dnevna12/,             "D12", "Dnevna 12 (07:00-19:00)"],
-  [/^nočna12|^nocna12/,     "N12", "Nočna 12 (17:50-06:00)"],
-  [/^nočnaod19|^nocnaod19/, "N19", "Nočna od 19 (18:50-06:00)"],
-  [/^nočna|^nocna/,         "NOČ", "Nočna (20:50-06:00)"],
-  [/^popoldando19/,         "P19", "Popoldan do 19 (13:50-19:00)"],
-  [/^popoldan/,             "POP", "Popoldan (13:50-21:00)"],
-  [/^dopoldan/,             "DOP", "Dopoldan (05:50-14:00)"],
-  [/^prisoten/,             "PRI", "Prisoten (07:00-15:00)"],
-  [/^pomoč|^pomoc/,         "POM", "Pomoč drugje"],
-  [/^kpu/,                  "KPU", "Koriščenje prostih ur"],
-  [/^ld/,                   "LD",  "Letni dopust"],
-  [/^bs/,                   "BS",  "Bolniški stalež"],
-  [/^sti/,                  "STI", "Strokovno izobraževanje"],
-  [/^por/,                  "POR", "Porodniški dopust"],
+  [/^dežurstvo|^dezurstvo/,  "DEŽ",  "Dežurstvo (NZV)",         "PON-PET 15:30-07:00 · SO/NE in prazniki 07:00-07:00", "#B3402A", "dezurstvo"],
+  [/^dnevna12f/,             "DF12", "Dnevna 12 (7-19)",        "SO/NE in prazniki 07:00-19:00", "#B49BD0", "delo"],
+  [/^dnevna12/,              "D12",  "Dnevna 12",               "SO/NE in prazniki 05:50-18:00", "#8560A8", "delo"],
+  [/^nočna12|^nocna12/,      "N12",  "Nočna 12",                "SO/NE in prazniki 17:50-06:00", "#2F4785", "delo"],
+  [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11", "Nočna 11 (od 19)", "PON-PET 18:50-06:00", "#7C90CE", "delo"],
+  [/^nočna|^nocna/,          "N10",  "Nočna",                   "PON-PET 20:50-06:00", "#4A67B0", "delo"],
+  [/^popoldando19/,          "PO5",  "Popoldan do 19",          "PON-PET 13:50-19:00", "#E8A867", "delo"],
+  [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
+  [/^do7|^dopoldan7/,        "DO7",  "Dopoldan (pripravnik)",   "PON-PET 07:00-14:00", "#8FCBA4", "delo"],
+  // "PRISOTEN" je koda, ki jo aplikacija zapiše za NZV/vodje - to je po
+  // uradni datoteki prva vrstica (DMS, PON-PET 07:00-15:00), torej DOP.
+  // Ločene kratice "PRI" zato ni (uporabnikova izrecna zahteva).
+  [/^dopoldan|^prisoten/,    "DOP",  "Dopoldan",                "PON-PET 05:50-14:00 · DMS/vodje 07:00-15:00", "#4F9B6B", "delo"],
+  // "POMOČ DRUGJE" ni izmena iz uradne datoteke, ampak oznaka, ki jo
+  // ustvari generator, kadar nekdo cel teden pomaga na drugem oddelku.
+  // Oseba TA DAN dela, zato celica ne sme ostati prazna - prazen dan bi
+  // pomenil, da jo koordinator lahko po nesreči razporedi še enkrat.
+  [/^pomoč|^pomoc/,          "POM",  "Pomoč na drugem oddelku", "", "#C9A227", "delo"],
+  [/^kpu/,                   "KPU",  "Koriščenje prostih ur",   "", "#B8B29C", "prosto"],
+  [/^ld/,                    "LD",   "Letni dopust",            "", "#E06666", "dopust"],
+  [/^por/,                   "POR",  "Porodniški dopust",       "", "#E8A0C8", "dopust"],
+  [/^sti/,                   "STI",  "Strokovno izobraževanje", "", "#B4A7D6", "dopust"],
+  [/^bs/,                    "BS",   "Bolniški stalež",         "", "#3F8F86", "bolniska"],
 ];
 
-// Koda izmene -> kratica (največ 3 znaki). Neznane kode se ne izgubijo:
-// skrajšajo se na prve tri znake, da se v razpredelnici vseeno VIDI, da je
-// tam nekaj vpisano - tiho prazna celica bi izgledala kot prost dan.
-function izmenaKratica(sifra){
+// Koda izmene (schedule_entries.shift_code) -> vrstica iz legende.
+// Kode so v bazi prosto besedilo (uradne predloge jih pišejo različno:
+// "NOČNA od 19h", "pop. 14.h-20.h", "DNEVNA12"), zato pred primerjavo
+// odstranimo presledke in pike.
+function izmenaVnos(sifra){
   const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
-  if (!t) return "";
+  if (!t) return null;
   for (let i = 0; i < IZMENA_KRATICE.length; i++) {
-    if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i][1];
+    if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i];
   }
-  return String(sifra).trim().slice(0, 3).toUpperCase();
+  return null;
 }
+
+// Vrstica legende po kratici (za odsotnosti iz Želja, ki nimajo kode
+// izmene - tam poznamo samo "LD"/"BS"/"STI").
+function vnosPoKratici(kratica){
+  for (let i = 0; i < IZMENA_KRATICE.length; i++) {
+    if (IZMENA_KRATICE[i][1] === kratica) return IZMENA_KRATICE[i];
+  }
+  return null;
+}
+
+// Kratica za prikaz v celici. Neznana koda se NE izgubi: skrajša se na
+// prve tri znake, da se vidi, da je tam nekaj vpisano - tiho prazna celica
+// bi izgledala kot prost dan, kar je pri razporedu nevarno.
+function izmenaKratica(sifra){
+  const v = izmenaVnos(sifra);
+  if (v) return v[1];
+  return String(sifra || "").trim().slice(0, 3).toUpperCase();
+}
+
+// Barva celice; neznana koda dobi nevtralno sivo, da se loči od znanih.
+function izmenaBarva(sifra){
+  const v = izmenaVnos(sifra);
+  return v ? v[4] : (String(sifra || "").trim() ? "#8B8672" : STANJE_BARVA.prosto.barva);
+}
+
+// Iz kode izmene izpelje eno od petih stanj. Vir je ista tabela kot za
+// kratice, da stanje in barva ne moreta razhajati.
+function stanjeIzKode(sifra){
+  const v = izmenaVnos(sifra);
+  if (v) return v[5];
+  return String(sifra || "").trim() ? "delo" : "prosto";
+}
+
+// Bela ali temna pisava glede na svetlost podlage (ITU-R BT.601) - brez
+// tega bi bila kratica na temni modri (N12) skoraj neberljiva.
+function barvaBesedila(hex){
+  const h = String(hex || "").replace("#", "");
+  if (h.length < 6) return "#2B2717";
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#2B2717" : "#FFFFFF";
+}
+
+// leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
+// želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
+const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
 
 function StanjeRazpredelnica({ oddelki }){
   const [mesec, setMesec] = useState(() => new Date().toISOString().slice(0, 7));
   const [oddelek, setOddelek] = useState("");
   const [osebe, setOsebe] = useState(null);
-  // "id|datum" -> { stanje, kratica } - kratica je izmena iz razporeda
-  // (npr. "DOP"), stanje pa barva ozadja (na delu / dežurstvo / …).
+  // "id|datum" -> { stanje, kratica, barva } - kratica in barva sta iz
+  // uradne legende (IZMENA_KRATICE), stanje pa služi razvrstitvi v legendi.
   const [poDnevih, setPoDnevih] = useState({});
+  // "id|datum" za dneve, ki jih je spremenila POTRJENA menjava. Sama izmena
+  // je v schedule_entries že zamenjana (to naredi obrazec_potrdi_koordinator
+  // v bazi), tu gre samo za vidno oznako, da se menjava tudi opazi.
+  const [menjani, setMenjani] = useState({});
 
   const dnevi = useMemo(() => {
     const [y, m] = mesec.split("-").map(Number);
@@ -1610,13 +1661,24 @@ function StanjeRazpredelnica({ oddelki }){
         .gte("work_date", startISO).lte("work_date", endISO),
       client.from("leave_entries").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
-    ]).then(([{ data: profili }, { data: vpisi }, { data: odsotnosti }]) => {
+      // Potrjene menjave v tem mesecu - samo za oznako v celici. RLS
+      // navadnemu uporabniku pokaže tuje menjave le za TEKOČI mesec, zato
+      // oznaka za pretekle/prihodnje mesece lahko manjka; podatek o izmeni
+      // je kljub temu pravilen, ker je menjava zapisana v schedule_entries.
+      client.from("obrazci").select("vlagatelj_id, sodelavec_id, polja")
+        .eq("vrsta", "menjava_sluzbe").eq("status", "zakljucen"),
+    ]).then(([{ data: profili }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
       if (cancelled) return;
       const seznam = profili || [];
       setOsebe(seznam);
       const m2 = {};
       (vpisi || []).forEach(v => {
-        m2[v.employee_id + "|" + v.work_date] = { stanje: stanjeIzKode(v.shift_code), kratica: izmenaKratica(v.shift_code) };
+        m2[v.employee_id + "|" + v.work_date] = {
+          stanje: stanjeIzKode(v.shift_code),
+          kratica: izmenaKratica(v.shift_code),
+          barva: izmenaBarva(v.shift_code),
+          sifra: v.shift_code,
+        };
       });
       // Odsotnosti se vpisujejo po IMENU (leave_entries nima employee_id),
       // zato jih povežemo prek imena; razpored ima prednost samo tam, kjer
@@ -1624,17 +1686,26 @@ function StanjeRazpredelnica({ oddelki }){
       const poImenu = {};
       seznam.forEach(p => { poImenu[(p.full_name || "").trim().toUpperCase()] = p.id; });
       (odsotnosti || []).forEach(o => {
-        const stanje = KIND_STANJE[o.kind];
-        if (!stanje) return;
+        const kratica = KIND_KRATICA[o.kind];
+        if (!kratica) return;
         const id = poImenu[(o.full_name || "").trim().toUpperCase()];
         if (!id) return;
         const k = id + "|" + o.work_date;
         if (m2[k] && m2[k].stanje === "dezurstvo") return; // dežurstvo je dejansko opravljeno delo
-        // Odsotnost iz Želja nima kode izmene, zato se kot kratica izpiše
-        // oznaka stanja (LD / BS) - drugače bi ostala prazna celica.
-        m2[k] = { stanje, kratica: STANJE_BARVA[stanje].oznaka };
+        // Odsotnost iz Želja nima kode izmene, poznamo pa vrsto, zato jo
+        // preslikamo v isto uradno kratico (LD / BS / STI).
+        const vnos = vnosPoKratici(kratica);
+        m2[k] = { stanje: vnos ? vnos[5] : "dopust", kratica, barva: vnos ? vnos[4] : "#E06666", sifra: kratica };
       });
       setPoDnevih(m2);
+
+      const mm = {};
+      (menjave || []).forEach(o => {
+        const pol = o.polja || {};
+        if (o.vlagatelj_id && pol.datum_a) mm[o.vlagatelj_id + "|" + pol.datum_a] = true;
+        if (o.sodelavec_id && pol.datum_b) mm[o.sodelavec_id + "|" + pol.datum_b] = true;
+      });
+      setMenjani(mm);
     });
     return () => { cancelled = true; };
   }, [mesec]);
@@ -1649,7 +1720,8 @@ function StanjeRazpredelnica({ oddelki }){
       <h2 className="section">Razpredelnica stanja</h2>
       <p className="hint" style={{marginTop:0}}>
         Kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost. Združuje objavljen razpored in
-        vpise iz Želja. <b>Barva celice</b> pove stanje, <b>kratica v celici</b> pa izmeno iz razporeda (glej legendo spodaj).
+        vpise iz Želja, vključno s <b>potrjenimi menjavami</b> (te so v razporedu že zamenjane, v celici pa označene z ↔).
+        Kratice so uradne, iz dokumenta <i>Razpored delovnega časa</i> — vsaka ima svojo barvo, glej legendo spodaj.
       </p>
       <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:10}}>
         <div className="field" style={{marginBottom:0, maxWidth:200}}>
@@ -1665,24 +1737,34 @@ function StanjeRazpredelnica({ oddelki }){
         </div>
       </div>
 
-      {/* Legenda nad tabelo, v dveh delih: BARVA pove stanje osebe, KRATICA
-          v celici pa izmeno iz razporeda. */}
+      {/* Legenda nad tabelo - uradne kratice iz delovnik.xlsx, razvrščene
+          po petih stanjih. Vsaka kratica ima svojo barvo, ki je enaka
+          barvi celice v tabeli, da je preslikava očitna. */}
       <div className="card" style={{marginBottom:10}}>
-        <div style={{display:"flex", gap:14, flexWrap:"wrap"}}>
-          {Object.keys(STANJE_BARVA).map(k => (
-            <span key={k} style={{display:"flex", alignItems:"center", gap:6, fontSize:12}}>
-              <span style={{width:14, height:14, borderRadius:4, background:STANJE_BARVA[k].barva,
-                border:"1px solid var(--line)", display:"inline-block"}}></span>
-              {STANJE_BARVA[k].naziv}
-            </span>
-          ))}
-        </div>
-        <div style={{display:"flex", gap:12, flexWrap:"wrap", marginTop:10, paddingTop:10, borderTop:"1px solid var(--line)"}}>
-          {IZMENA_KRATICE.map(([, kratica, naziv]) => (
-            <span key={kratica} style={{fontSize:12}}>
-              <b style={{fontVariantNumeric:"tabular-nums"}}>{kratica}</b> = {naziv}
-            </span>
-          ))}
+        <div style={{fontSize:12, fontWeight:700, marginBottom:8}}>Legenda kratic</div>
+        {["delo", "dezurstvo", "dopust", "bolniska", "prosto"].map(skupina => {
+          const vnosi = IZMENA_KRATICE.filter(v => v[5] === skupina);
+          if (!vnosi.length) return null;
+          return (
+            <div key={skupina} style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:8}}>
+              <span style={{fontSize:11, color:"var(--muted)", minWidth:78}}>{STANJE_BARVA[skupina].naziv}</span>
+              {vnosi.map(([, kratica, naziv, cas, barva]) => (
+                <span key={kratica} title={cas || naziv}
+                  style={{display:"inline-flex", alignItems:"center", gap:6, fontSize:12,
+                    border:"1px solid var(--line)", borderRadius:6, padding:"2px 8px 2px 2px"}}>
+                  <b style={{background:barva, color:barvaBesedila(barva), borderRadius:4,
+                    padding:"2px 5px", fontSize:11, letterSpacing:".02em"}}>{kratica}</b>
+                  {naziv}{cas ? <span style={{color:"var(--muted)"}}>· {cas}</span> : null}
+                </span>
+              ))}
+            </div>
+          );
+        })}
+        <div style={{fontSize:11, color:"var(--muted)", marginTop:2, paddingTop:8, borderTop:"1px solid var(--line)"}}>
+          Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
+          v tej legendi (npr. delna flexi izmena »pop. 14.h-20.h«) — postavi kazalec nanjo za izvirni zapis.
+          Kotna oznaka <b>↔</b> pomeni, da je bila izmena zamenjana s potrjeno menjavo. Vir kratic:
+          <i>Razpored delovnega časa — Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
         </div>
       </div>
 
@@ -1705,16 +1787,23 @@ function StanjeRazpredelnica({ oddelki }){
                   <td className="name">{o.full_name}</td>
                   {dnevi.map(d => {
                     const zapis = poDnevih[o.id + "|" + d.iso];
-                    const stanje = zapis ? zapis.stanje : "prosto";
-                    const meta = STANJE_BARVA[stanje];
-                    // Barva pove STANJE, besedilo pove IZMENO - dvoje
-                    // podatkov v eni celici, brez dodatnega stolpca.
                     const kratica = zapis ? zapis.kratica : "";
+                    const barva = zapis ? zapis.barva : STANJE_BARVA.prosto.barva;
+                    const vnos = kratica ? vnosPoKratici(kratica) : null;
+                    const zamenjano = !!menjani[o.id + "|" + d.iso];
+                    const opis = vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
+                      : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
                     return (
-                      <td key={d.iso} title={`${o.full_name} · ${d.dan}. — ${meta.naziv}${kratica ? " (" + kratica + ")" : ""}`}
-                        style={{background: meta.barva + (stanje === "prosto" ? "55" : "AA"),
-                          textAlign:"center", fontSize:10, fontWeight:700, color:"#2B2717"}}>
+                      <td key={d.iso}
+                        title={`${o.full_name} · ${d.dan}. — ${opis}${zamenjano ? " (po potrjeni menjavi)" : ""}`}
+                        style={{background: zapis ? barva : barva + "55", position:"relative",
+                          textAlign:"center", fontSize:10, fontWeight:700,
+                          color: zapis ? barvaBesedila(barva) : "#2B2717"}}>
                         {kratica}
+                        {zamenjano && (
+                          <span aria-hidden="true" style={{position:"absolute", top:0, right:1, fontSize:8,
+                            lineHeight:1, opacity:.85}}>↔</span>
+                        )}
                       </td>
                     );
                   })}

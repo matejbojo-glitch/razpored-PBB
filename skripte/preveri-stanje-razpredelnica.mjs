@@ -51,10 +51,12 @@ function eq(a, b, opis) {
 const sandbox = { console };
 vm.createContext(sandbox);
 vm.runInContext([
-  izvleci("stanjeIzKode"), izvleci("izmenaKratica"),
-  izvleciConst("KIND_STANJE"), izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"),
+  izvleciConst("STANJE_BARVA"), izvleciConst("IZMENA_KRATICE"), izvleciConst("KIND_KRATICA"),
+  izvleci("izmenaVnos"), izvleci("vnosPoKratici"), izvleci("izmenaKratica"),
+  izvleci("izmenaBarva"), izvleci("stanjeIzKode"), izvleci("barvaBesedila"),
 ].join("\n\n"), sandbox);
-const { stanjeIzKode, izmenaKratica, KIND_STANJE, STANJE_BARVA, IZMENA_KRATICE } = sandbox;
+const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
+        KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE } = sandbox;
 
 console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
 {
@@ -66,8 +68,8 @@ console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
 
 console.log("2) prave kode izmen iz uradnih predlog -> 'na delu'");
 {
-  ["dopoldan", "popoldan", "popoldan do 19h", "NOČNA", "NOČNA od 19h", "NOČNA12", "DNEVNA12", "DNEVNA12F", "PRISOTEN"]
-    .forEach(k => eq(stanjeIzKode(k), "delo", `"${k}" -> na delu`));
+  ["dopoldan", "popoldan", "popoldan do 19h", "NOČNA", "NOČNA od 19h", "NOČNA12", "DNEVNA12", "DNEVNA12F",
+   "PRISOTEN", "POMOČ DRUGJE"].forEach(k => eq(stanjeIzKode(k), "delo", `"${k}" -> na delu`));
 }
 
 console.log("3) dežurstvo ostane SVOJE stanje (ne 'delo')");
@@ -81,11 +83,15 @@ console.log("3) dežurstvo ostane SVOJE stanje (ne 'delo')");
 console.log("4) odsotnosti");
 {
   eq(stanjeIzKode("LD"), "dopust", '"LD" -> dopust');
+  eq(stanjeIzKode("POR"), "dopust", '"POR" (porodniški) -> dopust');
+  eq(stanjeIzKode("STI"), "dopust", '"STI" -> dopust');
   eq(stanjeIzKode("BS"), "bolniska", '"BS" -> bolniška');
-  eq(KIND_STANJE.ld, "dopust", "leave_entries kind 'ld' -> dopust");
-  eq(KIND_STANJE.bs, "bolniska", "leave_entries kind 'bs' -> bolniška");
-  eq(KIND_STANJE.sti, "dopust", "študijski dopust šteje kot dopust");
-  trdi(KIND_STANJE.omejitev === null, "'omejitev' (rumena želja) NI odsotnost - oseba je na delu, le z omejitvijo");
+  eq(KIND_KRATICA.ld, "LD", "leave_entries kind 'ld' -> kratica LD");
+  eq(KIND_KRATICA.bs, "BS", "leave_entries kind 'bs' -> kratica BS");
+  eq(KIND_KRATICA.sti, "STI", "leave_entries kind 'sti' -> kratica STI");
+  trdi(KIND_KRATICA.omejitev === null, "'omejitev' (rumena želja) NI odsotnost - oseba je na delu, le z omejitvijo");
+  ["LD", "BS", "STI"].forEach(k => trdi(!!vnosPoKratici(k),
+    `kratica "${k}" iz Želja obstaja tudi v uradni legendi (sicer bi celica ostala brez barve)`));
 }
 
 console.log("5) KPU in prazno -> prosto (ne 'na delu')");
@@ -108,62 +114,122 @@ console.log("7) neznana koda šteje kot DELO (varneje kot 'prosto')");
   // Če se v predlogi pojavi nova, še nepoznana koda izmene, je bolje
   // pokazati "na delu" kot lažno "prosto" - lažno prost dan bi lahko
   // pomenil, da koordinator nekoga po nesreči razporedi še enkrat.
-  eq(stanjeIzKode("POMOČ DRUGJE"), "delo", '"POMOČ DRUGJE" -> na delu');
   eq(stanjeIzKode("nekaj novega"), "delo", "neznana koda -> na delu, ne prosto");
 }
 
-console.log("8) kratice izmen — največ 3 znaki (zahteva uporabnika)");
+console.log("8) uradne kratice iz delovnik.xlsx — največ 3 znaki, izjema DF12");
 {
-  IZMENA_KRATICE.forEach(([, kratica, naziv]) => {
-    trdi(typeof kratica === "string" && kratica.length > 0 && kratica.length <= 3,
-      `kratica "${kratica}" ima 1-3 znake`);
-    trdi(typeof naziv === "string" && naziv.length > 0, `kratica "${kratica}" ima razlago za legendo`);
+  // Uporabnikovo pravilo: "EDINO DNEVNA12 7-19 IMA 4 ČRKE".
+  IZMENA_KRATICE.forEach(([, kratica, naziv, , barva, skupina]) => {
+    const meja = kratica === "DF12" ? 4 : 3;
+    trdi(kratica.length > 0 && kratica.length <= meja,
+      `kratica "${kratica}" ima največ ${meja} znake`);
+    trdi(!!naziv, `kratica "${kratica}" ima razlago za legendo`);
+    trdi(/^#[0-9A-Fa-f]{6}$/.test(barva), `kratica "${kratica}" ima svojo barvo`);
+    trdi(!!STANJE_BARVA[skupina], `kratica "${kratica}" je uvrščena v znano stanje ("${skupina}")`);
   });
-  const vse = IZMENA_KRATICE.map(v => v[1]);
-  trdi(new Set(vse).size === vse.length, "nobena kratica se ne ponovi (drugače legenda ne bi bila enolična)");
+  const dolge = IZMENA_KRATICE.filter(v => v[1].length > 3).map(v => v[1]);
+  trdi(dolge.length === 1 && dolge[0] === "DF12", "DF12 je EDINA štiričrkovna kratica");
 }
 
-console.log("9) daljše kode se ne 'požrejo' krajšim (vrstni red pravil)");
+console.log("9) vsaka kratica ima SVOJO barvo (zahteva: 'vse razlikuj po barvah')");
 {
-  // To je najlažja napaka v takem seznamu: če bi /^nočna/ stalo pred
-  // /^nočna12/, bi vse nočne izgledale enako in razpored bi bil napačen.
-  eq(izmenaKratica("NOČNA12"), "N12", "NOČNA12 ni 'NOČ'");
-  eq(izmenaKratica("NOČNA od 19h"), "N19", "NOČNA od 19h ni 'NOČ'");
-  eq(izmenaKratica("NOČNA"), "NOČ", "navadna NOČNA");
-  eq(izmenaKratica("popoldan do 19h"), "P19", "popoldan do 19h ni 'POP'");
-  eq(izmenaKratica("popoldan"), "POP", "navaden popoldan");
-  eq(izmenaKratica("DNEVNA12"), "D12", "DNEVNA12");
-  eq(izmenaKratica("DNEVNA12F"), "D12", "DNEVNA12F (flexi različica) je ista izmena");
-  eq(izmenaKratica("dopoldan"), "DOP", "dopoldan");
-  eq(izmenaKratica("DEŽURSTVO"), "DEŽ", "dežurstvo");
+  const kratice = IZMENA_KRATICE.map(v => v[1]);
+  trdi(new Set(kratice).size === kratice.length, "nobena kratica se ne ponovi");
+  const barve = IZMENA_KRATICE.map(v => v[4].toUpperCase());
+  trdi(new Set(barve).size === barve.length, "nobena barva se ne ponovi (drugače se dve izmeni ne bi ločili)");
 }
 
-console.log("10) presledki, pike in velikost črk ne motijo");
+console.log("10) preslikava kod aplikacije v uradne kratice");
+{
+  eq(izmenaKratica("dopoldan"), "DOP", "dopoldan (05:50-14:00)");
+  eq(izmenaKratica("popoldan"), "PO7", "popoldan (13:50-21:00)");
+  eq(izmenaKratica("popoldan do 19h"), "PO5", "popoldan do 19 ni 'PO7'");
+  eq(izmenaKratica("NOČNA"), "N10", "nočna (20:50-06:00)");
+  eq(izmenaKratica("NOČNA od 19h"), "N11", "nočna od 19 = Nočna 11");
+  eq(izmenaKratica("Nočna 11"), "N11", "isto izmeno uradna datoteka imenuje 'Nočna 11'");
+  eq(izmenaKratica("NOČNA12"), "N12", "nočna 12 ni 'N10'");
+  eq(izmenaKratica("DNEVNA12"), "D12", "dnevna 12");
+  eq(izmenaKratica("DNEVNA12F"), "DF12", "dnevna 12 (7-19) je DF12, ne 'D12'");
+  eq(izmenaKratica("DEŽURSTVO"), "DEŽ", "dežurstvo");
+  eq(izmenaKratica("KPU"), "KPU", "koriščenje prostih ur");
+  eq(izmenaKratica("POMOČ DRUGJE"), "POM", "pomoč na drugem oddelku");
+}
+
+console.log("11) 'PRISOTEN' je DOP, ne svoja kratica (uporabnik: PRI odstrani)");
+{
+  // Uradna datoteka ima DMS/vodje PON-PET 07:00-15:00 pod kratico DOP,
+  // aplikacija pa za NZV/vodje zapisuje kodo "PRISOTEN".
+  eq(izmenaKratica("PRISOTEN"), "DOP", '"PRISOTEN" -> DOP');
+  trdi(!IZMENA_KRATICE.some(v => v[1] === "PRI"), "kratice 'PRI' v legendi NI");
+}
+
+console.log("12) daljše/bolj določne kode se ne 'požrejo' krajšim");
+{
+  // Najlažja napaka v takem seznamu: če bi /^nočna/ stalo pred /^nočna12/,
+  // bi vse nočne izgledale enako in razpored bi bil napačen.
+  trdi(izmenaKratica("NOČNA12") !== izmenaKratica("NOČNA"), "NOČNA12 != NOČNA");
+  trdi(izmenaKratica("NOČNA od 19") !== izmenaKratica("NOČNA"), "NOČNA od 19 != NOČNA");
+  trdi(izmenaKratica("DNEVNA12F") !== izmenaKratica("DNEVNA12"), "DNEVNA12F != DNEVNA12");
+  trdi(izmenaKratica("popoldan do 19") !== izmenaKratica("popoldan"), "popoldan do 19 != popoldan");
+}
+
+console.log("13) presledki, pike in velikost črk ne motijo");
 {
   eq(izmenaKratica("  NOČNA 12  "), "N12", "presledki okoli in znotraj");
-  eq(izmenaKratica("nočna od 19 h"), "N19", "presledki znotraj 'od 19 h'");
-  eq(izmenaKratica("pop. 14.h-20.h"), "POP", "pike v zapisu ur (kot v realnih preglednicah)");
+  eq(izmenaKratica("nočna od 19 h"), "N11", "presledki znotraj 'od 19 h'");
   eq(izmenaKratica("Dežurstvo"), "DEŽ", "mešana velikost črk");
+  eq(izmenaKratica("popoldan.do.19"), "PO5", "pike med besedami");
+
+  // NE pa delnih izmen iz preglednic ("dop. 7.h-13.h", "pop. 14.h-20.h" -
+  // flexi navzkrižno pokrivanje v zavihku KALUP). To NISO uradne izmene:
+  // 14:00-20:00 ni isto kot popoldan 13:50-21:00. Če bi jih preslikali v
+  // PO7, bi razpredelnica trdila, da nekdo dela izmeno, ki je ne dela.
+  trdi(izmenaKratica("pop. 14.h-20.h") !== "PO7", "delna flexi izmena se NE izdaja za popoldan");
+  trdi(izmenaKratica("pop. 14.h-20.h").length <= 3, "vseeno ostane največ 3 znake");
+  // Skrajšava lahko po naključju izpade enako kot uradna kratica
+  // ("dop. 7.h-13.h" -> "DOP"). Loči ju BARVA: neprepoznane kode dobijo
+  // nevtralno sivo, uradne pa svojo barvo iz legende.
+  trdi(izmenaBarva("dop. 7.h-13.h") !== izmenaBarva("dopoldan"),
+    "neprepoznana koda ima drugo barvo kot uradni dopoldan");
+  trdi(izmenaBarva("pop. 14.h-20.h") !== izmenaBarva("popoldan"),
+    "neprepoznana koda ima drugo barvo kot uradni popoldan");
 }
 
-console.log("11) prazna in neznana koda");
+console.log("14) prazna in neznana koda");
 {
   eq(izmenaKratica(""), "", "prazna koda -> prazna celica (prost dan)");
   eq(izmenaKratica(null), "", "manjkajoč zapis -> prazna celica");
   // Neznana koda se NE sme tiho izgubiti - prazna celica bi izgledala kot
-  // prost dan, kar je za razpored nevarno.
+  // prost dan, kar je pri razporedu nevarno.
   eq(izmenaKratica("nekaj novega"), "NEK", "neznana koda -> prvi trije znaki, ne prazno");
-  trdi(izmenaKratica("POMOČ DRUGJE").length <= 3, "tudi neznane kratice ostanejo največ 3 znake");
+  trdi(izmenaBarva("nekaj novega") !== izmenaBarva(""), "neznana koda ima drugo barvo kot prost dan");
 }
 
-console.log("12) legenda in kratice so v imenik.html res prikazane");
+console.log("15) barva pisave je berljiva na vsaki podlagi");
+{
+  IZMENA_KRATICE.forEach(([, kratica, , , barva]) => {
+    const b = barvaBesedila(barva);
+    trdi(b === "#2B2717" || b === "#FFFFFF", `kratica "${kratica}" dobi belo ali temno pisavo`);
+  });
+  eq(barvaBesedila("#2F4785"), "#FFFFFF", "na temni modri (N12) bela pisava");
+  eq(barvaBesedila("#B49BD0"), "#2B2717", "na svetli vijolični (DF12) temna pisava");
+}
+
+console.log("16) legenda in menjave so v imenik.html res prikazane");
 {
   const html2 = readFileSync(join(koren, "imenik.html"), "utf8");
-  trdi(/IZMENA_KRATICE\.map/.test(html2), "legenda kratic se izriše nad tabelo");
+  trdi(/IZMENA_KRATICE\.filter\(v => v\[5\] === skupina\)/.test(html2),
+    "legenda je razvrščena po petih stanjih");
+  trdi(/barvaBesedila\(barva\)/.test(html2), "legenda in celice uporabljajo berljivo pisavo");
   trdi(/kratica: izmenaKratica\(v\.shift_code\)/.test(html2), "kratica se računa iz kode izmene v razporedu");
-  trdi(/\{kratica\}/.test(html2), "kratica se izpiše v celici");
-  trdi(/kratica: STANJE_BARVA\[stanje\]\.oznaka/.test(html2),
-    "odsotnost iz Želja (brez kode izmene) v celici vseeno pokaže LD/BS");
+  trdi(/barva: izmenaBarva\(v\.shift_code\)/.test(html2), "barva celice pride iz kratice");
+  // Menjava: izmene v schedule_entries zamenja baza (obrazec_potrdi_koordinator),
+  // razpredelnica jih zato vidi samodejno - tu preverjamo samo vidno oznako.
+  trdi(/\.eq\("vrsta", "menjava_sluzbe"\)\.eq\("status", "zakljucen"\)/.test(html2),
+    "berejo se samo POTRJENE menjave");
+  trdi(/setMenjani\(mm\)/.test(html2), "dnevi s potrjeno menjavo se označijo");
+  trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
 }
 
 console.log("");
