@@ -1288,6 +1288,7 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
   const zapisi = [];
   const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  let steviloDodatnih = 0;
   let i = 0;
   while (i < vrsteVrstic.length) {
     const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][0]);
@@ -1296,6 +1297,19 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
       const videneOsebe = new Set();
       for (let c = 2; c < glavaVrstica.length; c++) {
         const ime = (glavaVrstica[c] || "").trim();
+        // Stolpec "DODATNO C/E2 7-19" ni oseba, ampak POVZETEK: v celico se
+        // vpiše priimek tistega, ki tisti dan pokriva C/E2 7-19. Preverjeno
+        // na pravi datoteki (2026_SMS_RAZPORED_2.xlsx): od 114 takih celic
+        // jih ima 95 isto izmeno že zapisano pri osebi sami v tem zavihku,
+        // preostalih 19 pa na njenem matičnem oddelčnem zavihku (npr. Jereb
+        // S. 13. 6. -> zavihek C "DNEVNA12", Šabić 25. 7. -> C "DNEVNA12
+        // C/E2"). Vpisati ga posebej bi zato pomenilo PREPISATI oddelčno
+        // izmeno iste osebe (schedule_entries dovoli en zapis na oseba/dan).
+        // Ne uvozimo ga, a v poročilu povemo, da obstaja.
+        if (/^DODATNO\b/i.test(ime)) {
+          if ((vrstica[c] || "").trim()) steviloDodatnih++; // štej samo izpolnjene celice, ne praznih dni
+          continue;
+        }
         if (!ime || !IME_S_PIKO_RX.test(ime.toUpperCase())) continue; // ni oblike "Priimek I." - opomba/naslov stolpca, ne oseba
         const kljucIme = window.Parafa.kratkoKljuc(ime);
         if (videneOsebe.has(kljucIme)) continue; // ponovljen blok stolpcev - obdrži samo prvo (levo) pojavitev
@@ -1313,6 +1327,10 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
         });
       }
     }, stanje);
+  }
+  if (steviloDodatnih) {
+    neujemanja.add(`stolpec "DODATNO C/E2 7-19" ni uvožen (${steviloDodatnih} celic) - je povzetek, ` +
+      "kdo pokriva C/E2 7-19; ta izmena je zapisana že pri osebi sami");
   }
   return { zapisi, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
 }

@@ -1540,7 +1540,10 @@ const STANJE_BARVA = {
 // Zapis: [vzorec, kratica, naziv, delovni čas, barva, stanje]
 const IZMENA_KRATICE = [
   [/^dežurstvo|^dezurstvo/,  "DEŽ",  "Dežurstvo (NZV)",         "PON-PET 15:30-07:00 · SO/NE in prazniki 07:00-07:00", "#B3402A", "dezurstvo"],
-  [/^dnevna12f/,             "DF12", "Dnevna 12 (7-19)",        "SO/NE in prazniki 07:00-19:00", "#B49BD0", "delo"],
+  // "DNEVNA12 (7-19)" je v predlogi zapisana tudi tako (49-krat v
+  // 2026_SMS_RAZPORED); MORA stati pred /^dnevna12/, sicer pade na D12,
+  // kar je DRUGA izmena (05:50-18:00 namesto 07:00-19:00).
+  [/^dnevna12\(7-19\)|^dnevna12f/, "DF12", "Dnevna 12 (7-19)",  "SO/NE in prazniki 07:00-19:00", "#B49BD0", "delo"],
   [/^dnevna12/,              "D12",  "Dnevna 12",               "SO/NE in prazniki 05:50-18:00", "#8560A8", "delo"],
   [/^nočna12|^nocna12/,      "N12",  "Nočna 12",                "SO/NE in prazniki 17:50-06:00", "#2F4785", "delo"],
   [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11", "Nočna 11 (od 19)", "PON-PET 18:50-06:00", "#7C90CE", "delo"],
@@ -1577,6 +1580,10 @@ const IZMENA_KRATICE = [
 function izmenaVnos(sifra){
   const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
   if (!t) return null;
+  // "prost" se v predlogi pojavi kot izrecna beseda, pomeni pa isto kot
+  // prazna celica - ne sme dobiti kratice "PRO", ki bi izgledala kot
+  // neznana izmena.
+  if (t === "prost" || t === "prosto") return null;
   for (let i = 0; i < IZMENA_KRATICE.length; i++) {
     if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i];
   }
@@ -1598,13 +1605,21 @@ function vnosPoKratici(kratica){
 function izmenaKratica(sifra){
   const v = izmenaVnos(sifra);
   if (v) return v[1];
+  if (jeProst(sifra)) return "";
   return String(sifra || "").trim().slice(0, 3).toUpperCase();
+}
+
+// "prost" v predlogi = prost dan, isto kot prazna celica.
+function jeProst(sifra){
+  const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
+  return t === "prost" || t === "prosto";
 }
 
 // Barva celice; neznana koda dobi nevtralno sivo, da se loči od znanih.
 function izmenaBarva(sifra){
   const v = izmenaVnos(sifra);
-  return v ? v[4] : (String(sifra || "").trim() ? "#8B8672" : STANJE_BARVA.prosto.barva);
+  if (v) return v[4];
+  return (String(sifra || "").trim() && !jeProst(sifra)) ? "#8B8672" : STANJE_BARVA.prosto.barva;
 }
 
 // Iz kode izmene izpelje eno od petih stanj. Vir je ista tabela kot za
@@ -1612,6 +1627,7 @@ function izmenaBarva(sifra){
 function stanjeIzKode(sifra){
   const v = izmenaVnos(sifra);
   if (v) return v[5];
+  if (jeProst(sifra)) return "prosto";
   return String(sifra || "").trim() ? "delo" : "prosto";
 }
 

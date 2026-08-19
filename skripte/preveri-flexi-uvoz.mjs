@@ -203,6 +203,23 @@ console.log("7) NZV razpored vsebuje samo vodje in administratorje");
     "poizvedba res prebere vlogo (sicer bi bil filter vedno prazen)");
 }
 
+console.log("8) stolpec 'DODATNO C/E2 7-19' se ne uvozi, a se PRIJAVI");
+{
+  // Preverjeno na pravi datoteki (2026_SMS_RAZPORED_2.xlsx): od 114 takih
+  // celic jih ima 95 isto izmeno že zapisano pri osebi sami v tem zavihku,
+  // preostalih 19 pa na njenem matičnem oddelčnem zavihku (Jereb S. 13. 6.
+  // -> zavihek C "DNEVNA12"; Šabić 25. 7. -> C "DNEVNA12 C/E2"). Vpisati ga
+  // posebej bi pomenilo PREPISATI oddelčno izmeno iste osebe, ker
+  // schedule_entries dovoli en zapis na oseba/dan.
+  const html2 = readFileSync(join(koren, "index.html"), "utf8");
+  trdi(/\/\^DODATNO\\b\/i\.test\(ime\)/.test(html2), "stolpec se prepozna po naslovu");
+  trdi(/steviloDodatnih\+\+/.test(html2), "šteje se, kolikokrat je bil preskočen");
+  trdi(/if \(\(vrstica\[c\] \|\| ""\)\.trim\(\)\) steviloDodatnih\+\+/.test(html2),
+    "šteje SAMO izpolnjene celice (sicer bi poročilo štelo prazne dni)");
+  trdi(/ni uvožen \(\$\{steviloDodatnih\} celic\)/.test(html2),
+    "število konča v poročilu uvoza, ne tiho");
+}
+
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");
