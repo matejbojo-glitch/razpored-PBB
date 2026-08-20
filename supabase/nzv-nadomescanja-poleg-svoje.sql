@@ -36,8 +36,18 @@ comment on column public.nadomescanja.poleg_svoje is
 -- Trojica vodstvenih enot: vsi trije se pokrivajo POLEG svoje enote.
 -- Vključena je tudi smer za Džamastagića - uporabnik je izrecno opisal
 -- samo prvi dve, tretja je zapisana enako, ker gre za isto vzajemno
--- razmerje treh enakovrednih nosilcev. Če za Džamastagića velja kaj
--- drugega, se spodaj pobriše njegovi dve vrstici.
+-- razmerje treh enakovrednih nosilcev.
+--
+-- Dopolnjeno (uporabnikova potrditev, avgust 2026): isto velja za SOBO in
+-- za A/PO. Dobesedno: "ne, ostane na PDZN in pokriva tudi SOBO ... tako je
+-- pri njemu." Potrjuje tudi razpored sam:
+--
+--   sep. 2026, ko je Velušček na dopustu   -> Džamastagić ima PDZN IN SOBO
+--   10.-14. 8. 2026, ko je Tomaževič na LD -> Velušček ima SOBO, A IN PO
+--
+-- Vzorec je torej enoten za vodstvene enote: nadomeščevalec svoje enote NE
+-- zapusti. Preselitev ostane samo tam, kjer jo je uporabnik izrecno opisal
+-- (Salkić -> Arnež -> Lunar, glej nzv-lastne-enote.sql).
 update public.nadomescanja
    set poleg_svoje = true
  where (nosilec, nadomesca) in (
@@ -46,7 +56,13 @@ update public.nadomescanja
    ('BOJIĆ MATEJ',       'ALUKIĆ DINO'),
    ('BOJIĆ MATEJ',       'DŽAMASTAGIĆ DENIS'),
    ('DŽAMASTAGIĆ DENIS', 'ALUKIĆ DINO'),
-   ('DŽAMASTAGIĆ DENIS', 'BOJIĆ MATEJ')
+   ('DŽAMASTAGIĆ DENIS', 'BOJIĆ MATEJ'),
+   -- SOBO: nadomeščajo vsi trije po vrsti, vsi poleg svoje enote.
+   ('VELUŠČEK METKA',    'DŽAMASTAGIĆ DENIS'),
+   ('VELUŠČEK METKA',    'ALUKIĆ DINO'),
+   ('VELUŠČEK METKA',    'BOJIĆ MATEJ'),
+   -- A/PO: Velušček obdrži SOBO in pokrije še A in PO.
+   ('TOMAŽEVIČ SIMONA',  'VELUŠČEK METKA')
  );
 
 -- Kontrola: katera vrsta velja za koga.

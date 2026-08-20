@@ -138,8 +138,8 @@ begin
   else
     execute 'select count(*) from public.nadomescanja where poleg_svoje' into n;
     insert into pbb_pregled values (9, 'Nadomeščanje poleg svoje enote',
-      case when n >= 6 then 'OK (' || n || ' parov)'
-           else 'STOLPEC JE, VREDNOSTI NI (' || n || ' od 6) -> poženi nzv-nadomescanja-poleg-svoje.sql' end);
+      case when n >= 10 then 'OK (' || n || ' parov)'
+           else 'STOLPEC JE, VREDNOSTI NI (' || n || ' od 10) -> poženi nzv-nadomescanja-poleg-svoje.sql' end);
   end if;
 
   -- 10) pokriva_oddelek: nujen za NZV, kjer je ista oseba isti dan pogosto
