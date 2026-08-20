@@ -38,12 +38,19 @@ begin
 
   -- 2) Lastne enote (Lelič ima E2, ne "E2/E1").
   if not ima_enote then
-    insert into pbb_pregled values (2, 'Lastne enote (brez poševnic pri parih)', 'NI MOGOČE PREVERITI (najprej točka 1)');
+    insert into pbb_pregled values (2, 'Lastne enote (brez prevzetih)', 'NI MOGOČE PREVERITI (najprej točka 1)');
   else
-    execute 'select count(*) from public.lead_departments where enote like ''%/%''' into n;
-    insert into pbb_pregled values (2, 'Lastne enote (brez poševnic pri parih)',
-      case when n > 3 then 'PREVERI -> morda poženi nzv-lastne-enote.sql (' || n || ' sestavljenih)'
-           else 'OK (' || n || ' sestavljenih enot - to je pričakovano)' end);
+    -- Šteti VSE sestavljene enote ne pove nič: štiri so pravilne
+    -- (Tomaževič A/PO, Bizjak UA/SA/B2, Mušič in Trpin UA/SA). Zato
+    -- gledamo POIMENSKO tiste, ki sestavljene enote NE smejo imeti -
+    -- to so pari, kjer je prevzeta enota zmotno pristala med lastnimi.
+    execute 'select count(*) from public.lead_departments
+              where enote like ''%/%''
+                and translate(upper(full_name), ''ĆŽŠČ'', ''CZSC'') ~
+                    ''^(ARNEZ|MAGLIC|LELIC|MAVRI TRATNIK|SUBIC)''' into n;
+    insert into pbb_pregled values (2, 'Lastne enote (brez prevzetih)',
+      case when n > 0 then 'POPRAVI (' || n || ' oseb) -> poženi nzv-lastne-enote.sql'
+           else 'OK' end);
   end if;
 
   -- 3) Nadomeščanja: brez tega ni Lelič -> Maglić.
@@ -83,7 +90,12 @@ begin
   if not ima_enote then
     insert into pbb_pregled values (6, 'Nosilec enote PO (Tomaževič Simona)', 'NI MOGOČE PREVERITI (najprej točka 1)');
   else
-    execute 'select count(*) from public.lead_departments where enote = ''PO'' and upper(full_name) like ''TOMA%''' into n;
+    -- Pravilna vrednost je "A/PO" (Tomaževič pokriva A IN PO), zato ne
+    -- primerjamo z "PO", ampak iščemo PO MED enotami. Prej je ta točka
+    -- javila "MANJKA", tudi kadar je bilo vse pravilno nastavljeno.
+    execute 'select count(*) from public.lead_departments
+              where ''/'' || upper(enote) || ''/'' like ''%/PO/%''
+                and translate(upper(full_name), ''Ć'', ''Č'') like ''TOMAŽEVIČ%''' into n;
     insert into pbb_pregled values (6, 'Nosilec enote PO (Tomaževič Simona)',
       case when n = 0 then 'MANJKA -> poženi nzv-po-tomazevic.sql' else 'OK' end);
   end if;
