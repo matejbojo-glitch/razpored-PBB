@@ -193,8 +193,11 @@ console.log("6) pravilo uporabljajo VSI zasloni, ne le eden");
   // ime izmene, ne kratice – uporabnikova izrecna zahteva.
   trdi(/window\.Izmene\.barva\(sifra\)/.test(index),
     "Po oddelkih: barva celice je iz uradne legende");
-  trdi(/<span className="swatch" title=\{opisIzmene\}[\s\S]{0,220}\{sifra\}/.test(index),
-    "Po oddelkih: v celici ostane cela koda izmene (poimensko), ne kratica");
+  // Polno ime pride iz legende (shiftLabel -> Izmene.naziv), ne iz surove
+  // šifre: šifre so neenotne ("dopoldan", "NOČNA"), naziv pa je pravilno
+  // zapisan ("Dopoldne", "Nočna").
+  trdi(/<span className="swatch" title=\{opisIzmene\}[\s\S]{0,220}\{shiftLabel\(sifra\)\}/.test(index),
+    "Po oddelkih: v celici je POLNO ime izmene iz legende, ne kratica");
   trdi(/const legendaIzmen = useMemo/.test(index),
     "Po oddelkih: legenda pod tabelo je izpeljana iz izmen tega meseca");
 

@@ -260,10 +260,15 @@ const classify = window.Izmene.skupina;
 // brati kot navadna izmena - "dopoldan" (uporabnikova izrecna zahteva).
 // Zapisana koda se NE spremeni: po nji se ravna obračun ur (glej NI_DELO
 // v delovni-cas.js), zato bi tiha zamenjava kode spremenila zavihek Plače.
+// Kar uporabnik VIDI namesto surove šifre iz baze. Šifre so zgodovinske in
+// neenotne ("dopoldan", "NOČNA", "PRISOTEN"), naziv v uradni legendi
+// (izmene.js) pa je enoten in pravilno zapisan: "Dopoldne", "Popoldne",
+// "Nočna". Šifra v bazi se NE spreminja - ostaja tak zapis, kot je v
+// bolnišničnih preglednicah, sicer bi aplikacija v uradni Google Sheet
+// pisala drugo besedo, kot je v njem zdaj.
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
-  if (/^prisoten$/i.test(String(sifra).trim())) return "dopoldan";
-  return sifra;
+  return window.Izmene.naziv(sifra) || sifra;
 }
 
 // ---------------------------------------------------------------------
@@ -386,10 +391,14 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   // "Dežurstvo" z veliko začetnico kot lastno ime izmene, ne z verzalkami:
   // v uradni legendi je zapisano tako, verzalke pa na zaslonu delujejo kot
   // vpitje (uporabnikova pripomba).
-  if (jeDezurstvo) return vikend ? "Dežurstvo" : zEnoto("dopoldan") + " + Dežurstvo";
-  // shiftLabel PRED dodajanjem enote: preslikava "PRISOTEN" -> "dopoldan"
-  // se ujema na CELEM nizu, zato bi po pripisu enote odpovedala in
-  // uporabnik bi videl "PRISOTEN C1".
+  // Naziv dnevnega dela in dežurstva vzameta iz legende (izmene.js), da
+  // se zapis ne razide s preostalo aplikacijo.
+  if (jeDezurstvo) {
+    const dez = window.Izmene.naziv("DEŽURSTVO").replace(/\s*\(NZV\)\s*$/, "");
+    return vikend ? dez : zEnoto(window.Izmene.naziv("dopoldan")) + " + " + dez;
+  }
+  // shiftLabel PRED dodajanjem enote: brez tega bi se enota pripela surovi
+  // šifri in uporabnik bi videl "PRISOTEN C1" namesto "Dopoldne C1".
   if (!jeNzv || !vikend) return sifra ? zEnoto(shiftLabel(sifra)) : sifra;
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
 }
@@ -985,7 +994,7 @@ function WardView({ deptCode, month, myId }){
                         {sifra && (
                           <span className="swatch" title={opisIzmene}
                             style={{background: barvaIzmene, color: window.Izmene.barvaBesedila(barvaIzmene)}}>
-                            {sifra}
+                            {shiftLabel(sifra)}
                           </span>
                         )}
                       </td>

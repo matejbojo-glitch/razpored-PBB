@@ -115,8 +115,8 @@ console.log("3) Objavljena izmena, dežurstvo in dopust se ne prepišejo");
 console.log("4) Kar zaslon izpiše (nzvPrikaz) je smiselno");
 {
   const m = mojRazpored({ "2026-09-02": "DEŽURSTVO" });
-  eq(nzvPrikaz(m["2026-09-01"], "TO", true, "2026-09-01"), "dopoldan", "navaden delovni dan (PRISOTEN se izpiše kot dopoldan)");
-  eq(nzvPrikaz(m["2026-09-02"], "SR", true, "2026-09-02"), "dopoldan + Dežurstvo",
+  eq(nzvPrikaz(m["2026-09-01"], "TO", true, "2026-09-01"), "Dopoldne", "navaden delovni dan (PRISOTEN se izpiše kot dopoldan)");
+  eq(nzvPrikaz(m["2026-09-02"], "SR", true, "2026-09-02"), "Dopoldne + Dežurstvo",
     "dežurstvo med tednom je po redni prisotnosti");
   eq(nzvPrikaz(m["2026-09-05"], "SO", true, "2026-09-05"), "", "sobota ostane prazna");
 }

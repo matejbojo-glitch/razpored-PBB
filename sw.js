@@ -451,7 +451,12 @@
 // pravilu kot v Imeniku -> Razpredelnica, zato se ob nadomeščanju izpiše
 // tista, na kateri oseba TA DAN res je.
 
-const CACHE = 'razpored-pbb-v89';
+// v90: izmene se uporabniku povsod izpišejo kot "Dopoldne", "Popoldne",
+// "Nočna" (naziv iz uradne legende), ne kot surova šifra iz baze
+// ("dopoldan", "NOČNA"). Šifra v bazi in v Google Sheetu ostane
+// nespremenjena. Spremenjeni izmene.js, index.html, obrazec.html.
+
+const CACHE = 'razpored-pbb-v90';
 const ASSETS = [
   './',
   './index.html',
