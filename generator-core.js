@@ -173,12 +173,107 @@
    *   minMesecno – mehak (informativen) cilj: če oseba ob koncu meseca ni dosegla tega števila, se doda
    *   opozorilo (generiranje se zaradi tega NE ustavi, ker bi lahko bilo neizvedljivo).
    */
+  // Katera pravila krši, če na dani dan dežura dana oseba.
+  //
+  // EN SAM vir za dvoje: generator z njim pojasni dan, ki ga ne more
+  // razrešiti (in izbere najmanj slabega kandidata), urejanje razporeda v
+  // Admin -> Dežurstva pa z njim sproti pove, kaj se z ročnim popravkom
+  // pokvari. Če bi bili dve kopiji, bi generator in zaslon trdila vsak
+  // svoje o istem dnevu.
+  //
+  // Vrne seznam kršitev, urejen po teži - prva je najhujša.
+  // "razpored" je CELOTNA dodelitev meseca ([{datum, zaposleni}, ...]),
+  // ker sta razmik in vikendna kvota odvisna od preostalih dni.
+  var KRSITVE_OPIS = {
+    odsoten: "ta dan je odsoten (dopust ali omejitev)",
+    prostDan: "ta dan v tednu ima po dogovoru prost",
+    vikend: "dežura samo med tednom",
+    razmik: "premalo dni od prejšnjega dežurstva",
+    vikendKvota: "presega dovoljeno število vikendov v mesecu",
+    maxMesecno: "presega dovoljeno število dežurstev v mesecu",
+  };
+
+  // Teža kršitve pri izbiri "najmanj slabega" kandidata za dan, ki ga ni
+  // mogoče razrešiti brez kršitve. Nižje = manj hudo. Osebe na dopustu se
+  // dotaknemo šele, ko res ni nikogar drugega; prekratek razmik je najmanj
+  // hud, ker je stvar dogovora in ne odsotnosti.
+  var KRSITVE_TEZA = { odsoten: 100, vikend: 50, prostDan: 40, maxMesecno: 30, vikendKvota: 20, razmik: 10 };
+
+  function preveriDezurstva(opts) {
+    var minRazmik = opts.minRazmikDni != null ? opts.minRazmikDni : 3;
+    var maxVikendMesecno = opts.maxVikendMesecno !== false;
+    var poImenu = {};
+    (opts.staff || []).forEach(function (z) {
+      var dopust = (z.dopust || []).slice().sort();
+      var blokirano = {};
+      (z.odsotnosti || []).forEach(function (iso) { blokirano[iso] = true; });
+      (z.omejitve || []).forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) { blokirano[iso] = true; });
+      dopust.forEach(function (iso) {
+        var prejIso = fromDate(addDays(toDate(iso), -1));
+        if (dopust.indexOf(prejIso) !== -1) return;
+        blokirano[prejIso] = true;
+        if (weekdayMon0(toDate(iso)) === 0) blokirano[fromDate(addDays(toDate(iso), -3))] = true;
+      });
+      poImenu[z.ime] = { z: z, blokirano: blokirano };
+    });
+
+    // Dnevi posamezne osebe po vrsti - za razmik in vikendno kvoto.
+    var dneviOsebe = {};
+    (opts.razpored || []).forEach(function (r) {
+      if (!r.zaposleni) return;
+      (dneviOsebe[r.zaposleni] = dneviOsebe[r.zaposleni] || []).push(r.datum);
+    });
+    Object.keys(dneviOsebe).forEach(function (ime) { dneviOsebe[ime].sort(); });
+
+    return (opts.razpored || []).map(function (r) {
+      var krsitve = [];
+      var podatki = poImenu[r.zaposleni];
+      if (r.zaposleni && podatki) {
+        var z = podatki.z;
+        var d = toDate(r.datum);
+        var wd = weekdayMon0(d);
+        var jeVikend = wd === 5 || wd === 6;
+        var mesecKey = r.datum.slice(0, 7);
+        if (podatki.blokirano[r.datum]) krsitve.push("odsoten");
+        if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) krsitve.push("prostDan");
+        if (z.samoMedTednom && jeVikend) krsitve.push("vikend");
+        // Razmik do NAJBLIŽJEGA prejšnjega dežurstva iste osebe - tudi
+        // takega iz zgodovine (zadnjeDezurstvo), sicer bi prvi dnevi meseca
+        // izpadli kot brezhibni.
+        var moji = dneviOsebe[r.zaposleni] || [];
+        var prej = null;
+        moji.forEach(function (iso) { if (iso < r.datum && (!prej || iso > prej)) prej = iso; });
+        if (z.zadnjeDezurstvo && z.zadnjeDezurstvo < r.datum && (!prej || z.zadnjeDezurstvo > prej)) {
+          prej = z.zadnjeDezurstvo;
+        }
+        if (prej && diffDays(d, toDate(prej)) < minRazmik) krsitve.push("razmik");
+        if (jeVikend && maxVikendMesecno) {
+          var vikendovPrej = moji.filter(function (iso) {
+            if (iso >= r.datum || iso.slice(0, 7) !== mesecKey) return false;
+            var w = weekdayMon0(toDate(iso));
+            return w === 5 || w === 6;
+          }).length;
+          if (vikendovPrej >= 1) krsitve.push("vikendKvota");
+        }
+        if (z.maxMesecno != null) {
+          var vMesecuPrej = moji.filter(function (iso) {
+            return iso <= r.datum && iso.slice(0, 7) === mesecKey;
+          }).length;
+          if (vMesecuPrej > z.maxMesecno) krsitve.push("maxMesecno");
+        }
+      }
+      return { datum: r.datum, zaposleni: r.zaposleni || null, krsitve: krsitve };
+    });
+  }
+
   function generirajDezurstva(opts) {
     var start = toDate(opts.startISO);
     var end = toDate(opts.endISO);
     var minRazmik = opts.minRazmikDni != null ? opts.minRazmikDni : 3;
     var prostDanPo = opts.prostDanPoDezurstvu !== false;
     var maxVikendMesecno = opts.maxVikendMesecno !== false;
+    var zaklenjeni = opts.zaklenjeni || {};   // datum -> ime, ki se ne sme premakniti
 
     var stanje = {};
     opts.staff.forEach(function (z) {
@@ -213,6 +308,22 @@
       var wd = weekdayMon0(d);
       var isVikend = wd === 5 || wd === 6; // SO ali NE
       var mesecKey = iso.slice(0, 7);
+      // Že objavljeni dnevi se NE premešajo. Brez tega je ponovno
+      // generiranje sredi meseca prerazporedilo tudi tisti del, ki je bil
+      // že potrjen in sporočen ljudem.
+      if (zaklenjeni[iso] && stanje[zaklenjeni[iso]]) {
+        var zIme = zaklenjeni[iso];
+        stanje[zIme].stevilo += 1;
+        stanje[zIme].zadnje = new Date(d.getTime());
+        stanje[zIme].mesecStevilo[mesecKey] = (stanje[zIme].mesecStevilo[mesecKey] || 0) + 1;
+        if (isVikend) stanje[zIme].vikendMesec[mesecKey] = (stanje[zIme].vikendMesec[mesecKey] || 0) + 1;
+        razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: zIme, zaklenjeno: true });
+        if (prostDanPo) {
+          if (!prostiDnevi[zIme]) prostiDnevi[zIme] = [];
+          prostiDnevi[zIme].push(fromDate(addDays(d, 1)));
+        }
+        continue;
+      }
       var kandidati = opts.staff.filter(function (z) {
         var s = stanje[z.ime];
         if (s.odsotnosti.indexOf(iso) !== -1) return false;
@@ -225,8 +336,40 @@
       });
 
       if (kandidati.length === 0) {
-        opozorila.push({ datum: iso, sporocilo: "Noben zaposleni ne izpolnjuje pogojev (razmik, odsotnost, prost dan ali vikend kvota) – potreben ročni vnos." });
-        razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: null });
+        // Prej je tak dan ostal PRAZEN in se ob objavi tiho izgubil.
+        // Uporabnikova odločitev (avgust 2026): predlagaj najbližjega in
+        // označi, katero pravilo krši - dan tako nikoli ne ostane prazen,
+        // človek pa vidi, s čim se strinja oz. kaj naj zamenja.
+        var oceneVsi = opts.staff.map(function (z) {
+          var s = stanje[z.ime];
+          var k = [];
+          if (s.odsotnosti.indexOf(iso) !== -1) k.push("odsoten");
+          if (z.prostDanVTednu && z.prostDanVTednu === DNI[wd]) k.push("prostDan");
+          if (z.samoMedTednom && isVikend) k.push("vikend");
+          if (s.zadnje && diffDays(d, s.zadnje) < minRazmik) k.push("razmik");
+          if (isVikend && maxVikendMesecno && (s.vikendMesec[mesecKey] || 0) >= 1) k.push("vikendKvota");
+          if (z.maxMesecno != null && (s.mesecStevilo[mesecKey] || 0) >= z.maxMesecno) k.push("maxMesecno");
+          var teza = k.reduce(function (v, ime2) { return v + (KRSITVE_TEZA[ime2] || 1); }, 0);
+          return { z: z, krsitve: k, teza: teza, stevilo: s.stevilo };
+        }).sort(function (a, b) {
+          if (a.teza !== b.teza) return a.teza - b.teza;
+          if (a.stevilo !== b.stevilo) return a.stevilo - b.stevilo;
+          return a.z.ime.localeCompare(b.z.ime);
+        });
+        if (!oceneVsi.length) {
+          razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: null });
+          continue;
+        }
+        var sila = oceneVsi[0];
+        opozorila.push({ datum: iso, sporocilo: "Nihče ne izpolnjuje vseh pogojev. Predlagan je "
+          + sila.z.ime + " – krši: "
+          + sila.krsitve.map(function (k) { return KRSITVE_OPIS[k] || k; }).join(", ")
+          + ". Preveri in po potrebi zamenjaj." });
+        stanje[sila.z.ime].stevilo += 1;
+        stanje[sila.z.ime].zadnje = new Date(d.getTime());
+        stanje[sila.z.ime].mesecStevilo[mesecKey] = (stanje[sila.z.ime].mesecStevilo[mesecKey] || 0) + 1;
+        if (isVikend) stanje[sila.z.ime].vikendMesec[mesecKey] = (stanje[sila.z.ime].vikendMesec[mesecKey] || 0) + 1;
+        razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: sila.z.ime, sila: true });
         continue;
       }
 
@@ -292,12 +435,24 @@
       })
       .sort(function (a, b) { return b.novih - a.novih; });
 
+    // Kršitve se pripnejo prek preveriDezurstva - iste funkcije, ki jo
+    // uporablja ročno urejanje na zaslonu. Tako generator in zaslon o istem
+    // dnevu nikoli ne trdita vsak svoje.
+    var preverba = {};
+    preveriDezurstva({
+      razpored: razpored, staff: opts.staff,
+      minRazmikDni: minRazmik, maxVikendMesecno: maxVikendMesecno,
+    }).forEach(function (r) { preverba[r.datum] = r.krsitve; });
+    razpored.forEach(function (r) { r.krsitve = preverba[r.datum] || []; });
+
     return { razpored: razpored, opozorila: opozorila, stanje: stanjeOb, prostiDnevi: prostiDnevi };
   }
 
   var Generator = {
     generirajKalup: generirajKalup,
     generirajDezurstva: generirajDezurstva,
+    preveriDezurstva: preveriDezurstva,
+    KRSITVE_OPIS: KRSITVE_OPIS,
     util: { toDate: toDate, fromDate: fromDate, addDays: addDays, mondayOfWeek: mondayOfWeek, weekdayMon0: weekdayMon0, diffDays: diffDays },
   };
 
