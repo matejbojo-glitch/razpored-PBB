@@ -478,7 +478,12 @@
 //      obstajale, a Imenik parametra ni prebral.
 // Poleg tega je delovišče v "Moj razpored" zdaj v oklepaju: "Dopoldne (MO)".
 
-const CACHE = 'razpored-pbb-v93';
+// v94: klik na ime odpre profil tudi v Generatorju (Kalup, Dežurstva) in
+// v Menjavi. Tam v podatkih ni bilo identifikatorja - oddelčni seznam ga
+// zdaj prinese, dežurni kader prav tako, Kalup pa ga poišče nazaj po
+// imenu (generator ID-ja ne prenaša skozi).
+
+const CACHE = 'razpored-pbb-v94';
 const ASSETS = [
   './',
   './index.html',

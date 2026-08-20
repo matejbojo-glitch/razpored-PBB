@@ -121,6 +121,23 @@ console.log("5) Klik na ime odpre profil");
   trdi(zPovezavo.length >= 4, `povezave na profil so na ${zPovezavo.length} straneh (${zPovezavo.join(", ")})`);
   trdi(/href=\{"imenik\.html\?id=" \+ o\.id\}/.test(imenik),
     "tudi ime v Razpredelnici je povezava na profil");
+
+  // Kalup in Menjava: tam v podatkih ni bilo identifikatorja, zato sta
+  // bili imeni doslej navadno besedilo.
+  const admin = readFileSync(join(koren, "admin.html"), "utf8");
+  trdi(/function ImeOsebe\(/.test(admin), "Generator ima skupno oznako imena kot povezave");
+  trdi(/select\("id, full_name, rotation_slot"\)/.test(admin),
+    "oddelčni seznam prinese tudi id (prej ga ni)");
+  trdi(/<ImeOsebe id=\{idPoImenu\[z\.ime\]\}/.test(admin), "mreža Kalupa: ime je povezava");
+  trdi((admin.match(/<ImeOsebe id=\{z\.id\}/g) || []).length >= 2,
+    "dežurstva (pravičnost in seznam): ime je povezava");
+  // Kjer ID-ja ni, povezave ne sme biti - sicer bi peljala nikamor.
+  trdi(/if \(!id\) return <React\.Fragment>/.test(admin),
+    "brez id-ja ostane navadno besedilo");
+
+  const obrazec = readFileSync(join(koren, "obrazec.html"), "utf8");
+  trdi(/href=\{"imenik\.html\?id=" \+ k\.profile_id\}/.test(obrazec),
+    "Menjava: ime sodelavca je povezava");
 }
 
 console.log("6) Moj razpored: delovišče je v isti vrstici, v oklepaju");
