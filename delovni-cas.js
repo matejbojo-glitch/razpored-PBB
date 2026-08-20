@@ -48,6 +48,15 @@
     // (admin.html -> NZV). Doslej je bila med NI_DELO in ni štela v ure -
     // na uporabnikovo izrecno odločitev odslej šteje.
     "PRISOTEN":         { zacetek: "07:00", konec: "15:00", ure: 8,          nocna: false },
+    // Ista izmena, nov zapis (velika začetnica, kot v uradni legendi).
+    // Generator odslej ustvarja te, v bazi in v preglednicah pa so še
+    // stari zapisi - zato morata delovati OBA. Ključ se normalizira z
+    // male-črke-brez-presledkov, zato "Nočna 12" in "Dnevna 12" že sama
+    // padeta na "NOČNA12"/"DNEVNA12" in ju tu ni treba naštevati.
+    "Dopoldne":         { zacetek: "05:50", konec: "14:00", ure: 8 + 10/60,  nocna: false },
+    "Popoldne":         { zacetek: "13:50", konec: "21:00", ure: 7 + 10/60,  nocna: false },
+    "Popoldne do 19":   { zacetek: "13:50", konec: "19:00", ure: 5 + 10/60,  nocna: false },
+    "Popoldne do 19h":  { zacetek: "13:50", konec: "19:00", ure: 5 + 10/60,  nocna: false },
   };
 
   // Kode, ki NISO delo (odsotnost/prosto) – ne štejejo v počitek niti v ure.

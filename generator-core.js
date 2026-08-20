@@ -38,18 +38,23 @@
   //    Ista pravila, ki smo jih uporabili za generiranje oktobra 2026.
   // ---------------------------------------------------------------------
   var CYCLE = ["A", "B", "C", "D", "E"];
+  // Zapis izmen je enak kot v uradni legendi (izmene.js): velika začetnica,
+  // brez verzalk. Prej je kalup ustvarjal "dopoldan"/"NOČNA", uporabnik pa
+  // je videl dve različni pisavi na istem zaslonu. Odjemalci (delovni-cas.js,
+  // dashboard-core.js, admin.html) sprejemajo OBE pisavi, zato stari
+  // razporedi v bazi in v preglednicah delujejo naprej nespremenjeno.
   var PAT = {
-    A: ["KPU", "KPU", "popoldan", "popoldan", "popoldan do 19", "DNEVNA12", "DNEVNA12"],
-    B: ["NOČNA", "NOČNA", "NOČNA", "KPU", "KPU", "", ""],
+    A: ["KPU", "KPU", "Popoldne", "Popoldne", "Popoldne do 19", "Dnevna 12", "Dnevna 12"],
+    B: ["Nočna", "Nočna", "Nočna", "KPU", "KPU", "", ""],
     C: ["LD", "LD", "LD", "LD", "LD", "", ""],
-    D: ["dopoldan", "dopoldan", "dopoldan", "NOČNA", "NOČNA od 19", "", ""],
-    E: ["popoldan", "popoldan", "KPU", "dopoldan", "dopoldan", "NOČNA12", "NOČNA12"],
+    D: ["Dopoldne", "Dopoldne", "Dopoldne", "Nočna", "Nočna od 19", "", ""],
+    E: ["Popoldne", "Popoldne", "KPU", "Dopoldne", "Dopoldne", "Nočna 12", "Nočna 12"],
   };
   function withH(pat) {
     var out = {};
     Object.keys(pat).forEach(function (k) {
       out[k] = pat[k].map(function (x) {
-        return x.replace("popoldan do 19", "popoldan do 19h").replace("NOČNA od 19", "NOČNA od 19h");
+        return x.replace("Popoldne do 19", "Popoldne do 19h").replace("Nočna od 19", "Nočna od 19h");
       });
     });
     return out;
