@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus nzvPrikaz() (index.html) — pravila delovnika NZV
+/* Preizkus nzvPrikaz() (index.html) – pravila delovnika NZV
  * (vodje/administratorji) v pogledu "Moj razpored".
  *
  * Uporabnik je pravilo večkrat izrecno ponovil, prikaz pa ga ni upošteval:
@@ -42,7 +42,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`));
 }
 
 const sandbox = { console, window: {} };
@@ -70,7 +70,7 @@ console.log("2) NZV vikend: dežurstvo je SAMO dežurstvo (07:00-07:00, brez lo�
   eq(nzvPrikaz("DEŽURSTVO", "NE", NZV), "DEŽURSTVO", "nedelja z dežurstvom");
 }
 
-console.log("3) NZV vikend brez dežurstva je PROST — tudi če je v podatkih PRISOTEN ali LD");
+console.log("3) NZV vikend brez dežurstva je PROST – tudi če je v podatkih PRISOTEN ali LD");
 {
   // Natanko primera s posnetka zaslona uporabnika (avgust 2026).
   eq(nzvPrikaz("LD", "SO", NZV), "", "1.8. sobota je kazala 'LD' -> mora biti prosto");
@@ -86,7 +86,7 @@ console.log("4) NZV med tednom ostane nespremenjen");
   eq(nzvPrikaz("", "PO", NZV), "", "prazen delovni dan ostane prazen");
 }
 
-console.log("5) ODDELČNI kader se pravila NE dotakne — vikende dela normalno");
+console.log("5) ODDELČNI kader se pravila NE dotakne – vikende dela normalno");
 {
   eq(nzvPrikaz("dopoldan", "SO", ODDELEK), "dopoldan", "sobota dopoldan ostane");
   eq(nzvPrikaz("DNEVNA12", "NE", ODDELEK), "DNEVNA12", "nedeljska 12-urna ostane");
@@ -144,5 +144,5 @@ console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

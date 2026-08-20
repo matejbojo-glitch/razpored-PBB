@@ -7,7 +7,7 @@
  * dela na svoji enoti.
  *
  * Preverjamo pravilo (window.NzvZasedba.stalnaZasedba) natanko tako, kot
- * ga uporablja MyScheduleView in izvoz — vključno s tem, kar se NE sme
+ * ga uporablja MyScheduleView in izvoz – vključno s tem, kar se NE sme
  * zgoditi: objavljena izmena, dežurstvo in dopust se nikoli ne prepišejo.
  *
  * Zagon: node skripte/preveri-moj-razpored-nzv.mjs
@@ -26,7 +26,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const sandbox = { console };
@@ -75,15 +75,15 @@ function mojRazpored(objavljeni, nosilec = NOSILEC, datumi = SEPTEMBER) {
   return m;
 }
 
-console.log("1) Vodja ima izpolnjen vsak delovni dan — prej so bili prazni");
+console.log("1) Vodja ima izpolnjen vsak delovni dan – prej so bili prazni");
 {
   const m = mojRazpored({});
   const delovni = SEPTEMBER.filter(d => !sandbox.window.Prazniki.jeDelaProstDan(d));
   const manjka = delovni.filter(d => !m[d]);
   trdi(manjka.length === 0, `vseh ${delovni.length} delovnih dni septembra je izpolnjenih`
-    + (manjka.length ? ` — manjkajo ${manjka.join(", ")}` : ""));
+    + (manjka.length ? ` – manjkajo ${manjka.join(", ")}` : ""));
   eq(m["2026-09-01"], "PRISOTEN", "1.9. (torek)");
-  eq(m["2026-09-30"], "PRISOTEN", "30.9. (sreda) — do konca meseca");
+  eq(m["2026-09-30"], "PRISOTEN", "30.9. (sreda) – do konca meseca");
 }
 
 console.log("2) Vikend in dela prost praznik ostaneta prazna");

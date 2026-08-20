@@ -3,7 +3,7 @@
  *
  * Zakaj obstaja: isti štirje računi (zadnji dan v mesecu, sestava ISO
  * datuma, obseg meseca, seznam dni) so bili napisani posebej v
- * index.html, admin.html, zelje.html in imenik.html — ponekod v lokalnem
+ * index.html, admin.html, zelje.html in imenik.html – ponekod v lokalnem
  * času, drugod v UTC, z dvema različnima naboroma kratic za dneve.
  *
  * Izidi so BILI enaki, a nič ni jamčilo, da tako ostane. Ker gre za
@@ -26,7 +26,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const sandbox = { console };
@@ -36,7 +36,7 @@ vm.runInContext(readFileSync(join(koren, "datum.js"), "utf8"), sandbox);
 const D = sandbox.window.Datum;
 
 // ---------------------------------------------------------------------
-// Stare, PODVOJENE različice — prepisane dobesedno, kakršne so bile pred
+// Stare, PODVOJENE različice – prepisane dobesedno, kakršne so bile pred
 // poenotenjem. Služijo samo kot merilo.
 // ---------------------------------------------------------------------
 // index.html
@@ -60,7 +60,7 @@ function daysInRange_index(startISO, endISO) {
   }
   return out;
 }
-// admin.html — pozor: ta je delal v UTC, index.html pa v lokalnem času
+// admin.html – pozor: ta je delal v UTC, index.html pa v lokalnem času
 function monthRange_admin(monthStr) {
   const [y, m] = monthStr.split("-").map(Number);
   const start = `${y}-${String(m).padStart(2, "0")}-01`;
@@ -77,7 +77,7 @@ function isoZaMesec_admin(monthStr, d) {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 const DNI_KRATKO_admin = ["NED", "PON", "TOR", "SRE", "ČET", "PET", "SOB"];
-// zelje.html — pozor: mesec je tu indeks 0-11, ne 1-12
+// zelje.html – pozor: mesec je tu indeks 0-11, ne 1-12
 const DOW_SL_zelje = ["NED", "PON", "TOR", "SRE", "ČET", "PET", "SOB"];
 function danovVMesecu_zelje(y, m) { return new Date(y, m + 1, 0).getDate(); }
 function dowZa_zelje(y, m, d) { return DOW_SL_zelje[new Date(y, m, d).getDay()]; }
@@ -114,7 +114,7 @@ console.log("1) poenotenje NI spremenilo nobenega izida");
   });
   Object.keys(razlike).forEach(k => {
     trdi(razlike[k].length === 0, `${k}: enako kot prej v vseh ${LETA.length} letih`
-      + (razlike[k].length ? ` — razlike: ${razlike[k].slice(0, 4).join(", ")}` : ""));
+      + (razlike[k].length ? ` – razlike: ${razlike[k].slice(0, 4).join(", ")}` : ""));
   });
 }
 

@@ -40,7 +40,7 @@ function psql(sql, { baza = BAZA } = {}) {
 try {
   pg("psql -At -c 'select 1'");
 } catch {
-  console.log("PostgreSQL ni na voljo — preizkus preskočen.");
+  console.log("PostgreSQL ni na voljo – preizkus preskočen.");
   process.exit(0);
 }
 
@@ -156,5 +156,5 @@ console.log("5) varno za ponovni zagon (drugi zagon ne podvoji/pokvari ničesar)
 pg(`dropdb --if-exists ${BAZA}`);
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

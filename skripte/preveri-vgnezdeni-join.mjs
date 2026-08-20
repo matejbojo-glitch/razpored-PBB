@@ -92,7 +92,7 @@ console.log("2) nobena stran ne uporablja dvoumnega vgnezdenega zapisa");
         if (!veckratniMapa.has(kljuc)) continue; // ena sama povezava - namig ni potreben
         preverjenih++;
         trdi(!!namig,
-          `${ime}:~${vrstica} — "${cilj}(...)" nad "${tabela}" (${veckratniMapa.get(kljuc).join(", ")}) ${namig ? "ima" : "NIMA"} namig`);
+          `${ime}:~${vrstica} – "${cilj}(...)" nad "${tabela}" (${veckratniMapa.get(kljuc).join(", ")}) ${namig ? "ima" : "NIMA"} namig`);
       }
     }
   });
@@ -100,5 +100,5 @@ console.log("2) nobena stran ne uporablja dvoumnega vgnezdenega zapisa");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

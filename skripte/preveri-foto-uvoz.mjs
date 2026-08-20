@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------
 // Preveri branje razpredelnice želja s FOTOGRAFIJE (zelje.html).
 //
-// Test funkcij NE podvaja — izlušči jih iz zelje.html in požene tiste, ki
+// Test funkcij NE podvaja – izlušči jih iz zelje.html in požene tiste, ki
 // so v aplikaciji. Tako se preizkus ne more tiho razíti s kodo.
 //
 // Preizkusna slika se nariše v brskalniku: mreža znanih barv + fotografski

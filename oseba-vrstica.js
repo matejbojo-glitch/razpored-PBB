@@ -1,4 +1,4 @@
-/* Razpored PBB — oseba-vrstica.js
+/* Razpored PBB – oseba-vrstica.js
  * Skupna vrstica seznama zaposlenih, uporabljena povsod, kjer se našteva
  * ljudi (Imenik, Admin → Uporabniki). Namesto da bi vsaka stran po svoje
  * risala ime + značko + oddelke, je vzorec en sam:
@@ -10,11 +10,11 @@
  * Zakaj sta to dva LOČENA gumba in ne en sam z ustavljenim dogodkom:
  * gnezden <button> v <button> ni veljaven HTML (brskalnik ga razdre, s tem
  * pa se izgubi tudi tipkovnična dostopnost). Zato je glava vrstice tri
- * gumbe v vrsti — pika, ime, preostanek s puščico — pri čemer ime pokriva
+ * gumbe v vrsti – pika, ime, preostanek s puščico – pri čemer ime pokriva
  * natanko svoje besedilo, preostali (raztegljivi) gumb pa vse ostalo.
  *
  * Brez JSX (navaden React.createElement), da se datoteka naloži kot <script>
- * pred babel skriptami posamezne strani — enako kot export-buttons.js.
+ * pred babel skriptami posamezne strani – enako kot export-buttons.js.
  */
 (function (root) {
   "use strict";
@@ -33,7 +33,7 @@
       " cursor:pointer; min-height:46px; display:flex; align-items:center; }" +
       ".ovPika{ flex:0 0 auto; }" +
       ".ovDot{ width:10px; height:10px; border-radius:50%; background:var(--off); display:block; }" +
-      // Barve statusa prisotnosti — iste kode, kot jih vrne
+      // Barve statusa prisotnosti – iste kode, kot jih vrne
       // statusPrisotnosti() v imenik.html, in ista legenda na vrhu strani.
       ".ovDot.delo{ background: var(--ok); }" +
       ".ovDot.dopust{ background: var(--ld); }" +
@@ -43,7 +43,7 @@
       ".ovIme{ flex:0 1 auto; min-width:0; font-weight:700; font-size:14.5px; text-align:left;" +
       " overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }" +
       ".ovIme:hover{ color:var(--accent-2); }" +
-      // Raztegljiv "preostanek" vrstice — to je tisto "okolje", ki razpre
+      // Raztegljiv "preostanek" vrstice – to je tisto "okolje", ki razpre
       // osnovne podatke. flex:1 poskrbi, da pokrije vso prazno širino tudi
       // pri kratkih imenih.
       ".ovOstalo{ flex:1 1 auto; justify-content:flex-end; color:var(--muted); font-size:14px; }" +
@@ -60,13 +60,13 @@
   }
 
   /* props:
-   *   ime          — prikazano ime (klik nanj odpre celoten zapis)
-   *   naProfil     — funkcija za klik na ime; če je ni, ime ni klikljivo
-   *   pikaRazred    — dodaten razred barvne pike (status prisotnosti)
-   *   pikaNaziv     — title pike
-   *   znacka        — neobvezen React element desno od imena tudi strnjeno
+   *   ime          – prikazano ime (klik nanj odpre celoten zapis)
+   *   naProfil     – funkcija za klik na ime; če je ni, ime ni klikljivo
+   *   pikaRazred    – dodaten razred barvne pike (status prisotnosti)
+   *   pikaNaziv     – title pike
+   *   znacka        – neobvezen React element desno od imena tudi strnjeno
    *                   (npr. "še ni registriran"); privzeto nič
-   *   otroci        — vsebina, ki se pokaže ob razprtju (osnovni podatki)
+   *   otroci        – vsebina, ki se pokaže ob razprtju (osnovni podatki)
    */
   function OsebaVrstica(props) {
     ensureStyle();

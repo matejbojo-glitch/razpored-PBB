@@ -1,5 +1,5 @@
 -- =====================================================================
--- 2. KORAK — popravki baze in trajen izbris štirih zaposlenih
+-- 2. KORAK – popravki baze in trajen izbris štirih zaposlenih
 -- =====================================================================
 -- Kopiraj CELOTNO datoteko, prilepi v Supabase → SQL Editor in klikni Run.
 -- Vse spodaj je ena sama serija ukazov v pravem vrstnem redu; teči mora od
@@ -9,7 +9,7 @@
 -- popoln. Če vrne kakšno vrstico, tam piše, kje je ime še ostalo.
 --
 -- Pred tem poženi 1. korak (supabase/1-PREGLED-KDO-BO-IZBRISAN.sql) in
--- preveri seznam — izbris je dokončen in podatkov ni mogoče povrniti.
+-- preveri seznam – izbris je dokončen in podatkov ni mogoče povrniti.
 --
 -- Datoteka vsebuje tri stvari, v tem vrstnem redu:
 --   A) manjkajoč stolpec schedule_entries.created_at,
@@ -42,7 +42,7 @@ begin
   else
     new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
     -- Avtorja prve objave ohrani (upsert iz aplikacije pošlje prazno polje
-    -- in bi ga sicer izbrisal) — RAZEN kadar ga prav zdaj prazni baza sama,
+    -- in bi ga sicer izbrisal) – RAZEN kadar ga prav zdaj prazni baza sama,
     -- ker je bil avtorjev račun izbrisan ("on delete set null", odsek 30).
     -- Takrat old.created_by kaže na profil, ki ne obstaja več; če ga vrnemo,
     -- v vrstici ostane viseča povezava na neobstoječo osebo.
@@ -58,7 +58,7 @@ end;
 $$;
 
 -- Kdo je vnesel/odobril, ni lastništvo, ampak sled. Ko oseba zapusti
--- bolnišnico in se njen račun izbriše, mora zapis ostati — samo brez
+-- bolnišnico in se njen račun izbriše, mora zapis ostati – samo brez
 -- avtorja. Brez "on delete set null" te povezave izbris ustavijo, sprožilec
 -- schedule_entries_touch pa poleg tega ob UPDATE avtorja vrne na staro
 -- vrednost, tako da polja ni mogoče niti ročno izprazniti.
@@ -91,7 +91,7 @@ end $$;
 -- ---------------------------------------------------------------------
 -- C) Izbris
 -- ---------------------------------------------------------------------
--- 1) Menjave — requester_id/target_id sta NOT NULL brez kaskade, zato se
+-- 1) Menjave – requester_id/target_id sta NOT NULL brez kaskade, zato se
 --    take menjave izbrišejo. Kjer je oseba nastopala samo kot odobritelj
 --    (vodja/admin), se polje izprazni: menjava dveh drugih ljudi mora
 --    ostati v zgodovini.
@@ -127,7 +127,7 @@ select 'menjave brez odobritelja', (select count(*) from sproscene);
 
 
 -- ---------------------------------------------------------------------
--- 2) Obrazci — vlagatelj_id/sodelavec_id sta "on delete restrict".
+-- 2) Obrazci – vlagatelj_id/sodelavec_id sta "on delete restrict".
 --    obrazci_dnevnik se pobriše sam (kaskada z obrazca).
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
@@ -152,9 +152,9 @@ select 'obrazci izbrisani' as kaj, (select count(*) from zbrisani) as podrobnost
 
 
 -- ---------------------------------------------------------------------
--- 3) Vrstice, vezane na IME in ne na id — brez tega oseba še naprej visi
+-- 3) Vrstice, vezane na IME in ne na id – brez tega oseba še naprej visi
 --    v Željah, v razpredelnici dopustov in med uvoženimi vizitkami.
---    (Dnevnik dopusta se počisti šele v ukazu 7 — sprožilec ga tu sproti
+--    (Dnevnik dopusta se počisti šele v ukazu 7 – sprožilec ga tu sproti
 --    znova napolni.)
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
@@ -204,7 +204,7 @@ union all select 'uvožene vizitke', (select count(*) from e);
 
 -- ---------------------------------------------------------------------
 -- 4) Razpored osebe. Vnose izbrišemo tu izrecno (in ne šele s kaskado v
---    ukazu 6), da sprožilec dnevnika razporeda naredi svoje ZDAJ — ukaz 6
+--    ukazu 6), da sprožilec dnevnika razporeda naredi svoje ZDAJ – ukaz 6
 --    potem nima več česa zabeležiti. Avtorstva ni treba prazniti ročno:
 --    povezave "kdo je vnesel/odobril" so po odseku 30 sheme "set null".
 -- ---------------------------------------------------------------------
@@ -233,7 +233,7 @@ union all select 'osebe brez tega vodje', (select count(*) from b);
 
 
 -- ---------------------------------------------------------------------
--- 5) Dnevnik razporeda za to osebo — zdaj, ko profil še obstaja in je
+-- 5) Dnevnik razporeda za to osebo – zdaj, ko profil še obstaja in je
 --    id še mogoče poiskati (po ukazu 6 tega ni več mogoče).
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
@@ -283,7 +283,7 @@ select 'računi izbrisani' as kaj, (select count(*) from zbrisani) as podrobnost
 -- ---------------------------------------------------------------------
 -- 7) Sledi, ki jih je pustil sam izbris. Sprožilca log_leave_entry_change
 --    in profiles_audit sta ob ukazih 3 in 6 zapisala novo vrstico z imenom
---    izbrisane osebe — brez tega ukaza ime ostane v dnevniku.
+--    izbrisane osebe – brez tega ukaza ime ostane v dnevniku.
 --    Tu se ujema SAMO po imenu, ker profilov (in id-jev) ni več.
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
@@ -308,7 +308,7 @@ union all select 'dnevnik profilov', (select count(*) from b);
 
 
 -- ---------------------------------------------------------------------
--- 8) PREVERBA — mora vrniti nič vrstic.
+-- 8) PREVERBA – mora vrniti nič vrstic.
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
   ('alenka.zaplotnik@pb-begunje.si', 'Zaplotnik Alenka'),

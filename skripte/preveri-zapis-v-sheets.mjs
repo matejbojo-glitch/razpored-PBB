@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/* Preizkus pripraviPosodobitveOddelka() (index.html) — funkcije, ki za
+/* Preizkus pripraviPosodobitveOddelka() (index.html) – funkcije, ki za
  * "Zapiši nazaj v Sheets" izračuna TOČNO katera (vrstica, stolpec) v
  * obstoječem Google Sheets listu ustreza kateri (oseba, datum) v aplikaciji.
  *
  * Zakaj je ta preizkus nujen PRED prvo uporabo na pravem dokumentu: funkcija
  * piše naravnost v admin-ov ročno voden, podpisan dokument (glej
- * zapisiVObstojeciList v gsheets-client.js) — napačna vrstica ali stolpec bi
+ * zapisiVObstojeciList v gsheets-client.js) – napačna vrstica ali stolpec bi
  * tiho prepisala TUJO celico (drugo osebo/drug dan), ne da bi kdorkoli to
  * takoj opazil. Ker v tem okolju ni dostopa do prave Google Sheets datoteke
  * (omrežna politika), je edini način preverjanja pravilnosti izračuna
@@ -49,7 +49,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const koda = [
@@ -130,7 +130,7 @@ const byEmpDate = {
   "dzinic|2026-07-01": "dopoldan", "djedovic|2026-07-01": "prosto naj se ne zapiše",
 };
 
-console.log("1) junijski blok — koordinate za znane osebe");
+console.log("1) junijski blok – koordinate za znane osebe");
 {
   const { posodobitve, najdenDatum, najdenaGlava, neujemanja } =
     pripraviPosodobitveOddelka(vrsteVrstic, "2026-06", zaposleni, byEmpDate);
@@ -148,7 +148,7 @@ console.log("1) junijski blok — koordinate za znane osebe");
   trdi(neujemanja.size === 0, "vsa imena v juniju se ujemajo z znanimi osebami");
 }
 
-console.log("2) julijski blok — DRUG nabor ljudi, svoja glava");
+console.log("2) julijski blok – DRUG nabor ljudi, svoja glava");
 {
   const { posodobitve, neujemanja } = pripraviPosodobitveOddelka(vrsteVrstic, "2026-07", zaposleni, byEmpDate);
   // DJEDOVIĆ M. je v juliju 4. stolpec (E, indeks 5), v juniju ga sploh ni bilo.
@@ -166,5 +166,5 @@ console.log("3) oseba, ki v listu nima svojega stolpca");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

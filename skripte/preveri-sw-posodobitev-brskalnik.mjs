@@ -1,27 +1,27 @@
 #!/usr/bin/env node
 /* Preizkus V PRAVEM BRSKALNIKU: ali nova različica aplikacije res pride
- * do odprte strani — brez ročnega osveževanja.
+ * do odprte strani – brez ročnega osveževanja.
  *
  * Zakaj poleg preveri-nova-razlicica.mjs: tisti preizkus preverja LOGIKO
  * v nav.js (z lažnim navigator.serviceWorker). Tu pa teče pravi service
  * worker v pravem Chromiumu: namesti se, prevzame nadzor, nato se
- * različica predpomnilnika dvigne — in preverimo, da se stran res sama
+ * različica predpomnilnika dvigne – in preverimo, da se stran res sama
  * osveži IN da se po osvežitvi tudi res naloži do konca. Prav ta pot je
  * bila vzrok, da je uporabnik večkrat poročal "stanje je isto" tudi po
  * objavljeni spremembi.
  *
  * Ta preizkus je odkril dva ločena hrošča, ki ju logični preizkus ni
  * mogel videti:
- *   1. stran se je sicer osvežila, a je nato OBTIČALA na beli — zunanja
+ *   1. stran se je sicer osvežila, a je nato OBTIČALA na beli – zunanja
  *      pisava (fonts.googleapis.com, @import v theme.css) ni odgovorila,
  *      slogovna datoteka pa blokira izvajanje vseh skript za sabo, zato
  *      se nav.js sploh ni izvedel. Popravljeno v sw.js (rok + rezervna
  *      pisava);
  *   2. brez ponovnega obiska (2. korak spodaj) preizkus meri napačno
- *      stvar — ob PRVEM obisku stran namenoma ne osvežuje.
+ *      stvar – ob PRVEM obisku stran namenoma ne osvežuje.
  *
  * Strežemo z lokalnega strežnika (127.0.0.1), ker service worker v
- * brskalniku deluje samo v varnem kontekstu — file:// ne zadošča.
+ * brskalniku deluje samo v varnem kontekstu – file:// ne zadošča.
  *
  * Zagon: node skripte/preveri-sw-posodobitev-brskalnik.mjs
  *        (CHROMIUM_PATH=... če Chromium ni na privzeti poti)

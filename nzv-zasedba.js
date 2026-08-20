@@ -1,4 +1,4 @@
-/* Stalna zasedba NZV — EN SAM VIR pravila.
+/* Stalna zasedba NZV – EN SAM VIR pravila.
  *
  * Za vodje in administratorje se dnevni razpored ne objavlja: njihova
  * enota je stalna in zapisana v lead_departments.enote. Zato se njihova
@@ -7,10 +7,10 @@
  *   - index.html  → Po oddelkih → NZV  (dnevi × enote)
  *   - imenik.html → Razpredelnica      (osebe × dnevi)
  *
- * Prej je bilo napisano posebej na vsakem — in vsakič je kje manjkalo:
+ * Prej je bilo napisano posebej na vsakem – in vsakič je kje manjkalo:
  * v NZV mreži so bili prazni stolpci enot, v Razpredelnici pa cele
  * vrstice ljudi brez enega samega vnosa. Enaka zgodba kot pri delovniku
- * (glej prazniki.js) — dokler je pravilo razpršeno, bo vedno kje ušlo.
+ * (glej prazniki.js) – dokler je pravilo razpršeno, bo vedno kje ušlo.
  *
  * Odvisnost: prazniki.js (delovni dan) mora biti naložen prej.
  */
@@ -65,7 +65,7 @@ window.NzvZasedba = (function () {
 
   // --- Enote nosilca ---------------------------------------------------
   // Uradna predloga zapisuje enote kot prosto besedilo ("C/C1", "UA/SA",
-  // "B1/SOB/NOB") — glej supabase/nzv-nosilci-oddelkov.sql.
+  // "B1/SOB/NOB") – glej supabase/nzv-nosilci-oddelkov.sql.
   // Pozor: "SOB" iz zapisa "B1/SOB/NOB" NI enota SOBO. To je bila napačna
   // domneva, zaradi katere sta se Mavri Tratnik in Šubic prikazovala v
   // stolpcu SOBO, kjer nimata kaj iskati - nosilka SOBO je Velušček Metka
@@ -73,7 +73,7 @@ window.NzvZasedba = (function () {
   // "SOB" in "NOB", se kot neznani oznaki tiho preskočita.
   var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "B1": "B1B2", "B2": "B1B2" };
 
-  // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) — oznaka
+  // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) – oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v
   // dopoldanskem IN popoldanskem stolpcu, česar v resnici ni.
   // "veljavne" je nabor kod, ki v mreži res obstajajo; neznana oznaka
@@ -92,14 +92,14 @@ window.NzvZasedba = (function () {
 
   // --- Odsotnost -------------------------------------------------------
   // Daljša odsotnost je zapisana pri nosilcu samem (odsotnost_tip +
-  // odsotnost_do), ne po posameznih dnevih v leave_entries — npr.
+  // odsotnost_do), ne po posameznih dnevih v leave_entries – npr.
   // porodniška do julija 2027. Brez "do" velja odprto naprej.
   function trajnoOdsoten(zapisNosilca, datum) {
     var v = zapisNosilca;
     return !!(v && v.odsotnost_tip && (!v.odsotnost_do || datum <= v.odsotnost_do));
   }
 
-  // Uradna kratica za daljšo odsotnost — da vrstica v Razpredelnici ne
+  // Uradna kratica za daljšo odsotnost – da vrstica v Razpredelnici ne
   // ostane prazna, ampak pove, ZAKAJ je oseba odsotna. Namenoma samo
   // znani vrsti; neznane vrste raje ne ugibamo.
   function dolgaOdsotnostKratica(tip) {
@@ -114,7 +114,7 @@ window.NzvZasedba = (function () {
   // "PON-PET 07:00-15:00").
   var IZMENA_PRISOTEN = "PRISOTEN";
 
-  // Stalna zasedba ene osebe čez dano obdobje — kaj bi imel nosilec enote
+  // Stalna zasedba ene osebe čez dano obdobje – kaj bi imel nosilec enote
   // na posamezen dan, če ni objavljenega vnosa. Vrne SAMO dopolnitve;
   // kam in kako se vpišejo, je stvar klicatelja, ker vsak od treh
   // zaslonov riše drugače (šifra izmene, celica z barvo, parafa).

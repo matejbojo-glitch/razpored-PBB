@@ -79,7 +79,7 @@ for (const stran of ["index.html","imenik.html","admin.html","zelje.html"]) {
   const ok = moduli.Imena === "object" && moduli.Prazniki === "object" && moduli.ujem === true
     && moduli.praznik === true && relevantne.length === 0
     && (!rabiIzmene || (moduli.Izmene === "object" && moduli.barvaNocne === "#2F4785"));
-  console.log((ok?"  ✓ ":"  ✗ ") + stran + " [" + url.split("/").pop() + "] — " + JSON.stringify(moduli) + (relevantne.length ? " NAPAKE: " + relevantne.join(" | ") : ""));
+  console.log((ok?"  ✓ ":"  ✗ ") + stran + " [" + url.split("/").pop() + "] – " + JSON.stringify(moduli) + (relevantne.length ? " NAPAKE: " + relevantne.join(" | ") : ""));
   if (!ok) napake++;
   await pg.close();
 }

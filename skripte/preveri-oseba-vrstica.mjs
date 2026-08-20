@@ -116,7 +116,7 @@ await brskalnik.close();
 
 console.log("");
 if (napake.length) {
-  console.log("NEUSPEŠNO — " + napake.length + " napak");
+  console.log("NEUSPEŠNO – " + napake.length + " napak");
   process.exit(1);
 }
 console.log("VSE V REDU");

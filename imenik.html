@@ -16,12 +16,11 @@
       media="print" onload="this.media='all'" />
 
 <style>
-  :root{
-    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
-    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
-    --danger: #B3402A; --danger-bg: #FBEAE6; --ok: #4C8C63; --ok-bg: #EAF3EC;
-    --radius: 16px; --radius-sm: 10px;
-  }
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
     margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
@@ -54,7 +53,7 @@
 
   /* width/box-sizing sta nujna, ne okrasna: vrstice seznama so <button>,
      ta pa se privzeto oži po vsebini (width:auto = shrink-to-fit) tudi kot
-     display:flex. Brez tega je bila vsaka vrstica druge širine — desni
+     display:flex. Brez tega je bila vsaka vrstica druge širine – desni
      robovi so se lomili v "stopnice", ker je širina sledila dolžini imena
      in števila oddelkov. */
   .person{ display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);
@@ -116,20 +115,20 @@
 const { useState, useEffect, useMemo, useRef } = React;
 const { client } = RazporedAuth;
 
-// Oddelki za kreiranje/generiranje razporeda — na izrecno željo omejeno na
+// Oddelki za kreiranje/generiranje razporeda – na izrecno željo omejeno na
 // natanko teh 8 (B/C/C1/D/E1/E2/FLEXI za vlogo "user", NZV za vlogo
 // "vodja"/"admin", glej admin.html/zelje.html). Stare kode (DEZ, NEDEZ,
 // PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA, U2) ostanejo v bazi
 // (schedule_entries jih zgodovinsko referencira), samo tu se jih ne ponuja
-// več za NOVO dodeljevanje — obstoječi profili s staro kodo ostanejo
+// več za NOVO dodeljevanje – obstoječi profili s staro kodo ostanejo
 // nedotaknjeni, dokler jih admin ročno ne popravi spodaj.
 const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
-// "DEZ" ni oddelek, ampak ČLANSTVO v dežurnem krogu — nosi ga lahko kdor
+// "DEZ" ni oddelek, ampak ČLANSTVO v dežurnem krogu – nosi ga lahko kdor
 // koli poleg svojega domačega oddelka. Zato ga zgornji seznam namenoma ne
 // vsebuje, dodeljiv pa mora ostati: admin.html (Dežurstva) bere članstvo
 // prav iz njega, in ko je bil izbirnik omejen na 8 kod, dežurnega kadra ni
-// bilo več mogoče nikjer dodati — na seznamu so ostali samo tisti, ki so
+// bilo več mogoče nikjer dodati – na seznamu so ostali samo tisti, ki so
 // kodo nosili od prej. NZV ga ne more nadomestiti: NZV so vsi vodje in
 // administratorji, dežurstvo pa jih opravlja le del.
 const CLANSTVO_ODDELKI = ["DEZ"];
@@ -199,7 +198,7 @@ function PhoneRow({ phone }){
 }
 
 // ---------------------------------------------------------------------
-// Iskalno polje + seznam oseb — uporabno tudi kot vgradljiva komponenta
+// Iskalno polje + seznam oseb – uporabno tudi kot vgradljiva komponenta
 // na drugih straneh, če jo bomo kdaj želeli ponovno uporabiti.
 // ---------------------------------------------------------------------
 // Status prisotnosti DANES, izpeljan iz objavljenega razporeda
@@ -234,7 +233,7 @@ function Seznam({ osebe, oddelki, onOdpri }){
   }, []);
 
   const [q, setQ] = useState("");
-  // Oddelčni filter (spustni seznam) — brez njega je seznam vseh ~70+ ljudi
+  // Oddelčni filter (spustni seznam) – brez njega je seznam vseh ~70+ ljudi
   // ena dolga, nerazčlenjena vrsta, ki jo je težko pregledati.
   const [oddelekFiltr, setOddelekFiltr] = useState("");
   const imeOddelka = useMemo(() => {
@@ -334,10 +333,10 @@ function Seznam({ osebe, oddelki, onOdpri }){
 }
 
 // ---------------------------------------------------------------------
-// Admin: ustvari PRAVO prijavo (Auth račun) za novo osebo — takoj se lahko
+// Admin: ustvari PRAVO prijavo (Auth račun) za novo osebo – takoj se lahko
 // prijavi. Ločeno od "Uvoz zaposlenih" spodaj, ki samo doda vrstico v
 // čakalni seznam (contact_imports) do trenutka, ko se oseba SAMA
-// registrira prek login.html — to tu naredi prijavo namesto nje, prek
+// registrira prek login.html – to tu naredi prijavo namesto nje, prek
 // Edge Function "admin-uporabnik" (potrebuje service_role ključ, ki ga
 // brskalnik nikoli ne sme imeti neposredno, glej UPORABNIKI-SETUP.md).
 // ---------------------------------------------------------------------
@@ -365,7 +364,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
       });
       if (error) {
         let sporocilo = error.message || String(error);
-        // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) —
+        // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) –
         // brez tega bi uporabnik videl samo generično "non-2xx status code".
         if (error.context && typeof error.context.json === "function") {
           try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
@@ -386,7 +385,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
     <div className="no-print">
       <h2 className="section">Dodaj uporabnika (nova prijava)</h2>
       <p className="hint" style={{marginTop:0}}>
-        Takoj ustvari pravo prijavo (e-pošta + začasno geslo) — oseba se lahko prijavi nemudoma, ob prvi
+        Takoj ustvari pravo prijavo (e-pošta + začasno geslo) – oseba se lahko prijavi nemudoma, ob prvi
         prijavi pa mora nastaviti svoje geslo. Za dodajanje osebe v imenik BREZ prijave (dokler se ne
         registrira sama) uporabi "Uvoz zaposlenih" spodaj.
       </p>
@@ -395,7 +394,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
           <div className="rowline" style={{flexDirection:"column", alignItems:"stretch", gap:6}}>
             <p className="okMsg" style={{margin:0}}>
               Račun za <b>{ustvarjen.full_name}</b> ({ustvarjen.email}) je ustvarjen. Spodnje geslo je vidno
-              samo zdaj — sporoči ga osebi osebno (ne po e-pošti/klepetu), ob prvi prijavi ga bo morala
+              samo zdaj – sporoči ga osebi osebno (ne po e-pošti/klepetu), ob prvi prijavi ga bo morala
               zamenjati.
             </p>
             <div style={{display:"flex", gap:8, alignItems:"center"}}>
@@ -423,7 +422,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
             <div className="field">
               <label>Oddelek (neobvezno, lahko dodaš tudi kasneje)</label>
               <select value={obrazec.department_code} onChange={e => setObrazec(o => ({...o, department_code:e.target.value}))}>
-                <option value="">— brez —</option>
+                <option value="">– brez –</option>
                 {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
               </select>
             </div>
@@ -459,7 +458,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     location.href = "index.html";
   };
 
-  // Več oddelkov na osebo (profile_departments) — prvi (primarni) je tisti,
+  // Več oddelkov na osebo (profile_departments) – prvi (primarni) je tisti,
   // ki šteje za generator urnika (profiles.department_code, sprožilec v
   // schema.sql ju drži usklajena). Ostali so tu samo informativni/urejljivi.
   const [primarni, setPrimarni] = useState(oseba.department_code || null);
@@ -473,7 +472,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     setOddBusy(true); setOddMsg(null);
     try {
       // Članstvo (DEZ) ne sme postati primarni oddelek niti takrat, ko
-      // oseba še nima nobenega — primarni poganja generator kalupa in
+      // oseba še nima nobenega – primarni poganja generator kalupa in
       // "Enota" v Dežurstvih, dežurstvo pa ni domači oddelek nikogar.
       if (!primarni && !jeClanstvo(novOddelek)) {
         const { error } = await client.from("profiles").update({ department_code: novOddelek }).eq("id", oseba.id);
@@ -520,7 +519,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setOddBusy(false); }
   };
 
-  // Rotacijska črka (A-E) za Kalup generator (admin.html) — samo za 6
+  // Rotacijska črka (A-E) za Kalup generator (admin.html) – samo za 6
   // SMS/TZN oddelkov. Prej trdo kodirano v admin.html WARDS_META, zdaj
   // urejljivo tu (glej supabase/schema.sql profiles.rotation_slot).
   const [rotSlot, setRotSlot] = useState(oseba.rotation_slot || "");
@@ -537,7 +536,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setRotBusy(false); }
   };
 
-  // Neposredni vodja (profiles.vodja_id) — prava FK-povezava na drugo osebo,
+  // Neposredni vodja (profiles.vodja_id) – prava FK-povezava na drugo osebo,
   // ki jo stran Menjava (obrazec.html, "Zahtevek za spremembo evidence
   // delovnega časa in razporeda") uporablja za usmerjanje odobritev. Ločeno
   // od profile_hr_details.manager_name zgoraj, ki je samo prikazno prosto
@@ -563,7 +562,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setVodjaBusy(false); }
   };
 
-  // Koordinator za menjave (profiles.is_koordinator) — kdor ima to zastavico,
+  // Koordinator za menjave (profiles.is_koordinator) – kdor ima to zastavico,
   // sam (in samo on/oni) dokončno potrjuje menjave DEŽURSTVA (glej
   // obrazec.html "Menjava" / obrazec_potrdi_koordinator v schema.sql), ki
   // preskočijo korak vodje. Navadne menjave službe še vedno potrdi kdorkoli
@@ -585,7 +584,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setKoordinatorBusy(false); }
   };
 
-  // Parafa (profiles.parafa) — kratka oznaka (npr. "BOJ"), ki jo stran
+  // Parafa (profiles.parafa) – kratka oznaka (npr. "BOJ"), ki jo stran
   // "Razpored" → NZV prikaže namesto polnega imena v celicah (po vzoru
   // uradne predloge "Letni dopusti in omejitve za NZV"). Na profiles (ne
   // profile_hr_details), ker jo mora videti vsak prijavljen - glej
@@ -686,7 +685,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     setBusy(true); setMsg(null);
     try {
       // department_code ureja spodnji ločen urejevalnik oddelkov (več
-      // oddelkov na osebo) — tu se posodobi samo vloga, da ne prihaja do
+      // oddelkov na osebo) – tu se posodobi samo vloga, da ne prihaja do
       // nasprotujočih si zapisov med tem in "primarni"/"dodaj oddelek".
       const { error: e1 } = await client.from("profiles").update({ role: vloga }).eq("id", oseba.id);
       if (e1) throw e1;
@@ -699,7 +698,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
   };
 
   const odstraniUporabnika = async () => {
-    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na \"Zaposleni\", oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE — samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Za popoln izbris prijave in zgodovine uporabi \"Trajno izbriši uporabnika\" spodaj. Nadaljuj?")) return;
+    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na »Zaposleni«, oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE – samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Za popoln izbris prijave in zgodovine uporabi \"Trajno izbriši uporabnika\" spodaj. Nadaljuj?")) return;
     setBusy(true); setMsg(null);
     try {
       const { error: e1 } = await client.from("contact_phones").delete().eq("profile_id", oseba.id);
@@ -715,21 +714,21 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     finally { setBusy(false); }
   };
 
-  // Pravi, TRAJEN izbris — Auth račun (prijava) izgine, kar prek "on delete
+  // Pravi, TRAJEN izbris – Auth račun (prijava) izgine, kar prek "on delete
   // cascade" (schema.sql) odnese tudi profil in ves njegov razpored/
   // dopuste/želje. Kliče Edge Function "admin-uporabnik" (potrebuje
   // service_role ključ). Za osebo z zgodovino v menjavah/obrazcih (brez
   // kaskade, namerno) funkcija zavrne z jasno napako in usmeri na
-  // supabase/odstrani-zaposlene.sql — to NI hrošč, glej komentar tam.
+  // supabase/odstrani-zaposlene.sql – to NI hrošč, glej komentar tam.
   const [izbrisPotrdi, setIzbrisPotrdi] = useState("");
   const [izbrisBusy, setIzbrisBusy] = useState(false);
   const [izbrisMsg, setIzbrisMsg] = useState(null);
   const izbrisiTrajno = async () => {
     if (izbrisPotrdi.trim() !== oseba.full_name) {
-      setIzbrisMsg({ ok:false, text:"Prepiši ime natančno (\"" + oseba.full_name + "\"), da potrdiš." });
+      setIzbrisMsg({ ok:false, text:"Prepiši ime natančno (»" + oseba.full_name + "«), da potrdiš." });
       return;
     }
-    if (!confirm("TRAJNO izbrišem " + oseba.full_name + " — Auth račun (prijava) in ves njen/njegov razpored, dopuste in želje? Tega NI mogoče razveljaviti.")) return;
+    if (!confirm("TRAJNO izbrišem " + oseba.full_name + " – Auth račun (prijava) in ves njen/njegov razpored, dopuste in želje? Tega NI mogoče razveljaviti.")) return;
     setIzbrisBusy(true); setIzbrisMsg(null);
     try {
       const { error } = await client.functions.invoke("admin-uporabnik", { body: { action:"izbrisi", profile_id: oseba.id } });
@@ -800,7 +799,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             </div>
           )}
           <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
-          <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki — vidni samo tebi (admin) in tej osebi."}</p>
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki – vidni samo tebi (admin) in tej osebi."}</p>
         </div>
       )}
 
@@ -843,9 +842,9 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
           <div className="card no-print">
             <p className="hint" style={{marginTop:0}}>
               Za razliko od zgornjega gumba to POPOLNOMA izbriše prijavo (Auth račun) in ves razpored,
-              dopuste in želje te osebe — <b>tega ni mogoče razveljaviti</b>. Če ima oseba zgodovino menjav
+              dopuste in želje te osebe – <b>tega ni mogoče razveljaviti</b>. Če ima oseba zgodovino menjav
               ali obrazcev, bo izbris zavrnjen (potreben je ročen postopek, glej sporočilo). Za začasno
-              odsotnost ali napako pri vlogi/oddelku uporabi zgornji "Odstrani iz imenika" — tega je mogoče
+              odsotnost ali napako pri vlogi/oddelku uporabi zgornji "Odstrani iz imenika" – tega je mogoče
               popraviti nazaj.
             </p>
             <div className="field">
@@ -861,20 +860,20 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
           <h2 className="section no-print">Ogled kot ta uporabnik (admin)</h2>
           <div className="card no-print">
             <p className="hint" style={{marginTop:0}}>
-              Vidiš aplikacijo natanko tako, kot jo vidi {oseba.full_name} (vloga, oddelek, "moj razpored" itd.) — brez
+              Vidiš aplikacijo natanko tako, kot jo vidi {oseba.full_name} (vloga, oddelek, "moj razpored" itd.) – brez
               poznavanja ali ponastavljanja gesla. Vsak začetek/konec ogleda se zabeleži v revizijsko sled.
             </p>
             <button className="submitBtn" onClick={zacniOgledOsebe} disabled={ogledBusy}>
               {ogledBusy ? "Začenjam …" : ogled ? `👁 Preklopi ogled na ${oseba.full_name}` : `👁 Prijavi se kot ${oseba.full_name}`}
             </button>
-            {ogled && <p className="hint" style={{marginTop:6}}>Trenutno si v ogledu kot druga oseba — s tem gumbom preklopiš neposredno nanjo, brez vmesnega izhoda.</p>}
+            {ogled && <p className="hint" style={{marginTop:6}}>Trenutno si v ogledu kot druga oseba – s tem gumbom preklopiš neposredno nanjo, brez vmesnega izhoda.</p>}
             {ogledMsg && <p className="err">{ogledMsg}</p>}
           </div>
 
-          <h2 className="section no-print">Oddelki (admin) — prvi šteje za generator razporeda</h2>
+          <h2 className="section no-print">Oddelki (admin) – prvi šteje za generator razporeda</h2>
           <div className="card no-print">
             <p className="hint" style={{marginTop:0}}>
-              »Dežurni kader (DMS/DZN)« ni domači oddelek, ampak članstvo v dežurnem krogu — dodajte ga
+              »Dežurni kader (DMS/DZN)« ni domači oddelek, ampak članstvo v dežurnem krogu – dodajte ga
               <b> poleg</b> domačega oddelka. Šele s tem se oseba pojavi v Generator → Dežurstva. Vsi vodje
               (NZV) niso dežurni; dežurstvo opravlja le del njih.
             </p>
@@ -904,13 +903,13 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <h2 className="section no-print">Rotacija za Kalup (admin)</h2>
               <div className="card no-print">
                 <p className="hint" style={{marginTop:0}}>
-                  Izhodiščna črka 5-tedenskega kalupa (A–E) v Kalup generatorju (admin.html) — velja samo za
+                  Izhodiščna črka 5-tedenskega kalupa (A–E) v Kalup generatorju (admin.html) – velja samo za
                   6 SMS/TZN oddelkov. Če ni nastavljena, generator privzame "A" in to označi z ⚠.
                 </p>
                 <div className="field" style={{maxWidth:160}}>
                   <label>Rotacijska črka</label>
                   <select value={rotSlot} onChange={e => setRotSlot(e.target.value)}>
-                    <option value="">— ni nastavljena —</option>
+                    <option value="">– ni nastavljena –</option>
                     {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </div>
@@ -926,12 +925,12 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <div className="card no-print">
                 <p className="hint" style={{marginTop:0}}>
                   Uporablja stran Menjava ("Zahtevek za spremembo evidence delovnega časa in razporeda") za
-                  usmerjanje odobritev — brez tega oseba ne more oddati obrazca.
+                  usmerjanje odobritev – brez tega oseba ne more oddati obrazca.
                 </p>
                 <div className="field">
                   <label>Neposredni vodja</label>
                   <select value={vodjaId} onChange={e => setVodjaId(e.target.value)} disabled={!vsiZaVodjo}>
-                    <option value="">— ni nastavljen —</option>
+                    <option value="">– ni nastavljen –</option>
                     {(vsiZaVodjo || []).map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
                   </select>
                 </div>
@@ -943,7 +942,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
               <div className="card no-print">
                 <p className="hint" style={{marginTop:0}}>
                   Menjave DEŽURSTVA (glej stran "Menjava") preskočijo korak neposrednega vodje in gredo po potrditvi
-                  sodelavca naravnost h koordinatorju — dokončno jih lahko potrdi izključno oseba s to zastavico
+                  sodelavca naravnost h koordinatorju – dokončno jih lahko potrdi izključno oseba s to zastavico
                   (privzeto samo Denis Džamastagić). Navadne menjave službe potrdi kdorkoli ima vlogo administrator.
                 </p>
                 <label style={{display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:600}}>
@@ -991,7 +990,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             <div className="field"><label>Datum rojstva</label><input type="date" value={hrEdit.birth_date} onChange={e => setHrEdit(h => ({...h, birth_date:e.target.value}))} /></div>
             <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={hrEdit.position_name} onChange={e => setHrEdit(h => ({...h, position_name:e.target.value}))} /></div>
             <div className="field"><label>Vodja (naziv)</label><input type="text" value={hrEdit.manager_name} onChange={e => setHrEdit(h => ({...h, manager_name:e.target.value}))} /></div>
-            <h3 style={{fontSize:13, fontWeight:800, margin:"14px 0 2px"}}>Dežurstva — trajna pravila</h3>
+            <h3 style={{fontSize:13, fontWeight:800, margin:"14px 0 2px"}}>Dežurstva – trajna pravila</h3>
             <p className="hint" style={{marginTop:0}}>
               Veljajo do preklica. Generator → Dežurstva jih vzame kot izhodišče; tam jih je mogoče spremeniti
               samo za tisto eno generiranje, trajno pa se nastavijo tu. Prazno = brez omejitve.
@@ -1006,7 +1005,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
             </div>
             <div className="field"><label>Stalno prost dan v tednu</label>
               <select value={hrEdit.duty_day_off} onChange={e => setHrEdit(h => ({...h, duty_day_off:e.target.value}))}>
-                <option value="">— brez —</option>
+                <option value="">– brez –</option>
                 {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
               </select></div>
             <label className="rowline" style={{cursor:"pointer"}}>
@@ -1028,7 +1027,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
 }
 
 // ---------------------------------------------------------------------
-// Bralni prikaz še ne povezane (neregistrirane) osebe — vidna vsem, na
+// Bralni prikaz še ne povezane (neregistrirane) osebe – vidna vsem, na
 // izrecno željo, z istimi vidnostnimi pravili kot pri registriranih
 // profilih. contact_imports_public (glej schema.sql) že vrne null za
 // stolpce, ki jih klicatelj po vlogi ne sme videti (phone/HR polja), zato
@@ -1073,7 +1072,7 @@ function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
             </div>
           )}
           <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
-          <p className="hint" style={{marginTop:8, marginBottom:0}}>HR podatki — vidni samo adminu.</p>
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>HR podatki – vidni samo adminu.</p>
         </div>
       )}
 
@@ -1090,7 +1089,7 @@ function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
 // ---------------------------------------------------------------------
 // Mapiranje "Naziv enote organizacijske strukture" (uraden HR izvoz) na
 // department_code, kadar datoteka nima ločenega stolpca department_code.
-// Samo za 6 negovalnih oddelkov z znano, stabilno poimenovanje enote — za
+// Samo za 6 negovalnih oddelkov z znano, stabilno poimenovanje enote – za
 // vodstvo/druge enote department_code ostane prazen, admin ga dopolni ročno.
 const UNIT_TO_DEPT = {
   "zn - oddelek b": "B", "zn - oddelek c": "C", "zn - oddelek c1 (intenziva)": "C1",
@@ -1099,7 +1098,7 @@ const UNIT_TO_DEPT = {
 };
 
 // Kanonična polja, ki jih zna uvoz prepoznati po glavi stolpca (poljuben
-// vrstni red, case-insensitive) — pokriva tako preprosto CSV obliko
+// vrstni red, case-insensitive) – pokriva tako preprosto CSV obliko
 // (full_name,email,...) kot uraden HR izvoz v slovenščini.
 const GLAVE_MAPA = {
   full_name: ["full_name","priimek in ime","ime in priimek","ime"],
@@ -1117,7 +1116,7 @@ const GLAVE_MAPA = {
   position_name: ["position_name","naziv delovnega mesta"],
   org_unit_name: ["org_unit_name","naziv enote organizacijske strukture"],
   manager_name: ["manager_name","vodja (naziv)","vodja"],
-  // Šifra neposrednega vodje (ne ime) — če jo znamo razrešiti na obstoječ
+  // Šifra neposrednega vodje (ne ime) – če jo znamo razrešiti na obstoječ
   // profil (prek profile_hr_details.employee_code), uvoz samodejno nastavi
   // profiles.vodja_id (glej vodjaPari spodaj v uvoziVrsticeObjekte). To je
   // ločeno od manager_name zgoraj (tisto je samo prosto besedilo za prikaz).
@@ -1155,7 +1154,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   };
 
   // Če je oseba (po e-pošti) že v seznamu "še ne povezani", POSODOBI to
-  // vrstico namesto da doda podvojeno — na izrecno željo, ker se ista, še
+  // vrstico namesto da doda podvojeno – na izrecno željo, ker se ista, še
   // neregistrirana oseba lahko pojavi v več zaporednih uvozih (posodobljeni
   // podatki čez čas), prej je vsak tak uvoz ustvaril nov, podvojen zapis.
   const dodajAliPosodobiVrstico = async (vrstica) => {
@@ -1202,19 +1201,19 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 
   // Prenese podatke (vloga/oddelek/telefon/HR polja, vključno s stanjem
   // dopusta) neposredno na ŽE registriran profil. Skupno za "Poveži" (prvič)
-  // IN za ponoven uvoz posodobljenega stanja pri osebah, ki so že povezane —
+  // IN za ponoven uvoz posodobljenega stanja pri osebah, ki so že povezane –
   // na izrecno željo: admin redno uvozi novo Excel tabelo, obstoječi
   // zaposleni naj bodo takoj na tekočem, brez ročnega "Poveži" vsakič znova.
   const prenesiPodatkeNaProfil = async (zapis, profileId) => {
     // Najprej preberi trenutno stanje: splošen HR izvoz pogosto nima WARDS_META
     // kode oddelka (samo splošno organizacijsko enoto, ki se ne preslika prek
-    // UNIT_TO_DEPT) — brez tega bi uvoz vsakič povozil ročno/SQL nastavljen
+    // UNIT_TO_DEPT) – brez tega bi uvoz vsakič povozil ročno/SQL nastavljen
     // oddelek z null. Enako varuje vlogo: uvoz nikoli ne povrne admina/vodje
     // nazaj na "user", tudi če je izvorni stolpec "vloga" tam prazen/drugačen.
     const { data: trenutni } = await client.from("profiles").select("role, department_code").eq("id", profileId).single();
     const novaVloga = trenutni && trenutni.role !== "user" ? trenutni.role : (zapis.role || "user");
     const noviOddelek = zapis.department_code || (trenutni && trenutni.department_code) || null;
-    // full_name se vedno prepiše z izvozom — vrsticaVZapis() zgoraj zajame
+    // full_name se vedno prepiše z izvozom – vrsticaVZapis() zgoraj zajame
     // vrstico samo, če ima neprazno ime IN e-pošto, izvor pa je uraden HR
     // izvoz, torej zanesljivejši od morebitne napačne vrednosti v bazi (npr.
     // če je handle_new_user() sprožilec ob ustvarjanju računa padel nazaj na
@@ -1247,7 +1246,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   // contact_imports kot doslej (čaka na registracijo + ročno "Poveži").
   const uvoziVrsticeObjekte = async (vrsticeObj) => {
     let dodanih = 0, posodobljenih = 0, napak = 0;
-    // Zbrano med glavno zanko, razrešeno šele po njej (glej spodaj) — vodja
+    // Zbrano med glavno zanko, razrešeno šele po njej (glej spodaj) – vodja
     // je lahko naveden s svojo šifro PREDEN je njegova/njena vrstica sploh
     // obdelana, zato mora biti razrešitev ločen drugi prehod čez že
     // posodobljene profile, ne del posamezne iteracije.
@@ -1312,11 +1311,11 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     try {
       const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
       if (tip === "pdf-besedilo") {
-        // PDF nima zanesljivih stolpcev (glej opombo v import-utils.js) — samo
+        // PDF nima zanesljivih stolpcev (glej opombo v import-utils.js) – samo
         // izvlečemo golo besedilo in ga damo v urejljivo polje spodaj, admin
         // ga preoblikuje v CSV vrstice in klikne "Uvozi urejeno besedilo".
         setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
-        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila — preveri/uredi spodaj v obliko "full_name,email,phone,role,department_code" pred uvozom.`);
+        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila – preveri/uredi spodaj v obliko "full_name,email,phone,role,department_code" pred uvozom.`);
       } else {
         await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
       }
@@ -1394,13 +1393,13 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
       <p className="hint">
         Naloži seznam vseh zaposlenih. Če je oseba že registrirana (e-pošta se ujema), se telefon in HR podatki
         (rojstni datum, delovno mesto, vodja, starševsko varstvo, letni dopust, stanje dopusta) posodobijo NANJO
-        TAKOJ, brez ročnega koraka — tudi če jih uvoziš znova čez mesec z novo tabelo (npr. posodobljeno stanje
+        TAKOJ, brez ročnega koraka – tudi če jih uvoziš znova čez mesec z novo tabelo (npr. posodobljeno stanje
         dopusta). Če oseba še ni registrirana, gre v spodnji seznam "Še ne povezani" in jo povežeš ročno, ko se
-        prijavi. HR podatke vidi samo ta oseba sama in admin — nikoli vodja ali drugi.
+        prijavi. HR podatke vidi samo ta oseba sama in admin – nikoli vodja ali drugi.
       </p>
       <div className="card">
         <RazporedUvozVir ikona="📇" naziv="Imenik zaposlenih"
-          opis="CSV / Excel / JSON — kadrovski izvoz"
+          opis="CSV / Excel / JSON – kadrovski izvoz"
           onClick={() => fileRef.current && fileRef.current.click()} />
         <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
@@ -1408,16 +1407,16 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
           {uvozBusy ? "Nalagam …" : "📤 Uvoz iz datoteke (CSV / Excel / PDF)"}
         </button>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
-          Datoteka mora imeti glavo (prva vrstica z imeni stolpcev) — prepozna tako preprosto obliko
+          Datoteka mora imeti glavo (prva vrstica z imeni stolpcev) – prepozna tako preprosto obliko
           (<code>full_name,email,phone,role,department_code</code>) kot uraden HR izvoz v slovenščini ("Priimek in
           ime", "Elektronska pošta", "Datum rojstva", "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo",
-          "Letni dopust 2026 (skupaj)" …) — vrstni red stolpcev ni pomemben. Oddelek se, če ni izrecnega stolpca,
+          "Letni dopust 2026 (skupaj)" …) – vrstni red stolpcev ni pomemben. Oddelek se, če ni izrecnega stolpca,
           poskusi razbrati iz "Naziv enote organizacijske strukture" (samo za 6 negovalnih oddelkov). PDF nima
-          zanesljivih stolpcev, zato se iz njega samo izvleče golo besedilo — uredi ga spodaj v isto obliko pred
+          zanesljivih stolpcev, zato se iz njega samo izvleče golo besedilo – uredi ga spodaj v isto obliko pred
           uvozom.
         </p>
         <div className="field" style={{marginTop:10}}>
-          <label>… ali povezava do Google Sheets (deljeno kot "vsak, ki ima povezavo, lahko ogleda")</label>
+          <label>… ali povezava do Google Sheets (deljeno kot »vsak, ki ima povezavo, lahko ogleda«)</label>
           <div style={{display:"flex", gap:8}}>
             <input type="url" value={gsheetUrl} onChange={e => setGsheetUrl(e.target.value)}
               placeholder="https://docs.google.com/spreadsheets/d/..." style={{flex:1}} />
@@ -1426,7 +1425,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         </div>
         {pdfBesedilo !== null && (
           <div className="field" style={{marginTop:10}}>
-            <label>Golo besedilo iz PDF — preoblikuj v vrstice "full_name,email,phone,role,department_code" (ena oseba na vrstico)</label>
+            <label>Golo besedilo iz PDF – preoblikuj v vrstice »full_name,email,phone,role,department_code« (ena oseba na vrstico)</label>
             <textarea rows={10} value={pdfBesedilo} onChange={e => setPdfBesedilo(e.target.value)} style={{width:"100%", fontFamily:"monospace"}} />
             <button className="submitBtn" style={{marginTop:8}} disabled={uvozBusy} onClick={uvoziUrejenoPdfBesedilo}>Uvozi urejeno besedilo</button>
           </div>
@@ -1446,13 +1445,13 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         </div>
         <div className="field"><label>Oddelek</label>
           <select value={novo.department_code} onChange={e => setNovo(n => ({...n, department_code:e.target.value}))}>
-            <option value="">— brez —</option>
+            <option value="">– brez –</option>
             {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
           </select>
         </div>
         <details>
           <summary style={{cursor:"pointer", fontSize:12.5, color:"var(--muted)", fontWeight:700, marginBottom:8}}>
-            + Dodatni HR podatki (neobvezno — po povezavi vidna samo osebi in adminu)
+            + Dodatni HR podatki (neobvezno – po povezavi vidna samo osebi in adminu)
           </summary>
           <div className="field"><label>Šifra zaposlenega</label><input type="text" value={novo.employee_code} onChange={e => setNovo(n => ({...n, employee_code:e.target.value}))} /></div>
           <div className="field"><label>Datum rojstva</label><input type="date" value={novo.birth_date} onChange={e => setNovo(n => ({...n, birth_date:e.target.value}))} /></div>
@@ -1505,12 +1504,12 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
 }
 
 // ---------------------------------------------------------------------
-// Zbirni pregled stanja dopusta (admin) — kontrolni seznam, razdelek 7:
+// Zbirni pregled stanja dopusta (admin) – kontrolni seznam, razdelek 7:
 // doslej je bilo stanje dopusta vidno samo po posamezniku (na njegovem
 // profilu), tu je zbrano na enem mestu za vse. Bere isti profile_hr_details
 // vir, ki ga PR #15 že polni/posodablja ob uvozu HR podatkov.
 // ---------------------------------------------------------------------
-// Mesečna razpredelnica stanja po osebah — kdo je na dani dan na delu, na
+// Mesečna razpredelnica stanja po osebah – kdo je na dani dan na delu, na
 // dežurstvu, na dopustu, na bolniški ali prost. Uporabnikova izrecna
 // zahteva: pet stanj, en pogled, brez brskanja po posameznih profilih.
 //
@@ -1616,7 +1615,7 @@ function NadomescanjaPregled(){
           <p className="hint" style={{marginTop:0}}>
             Kdo koga nadomešča ob odsotnosti (letni dopust, bolniška). Puščica pomeni vrstni red: kdo je prvi na
             vrsti in kdo prevzame, če je odsoten tudi prvi. V oklepaju je enota, ki jo nadomeščevalec dejansko
-            prevzame — ta ni nujno cel nabor enot odsotnega.
+            prevzame – ta ni nujno cel nabor enot odsotnega.
           </p>
           <div className="tableScroller">
             <table className="wardTable">
@@ -1633,8 +1632,8 @@ function NadomescanjaPregled(){
                   <tr key={v.oseba}>
                     <td className="name">{v.oseba}</td>
                     <td>{v.enote}</td>
-                    <td>{v.mene.length ? v.mene.join(" → ") : <span style={{color:"var(--muted)"}}>— ni zapisano —</span>}</td>
-                    <td>{v.pokrivam.length ? v.pokrivam.join(", ") : <span style={{color:"var(--muted)"}}>—</span>}</td>
+                    <td>{v.mene.length ? v.mene.join(" → ") : <span style={{color:"var(--muted)"}}>– ni zapisano –</span>}</td>
+                    <td>{v.pokrivam.length ? v.pokrivam.join(", ") : <span style={{color:"var(--muted)"}}>–</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1881,7 +1880,7 @@ function StanjeRazpredelnica({ oddelki }){
       <p className="hint" style={{marginTop:0}}>
         Kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost. Združuje objavljen razpored in
         vpise iz Želja, vključno s <b>potrjenimi menjavami</b> za vse mesece (te so v razporedu že zamenjane, v celici pa označene z ↔).
-        Kratice so uradne, iz dokumenta <i>Razpored delovnega časa</i> — vsaka ima svojo barvo, glej legendo spodaj.
+        Kratice so uradne, iz dokumenta <i>Razpored delovnega časa</i> – vsaka ima svojo barvo, glej legendo spodaj.
       </p>
       <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:10}}>
         <div className="field" style={{marginBottom:0, maxWidth:200}}>
@@ -1892,7 +1891,7 @@ function StanjeRazpredelnica({ oddelki }){
           <label htmlFor="stanjeOddelek">Oddelek</label>
           <select id="stanjeOddelek" value={oddelek} onChange={e => setOddelek(e.target.value)}>
             <option value="">Vsi oddelki</option>
-            {(oddelki || []).map(o => <option key={o.code} value={o.code}>{o.code} — {o.name}</option>)}
+            {(oddelki || []).map(o => <option key={o.code} value={o.code}>{o.code} – {o.name}</option>)}
           </select>
         </div>
       </div>
@@ -1937,12 +1936,12 @@ function StanjeRazpredelnica({ oddelki }){
             })}
             <div style={{fontSize:11, color:"var(--muted)", paddingTop:8, borderTop:"1px solid var(--line)"}}>
               Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
-              v tej legendi — postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
+              v tej legendi – postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
               izmena zamenjana s potrjeno menjavo. <b>Bledeje in ležeče</b> zapisana kratica ni objavljen vnos, ampak
               stalna zasedba enote: nosilec oddelka je na svoji enoti vsak delovni dan (za NZV velja PON–PET, vikendi
               in prazniki so prosti, razen dežurstva). Objavljen razpored in odsotnost imata vedno prednost.
               Vir kratic:
-              <i> Razpored delovnega časa — Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
+              <i> Razpored delovnega časa – Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
             </div>
           </div>
         )}
@@ -2009,7 +2008,7 @@ function StanjeRazpredelnica({ oddelki }){
                       : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
                     return (
                       <td key={d.iso}
-                        title={`${o.full_name} · ${d.dan}. — ${opis}`
+                        title={`${o.full_name} · ${d.dan}. – ${opis}`
                           + (zapis && zapis.enota ? " · enota: " + zapis.enota : "")
                           + (zamenjano ? " (po potrjeni menjavi)" : "")
                           + (zapis && zapis.izpeljano ? " (stalna zasedba enote, ne objavljen vnos)" : "")
@@ -2103,7 +2102,7 @@ function DopustPregled({ oddelki }){
         <input type="search" placeholder="Išči po imenu ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
       </div>
       <p className="hint no-print">
-        {filtrirano.length} oseb{manjkaPodatek > 0 ? ` — ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
+        {filtrirano.length} oseb{manjkaPodatek > 0 ? ` – ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
       </p>
       <div className="card" style={{overflowX:"auto"}}>
         <table className="fairTable">
@@ -2114,10 +2113,10 @@ function DopustPregled({ oddelki }){
             {filtrirano.map(v => (
               <tr key={v.id}>
                 <td>{v.full_name}</td>
-                <td>{imeOddelka[v.department_code] || v.department_code || "—"}</td>
-                <td>{v.annual_leave_total != null ? v.annual_leave_total : "—"}</td>
+                <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
+                <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
                 <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
-                <td>{window.Datum.slo(v.leave_balance_asof) || "—"}</td>
+                <td>{window.Datum.slo(v.leave_balance_asof) || "–"}</td>
               </tr>
             ))}
           </tbody>
@@ -2127,7 +2126,7 @@ function DopustPregled({ oddelki }){
   );
 }
 
-// Pregled paraf — viden VSEM prijavljenim (izrecna zahteva uporabnika).
+// Pregled paraf – viden VSEM prijavljenim (izrecna zahteva uporabnika).
 // Parafa je kratka oznaka, ki jo uradne predloge in NZV razpored
 // uporabljajo namesto polnega imena; doslej jo je bilo mogoče videti samo
 // posamično, na profilu ene osebe, in samo adminu.
@@ -2177,7 +2176,7 @@ function ParafePregled({ osebe }){
           <ul style={{margin:"8px 0 0", paddingLeft:18}}>
             {trkKljuci.sort().map(k => (
               <li key={k} style={{fontSize:13}}>
-                <b>{k}</b> — {trki[k].map(o => o.full_name).join(", ")}
+                <b>{k}</b> – {trki[k].map(o => o.full_name).join(", ")}
               </li>
             ))}
           </ul>
@@ -2195,7 +2194,7 @@ function ParafePregled({ osebe }){
             <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
               {oseba.full_name}
             </span>
-            {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena — izpeljana iz priimka">izpeljana</span>}
+            {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena – izpeljana iz priimka">izpeljana</span>}
             {trki[parafa.toUpperCase()] && <span className="pill danger">trk</span>}
           </div>
         ))}
@@ -2207,7 +2206,7 @@ function ParafePregled({ osebe }){
 function App(){
   const [auth, setAuth] = useState(null);
   const [osebe, setOsebe] = useState([]);
-  const [cakajoce, setCakajoce] = useState([]); // še ne povezane osebe (contact_imports_public) — vidne VSEM, na izrecno željo
+  const [cakajoce, setCakajoce] = useState([]); // še ne povezane osebe (contact_imports_public) – vidne VSEM, na izrecno željo
   const [oddelki, setOddelki] = useState([]);
   const [odprtId, setOdprtId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -2282,7 +2281,7 @@ function App(){
     history.pushState(null, "", url);
   };
 
-  // POZOR: useMemo mora biti PRED "if (!auth) return null" spodaj — vse
+  // POZOR: useMemo mora biti PRED "if (!auth) return null" spodaj – vse
   // kljuke (Hooks) se morajo klicati v enakem vrstnem redu na vsakem izrisu,
   // sicer React neha izrisovati sploh karkoli (bela stran) takoj, ko auth
   // preide iz null v nastavljeno (prej-in-po različno število klicanih

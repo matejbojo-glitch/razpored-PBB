@@ -3,7 +3,7 @@
 // razporedov na TOČNO 1 A4 stran, ne glede na število zaposlenih ali
 // dni v mesecu. Ker aplikacija tiska samo prek brskalnikovega "Natisni"
 // (brez jsPDF/html2pdf, brez dodatnih odvisnosti/CDN), moramo velikost
-// vsebine sami preračunati in jo pred tiskanjem "skrčiti" — z "zoom", ne
+// vsebine sami preračunati in jo pred tiskanjem "skrčiti" – z "zoom", ne
 // "transform: scale", ker samo zoom dejansko zmanjša zaseden prostor v
 // postavitvi (kar brskalnik potrebuje za pravilno preračunavanje
 // prelomov strani; transform vsebino samo vizualno pomanjša, zasedeni
@@ -23,7 +23,7 @@ window.PrintFit = (function () {
   }
 
   // el: element, ki ga je treba skrčiti natanko na 1 stran (navadno tisti z
-  // razredom "wardScroller"/"gridScroll" — ista stran, ki v @media print
+  // razredom "wardScroller"/"gridScroll" – ista stran, ki v @media print
   // dobi "overflow:visible" in "zoom:var(--print-scale)", glej CSS v vsaki
   // strani). orientacija: "landscape" (mesečni razporedi) ali "portrait"
   // (posamezni obrazci/seznami, kjer več strani ni težava).

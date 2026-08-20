@@ -1,4 +1,4 @@
--- Razpored PBB — Supabase shema (faza 4)
+-- Razpored PBB – Supabase shema (faza 4)
 -- Tri vloge (admin / vodja / user) + dvostopenjska odobritev menjav izmen.
 --
 -- Zaženite CELO to datoteko enkrat v Supabase Dashboard → SQL Editor
@@ -15,7 +15,7 @@
 create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------------
--- 1) departments — 6 oddelkov SMS/TZN + dežurni/nedežurni kader
+-- 1) departments – 6 oddelkov SMS/TZN + dežurni/nedežurni kader
 -- ---------------------------------------------------------------------
 create table if not exists public.departments (
   code text primary key,
@@ -23,23 +23,23 @@ create table if not exists public.departments (
 );
 
 insert into public.departments (code, name) values
-  ('B',  'B - ODDELEK'),
-  ('C',  'C - ODDELEK'),
-  ('C1', 'C1 - ODDELEK'),
-  ('D',  'D - ODDELEK'),
-  ('E1', 'E1 - ODDELEK'),
-  ('E2', 'E2 - ODDELEK'),
+  ('B',  'B – oddelek'),
+  ('C',  'C – oddelek'),
+  ('C1', 'C1 – oddelek'),
+  ('D',  'D – oddelek'),
+  ('E1', 'E1 – oddelek'),
+  ('E2', 'E2 – oddelek'),
   ('DEZ',   'Dežurni kader (DMS/DZN)'),
   ('NEDEZ', 'Nedežurni kader (DMS/DZN)'),
   -- Dodatne kode enot, ki jih vodijo nosilci oddelkov/vodje (iz
-  -- "Predloga razporeda vodje NZV") — ločeno od kod zgoraj, ker gre za
+  -- "Predloga razporeda vodje NZV") – ločeno od kod zgoraj, ker gre za
   -- vodstveno pokritost enote, ne za SMS/ZZT izmenski kalup.
-  ('PDZN', 'PDZN — pomočnik direktorja za ZN'),
+  ('PDZN', 'PDZN – pomočnik direktorja za ZN'),
   ('SOBO', 'SOBO'),
   ('ZO',   'ŽO'),
   ('MO',   'MO'),
   ('PO',   'PO'),
-  ('A',    'A - ODDELEK'),
+  ('A',    'A – oddelek'),
   ('B1B2', 'B1, B2'),
   ('DB',   'DB'),
   ('SA',   'SA'),
@@ -48,7 +48,7 @@ insert into public.departments (code, name) values
 on conflict (code) do update set name = excluded.name;
 
 -- ---------------------------------------------------------------------
--- 2) profiles — 1:1 z auth.users, nosi vlogo in oddelek/ekipo
+-- 2) profiles – 1:1 z auth.users, nosi vlogo in oddelek/ekipo
 -- ---------------------------------------------------------------------
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -60,7 +60,7 @@ create table if not exists public.profiles (
 
 -- Varovalka: "create table if not exists" zgoraj je no-op, če "profiles"
 -- že obstaja (npr. iz prejšnjega delnega zagona ali ročnega urejanja v
--- Table Editorju) — NE doda manjkajočih stolpcev nazaj. Spodnje
+-- Table Editorju) – NE doda manjkajočih stolpcev nazaj. Spodnje
 -- "add column if not exists" to zagotovi, ne glede na to, v kakšnem
 -- stanju je tabela pred tem zagonom.
 alter table public.profiles add column if not exists role text not null default 'user';
@@ -85,7 +85,7 @@ end $$;
 -- Editorju obstaja ločen stolpec "Admin" (z veliko začetnico, namesto
 -- prave vloge v "role"), prenesi njegovo vrednost v "role" in stolpec
 -- odstrani. Koda (ta datoteka, login.html, admin.html, menjave.html,
--- supabase-client.js) povsod dosledno uporablja "role" — to ostaja
+-- supabase-client.js) povsod dosledno uporablja "role" – to ostaja
 -- edino veljavno ime, "Admin" ni nikjer v kodi referenciran.
 do $$
 begin
@@ -101,18 +101,18 @@ end $$;
 -- Ob registraciji ALI Auth → "Invite user" (auth.users insert) samodejno
 -- ustvari profil z vlogo 'user'. Ime se vzame iz signUp({ options: { data:
 -- { full_name } } }); pri povabilu po e-pošti te metapodatke večinoma ni,
--- zato pade nazaj na e-poštni naslov — admin ga kasneje popravi v
+-- zato pade nazaj na e-poštni naslov – admin ga kasneje popravi v
 -- admin.html → Uporabniki.
 --
 -- Sprožilec teče v transakciji GoTrue (Supabase Auth) storitve, ki jo
--- izvaja vloga supabase_auth_admin, ne "postgres" iz SQL Editorja — zato
+-- izvaja vloga supabase_auth_admin, ne "postgres" iz SQL Editorja – zato
 -- spodnji grant-i, brez njih lahko GoTrue vrne generično napako
 -- "Database error saving new user", ko sprožilec zaradi manjkajočih
 -- pravic ne more zapisati v public.profiles.
 --
 -- Dodatno: telo je zavito v exception handler, da napaka pri ustvarjanju
 -- profila (npr. začasna težava, podvojen vnos) NIKOLI ne prepreči
--- ustvarjanja samega Auth računa — brez tega bi vsaka nepričakovana
+-- ustvarjanja samega Auth računa – brez tega bi vsaka nepričakovana
 -- napaka tu pomenila, da se noben nov uporabnik ne more registrirati/biti
 -- povabljen, dokler je ne odpravimo.
 create or replace function public.handle_new_user()
@@ -150,7 +150,7 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ---------------------------------------------------------------------
--- 3) schedule_entries — en zapis = en zaposleni, en dan, ena izmena
+-- 3) schedule_entries – en zapis = en zaposleni, en dan, ena izmena
 -- ---------------------------------------------------------------------
 create table if not exists public.schedule_entries (
   id bigint generated always as identity primary key,
@@ -165,7 +165,7 @@ create index if not exists schedule_entries_date_idx on public.schedule_entries 
 create index if not exists schedule_entries_dept_idx on public.schedule_entries (department_code, work_date);
 
 -- ---------------------------------------------------------------------
--- 4) swap_requests — dvostopenjska odobritev (vodja → admin)
+-- 4) swap_requests – dvostopenjska odobritev (vodja → admin)
 -- ---------------------------------------------------------------------
 create table if not exists public.swap_requests (
   id bigint generated always as identity primary key,
@@ -192,7 +192,7 @@ create index if not exists swap_requests_target_idx on public.swap_requests (tar
 create index if not exists swap_requests_status_idx on public.swap_requests (status);
 
 -- ---------------------------------------------------------------------
--- 5) notifications — obveščanje samo znotraj aplikacije
+-- 5) notifications – obveščanje samo znotraj aplikacije
 -- ---------------------------------------------------------------------
 create table if not exists public.notifications (
   id bigint generated always as identity primary key,
@@ -217,7 +217,7 @@ begin
     return new;
   end if;
   msg := case new.status
-    when 'pending_admin'     then 'Vodja je odobril predlog menjave — čaka na administratorja.'
+    when 'pending_admin'     then 'Vodja je odobril predlog menjave – čaka na administratorja.'
     when 'approved'          then 'Menjava izmene je bila potrjena.'
     when 'rejected_by_lead'  then 'Vodja je zavrnil predlog menjave.'
     when 'rejected_by_admin' then 'Administrator je zavrnil predlog menjave.'
@@ -260,7 +260,7 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- 6b) Imenik (kontakti) — e-pošta na profiles, telefon v LOČENI tabeli
+-- 6b) Imenik (kontakti) – e-pošta na profiles, telefon v LOČENI tabeli
 --     (contact_phones), da nivojsko vidljivost zagotavlja navadna
 --     vrstična RLS, ne krhko stolpčno omejevanje na že široko
 --     poizvedovani tabeli "profiles" (ki ima "select using (true)").
@@ -283,7 +283,7 @@ create table if not exists public.contact_phones (
 
 alter table public.contact_phones enable row level security;
 
--- Telefon vidijo: lastnik (svoj), admin (vsi) in vodja (vsi) — navaden
+-- Telefon vidijo: lastnik (svoj), admin (vsi) in vodja (vsi) – navaden
 -- uporabnik tuje telefonske številke NE vidi (samo e-pošto, ki je na
 -- profiles in torej vidna vsem). To je prava vrstična RLS: če vrstica ni
 -- vidna klicatelju, PostgREST pri vgnezdenem povpraševanju
@@ -312,9 +312,9 @@ create policy contact_phones_admin_all on public.contact_phones
 -- contact_imports: admin vnaprej naloži seznam vseh zaposlenih (ime,
 -- e-pošta, telefon, predlagana vloga/oddelek), preden se ti sami
 -- registrirajo (ni service_role ključa za neposredno ustvarjanje Auth
--- računov — glej SUPABASE-SETUP.md). Ko se oseba dejansko registrira s to
+-- računov – glej SUPABASE-SETUP.md). Ko se oseba dejansko registrira s to
 -- e-pošto, admin v Imeniku njen nov profil ročno "poveže" s to vrstico
--- (linked_profile_id) — s tem se telefon/vloga/oddelek prekopirajo vanj.
+-- (linked_profile_id) – s tem se telefon/vloga/oddelek prekopirajo vanj.
 create table if not exists public.contact_imports (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
@@ -350,14 +350,14 @@ create policy contact_imports_admin on public.contact_imports
   with check (public.current_role_is('admin'));
 
 -- contact_imports_public: na izrecno željo morajo biti VSI vneseni podatki
--- takoj vidni v Imeniku, TUDI za še ne povezane (neregistrirane) osebe — ne
+-- takoj vidni v Imeniku, TUDI za še ne povezane (neregistrirane) osebe – ne
 -- samo adminu v "Uvoz zaposlenih". Osnovna tabela contact_imports ostaja
 -- admin-only (ureja jo samo admin), ta pogled pa istim vidnostnim pravilom
 -- kot pri registriranih profilih (e-pošta vsem, telefon admin+vodja, HR
--- polja samo admin — ni "lastnika", ker oseba še ni registrirana) izpostavi
+-- polja samo admin – ni "lastnika", ker oseba še ni registrirana) izpostavi
 -- BRANJE vsem prijavljenim. Pogled ni "security invoker": teče s pravicami
 -- lastnika (privzeto obnašanje navadnega pogleda), zato prebere vse vrstice
--- ne glede na RLS na contact_imports — vidnost posameznih stolpcev namesto
+-- ne glede na RLS na contact_imports – vidnost posameznih stolpcev namesto
 -- tega vsili spodnja CASE logika, ovrednotena za VSAKEGA klicatelja posebej
 -- (current_role_is bere iz profiles glede na auth.uid() klicatelja).
 create or replace view public.contact_imports_public as
@@ -517,7 +517,7 @@ create policy schedule_write_admin on public.schedule_entries
   with check (public.current_role_is('admin'));
 
 -- swap_requests: neposreden insert/update je zavrnjen (privzeto, ker ni
--- ustrezne "for insert/update" policy) — vse spremembe gredo prek spodnjih
+-- ustrezne "for insert/update" policy) – vse spremembe gredo prek spodnjih
 -- SECURITY DEFINER funkcij, ki eksplicitno preverijo pravice klicatelja.
 drop policy if exists swap_select on public.swap_requests;
 create policy swap_select on public.swap_requests
@@ -541,7 +541,7 @@ create policy notifications_update_own on public.notifications
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------
--- 8) RPC funkcije — edina pot za pisanje v swap_requests / izvedbo menjave
+-- 8) RPC funkcije – edina pot za pisanje v swap_requests / izvedbo menjave
 -- ---------------------------------------------------------------------
 
 -- Zaposleni odda predlog menjave: jaz (moj datum/izmena) <-> sodelavec (njegov datum/izmena).
@@ -671,7 +671,7 @@ $$;
 grant execute on function public.decide_swap_admin(bigint, boolean, text) to authenticated;
 
 -- ---------------------------------------------------------------------
--- 9) leave_entries — barvna razpredelnica dopustov/omejitev (zavihek
+-- 9) leave_entries – barvna razpredelnica dopustov/omejitev (zavihek
 --    "Želje"), ki jo generator dežurstev/vodij bere samodejno.
 --    Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02 ..." v
 --    admin.html z vizualnim pobarvanim koledarjem (glej zelje.html).
@@ -707,7 +707,7 @@ create policy leave_entries_select on public.leave_entries
 
 -- Ime v leave_entries.full_name je prosto besedilo iz statičnega
 -- roster-seznama (npr. "BOJIĆ MATEJ"), profiles.full_name pa karkoli je
--- oseba vpisala ob samoregistraciji (npr. "Matej Bojić") — zato primerjava
+-- oseba vpisala ob samoregistraciji (npr. "Matej Bojić") – zato primerjava
 -- ni nujno enaka niz, primerjamo brez oziru na velikost črk/presledke in
 -- dovolimo obrnjen vrstni red "ime priimek" <-> "priimek ime".
 create or replace function public.current_full_name()
@@ -722,7 +722,7 @@ $$;
 
 -- Primerja kot "vrečo besed" (ne glede na vrstni red), da "PRIIMEK IME"
 -- (roster) ujema "Ime Priimek" (kakor koli je oseba vpisala ob
--- registraciji) — deluje za poljubno število besed, ne samo za dve.
+-- registraciji) – deluje za poljubno število besed, ne samo za dve.
 create or replace function public.imena_se_ujemata(a text, b text)
 returns boolean
 language sql
@@ -748,7 +748,7 @@ $$;
 
 -- Samo admin ureja katero koli vrstico, kadar koli. "vodja" IN "user" oba
 -- urejata SAMO svojo vrstico (ujemanje imena, glej zgoraj) in samo do roka
--- (10. v prejšnjem mesecu) — po tem je zaklenjeno tudi zanju. Uveljavljeno
+-- (10. v prejšnjem mesecu) – po tem je zaklenjeno tudi zanju. Uveljavljeno
 -- tu (RLS), ne samo v vmesniku, ker bi sicer kdorkoli z neposrednim klicem
 -- API-ja lahko obšel omejitev v UI.
 drop policy if exists leave_entries_write on public.leave_entries;
@@ -764,14 +764,14 @@ create policy leave_entries_write on public.leave_entries
   );
 
 -- Zgodovina sprememb je vidna samo administratorjem (na izrecno navodilo:
--- "sledljivo in vidno samo uporabnikom admin") — vodja in user je v UI
+-- "sledljivo in vidno samo uporabnikom admin") – vodja in user je v UI
 -- sploh ne prikažeta, tu pa je zaklenjeno tudi za neposreden klic API-ja.
 drop policy if exists leave_entries_log_select on public.leave_entries_log;
 create policy leave_entries_log_select on public.leave_entries_log
   for select to authenticated using (public.current_role_is('admin'));
 
 -- Vpisi v dnevnik gredo samo prek sprožilca spodaj (SECURITY DEFINER), ne
--- neposredno od odjemalca — zato ni potrebe po "insert" politiki za
+-- neposredno od odjemalca – zato ni potrebe po "insert" politiki za
 -- authenticated na leave_entries_log.
 
 create or replace function public.log_leave_entry_change()
@@ -807,7 +807,7 @@ create trigger on_leave_entry_change
   for each row execute function public.log_leave_entry_change();
 
 -- ---------------------------------------------------------------------
--- 10) lead_departments — 22 vodij/nosilcev oddelkov (iz "Predloga
+-- 10) lead_departments – 22 vodij/nosilcev oddelkov (iz "Predloga
 --     razporeda vodje NZV"): domači oddelek, ali sodelujejo pri
 --     dežurstvih, mesečna kvota/omejitve, nadomeščanje ob odsotnosti.
 --     Ločeno od profiles.department_code, ker gre za VODSTVENO
@@ -972,7 +972,7 @@ create trigger trg_sync_leave_balance
   for each row execute function public.sync_leave_balance_to_hr_details();
 
 -- ---------------------------------------------------------------------
--- 12) absence_color_map — pomni, katera barva celice v uvoženem barvnem
+-- 12) absence_color_map – pomni, katera barva celice v uvoženem barvnem
 --     koledarju odsotnosti (Kadris) pomeni katero vrsto (leave_entries.kind),
 --     da administratorju vsak mesec ni treba znova ročno določati istih
 --     barv. Sam uvoz piše neposredno v obstoječ leave_entries (upsert, brez
@@ -998,7 +998,7 @@ create policy absence_color_map_admin on public.absence_color_map
   with check (public.current_role_is('admin'));
 
 -- ---------------------------------------------------------------------
--- 13) admin_view_as_log — revizijska sled za "Prijavi se kot" (admin vidi
+-- 13) admin_view_as_log – revizijska sled za "Prijavi se kot" (admin vidi
 --     aplikacijo iz perspektive izbranega uporabnika, brez poznavanja/
 --     ponastavljanja njegovega gesla). To NI prava zamenjava seje: prava
 --     Supabase avtentikacija ostane administratorjeva (varno brez
@@ -1043,7 +1043,7 @@ create policy admin_view_as_log_update on public.admin_view_as_log
   with check (public.current_role_is('admin') and admin_id = auth.uid());
 
 -- ---------------------------------------------------------------------
--- 14) employee_wishes — "Seznam želja" (zelje.html), razdeljen po
+-- 14) employee_wishes – "Seznam želja" (zelje.html), razdeljen po
 --     oddelkih. Na izrecno navodilo: samo 6 SMS/TZN oddelkov (B/C/C1/D/
 --     E1/E2) + "VODJE" (nosilci oddelkov) - ostali oddelčni kod (DEZ,
 --     NEDEZ, PDZN, SOBO ...) NISO del te funkcije, zato "department_code"
@@ -1110,7 +1110,7 @@ create policy employee_wishes_delete on public.employee_wishes
   for delete to authenticated using (public.current_role_is('admin') or created_by = auth.uid());
 
 -- ---------------------------------------------------------------------
--- 15) profiles.rotation_slot — nadomešča trdo kodirano drugo kolono
+-- 15) profiles.rotation_slot – nadomešča trdo kodirano drugo kolono
 --     (rotacijska črka A-E) v admin.html WARDS_META.staff. RLS ni nova:
 --     rotation_slot je navaden profiles stolpec, torej ga že pokrivata
 --     obstoječa profiles_select (vsi ga vidijo) in profiles_update_admin
@@ -1137,7 +1137,7 @@ from (values
 where p.full_name = v.full_name and p.rotation_slot is null;
 
 -- ---------------------------------------------------------------------
--- 16) profile_hr_details.duty_* — osebne nastavitve dežurnega kadra
+-- 16) profile_hr_details.duty_* – osebne nastavitve dežurnega kadra
 --     (min/maks dežurstev na mesec, prost dan v tednu, samo med tednom),
 --     prej trdo kodirane v admin.html DEZURNI_ZACETNO. RLS ni nova - te
 --     kolone pokrivata obstoječi profile_hr_details_select/_admin_write.
@@ -1190,25 +1190,25 @@ on conflict (profile_id) do update set
 
 -- ---------------------------------------------------------------------
 -- 17) FLEXI oddelek + department_shift_minimums + profile_hr_details.employee_code
---     Del kontrolnega seznama za jutri — tri stvari, ki so bile v Google
+--     Del kontrolnega seznama za jutri – tri stvari, ki so bile v Google
 --     Sheets predlogah (Hospital/NZV/Dežurstva, 6.8.2026) uporabljene kot
 --     "osnutek"/"referenca", zdaj postanejo pravi del aplikacije.
 -- ---------------------------------------------------------------------
 
--- FLEXI kot pravi oddelek — plavajoče osebje, ki dela v več oddelkih hkrati
+-- FLEXI kot pravi oddelek – plavajoče osebje, ki dela v več oddelkih hkrati
 -- (glej roster/analiza-razporedov.md §4). Rotacijski generator
--- (generirajKalup/WARDS_META) namerno ostaja nedotaknjen — FLEXI kader se
+-- (generirajKalup/WARDS_META) namerno ostaja nedotaknjen – FLEXI kader se
 -- še vedno ne razporeja samodejno, to je znana, dokumentirana omejitev.
 -- Novi oddelek se avtomatsko pojavi v Imeniku (dropdown bere departments),
 -- brez sprememb UI kode.
 insert into public.departments (code, name) values
-  ('FLEXI', 'FLEXI — plavajoče osebje (več oddelkov)')
+  ('FLEXI', 'FLEXI – plavajoče osebje (več oddelkov)')
 on conflict (code) do update set name = excluded.name;
 
--- Minimumi po oddelku × izmeni — natančnejši nadomestek za "bazni kalup"
+-- Minimumi po oddelku × izmeni – natančnejši nadomestek za "bazni kalup"
 -- primerjavo, ki jo PokritostPoDnevih (admin.html) doslej uporablja.
 -- Osnutek številk je iz starega analiznega prototipa (schedule_data.json,
--- department_requirements) — NI potrjen s strani koordinatorja, zato
+-- department_requirements) – NI potrjen s strani koordinatorja, zato
 -- admin.html to prikaže kot urejljivo tabelo, ne kot trdno pravilo.
 create table if not exists public.department_shift_minimums (
   department_code text not null references public.departments (code) on update cascade,
@@ -1254,7 +1254,7 @@ insert into public.department_shift_minimums (department_code, shift_bucket, min
   ('E2', 'PONOCI', null, 1, null, null)
 on conflict (department_code, shift_bucket) do nothing;
 
--- Matična številka — enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev
+-- Matična številka – enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev
 -- + 22 vodij/nosilcev oddelkov, iz "Zaposleni - SMS-DMS" in "Zaposleni -
 -- Oddelki", 6.8.2026). `profile_hr_details.employee_code` stolpec je že
 -- obstajal (uvožen prek HR podatkov), a doslej neizpolnjen za te osebe.
@@ -1339,11 +1339,11 @@ on conflict (profile_id) do update set
   employee_code = coalesce(public.profile_hr_details.employee_code, excluded.employee_code);
 
 -- ---------------------------------------------------------------------
--- 18) Oddelek/vloga po e-pošti — dopolnilo k skripte/uvoz-racunov.mjs
+-- 18) Oddelek/vloga po e-pošti – dopolnilo k skripte/uvoz-racunov.mjs
 --     Ta skripta samo ustvari Auth račune (prazen department_code, role
 --     privzeto 'user'); ta blok jih takoj po tem samodejno izpolni za
 --     osebe, kjer je vir (roster/zaposleni-vloge-gesla.csv) nedvoumen.
---     Ujemanje po e-pošti (ne po imenu) — bolj zanesljivo, ker e-pošto
+--     Ujemanje po e-pošti (ne po imenu) – bolj zanesljivo, ker e-pošto
 --     pozna handle_new_user() natančno (iz auth.users.email), brez
 --     razhajanj v zapisu imena.
 --
@@ -1356,12 +1356,12 @@ on conflict (profile_id) do update set
 --     Lelić Dijana, Maglić Aleksander, Mavri Tratnik Magdalena, Mušič Ines,
 --     Šubic Petra, Trpin Saša), ki jim prvotno (iz zaposleni-vloge-gesla.csv)
 --     ni bilo mogoče dodeliti nedvoumnega oddelka, imajo tu department_code
---     dopolnjen iz že obstoječe tabele (10) lead_departments — ta natančno
+--     dopolnjen iz že obstoječe tabele (10) lead_departments – ta natančno
 --     pozna njihov "domači" oddelek (isti vir, ki že polni Statistiko/Vodje).
 --
 --     Tri osebe, ki jim noben vir ni dal konkretnega oddelka (Zaplotnik
 --     Alenka, Balek Mija, Sejdinović Mustafa), so 13. 8. 2026 zapustile
---     bolnišnico in so iz tega seznama odstranjene — skupaj s Stare Luko.
+--     bolnišnico in so iz tega seznama odstranjene – skupaj s Stare Luko.
 --     Za njihov izbris iz obstoječe baze glej supabase/odstrani-zaposlene.sql.
 --     Za "FLEXI/<oddelek>" zapise je department_code=
 --     'FLEXI' (primarni), spodnji drugi insert pa doda njihov "domači"
@@ -1463,19 +1463,19 @@ on conflict (profile_id, department_code) do nothing;
 --     Digitalna različica papirnatega obrazca PB Begunje istega imena
 --     (prvotno "Obvestilo koordinatorici za razporejanje kadra v ZN" -
 --     preimenovano na izrecno željo uporabnika). Namenoma LOČEN od
---     obstoječega swap_requests (menjave.html) — ta obrazec je širši
+--     obstoječega swap_requests (menjave.html) – ta obrazec je širši
 --     (3 kategorije: ročno evidentiranje / menjava službe / drugo) in za
 --     menjavo dodaja korak "sodelavec mora najprej privoliti" ter
 --     preverjanje 11-urnega počitka, česar swap_requests ne počne.
 --
 --     Prilagojeno iz zunanjega referenčnega gradiva (druga aplikacija,
 --     shema profili/zaposleni_kadris) na obstoječo shemo profiles/
---     departments/schedule_entries — brez "koordinator" kot 4. vloge:
+--     departments/schedule_entries – brez "koordinator" kot 4. vloge:
 --     ta korak opravi kdorkoli ima role='admin' (enako kot povsod drugod
 --     v aplikaciji, npr. 2. stopnja pri swap_requests).
 -- ---------------------------------------------------------------------
 
--- Neposredni vodja — ločeno od profile_hr_details.manager_name (ki je
+-- Neposredni vodja – ločeno od profile_hr_details.manager_name (ki je
 -- samo prikazno prosto besedilo). Ta stolpec je prava FK-povezava, ker ga
 -- spodnje RPC funkcije uporabljajo za usmerjanje odobritev. Admin ga
 -- ureja v Imeniku (nov dropdown izbirnik druge osebe).
@@ -1542,7 +1542,7 @@ create policy obrazci_select on public.obrazci for select to authenticated using
 );
 
 -- Vlagatelj sme vstaviti samo svoj osnutek. Vse nadaljnje spremembe gredo
--- skozi spodnje funkcije — tu ni pravila za update, zato tudi neposreden
+-- skozi spodnje funkcije – tu ni pravila za update, zato tudi neposreden
 -- klic API mimo funkcij ne more obiti verige odobritev.
 drop policy if exists obrazci_insert on public.obrazci;
 create policy obrazci_insert on public.obrazci for insert to authenticated
@@ -1568,7 +1568,7 @@ end;
 $$;
 revoke execute on function public.zapisi_v_dnevnik(uuid, smallint, text, text) from public, anon, authenticated;
 
--- STOPNJA 1 — oddaja
+-- STOPNJA 1 – oddaja
 create or replace function public.obrazec_oddaj(p_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
 declare o public.obrazci; v_vodja uuid; v_status text;
@@ -1579,7 +1579,7 @@ begin
   if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
 
   select vodja_id into v_vodja from public.profiles where id = auth.uid();
-  if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje — admin ga mora najprej nastaviti v Imeniku.'; end if;
+  if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
 
   if o.vrsta = 'menjava_sluzbe' then
     if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
@@ -1595,7 +1595,7 @@ end;
 $$;
 grant execute on function public.obrazec_oddaj(uuid) to authenticated;
 
--- STOPNJA 2 — sodelavec potrdi (samo menjava)
+-- STOPNJA 2 – sodelavec potrdi (samo menjava)
 create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
 returns text language plpgsql security definer set search_path = public as $$
 declare o public.obrazci;
@@ -1618,7 +1618,7 @@ end;
 $$;
 grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
 
--- STOPNJA 3 — neposredni vodja
+-- STOPNJA 3 – neposredni vodja
 create or replace function public.obrazec_potrdi_vodja(p_id uuid, p_sprejmi boolean, p_opomba text default null)
 returns text language plpgsql security definer set search_path = public as $$
 declare o public.obrazci;
@@ -1641,8 +1641,8 @@ end;
 $$;
 grant execute on function public.obrazec_potrdi_vodja(uuid, boolean, text) to authenticated;
 
--- STOPNJA 4 — koordinator (role='admin'); ob potrditvi menjave zamenja
--- schedule_entries.shift_code med vlagateljem in sodelavcem — isti vzorec
+-- STOPNJA 4 – koordinator (role='admin'); ob potrditvi menjave zamenja
+-- schedule_entries.shift_code med vlagateljem in sodelavcem – isti vzorec
 -- kot decide_swap_admin (glej zgoraj), samo brez zaposleni_kadris/mat_st
 -- posrednika, ker so profiles.id že stabilen ključ.
 create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
@@ -1709,7 +1709,7 @@ end;
 $$;
 grant execute on function public.obrazec_preklici(uuid, text) to authenticated;
 
--- Kaj čaka name — enako kot obstoječi "Menjave" rumen klicaj, samo za ta obrazec.
+-- Kaj čaka name – enako kot obstoječi "Menjave" rumen klicaj, samo za ta obrazec.
 create or replace view public.obrazci_moja_naloga
 with (security_invoker = true) as
 select o.*,
@@ -1723,14 +1723,14 @@ from public.obrazci o;
 -- ---------------------------------------------------------------------
 -- 19b) Pomožne funkcije za menjavo: kdo je odsoten, kdo je na voljo,
 --      preverjanje 11-urnega počitka. Isti nabor kod izmen kot
---      generator-core.js/admin.html classify() — glede na to, da je
+--      generator-core.js/admin.html classify() – glede na to, da je
 --      shift_code prosto besedilo, ujemanje po predponi (ne po tabeli
 --      točnih vrednosti), da zajame vse dosedanje zapise (npr. "popoldan
---      do 19h" ali "popoldan do 19" — oboje).
+--      do 19h" ali "popoldan do 19" – oboje).
 -- ---------------------------------------------------------------------
 
 -- Meje in "čez polnoč" za znane kode izmen. Vrne null, če koda ne pomeni
--- dela (LD/KPU/prazno/POMOČ DRUGJE) — take dneve pocitek_ustreza spodaj
+-- dela (LD/KPU/prazno/POMOČ DRUGJE) – take dneve pocitek_ustreza spodaj
 -- preskoči.
 create or replace function public.izmena_cas(p_sifra text)
 returns table (zacetek time, konec time, cez_polnoc boolean)
@@ -1801,7 +1801,7 @@ $$;
 
 -- Kdo je odsoten (dopust/omejitev/bolniška/študijski) med p_od in p_do,
 -- vključno s pravilom "dan pred dopustom" (in petek prej, če se blok LD
--- začne v ponedeljek) — enako pravilo, kot ga generator-core.js/
+-- začne v ponedeljek) – enako pravilo, kot ga generator-core.js/
 -- generirajDezurstva že uporablja, tu na voljo kot splošna SQL funkcija.
 create or replace function public.blokirani_dnevi(p_od date, p_do date)
 returns table (profile_id uuid, datum date)
@@ -1869,7 +1869,7 @@ grant execute on function public.mozni_sodelavci(uuid, date) to authenticated;
 -- 20) Enkraten popravek: full_name je bil za te 3 admin račune dobesedno
 --     enak e-pošti namesto pravega imena (handle_new_user() je verjetno
 --     padel nazaj na e-pošto, ker takrat ni dobil pravih metapodatkov o
---     imenu — glej tudi popravek uvoza v imenik.html, ki to od zdaj naprej
+--     imenu – glej tudi popravek uvoza v imenik.html, ki to od zdaj naprej
 --     prepreči za bodoče uvoze). "coalesce" ni potreben - te tri vrednosti
 --     so bile potrjeno napačne (enake e-pošti), zato je varno prepisati.
 -- ---------------------------------------------------------------------
@@ -1883,14 +1883,14 @@ where lower(p.email) = v.email and p.full_name = p.email;
 
 -- ---------------------------------------------------------------------
 -- 21) Enostopenjska odobritev menjav, kjer je udeležen vodja
---     ("Menjave dejansko potrebujejo samo vodje ki dežurajo" — vodja ne more
+--     ("Menjave dejansko potrebujejo samo vodje ki dežurajo" – vodja ne more
 --     smiselno odločati o lastni menjavi na 1. stopnji, zato taka menjava
 --     preskoči navadno dvostopenjsko verigo (vodja→admin) in gre naravnost
 --     na EN sam korak, ki ga sme potrditi izključno oseba z zastavico
---     is_koordinator = true (privzeto samo Denis Džamastagić — glej seed
+--     is_koordinator = true (privzeto samo Denis Džamastagić – glej seed
 --     spodaj). Zastavica je urejljiva v Imeniku (admin), da ni trajno trdo
 --     vezana na eno osebo. Ob potrditvi se menjava neposredno izvede v
---     schedule_entries — enak vzorec kot obstoječi decide_swap_admin.
+--     schedule_entries – enak vzorec kot obstoječi decide_swap_admin.
 -- ---------------------------------------------------------------------
 alter table public.profiles add column if not exists is_koordinator boolean not null default false;
 
@@ -2043,7 +2043,7 @@ begin
     return new;
   end if;
   msg := case new.status
-    when 'pending_admin'           then 'Vodja je odobril predlog menjave — čaka na administratorja.'
+    when 'pending_admin'           then 'Vodja je odobril predlog menjave – čaka na administratorja.'
     when 'pending_koordinator'     then 'Predlog menjave čaka na potrditev koordinatorja.'
     when 'approved'                then 'Menjava izmene je bila potrjena.'
     when 'rejected_by_lead'        then 'Vodja je zavrnil predlog menjave.'
@@ -2113,7 +2113,7 @@ drop function if exists public.decide_swap_koordinator(bigint, boolean, text);
 -- stopnjo opravi kdorkoli ima role='admin').
 alter table public.obrazci add column if not exists je_dezurstvo boolean not null default false;
 
--- STOPNJA 1 — oddaja (popravljena: zazna je_dezurstvo, vodja ni obvezen,
+-- STOPNJA 1 – oddaja (popravljena: zazna je_dezurstvo, vodja ni obvezen,
 -- če ga menjava dežurstva sploh ne bo potrebovala).
 create or replace function public.obrazec_oddaj(p_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
@@ -2145,11 +2145,11 @@ begin
   end if;
 
   -- Neposrednega vodjo potrebujemo samo, če bo obrazec dejansko šel skozi
-  -- njegovo stopnjo — menjava dežurstva jo preskoči (glej
+  -- njegovo stopnjo – menjava dežurstva jo preskoči (glej
   -- obrazec_potrdi_sodelavec spodaj), zato zanjo vodja ni pogoj za oddajo.
   if not (o.vrsta = 'menjava_sluzbe' and v_je_dez) then
     select vodja_id into v_vodja from public.profiles where id = auth.uid();
-    if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje — admin ga mora najprej nastaviti v Imeniku.'; end if;
+    if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
   end if;
 
   update public.obrazci set status = v_status, vodja_id = v_vodja, je_dezurstvo = v_je_dez where id = p_id;
@@ -2159,7 +2159,7 @@ end;
 $$;
 grant execute on function public.obrazec_oddaj(uuid) to authenticated;
 
--- STOPNJA 2 — sodelavec potrdi (popravljena: menjava dežurstva gre naravnost
+-- STOPNJA 2 – sodelavec potrdi (popravljena: menjava dežurstva gre naravnost
 -- h koordinatorju, brez vodje).
 create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
 returns text language plpgsql security definer set search_path = public as $$
@@ -2184,7 +2184,7 @@ end;
 $$;
 grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
 
--- STOPNJA 4 — koordinator (popravljena: menjava dežurstva zahteva
+-- STOPNJA 4 – koordinator (popravljena: menjava dežurstva zahteva
 -- is_koordinator=true, navadna menjava ostane role='admin' kot doslej).
 create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
 returns text language plpgsql security definer set search_path = public as $$
@@ -2280,10 +2280,10 @@ create policy obrazci_select on public.obrazci for select to authenticated using
 );
 
 -- ---------------------------------------------------------------------
--- 23) NZV kot oddelek za razporede (vodje + admin) — na izrecno željo so
+-- 23) NZV kot oddelek za razporede (vodje + admin) – na izrecno željo so
 --     oddelki za KREIRANJE/GENERIRANJE RAZPOREDA odslej izključno:
 --     B, C, C1, D, E1, E2, FLEXI (vsi z vlogo 'user') in NZV (vsi z vlogo
---     'vodja' ali 'admin', vključno z dežurstvi — glej admin.html "NZV"
+--     'vodja' ali 'admin', vključno z dežurstvi – glej admin.html "NZV"
 --     zavihek, ki združi obstoječa Vodje+Dežurstva na eno mesto, logika
 --     generiranja ostane nespremenjena). FLEXI je bil dodan že v sekciji
 --     17 in ostaja ročno voden bazen brez samodejnega kalupa (namerna,
@@ -2291,23 +2291,23 @@ create policy obrazci_select on public.obrazci for select to authenticated using
 --
 --     Namenoma NE brišemo/ne diramo starih department kod (DEZ, NEDEZ,
 --     PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA, U2) iz tabele
---     departments — obstoječi schedule_entries (že objavljeni razporedi
+--     departments – obstoječi schedule_entries (že objavljeni razporedi
 --     vodij/dežurstev, NOT NULL FK na departments) jih zgodovinsko
 --     referencira; izbris bi ali padel na FK omejitvi ali (če bi ga na
 --     silo izvedli) uničil zgodovino že objavljenih razporedov, česar
 --     nimam možnosti preveriti brez neposrednega dostopa do žive baze.
 --     Namesto tega jih aplikacija preprosto preneha PONUJATI za novo
 --     dodeljevanje (glej RAZPORED_ODDELKI konstante v admin.html/
---     imenik.html/zelje.html) — obstoječi profili s staro kodo ostanejo
+--     imenik.html/zelje.html) – obstoječi profili s staro kodo ostanejo
 --     nedotaknjeni, dokler jih admin ročno ne popravi v Imeniku (na
---     izrecno željo uporabnika — "naknadno bom popravil").
+--     izrecno željo uporabnika – "naknadno bom popravil").
 -- ---------------------------------------------------------------------
 insert into public.departments (code, name) values
-  ('NZV', 'NZV — vodje in administratorji (vključno z dežurstvi)')
+  ('NZV', 'NZV – vodje in administratorji (vključno z dežurstvi)')
 on conflict (code) do update set name = excluded.name;
 
 -- employee_wishes: "VODJE" preimenovan v "NZV" (ista skupina, novo ime,
--- usklajeno z zgornjim modelom) — najprej podatki, nato CHECK.
+-- usklajeno z zgornjim modelom) – najprej podatki, nato CHECK.
 update public.employee_wishes set department_code = 'NZV' where department_code = 'VODJE';
 
 alter table public.employee_wishes drop constraint if exists employee_wishes_department_code_check;
@@ -2315,7 +2315,7 @@ alter table public.employee_wishes add constraint employee_wishes_department_cod
   check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'FLEXI', 'NZV'));
 
 -- ---------------------------------------------------------------------
--- 24) profiles.parafa — kratka 2-4 črkovna parafa (npr. "BOJ", "DŽA"),
+-- 24) profiles.parafa – kratka 2-4 črkovna parafa (npr. "BOJ", "DŽA"),
 --     kot jo uporablja uradna predloga "Letni dopusti in omejitve za NZV"
 --     namesto polnega imena v celicah. NAMENOMA na profiles (ne
 --     profile_hr_details), ker mora biti vidna VSEM prijavljenim, ne
@@ -2351,7 +2351,7 @@ alter table public.profiles add column if not exists job_title text;
 
 -- "created_at" (datum PRVE objave) je manjkal, čeprav ga sprožilec spodaj
 -- ohranja in ga index.html bere ("Objavljeno"). V produkciji obstaja, v tej
--- datoteki ga ni bilo — shema torej ni znala na novo postaviti delujoče
+-- datoteki ga ni bilo – shema torej ni znala na novo postaviti delujoče
 -- baze: prvi UPDATE bi padel z "record new has no field created_at".
 alter table public.schedule_entries add column if not exists created_at timestamptz not null default now();
 alter table public.schedule_entries add column if not exists created_by uuid references public.profiles (id);
@@ -2370,7 +2370,7 @@ begin
   else
     new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
     -- Avtorja prve objave ohrani (upsert iz aplikacije pošlje prazno polje
-    -- in bi ga sicer izbrisal) — RAZEN kadar ga prav zdaj prazni baza sama,
+    -- in bi ga sicer izbrisal) – RAZEN kadar ga prav zdaj prazni baza sama,
     -- ker je bil avtorjev račun izbrisan ("on delete set null", odsek 30).
     -- Takrat old.created_by kaže na profil, ki ne obstaja več; če ga vrnemo,
     -- v vrstici ostane viseča povezava na neobstoječo osebo.
@@ -2391,7 +2391,7 @@ create trigger schedule_entries_touch
   for each row execute function public.schedule_entries_touch();
 
 -- ---------------------------------------------------------------------
--- 26) schedule_entries_log — revizijska sled (audit log): kdo, kdaj in
+-- 26) schedule_entries_log – revizijska sled (audit log): kdo, kdaj in
 --     kaj je spremenil v razporedu. Ločena append-only tabela (ne
 --     "zgodovina v isti vrstici" kot created_by/updated_by zgoraj, ki
 --     hrani samo TRENUTNO stanje) - vsak dejanski vpis/sprememba/izbris
@@ -2456,7 +2456,7 @@ create trigger schedule_entries_audit
   for each row execute function public.schedule_entries_audit();
 
 -- ---------------------------------------------------------------------
--- 27) Potisna obvestila (Web Push) — nadgradnja obstoječega
+-- 27) Potisna obvestila (Web Push) – nadgradnja obstoječega
 --     "obveščanja samo znotraj aplikacije" (sekcija 5) v pravo potisno
 --     obvestilo na telefon, brez SMS-stroškov in brez trgovin z
 --     aplikacijami (PWA + Web Push, deluje na Androidu in iOS 16.4+, na
@@ -2466,7 +2466,7 @@ create trigger schedule_entries_audit
 --     notifications tabela je EDINI vir resnice ("kaj je treba povedati"),
 --     Edge Function posiljaj-push pa jo občasno prebere in odpošlje
 --     (push_sent_at označi poslano). Prednost: obvestilo v aplikaciji in
---     push nikoli ne razideta, izpad pošiljanja pa ne izgubi sporočila —
+--     push nikoli ne razideta, izpad pošiljanja pa ne izgubi sporočila –
 --     ob naslednjem zagonu se enostavno pošlje.
 --
 --     "kljuc" je neobvezen idempotenčni ključ: opomniki (pg_cron spodaj)
@@ -2509,7 +2509,7 @@ create policy push_subscriptions_own on public.push_subscriptions
 -- 27a) Obvestila ob spremembi statusa MENJAVE (obrazci)
 --
 --      Obstoječi notify_swap_status_change (sekcija 5) visi na ukinjeni
---      swap_requests tabeli in se torej nikoli več ne sproži — obrazci
+--      swap_requests tabeli in se torej nikoli več ne sproži – obrazci
 --      sistem doslej NI pisal obvestil. To je popravek te vrzeli, ne
 --      samo dodatek za push.
 -- ---------------------------------------------------------------------
@@ -2560,7 +2560,7 @@ begin
       else 'Menjava je preklicana'
     end;
     sporocilo := case new.status
-      when 'zakljucen' then 'Predlog menjave je bil dokončno odobren — razpored je posodobljen.'
+      when 'zakljucen' then 'Predlog menjave je bil dokončno odobren – razpored je posodobljen.'
       when 'zavrnjen' then 'Predlog menjave je bil zavrnjen.' || coalesce(' Razlog: ' || new.razlog_zavrnitve, '')
       else 'Predlog menjave je bil preklican.'
     end;
@@ -2580,7 +2580,7 @@ create trigger on_obrazec_status_change
   for each row execute function public.obvesti_ob_spremembi_obrazca();
 
 -- ---------------------------------------------------------------------
--- 27b) Obvestilo ob OBJAVI mesečnega razporeda — kliče ga admin.html po
+-- 27b) Obvestilo ob OBJAVI mesečnega razporeda – kliče ga admin.html po
 --      uspešni objavi (ne sprožilec na schedule_entries: objava je na
 --      tisoče vrstic naenkrat, kar bi pomenilo tisoče obvestil namesto
 --      enega na osebo).
@@ -2617,7 +2617,7 @@ grant execute on function public.obvesti_o_objavi_razporeda(date, date, text) to
 
 -- ---------------------------------------------------------------------
 -- 27c) Opomnik 24 ur pred nočno izmeno ali dežurstvom. Poganja ga
---      pg_cron (glej PUSH-SETUP.md) — idempotentno prek "kljuc", zato
+--      pg_cron (glej PUSH-SETUP.md) – idempotentno prek "kljuc", zato
 --      večkratni zagon istega dne ne podvoji opomnika.
 -- ---------------------------------------------------------------------
 create or replace function public.ustvari_opomnike_za_jutri()
@@ -2650,21 +2650,21 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- 28) profiles_log — revizijska sled SPREMEMB PRAVIC (RBAC audit).
+-- 28) profiles_log – revizijska sled SPREMEMB PRAVIC (RBAC audit).
 --
 --     Sekcija 26 zgoraj revidira razpored (kdo je komu spremenil izmeno).
 --     Kdo je komu podelil ali odvzel PRAVICE, pa doslej ni bilo nikjer
---     zabeleženo — administrator lahko v Generator → Uporabniki komurkoli
+--     zabeleženo – administrator lahko v Generator → Uporabniki komurkoli
 --     nastavi vlogo "admin", in po tem dejanju ni ostalo nobene sledi.
 --     Za "pravno skladnost in varnost podatkov" je to večja vrzel od
 --     revizije razporeda: brez nje ni mogoče odgovoriti na vprašanje
 --     "kdo je tej osebi omogočil dostop do kadrovskih podatkov in kdaj".
 --
 --     Beležijo se samo štiri polja, ki dejansko določajo pravice:
---       role            — admin / vodja / user
---       department_code — kateri oddelek vodja vidi in ureja
---       vodja_id        — komu je oseba podrejena (veriga odobritev)
---       is_koordinator  — enostopenjska odobritev menjav
+--       role            – admin / vodja / user
+--       department_code – kateri oddelek vodja vidi in ureja
+--       vodja_id        – komu je oseba podrejena (veriga odobritev)
+--       is_koordinator  – enostopenjska odobritev menjav
 --     Ostala polja (ime, e-pošta, parafa, naziv) niso varnostno
 --     relevantna in bi dnevnik samo napolnila.
 --
@@ -2734,7 +2734,7 @@ begin
     values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
   end if;
   if old.vodja_id is distinct from new.vodja_id then
-    -- Zapiše se IME vodje, ne uuid — dnevnik mora biti berljiv brez
+    -- Zapiše se IME vodje, ne uuid – dnevnik mora biti berljiv brez
     -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
     -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
     -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
@@ -2762,22 +2762,22 @@ create trigger profiles_audit
 -- 29) Živa koledarska naročnina (iCal subscription).
 --
 --     Doslej je bil izvoz .ics ENKRATEN prenos: kar si prenesel, je v
---     telefonu obtičalo takšno, kot je bilo — sprememba razporeda se v
+--     telefonu obtičalo takšno, kot je bilo – sprememba razporeda se v
 --     koledarju ni poznala. Tu se doda naslov, na katerega se koledar
 --     naroči in ga sam občasno osveži.
 --
 --     ZAKAJ LOČENA TABELA IN NE STOLPEC V profiles:
 --     politika profiles_select je "for select to authenticated using
---     (true)" — vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
+--     (true)" – vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
 --     žeton živel tam, bi vsak zaposleni videl žetone vseh sodelavcev in
 --     se lahko naročil na njihov razpored. Zato svoja tabela, kjer
 --     politika omeji branje na lastnika vrstice.
 --
 --     Žeton je nosilni podatek (kdor ga ima, vidi razpored te osebe brez
---     prijave — koledarski odjemalci se ne znajo prijaviti), zato:
+--     prijave – koledarski odjemalci se ne znajo prijaviti), zato:
 --       * 32 naključnih bajtov iz pgcrypto (ne uuid, ki je deloma
 --         predvidljiv in se ponekod izpisuje v naslovih),
---       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje —
+--       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje –
 --         admin razpored že vidi v aplikaciji,
 --       * zamenljiv z eno potezo (koledar_token_ponastavi), s čimer
 --         prejšnja povezava takoj neha delovati.
@@ -2789,13 +2789,13 @@ create table if not exists public.calendar_tokens (
   last_used_at timestamptz
 );
 -- Stikalo za vklop/izklop sinhronizacije. Ločeno od brisanja žetona:
--- izklop naj povezavo USTAVI, ne pa pozabi — kdor jo pozneje spet vklopi,
+-- izklop naj povezavo USTAVI, ne pa pozabi – kdor jo pozneje spet vklopi,
 -- naj mu ni treba znova urejati koledarja na telefonu. Ob izklopu vir
 -- vrne 404, enako kot pri neveljavnem žetonu.
 alter table public.calendar_tokens add column if not exists enabled boolean not null default true;
 
 alter table public.calendar_tokens enable row level security;
--- Samo lastnik. Brez insert/update/delete politik — vse gre prek
+-- Samo lastnik. Brez insert/update/delete politik – vse gre prek
 -- security definer funkcij spodaj.
 drop policy if exists calendar_tokens_own on public.calendar_tokens;
 create policy calendar_tokens_own on public.calendar_tokens
@@ -2804,7 +2804,7 @@ create policy calendar_tokens_own on public.calendar_tokens
 -- OPOMBA o generiranju žetona: uporabljamo dva gen_random_uuid() brez
 -- pomišljajev (2 x 32 = 64 šestnajstiških znakov), NE encode(gen_random_bytes...).
 -- gen_random_bytes prihaja iz razširitve pgcrypto, ta pa v Supabase ni v shemi
--- "public" ampak v "extensions" — ob "set search_path = public, pg_temp" je
+-- "public" ampak v "extensions" – ob "set search_path = public, pg_temp" je
 -- torej nedosegljiva in klic odpove z "function gen_random_bytes(integer) does
 -- not exist". gen_random_uuid() je od PostgreSQL 13 del jedra, zato deluje
 -- povsod in brez razširitev. Naključnost ostaja kriptografska (2 x 122 bita).
@@ -2858,7 +2858,7 @@ begin
 end;
 $$;
 
--- Zamenja žeton — prejšnja povezava takoj preneha delovati (za primer,
+-- Zamenja žeton – prejšnja povezava takoj preneha delovati (za primer,
 -- ko je bila povezava pomotoma deljena).
 create or replace function public.koledar_token_ponastavi()
 returns text
@@ -2896,7 +2896,7 @@ declare
   v_profile uuid;
 begin
   -- "and ct.enabled" pomeni, da izklopljena sinhronizacija izgleda
-  -- popolnoma enako kot neveljaven žeton — brez namiga, ali oseba obstaja.
+  -- popolnoma enako kot neveljaven žeton – brez namiga, ali oseba obstaja.
   select ct.profile_id into v_profile
   from public.calendar_tokens ct
   where ct.token = p_token and ct.enabled;
@@ -2918,7 +2918,7 @@ $$;
 revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
--- 30) notification_settings — kanali obveščanja po osebi.
+-- 30) notification_settings – kanali obveščanja po osebi.
 --
 --     Doslej je bilo obveščanje vse-ali-nič in vezano na NAPRAVO: potisna
 --     obvestila si vklopil na telefonu (push_subscriptions), drugih poti
@@ -2998,7 +2998,7 @@ revoke all on function public.prejemniki_obvestil(uuid[]) from public, anon, aut
 -- 30) Sled avtorstva preživi izbris osebe
 -- ---------------------------------------------------------------------
 -- Kdo je vnesel/odobril, ni lastništvo, ampak sled. Ko oseba zapusti
--- bolnišnico in se njen račun izbriše, mora zapis ostati — samo brez
+-- bolnišnico in se njen račun izbriše, mora zapis ostati – samo brez
 -- avtorja. Brez "on delete set null" te povezave izbris ustavijo, sprožilec
 -- schedule_entries_touch pa poleg tega ob UPDATE avtorja vrne na staro
 -- vrednost, tako da polja ni mogoče niti ročno izprazniti.
@@ -3028,7 +3028,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
--- 31) profiles.parafa_pred_oktobrom_2026 — parafa je bila za del kadra
+-- 31) profiles.parafa_pred_oktobrom_2026 – parafa je bila za del kadra
 --     PRENOVLJENA z veljavnostjo od 1.10.2026 (uradna sprememba, ne napaka
 --     v aplikaciji) - profiles.parafa (sekcija 24) odslej hrani NOVO
 --     parafo, ta stolpec pa STARO, ki je veljala do 30.9.2026. Potreben je
@@ -3043,7 +3043,7 @@ end $$;
 alter table public.profiles add column if not exists parafa_pred_oktobrom_2026 text;
 
 -- ---------------------------------------------------------------------
--- 32) duty_doctors — kateri ZDRAVNIK je dežuren na posamezen dan (dva
+-- 32) duty_doctors – kateri ZDRAVNIK je dežuren na posamezen dan (dva
 --     ločena kroga: "Urgenca ZDR" in "Dežurstvo ZDR" - iz uradnega
 --     dokumenta "Razporeditev zaposlenih v UA in DEŽ"). Zdravniki NISO
 --     zaposleni v tej aplikaciji (nimajo profila/računa) - to je namerno
@@ -3068,7 +3068,7 @@ create policy duty_doctors_write on public.duty_doctors for all to authenticated
   using (public.current_role_is('admin')) with check (public.current_role_is('admin'));
 
 -- ---------------------------------------------------------------------
--- 33) menjave_javno — kdaj je bila izmena zamenjana s POTRJENO menjavo,
+-- 33) menjave_javno – kdaj je bila izmena zamenjana s POTRJENO menjavo,
 --     vidno vsem zaposlenim in za VSE mesece.
 --
 --     Zakaj pogled in ne širša politika na obrazci: obrazci_select
@@ -3107,7 +3107,7 @@ revoke all on public.menjave_javno from anon;
 grant select on public.menjave_javno to authenticated;
 
 -- ---------------------------------------------------------------------
--- 34) schedule_entries.pokriva_oddelek — kateri oddelek oseba TA DAN
+-- 34) schedule_entries.pokriva_oddelek – kateri oddelek oseba TA DAN
 --     pokriva, kadar to ni njen matični oddelek (FLEXI kader).
 --
 --     Zakaj ločen stolpec in ne department_code: v zavihku FLEXI uradne

@@ -10,7 +10,7 @@
 -- Primerja se torej množica besed v velikih črkah, kar prenese oba
 -- zapisa in tudi dvobesedni priimek.
 --
--- coalesce() v update delu ščiti poznejše ročne popravke v Imeniku —
+-- coalesce() v update delu ščiti poznejše ročne popravke v Imeniku –
 -- ponovni zagon ne povozi tega, kar je admin medtem spremenil.
 -- Poženi v Supabase → SQL Editor.
 -- ---------------------------------------------------------------------

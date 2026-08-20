@@ -130,5 +130,5 @@ console.log("9) uvoz res piše obe vrsti, ki ju prikaz pričakuje");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

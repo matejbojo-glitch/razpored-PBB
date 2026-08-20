@@ -1,5 +1,5 @@
 -- =====================================================================
--- Razpored PBB — URNIK ZA OBVESCANJE (pg_cron)
+-- Razpored PBB – URNIK ZA OBVESCANJE (pg_cron)
 --
 -- Brez tega je robna funkcija "posiljaj-push" samo nalozena, a je nihce
 -- ne klice: obvestila se zapisejo v bazo in so vidna v aplikaciji, na
@@ -19,7 +19,7 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- 2) Ce opravili ze obstajata, ju najprej odstranimo — sicer bi se ob
+-- 2) Ce opravili ze obstajata, ju najprej odstranimo – sicer bi se ob
 --    ponovnem zagonu podvojili in obvestila bi se posiljala dvakrat.
 do $$
 begin
@@ -33,7 +33,7 @@ begin
 exception when others then null;
 end $$;
 
--- 3a) Dostava cakajocih obvestil — vsakih 5 minut.
+-- 3a) Dostava cakajocih obvestil – vsakih 5 minut.
 --     Funkcija sama poskrbi, da se nic ne podvoji (push_sent_at /
 --     email_sent_at), zato je pogost klic varen.
 select cron.schedule(
@@ -48,10 +48,10 @@ select cron.schedule(
   $$
 );
 
--- 3b) Opomniki za jutrisnje nocne izmene in dezurstva — vsak dan ob 17.00.
+-- 3b) Opomniki za jutrisnje nocne izmene in dezurstva – vsak dan ob 17.00.
 --     POZOR: pg_cron tece v UTC. 15:00 UTC = 17:00 poleti (CEST),
 --     16:00 pozimi (CET). Ce zelite tocno 17.00 vse leto, je treba urnik
---     dvakrat letno rocno prestaviti — ali pa sprejeti eno uro razlike
+--     dvakrat letno rocno prestaviti – ali pa sprejeti eno uro razlike
 --     pozimi, kar za opomnik dan prej ni pomembno.
 select cron.schedule(
   'opomniki-izmene',

@@ -1,4 +1,4 @@
-/* Ujemanje imen med viri — EN SAM VIR pravila.
+/* Ujemanje imen med viri – EN SAM VIR pravila.
  *
  * Isto osebo pišejo trije različni viri vsak po svoje:
  *
@@ -19,7 +19,7 @@
  *   index.html   vreča besed + psevdonima                 (brez strešic NE)
  *
  * Posledica ni bila teoretična: ista oseba se je na enem zaslonu našla,
- * na drugem pa ne — dopust je bil viden v Imeniku in neviden v Željah.
+ * na drugem pa ne – dopust je bil viden v Imeniku in neviden v Željah.
  * Zato je tu ENA primerjava, ki zna vse troje hkrati.
  *
  * Odvisnosti: nobene.
@@ -35,7 +35,7 @@ window.Imena = (function () {
   // Strešice se v izvozih iz različnih sistemov izgubljajo, zato jih pri
   // primerjavi odstranimo. Ć in Č se oba preslikata v C: dve OSEBI, ki bi
   // se razlikovali samo po tem znaku (isti priimek, isto ime), v resnici
-  // ne obstajata — preveri-imena.mjs to preveri na resničnem seznamu.
+  // ne obstajata – preveri-imena.mjs to preveri na resničnem seznamu.
   function brezStresic(s) {
     return String(s || "").toUpperCase()
       .replace(/[ČĆ]/g, "C").replace(/Š/g, "S").replace(/Ž/g, "Z").replace(/Đ/g, "D");
@@ -49,7 +49,7 @@ window.Imena = (function () {
       .split(" ").map(function (b) { return PSEVDONIM[b] || b; }).join(" ");
   }
 
-  // Ključ za primerjavo in za uporabo v Set/slovarju: "vreča besed" —
+  // Ključ za primerjavo in za uporabo v Set/slovarju: "vreča besed" –
   // vrstni red besed ni pomemben, ker viri pišejo enkrat "Priimek Ime" in
   // drugič "Ime Priimek".
   function kljuc(s) {

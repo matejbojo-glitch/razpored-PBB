@@ -16,12 +16,11 @@
       media="print" onload="this.media='all'" />
 
 <style>
-  :root{
-    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
-    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
-    --danger: #B3402A; --ok: #4C8C63; --cool: #4A67B0;
-    --radius: 16px; --radius-sm: 10px;
-  }
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
     margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
@@ -54,8 +53,8 @@
     letter-spacing:.03em; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; white-space:nowrap; }
   table.fair th.active{ color: var(--accent-2); }
   table.fair td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  table.fair tr.top td{ background: rgba(179,64,42,0.08); }
-  table.fair tr.bottom td{ background: rgba(76,140,99,0.08); }
+  table.fair tr.top td{ background: rgba(var(--danger-rgb),0.08); }
+  table.fair tr.bottom td{ background: rgba(var(--ok-rgb),0.08); }
   .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; min-width:60px; }
   .bar i{ display:block; height:100%; background: var(--accent); }
   .bar.cool i{ background: var(--cool); }
@@ -233,7 +232,7 @@ function ToplotnaKarta({ podatki, mere }){
                     display:"flex", alignItems:"center", justifyContent:"center",
                     fontSize:10.5, fontWeight:700,
                   }}
-                  title={`${z.ime} — ${m.naziv}: ${v}`}>
+                  title={`${z.ime} – ${m.naziv}: ${v}`}>
                   {v}
                 </span>
               );
@@ -289,7 +288,7 @@ function SmsTab({ baseline, onUpdate }){
   return (
     <div>
       <h2 className="section no-print">Dodaj mesec</h2>
-      <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → "Prenesi JSON"). Prišteje se k spodnji osnovi.</p>
+      <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → »Prenesi JSON«). Prišteje se k spodnji osnovi.</p>
       <div className="card">
         <div className="uploadRow">
           <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
@@ -297,7 +296,7 @@ function SmsTab({ baseline, onUpdate }){
         </div>
       </div>
 
-      <h2 className="section">Pregled — {baseline.obdobje}</h2>
+      <h2 className="section">Pregled – {baseline.obdobje}</h2>
       <KpiKartice postavke={kpi} />
       <StolpcniGraf podatki={baseline.podatki} kljuc="nocne" naslov="Nočne izmene po zaposlenih" enota="nočnih" />
       <StolpcniGraf podatki={baseline.podatki} kljuc="nedpraz" naslov="Nedelje in prazniki po zaposlenih" enota="dni" />
@@ -394,7 +393,7 @@ function DezTab({ baseline, onUpdate }){
   return (
     <div>
       <h2 className="section no-print">Dodaj mesec</h2>
-      <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → "Prenesi JSON"). Posodobi se samo število dežurstev — ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
+      <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → »Prenesi JSON«). Posodobi se samo število dežurstev – ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
       <div className="card">
         <div className="uploadRow">
           <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
@@ -402,12 +401,12 @@ function DezTab({ baseline, onUpdate }){
         </div>
       </div>
 
-      <h2 className="section">Pregled — {baseline.obdobje}</h2>
+      <h2 className="section">Pregled – {baseline.obdobje}</h2>
       <KpiKartice postavke={kpi} />
       <StolpcniGraf podatki={baseline.podatki} kljuc="dezurstva" naslov="Dežurstva po zaposlenih" enota="dežurstev" />
 
       <h2 className="section">Podrobna razpredelnica</h2>
-      <p className="hint">To je isti seznam, ki ga admin.html uporabi kot izhodišče za naslednji generiran mesec — po nalaganju novega meseca tu prenesite posodobljeno osnovo in jo ročno vnesite v generator.</p>
+      <p className="hint">To je isti seznam, ki ga admin.html uporabi kot izhodišče za naslednji generiran mesec – po nalaganju novega meseca tu prenesite posodobljeno osnovo in jo ročno vnesite v generator.</p>
       <div style={{overflowX:"auto"}}>
         <table className="fair">
           <thead><tr>
@@ -432,7 +431,7 @@ function DezTab({ baseline, onUpdate }){
           </tbody>
         </table>
       </div>
-      <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec — to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
+      <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec – to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
       <RazporedIzvozVir
         naziv="Dežurstva"
         dodatno={[{ label: "Prenesi posodobljeno osnovo (JSON)",
@@ -455,8 +454,8 @@ function NedezTab({ baseline }){
   const maxNoc = Math.max(1, ...baseline.podatki.map(z => z.noc));
   return (
     <div>
-      <h2 className="section">Stanje — {baseline.obdobje}</h2>
-      <p className="hint">Za to skupino (zaposleni brez 24-urnega dežurstva) generator še ne obstaja, zato tu ni nalaganja novih mesecev — samo pregled zadnjega znanega stanja iz analize Kadrisa.</p>
+      <h2 className="section">Stanje – {baseline.obdobje}</h2>
+      <p className="hint">Za to skupino (zaposleni brez 24-urnega dežurstva) generator še ne obstaja, zato tu ni nalaganja novih mesecev – samo pregled zadnjega znanega stanja iz analize Kadrisa.</p>
       <div style={{overflowX:"auto"}}>
         <table className="fair">
           <thead><tr>
@@ -530,7 +529,7 @@ function App({ role, ogled, profil }){
       {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
 
       <footer className="foot no-print">
-        <p><b>Modul 3 — nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) — vse iz analiz Kadrisa.</p>
+        <p><b>Modul 3 – nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) – vse iz analiz Kadrisa.</p>
         <p>Nalaganje novega meseca posodobi samo v tej seji odprtega brskalnika. Za trajno shrambo prenesite posodobljeno osnovo in jo shranite namesto te datoteke, ali počakajte na fazo 4 (skupna baza).</p>
       </footer>
 

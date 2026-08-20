@@ -1,4 +1,4 @@
-/* Razpored PBB — parafa.js
+/* Razpored PBB – parafa.js
  * Edini vir resnice o parafi (kratki oznaki osebe, npr. "BOJ"), ki jo
  * uradne predloge uporabljajo namesto polnega imena.
  *

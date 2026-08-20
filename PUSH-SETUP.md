@@ -1,4 +1,4 @@
-# Potisna obvestila (Web Push) — namestitev
+# Potisna obvestila (Web Push) – namestitev
 
 Aplikacija pošilja potisna obvestila na telefon **brez SMS-stroškov in brez trgovin z aplikacijami**
 (Web Push + PWA). Koda je že v repozitoriju; to so koraki, ki jih je treba enkrat opraviti v Supabase.
@@ -22,7 +22,7 @@ Obvestilo prejme zaposleni, ko:
 | Vklop/izklop za uporabnika | Nastavitve → Obvestila |
 
 Obvestila se **ne pošiljajo neposredno iz baze**. Tabela `notifications` je edini vir resnice, Edge
-Function jo občasno prebere in odpošlje. Če dostava izpade, se sporočilo ne izgubi — pošlje se ob
+Function jo občasno prebere in odpošlje. Če dostava izpade, se sporočilo ne izgubi – pošlje se ob
 naslednjem zagonu.
 
 ---
@@ -36,9 +36,9 @@ sprožilce in funkciji `obvesti_o_objavi_razporeda` / `ustvari_opomnike_za_jutri
 
 ## 2) VAPID ključa
 
-Javni ključ je **že v kodi** (`push-client.js`) — ni skrivnost, brskalnik ga potrebuje ob naročanju.
+Javni ključ je **že v kodi** (`push-client.js`) – ni skrivnost, brskalnik ga potrebuje ob naročanju.
 
-Zasebni ključ **namenoma ni v repozitoriju** (tudi v tej datoteki ne) — zasebnih ključev se ne
+Zasebni ključ **namenoma ni v repozitoriju** (tudi v tej datoteki ne) – zasebnih ključev se ne
 shranjuje v git. Vpiše se samo v Supabase skrivnosti (korak 3).
 
 Trenutni javni ključ v `push-client.js`:
@@ -55,7 +55,7 @@ node -e 'const c=require("crypto");const{publicKey,privateKey}=c.generateKeyPair
 ```
 
 > Ob novem paru je treba **javni** ključ vpisati v `push-client.js` (`VAPID_JAVNI_KLJUC`), zasebnega pa
-> v Supabase skrivnosti. Vsi uporabniki morajo nato obvestila znova vklopiti — stare naročnine,
+> v Supabase skrivnosti. Vsi uporabniki morajo nato obvestila znova vklopiti – stare naročnine,
 > izdane s prejšnjim ključem, ne delujejo več.
 
 ---
@@ -71,7 +71,7 @@ Supabase → Project Settings → Edge Functions → Secrets:
 | `VAPID_SUBJECT` | `mailto:razpored@pb-begunje.si` (ali druga veljavna e-pošta) |
 | `PUSH_CRON_SECRET` | poljubno dolgo naključno geslo, npr. iz `openssl rand -hex 32` |
 
-`SUPABASE_URL` in `SUPABASE_SERVICE_ROLE_KEY` nastavi Supabase sam — teh ni treba dodajati.
+`SUPABASE_URL` in `SUPABASE_SERVICE_ROLE_KEY` nastavi Supabase sam – teh ni treba dodajati.
 
 ---
 
@@ -88,7 +88,7 @@ curl -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/posiljaj-push" \
   -H "x-cron-secret: <PUSH_CRON_SECRET>"
 ```
 
-Odgovor je npr. `{"obdelanih":0,"poslanih":0}` — to pomeni, da funkcija teče in ni čakajočih obvestil.
+Odgovor je npr. `{"obdelanih":0,"poslanih":0}` – to pomeni, da funkcija teče in ni čakajočih obvestil.
 
 ---
 
@@ -101,7 +101,7 @@ create extension if not exists pg_cron;
 create extension if not exists pg_net;
 ```
 
-Nato dva opravila — **zamenjaj `<PROJECT_REF>` in `<PUSH_CRON_SECRET>`**:
+Nato dva opravila – **zamenjaj `<PROJECT_REF>` in `<PUSH_CRON_SECRET>`**:
 
 ```sql
 -- a) Dostava čakajočih obvestil, vsakih 5 minut.
@@ -118,7 +118,7 @@ select cron.schedule(
 );
 
 -- b) Opomniki za jutrišnje nočne izmene in dežurstva, vsak dan ob 17.00
---    (pg_cron teče v UTC — 15:00 UTC je 17:00 po srednjeevropskem poletnem času).
+--    (pg_cron teče v UTC – 15:00 UTC je 17:00 po srednjeevropskem poletnem času).
 select cron.schedule(
   'opomniki-izmene',
   '0 15 * * *',
@@ -140,9 +140,9 @@ select cron.unschedule('posiljaj-push');
 Vsak zaposleni vklopi obvestila **sam in na vsaki napravi posebej**:
 Nastavitve → Obvestila → "🔔 Vklopi obvestila na tej napravi".
 
-- **Android** — deluje v Chromu in v nameščeni aplikaciji.
-- **iPhone (iOS 16.4+)** — deluje **samo**, če je aplikacija dodana na domači zaslon
-  (Deli → "Dodaj na začetni zaslon") in odprta od tam. V Safariju kot navadna spletna stran ne deluje —
+- **Android** – deluje v Chromu in v nameščeni aplikaciji.
+- **iPhone (iOS 16.4+)** – deluje **samo**, če je aplikacija dodana na domači zaslon
+  (Deli → "Dodaj na začetni zaslon") in odprta od tam. V Safariju kot navadna spletna stran ne deluje –
   to je omejitev Appla, ne aplikacije.
 
 ---
@@ -152,7 +152,7 @@ Nastavitve → Obvestila → "🔔 Vklopi obvestila na tej napravi".
 | Težava | Vzrok / rešitev |
 |---|---|
 | Gumb za vklop javi "brskalnik ne podpira" | iPhone brez namestitve na domači zaslon, ali zelo star brskalnik. |
-| Gumb javi "blokirano v nastavitvah brskalnika" | Uporabnik je obvestila kdaj zavrnil — odblokira jih prek ikone ključavnice ob naslovu strani, nato osveži stran. |
+| Gumb javi "blokirano v nastavitvah brskalnika" | Uporabnik je obvestila kdaj zavrnil – odblokira jih prek ikone ključavnice ob naslovu strani, nato osveži stran. |
 | `curl` vrne `401 Unauthorized` | `x-cron-secret` se ne ujema s skrivnostjo `PUSH_CRON_SECRET`. |
 | `curl` vrne `500` z "Manjkata VAPID…" | Skrivnosti niso nastavljene ali funkcija po nastavitvi ni bila znova objavljena. |
 | Obvestila se ne pojavijo, `obdelanih` pa raste | Uporabnik na tej napravi ni vklopil obvestil (ni vrstice v `push_subscriptions`). |
@@ -169,7 +169,7 @@ njo pa še naprej velja po NAPRAVI (potisna obvestila je treba vklopiti na
 vsakem telefonu posebej).
 
 E-pošta je **neobvezna**. Dokler `RESEND_API_KEY` ni nastavljen, se e-pošta
-ne pošilja, potisna obvestila pa delujejo naprej — ponudnika je torej mogoče
+ne pošilja, potisna obvestila pa delujejo naprej – ponudnika je torej mogoče
 dodati pozneje brez spreminjanja kode.
 
 ## Vklop e-pošte
@@ -198,28 +198,28 @@ dodati pozneje brez spreminjanja kode.
 > Če boste zamenjali ponudnika: koda kliče Resendov API. Za drugega
 > ponudnika je treba zamenjati en `fetch` klic v `posiljaj-push/index.ts`
 > (naslov, glave in polja `from`/`to`/`subject`/`text`); vsa ostala logika
-> — kdo želi e-pošto, kaj je že poslano, kaj se ponovi — ostane enaka.
+> – kdo želi e-pošto, kaj je že poslano, kaj se ponovi – ostane enaka.
 
 ## Kako se kanala obnašata
 
 - Vsak kanal se označi **ločeno** (`push_sent_at`, `email_sent_at`), zato
-  eden lahko uspe in drugi ostane za naslednji krog — brez podvajanja.
+  eden lahko uspe in drugi ostane za naslednji krog – brez podvajanja.
 - Kdor nastavitev ni odprl, ima e-pošto in potisna obvestila **vklopljena**.
   Molk ne sme pomeniti, da človek ne izve za spremembo razporeda.
 - Izklopljen kanal, manjkajoč naslov ali nenastavljen ponudnik se označijo
   kot opravljeni, sicer bi obvestilo ostalo v vrsti za vedno.
-- Trajne napake ponudnika (4xx — napačen naslov, nepotrjena domena) se
+- Trajne napake ponudnika (4xx – napačen naslov, nepotrjena domena) se
   označijo; začasne (5xx, omrežje) se poskusijo znova.
 
 ## SMS
 
-Zastavica `sms_enabled` obstaja in se shrani, **pošiljanja pa še ni** —
+Zastavica `sms_enabled` obstaja in se shrani, **pošiljanja pa še ni** –
 zahteva plačljivega ponudnika (Twilio ipd.). V vmesniku je možnost vidna, a
 neaktivna in tako tudi označena. Ko bo ponudnik izbran, se doda po istem
 vzorcu kot e-pošta: ključ v Secrets in ena veja v `posiljaj-push`.
 
 Opomba: potisno obvestilo na telefon je za zaposlenega praktično enako
-uporabno kot SMS in je brezplačno — SMS ima smisel predvsem za tiste, ki
+uporabno kot SMS in je brezplačno – SMS ima smisel predvsem za tiste, ki
 aplikacije ne namestijo na domači zaslon.
 
 ---
@@ -232,7 +232,7 @@ vpisati samo skrivnost `PUSH_CRON_SECRET` (oziroma uporabiti tisto, ki je v
 datoteki že zapisana) in ga pognati v SQL Editorju.
 
 Datoteka je varna za večkratni zagon: obe opravili najprej odstrani, šele nato
-ustvari — sicer bi se ob ponovnem zagonu podvojili in obvestila bi šla dvakrat.
+ustvari – sicer bi se ob ponovnem zagonu podvojili in obvestila bi šla dvakrat.
 
 **Brez tega urnika obveščanje ne deluje.** Robna funkcija je le naložena,
 klical pa je ne bi nihče: obvestila bi se zapisovala v bazo in bila vidna v

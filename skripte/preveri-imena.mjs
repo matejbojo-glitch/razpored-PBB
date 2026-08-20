@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-/* Preizkus imena.js — ujemanje imen med viri.
+/* Preizkus imena.js – ujemanje imen med viri.
  *
  * Zakaj obstaja: isto osebo pišejo trije viri vsak po svoje (drug vrstni
  * red besed, velike/male črke, izgubljene strešice), povrhu pa sta v
  * uradnih predlogah dve POTRJENI tipkarski napaki. Doslej je imel vsak
- * zaslon svojo različico primerjave in vsaka je bila drugače stroga —
+ * zaslon svojo različico primerjave in vsaka je bila drugače stroga –
  * ista oseba se je na enem zaslonu našla, na drugem pa ne.
  *
  * Najpomembnejši del tega preizkusa je 4. sklop: nova primerjava je
@@ -27,7 +27,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const sandbox = { console };
@@ -63,7 +63,7 @@ console.log("3) potrjeni tipkarski napaki iz uradnih predlog");
 console.log("4) na RESNIČNEM seznamu zaposlenih ne zlije dveh različnih oseb");
 {
   // Vir: roster/imenik-uvoz.csv (uvozni seznam, ki je bil dejansko
-  // uporabljen) — prvi stolpec je polno ime.
+  // uporabljen) – prvi stolpec je polno ime.
   const csv = readFileSync(join(koren, "roster", "imenik-uvoz.csv"), "utf8");
   const imena = csv.split("\n").slice(1)
     .map(v => (v.split(",")[0] || "").trim())
@@ -78,7 +78,7 @@ console.log("4) na RESNIČNEM seznamu zaposlenih ne zlije dveh različnih oseb")
     else poKljucu[k] = ime;
   });
   trdi(trki.length === 0, "nobeni dve različni osebi nimata istega ključa"
-    + (trki.length ? " — trki: " + trki.join("; ") : ""));
+    + (trki.length ? " – trki: " + trki.join("; ") : ""));
 
   // In obratno: vsaka oseba se najde sama pri sebi, tudi če vir zapiše
   // ime v drugem vrstnem redu ali brez strešic (kar se v praksi dogaja).
@@ -87,7 +87,7 @@ console.log("4) na RESNIČNEM seznamu zaposlenih ne zlije dveh različnih oseb")
     return !I.seUjemata(ime, obrnjeno) || !I.seUjemata(ime, I.brezStresic(ime));
   });
   trdi(nenajdene.length === 0, "vsaka oseba se najde tudi v obrnjenem zapisu in brez strešic"
-    + (nenajdene.length ? " — ne najde: " + nenajdene.slice(0, 5).join(", ") : ""));
+    + (nenajdene.length ? " – ne najde: " + nenajdene.slice(0, 5).join(", ") : ""));
 }
 
 console.log("4b) kratko ime iz preglednice se ujame s polnim imenom iz Imenika");

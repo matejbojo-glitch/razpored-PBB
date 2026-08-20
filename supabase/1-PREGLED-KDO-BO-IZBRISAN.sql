@@ -1,5 +1,5 @@
 -- =====================================================================
--- 1. KORAK — samo pogled, NIČ SE NE IZBRIŠE
+-- 1. KORAK – samo pogled, NIČ SE NE IZBRIŠE
 -- =====================================================================
 -- Kopiraj celotno datoteko, prilepi v Supabase → SQL Editor in klikni Run.
 -- Spodaj se izpiše, koga bo 2. korak izbrisal in koliko podatkov visi na
@@ -7,7 +7,7 @@
 -- (supabase/2-IZBRISI-IN-POPRAVI.sql). Ta ukaz ničesar ne spreminja.
 -- =====================================================================
 
--- 0) PREGLED — najprej poženi SAMO tega in preveri, kdo bo izbrisan.
+-- 0) PREGLED – najprej poženi SAMO tega in preveri, kdo bo izbrisan.
 -- ---------------------------------------------------------------------
 with cilj(email, ime) as (values
   ('alenka.zaplotnik@pb-begunje.si', 'Zaplotnik Alenka'),

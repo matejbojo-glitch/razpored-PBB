@@ -1,4 +1,4 @@
-/* Razpored PBB — datum.js
+/* Razpored PBB – datum.js
  * Ena sama, skupna oblika datuma za VSO aplikacijo: dan.mesec.leto brez
  * presledkov, npr. "27.10.2026" (izrecna zahteva uporabnika).
  *
@@ -35,13 +35,13 @@ window.Datum = (function () {
     return { d: d.getDate(), m: d.getMonth() + 1, y: d.getFullYear() };
   }
 
-  // "27.10.2026" — osnovna oblika povsod, kjer je datum prikazan sam zase.
+  // "27.10.2026" – osnovna oblika povsod, kjer je datum prikazan sam zase.
   function slo(vrednost) {
     var p = razcleni(vrednost);
     return p ? p.d + "." + p.m + "." + p.y : "";
   }
 
-  // "27.10." — kadar je leto že razvidno iz konteksta (npr. mesečna tabela,
+  // "27.10." – kadar je leto že razvidno iz konteksta (npr. mesečna tabela,
   // kjer je mesec/leto v glavi). Pika na koncu ostane, ker je v slovenščini
   // del zapisa datuma.
   function sloBrezLeta(vrednost) {
@@ -49,7 +49,7 @@ window.Datum = (function () {
     return p ? p.d + "." + p.m + "." : "";
   }
 
-  // "13:51" — samo ura, kadar je dan razviden iz konteksta (npr.
+  // "13:51" – samo ura, kadar je dan razviden iz konteksta (npr.
   // "Shranjeno 13:51" takoj po shranjevanju).
   function cas(vrednost) {
     var d = vrednost instanceof Date ? vrednost : new Date(vrednost);
@@ -57,7 +57,7 @@ window.Datum = (function () {
     return dvomestno(d.getHours()) + ":" + dvomestno(d.getMinutes());
   }
 
-  // "27.10.2026 13:51" — za časovne žige (dnevnik sprememb ipd.).
+  // "27.10.2026 13:51" – za časovne žige (dnevnik sprememb ipd.).
   function sloSCasom(vrednost) {
     var p = razcleni(vrednost);
     if (!p) return "";

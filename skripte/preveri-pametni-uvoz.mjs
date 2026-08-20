@@ -63,7 +63,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const koda = [
@@ -223,5 +223,5 @@ console.log("6) resnični scenarij, ki je javil Postgres napako: ista oseba, ist
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

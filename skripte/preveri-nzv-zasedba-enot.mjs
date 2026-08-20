@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/* Preizkus nalozizPodatkeNzv() (index.html) — zapolnjenost stolpcev enot
+/* Preizkus nalozizPodatkeNzv() (index.html) – zapolnjenost stolpcev enot
  * v NZV mreži.
  *
  * Zakaj obstaja: uporabnik je poslal posnetek zaslona, na katerem so bili
  * stolpci PDZN, SOBO, MO, ŽO … prazni čez cel mesec. Vzrok ni bil manjkajoč
  * podatek, ampak to, da se je mreža polnila IZKLJUČNO iz objavljenih
- * schedule_entries — za vodje pa se dnevni razpored ne objavlja, ker je
+ * schedule_entries – za vodje pa se dnevni razpored ne objavlja, ker je
  * njihova enota stalna in zapisana v lead_departments.enote.
  *
  * Preverjamo torej ravno to, kar je manjkalo:
@@ -55,7 +55,7 @@ function izvleciConst(ime) {
   if (zac === -1) throw new Error("const " + ime + " ni v index.html.");
   return html.slice(zac, html.indexOf(";\n", zac) + 1).replace(/^const\s+/, "var ");
 }
-// NZV_STOLPCI je IIFE čez več vrstic — ";\n" se v njem pojavi že prej.
+// NZV_STOLPCI je IIFE čez več vrstic – ";\n" se v njem pojavi že prej.
 function izvleciBlok(zacetek, konec) {
   const z = html.indexOf(zacetek);
   if (z === -1) throw new Error("Bloka " + zacetek + " ni v index.html.");
@@ -76,7 +76,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 // ---------------------------------------------------------------------
@@ -117,7 +117,7 @@ vm.runInContext([
 ].join("\n\n"), sandbox);
 
 // Lažni Supabase odjemalec: vsak from() vrne "thenable", ki se razreši v
-// { data } za svojo tabelo — natanko toliko, kolikor nalozizPodatkeNzv
+// { data } za svojo tabelo – natanko toliko, kolikor nalozizPodatkeNzv
 // uporabi (select/in/gte/lte, brez filtriranja, ker ga tu ne rabimo).
 function postaviOdjemalca(tabele) {
   sandbox.client = {
@@ -147,7 +147,7 @@ const PROFILI = [
   profil("Mušič Ines", "MUŠ"),
   profil("Pogačnik Teja", "POG"),
   profil("Salkić Maruša", "SAL"),
-  profil("Novak Ana", "NOV", "user"), // navadna sestra — v NZV mrežo NE sodi
+  profil("Novak Ana", "NOV", "user"), // navadna sestra – v NZV mrežo NE sodi
 ];
 const VODJE = [
   { full_name: "ALUKIĆ DINO", enote: "ŽO", odsotnost_tip: null, odsotnost_do: null },
@@ -189,15 +189,15 @@ const test = async () => {
   console.log("1) Nosilec enote je vpisan vsak delovni dan (to je bilo prazno na posnetku)");
   {
     const { podatki, izpeljano } = await poglej();
-    eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. — PDZN");
-    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. — SOBO (samo nosilka Velušček)");
-    eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. — MO");
-    eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. — ŽO");
-    eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. — PDZN (cel mesec, ne le prvi dan)");
+    eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. – PDZN");
+    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. – SOBO (samo nosilka Velušček)");
+    eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. – MO");
+    eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. – ŽO");
+    eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. – PDZN (cel mesec, ne le prvi dan)");
     trdi(izpeljano["PDZN|2026-09-01"] === true, "celica je označena kot izpeljana (za bledejši izris)");
   }
 
-  console.log("2) Vikend in praznik ostaneta prazna — delovnik NZV je PON-PET");
+  console.log("2) Vikend in praznik ostaneta prazna – delovnik NZV je PON-PET");
   {
     const { podatki } = await poglej();
     eq(podatki["PDZN|2026-09-05"] || "", "", "sobota 5.9.");
@@ -232,11 +232,11 @@ const test = async () => {
     // 1. 9. 2026 je ISO teden 36 (sod) -> po privzetku popoldanski teden.
     eq(podatki["SADOP|2026-09-01"] || "", "", "\"SA\" v sodem tednu ni v SA DOP");
     eq(podatki["SAPOP|2026-09-01"], "BIZ", "\"SA\" v sodem tednu je v SA POP");
-    // "NOB" ni stolpec v uradni predlogi — ne sme se pojaviti nikjer.
+    // "NOB" ni stolpec v uradni predlogi – ne sme se pojaviti nikjer.
     trdi(!Object.keys(podatki).some(k => k.startsWith("NOB|")), "neznana oznaka \"NOB\" ne ustvari stolpca");
   }
 
-  console.log("3b) Enoto lahko pokriva več nosilcev — parafe se seštejejo, ne prepišejo");
+  console.log("3b) Enoto lahko pokriva več nosilcev – parafe se seštejejo, ne prepišejo");
   {
     const { podatki } = await poglej({
       vodje: [
@@ -269,7 +269,7 @@ const test = async () => {
     postaviOdjemalca({ schedule_entries: [], leave_entries: [], profiles: PROFILI, lead_departments: VODJE, nadomescanja: NADOMESCANJA, nzv_nastavitve: [] });
     const { podatki } = await sandbox.nalozizPodatkeNzv("2026-07-01", "2026-07-31");
     eq(podatki["SADOP|2026-07-01"], "BIZ", "1.7. (lih teden) dopoldne");
-    eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne — poletna izjema");
+    eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne – poletna izjema");
     eq(podatki["SAPOP|2026-07-08"] || "", "", "poleti popoldanskega stolpca ni");
   }
   {
@@ -294,10 +294,10 @@ const test = async () => {
     eq(podatki["SAPOP|2026-09-08"], "BIZ", "in lih teden popoldne");
   }
 
-  console.log("4) Trajna odsotnost (porodniška) — nosilka se ne vpisuje");
+  console.log("4) Trajna odsotnost (porodniška) – nosilka se ne vpisuje");
   {
     const { podatki } = await poglej();
-    eq(podatki["E1|2026-09-01"] || "", "", "Pogačnik Teja je na porodniški do 31.7.2027 — E1 ostane prazen");
+    eq(podatki["E1|2026-09-01"] || "", "", "Pogačnik Teja je na porodniški do 31.7.2027 – E1 ostane prazen");
   }
 
   console.log("5) Ob odsotnosti: nadomeščevalec se PRESELI, tretji pokrije zapuščeno enoto");
@@ -360,7 +360,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     });
     eq(podatki["PDZN|2026-09-01"], "BOJ", "objavljeni vnos obvelja pred izpeljanim nosilcem");
     trdi(!izpeljano["PDZN|2026-09-01"], "objavljena celica ni označena kot izpeljana");
-    eq(podatki["MO|2026-09-01"] || "", "", "Bojić je tisti dan že v mreži — na MO se ne podvoji");
+    eq(podatki["MO|2026-09-01"] || "", "", "Bojić je tisti dan že v mreži – na MO se ne podvoji");
     eq(podatki["ZO|2026-09-01"], "ALU", "ostali nosilci so nedotaknjeni");
     eq(podatki["PDZN|2026-09-02"], "DŽA", "naslednji dan brez objave se izpeljava spet uporabi");
   }
@@ -370,7 +370,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     const { podatki } = await poglej({
       vodje: [...VODJE, { full_name: "NOVAK ANA", enote: "D", odsotnost_tip: null, odsotnost_do: null }],
     });
-    eq(podatki["D|2026-09-01"] || "", "", "Novak Ana ima vlogo user — stolpec D ostane prazen");
+    eq(podatki["D|2026-09-01"] || "", "", "Novak Ana ima vlogo user – stolpec D ostane prazen");
   }
 
   console.log("8) Brez tabel nadomescanja/lead_departments mreža deluje kot prej (ne sesuje se)");

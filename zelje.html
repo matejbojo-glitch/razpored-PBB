@@ -16,12 +16,11 @@
       media="print" onload="this.media='all'" />
 
 <style>
-  :root{
-    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
-    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
-    --danger: #B3402A; --ok: #4C8C63;
-    --radius: 16px; --radius-sm: 10px;
-  }
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
     margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
@@ -110,7 +109,7 @@
   table.grid thead tr.dwr th{ top:22px; font-size:9px; text-transform:uppercase; padding-bottom:7px; color:var(--muted); }
   table.grid th.corner{ position:sticky; left:0; top:0; z-index:5; background:var(--surface); text-align:left; padding:6px 10px; min-width:140px; font-weight:800; color:var(--text); }
   table.grid th.we, table.grid td.we{ background: rgba(167,148,72,.10); }
-  table.grid th.hol, table.grid td.hol{ background: rgba(179,64,42,.08); }
+  table.grid th.hol, table.grid td.hol{ background: rgba(var(--danger-rgb),.08); }
   table.grid th.tot{ position:sticky; top:0; z-index:3; min-width:44px; }
   table.grid tbody th.nm{ position:sticky; left:0; z-index:2; background:var(--surface); text-align:left; padding:5px 10px;
     font-weight:700; color:var(--text); border-right:1px solid var(--line); white-space:nowrap; font-size:12px; }
@@ -139,7 +138,7 @@
     table.grid td.cell{ width:auto; }
   }
 
-  /* Preklop Mreža/Po dnevih — "Po dnevih" je prilagojen telefonu: en dan
+  /* Preklop Mreža/Po dnevih – "Po dnevih" je prilagojen telefonu: en dan
      naenkrat, kartice namesto ozkih stolpcev, urejanje prek spodnjega
      drsnega menija (sheet) namesto tapkanja po majhnih celicah. */
   .viewToggle{ display:flex; gap:8px; margin: 4px 0 10px; }
@@ -180,7 +179,7 @@
     .no-print{ display:none !important; }
     .wrap{ max-width:100% !important; }
     /* Razpredelnica (koledar) gre na 1 A4 stran ne glede na dni v mesecu/
-       število osebja — PrintFit.natisni izračuna --print-scale; "zoom" (ne
+       število osebja – PrintFit.natisni izračuna --print-scale; "zoom" (ne
        transform) dejansko zmanjša zaseden prostor za pravilen izračun. */
     .gridScroll{ overflow:visible !important; max-height:none !important; border:none !important;
       zoom: var(--print-scale, 1); }
@@ -214,23 +213,23 @@ const { useState, useEffect, useMemo, useRef } = React;
 
 // ---------------------------------------------------------------------
 // Skupni seznam vseh zaposlenih (za Razpredelnico dopusti/omejitve in za
-// Seznam želja) — oddelki za kreiranje/generiranje razporeda so na
+// Seznam želja) – oddelki za kreiranje/generiranje razporeda so na
 // izrecno željo omejeni na natanko teh 8: B/C/C1/D/E1/E2/FLEXI za vse z
 // vlogo "user" (razvrščeni po primarnem oddelku, ki šteje za generator
 // razporeda), in NZV za vse z vlogo "vodja" ali "admin" (ne glede na
-// njihov department_code — NZV vključuje tudi dežurstva, glej admin.html
+// njihov department_code – NZV vključuje tudi dežurstva, glej admin.html
 // zavihek "NZV"). Stare kode oddelkov (DEZ, NEDEZ, PDZN, SOBO, ZO, MO, PO,
 // A, B1B2, DB, SA, URGENCA, U2) tu niso več uporabljene.
 // ---------------------------------------------------------------------
 const RAZPOREDNICA_ODDELKI = [
-  ["B", "B - oddelek (SMS/TZN)"],
-  ["C", "C - oddelek (SMS/TZN)"],
-  ["C1", "C1 - oddelek (SMS/TZN)"],
-  ["D", "D - oddelek (SMS/TZN)"],
-  ["E1", "E1 - oddelek (SMS/TZN)"],
-  ["E2", "E2 - oddelek (SMS/TZN)"],
-  ["FLEXI", "FLEXI — plavajoče osebje"],
-  ["NZV", "NZV — vodje in administratorji"],
+  ["B", "B – oddelek (SMS/TZN)"],
+  ["C", "C – oddelek (SMS/TZN)"],
+  ["C1", "C1 – oddelek (SMS/TZN)"],
+  ["D", "D – oddelek (SMS/TZN)"],
+  ["E1", "E1 – oddelek (SMS/TZN)"],
+  ["E2", "E2 – oddelek (SMS/TZN)"],
+  ["FLEXI", "FLEXI – plavajoče osebje"],
+  ["NZV", "NZV – vodje in administratorji"],
 ];
 
 async function nalozizRoster(){
@@ -248,7 +247,7 @@ async function nalozizRoster(){
   return { skupine, vsiLjudje };
 }
 
-// Pomanjša sliko na največ 1600 px in jo pretvori v JPEG — telefonske
+// Pomanjša sliko na največ 1600 px in jo pretvori v JPEG – telefonske
 // fotografije so sicer lahko več MB, kar bi bazo po nekaj vnosih napihnilo.
 function compressImage(file){
   return new Promise((resolve, reject) => {
@@ -276,7 +275,7 @@ function compressImage(file){
 }
 
 // ---------------------------------------------------------------------
-// Razpredelnica dopustov/omejitev — barvna, po dnevih, vezana na Supabase
+// Razpredelnica dopustov/omejitev – barvna, po dnevih, vezana na Supabase
 // (leave_entries). Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02"
 // v admin.html: koordinator tu klikne/povleče čez dneve, generator
 // dežurstev pa te vnose samodejno prebere (glej admin.html "Osveži iz Želje").
@@ -319,10 +318,10 @@ function steviloVnosov(n){
 const imenaSeUjemata = window.Imena.seUjemata;
 
 // ---------------------------------------------------------------------
-// Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.
+// Uvoz barvnega koledarja odsotnosti (Kadris) – glej uvoziBarvniExcel spodaj.
 // Nekateri oddelki v profiles.full_name uporabljajo okrajšano ime ("VREVC M."), Kadris
 // pa vedno polno ("VREVC MARJETA"), zato navadno imenaSeUjemata (vreča
-// besed, cele besede) tu ne zadošča — beseda z "." na koncu šteje kot
+// besed, cele besede) tu ne zadošča – beseda z "." na koncu šteje kot
 // ujemanje po prvih črkah (okrajšava), ne kot cela beseda.
 function osnovaBesede(s){
   return (s||"").toString().toUpperCase()
@@ -354,7 +353,7 @@ function najdiOsebo(vsiLjudje, uvozenoIme){
 //
 // V tej razpredelnici je podatek BARVA celice, ne besedilo (rdeča = dopust,
 // rumena = omejitev ...). Prepoznavanje besedila (OCR) bi tu bralo skoraj
-// prazne celice, zato se bere barva — enako kot pri barvnem Excelu iz
+// prazne celice, zato se bere barva – enako kot pri barvnem Excelu iz
 // Kadrisa, le da vir ni datoteka, ampak slika.
 //
 // Mreže NE iščemo samodejno: uporabnik se dotakne štirih vogalov barvnega
@@ -362,7 +361,7 @@ function najdiOsebo(vsiLjudje, uvozenoIme){
 // Samodejno iskanje črt bi na fotografiji z gubami, senco in odsevom
 // odpovedalo prav takrat, ko bi bilo najbolj potrebno.
 //
-// Imen NE beremo s slike — vsako vrstico admin poveže z osebo iz seznama.
+// Imen NE beremo s slike – vsako vrstico admin poveže z osebo iz seznama.
 // Napačno prebrano ime bi odsotnost pripisalo napačni osebi.
 // ---------------------------------------------------------------------
 
@@ -428,7 +427,7 @@ function zdruziBarve(rgbji, prag) {
 }
 
 // Fotografirana barva nikoli ni natanko enaka shranjeni. Zato se najprej
-// poskusi ujeti na že znano barvo iz absence_color_map (v polmeru PRAG) —
+// poskusi ujeti na že znano barvo iz absence_color_map (v polmeru PRAG) –
 // brez tega bi admin isto rdečo določal znova ob vsaki fotografiji.
 const PRAG_UJEMANJA = 60;
 function kljucBarve(rgb, barvnaMapa) {
@@ -582,7 +581,7 @@ function FotoUvoz({ odprto, naZapri, leto, mesec, vsiLjudje, barvnaMapa, naVrsti
             <canvas ref={skritoRef} style={{display:"none"}} />
             <p className="hint" style={{marginTop:8}}>
               {vogali.length < 4
-                ? `Dotakni se vogala št. ${vogali.length + 1} barvnega dela — po vrsti: zgoraj levo, zgoraj desno, spodaj desno, spodaj levo.`
+                ? `Dotakni se vogala št. ${vogali.length + 1} barvnega dela – po vrsti: zgoraj levo, zgoraj desno, spodaj desno, spodaj levo.`
                 : `Mreža ${stVrstic} × ${dni}. Če se črte ne ujemajo z razpredelnico, popravi število vrstic ali vogale.`}
             </p>
             <div style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
@@ -615,7 +614,7 @@ function FotoUvoz({ odprto, naZapri, leto, mesec, vsiLjudje, barvnaMapa, naVrsti
                 </div>
                 <select value={imena[i]} style={{flex:"1 1 auto"}}
                   onChange={e => setImena(a => { const n = a.slice(); n[i] = e.target.value; return n; })}>
-                  <option value="">— vrstica {i+1}: izberi osebo —</option>
+                  <option value="">– vrstica {i+1}: izberi osebo –</option>
                   {vsiLjudje.map(o => <option key={o.ime} value={o.ime}>{o.ime}</option>)}
                 </select>
               </div>
@@ -672,7 +671,7 @@ async function parsirajBarvniExcel(file){
     if (stevilo > najboljsi) { najboljsi = stevilo; glavaR = r; stolpciDni = dnevi; }
   }
   if (!glavaR || najboljsi < 5) {
-    throw new Error("V datoteki ni bilo mogoče najti vrstice z dnevi v mesecu (1–31) — pričakovan je koledarski izpis z dnevi v stolpcih glave.");
+    throw new Error("V datoteki ni bilo mogoče najti vrstice z dnevi v mesecu (1–31) – pričakovan je koledarski izpis z dnevi v stolpcih glave.");
   }
   const vrstice = [];
   for (let r = glavaR + 1; r <= ws.rowCount; r++) {
@@ -692,7 +691,7 @@ async function parsirajBarvniExcel(file){
 }
 
 // ---------------------------------------------------------------------
-// Spodnji drsni meni (bottom sheet) za urejanje enega vnosa (oseba + dan) —
+// Spodnji drsni meni (bottom sheet) za urejanje enega vnosa (oseba + dan) –
 // nadomešča tapkanje po majhnih celicah mreže na telefonu z večjimi,
 // lažje zadetimi gumbi. "ime" je podan, če se ureja obstoječa oznaka;
 // "kandidati" (seznam oseb brez vnosa ta dan) se uporabi za "+ Dodaj", kjer
@@ -732,7 +731,7 @@ function UrediSheet({ ime: imeProp, kandidati, dan, dowLabel, mesecLbl, trenutna
   );
 }
 
-// Pogled "Po dnevih" — en dan naenkrat, kartice namesto ozke mreže; misljen
+// Pogled "Po dnevih" – en dan naenkrat, kartice namesto ozke mreže; misljen
 // za telefon ("hitro preverjanje na poti"), a deluje povsod. Urejanje gre
 // prek UrediSheet zgoraj.
 // Koledar na dotik za SVOJE vnose (telefon). Mesečna mreža 7x5/6, tap
@@ -910,7 +909,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   const [pen, setPen] = useState("omejitev");
   const [nacin, setNacin] = useState(() => (
     typeof window !== "undefined" && window.innerWidth <= 640 ? "dnevi" : "mreza"
-  )); // "mreza" (cela tabela) | "dnevi" (1 dan, kartice — za telefon); na ozkih zaslonih privzeto "dnevi"
+  )); // "mreza" (cela tabela) | "dnevi" (1 dan, kartice – za telefon); na ozkih zaslonih privzeto "dnevi"
   const [nalagam, setNalagam] = useState(true);
   const [status, setStatus] = useState("");
   const [log, setLog] = useState([]);
@@ -921,7 +920,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   const [uvozMsg, setUvozMsg] = useState(null);
   const [uvozBusy, setUvozBusy] = useState(false);
 
-  // Uvoz barvnega koledarja odsotnosti (Kadris) — glej uvoziBarvniExcel spodaj.
+  // Uvoz barvnega koledarja odsotnosti (Kadris) – glej uvoziBarvniExcel spodaj.
   const barvniRef = useRef();
   const gridRef = useRef();
   const [barvnaMapa, setBarvnaMapa] = useState(null); // { [barva]: {kind, prezri} }
@@ -987,12 +986,12 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     }
   };
 
-  // Množičen uvoz iz datoteke (samo admin, gumb spodaj je gatiran na jeAdmin) —
+  // Množičen uvoz iz datoteke (samo admin, gumb spodaj je gatiran na jeAdmin) –
   // ista oblika kot v admin.html DezurstvaTab: ime,dopust,omejitve (datumi v
   // enem polju ločeni s podpičjem). Piše neposredno v Supabase (leave_entries),
   // zato ga takoj vidijo vsi uporabniki, ne samo lokalni generator.
   // Skupno jedro za vse tri poti do istega uvoza (datoteka, Google Sheets,
-  // prilepljeno besedilo) — da se oblika stolpcev in zapis v bazo ne
+  // prilepljeno besedilo) – da se oblika stolpcev in zapis v bazo ne
   // razidejo med njimi.
   const uvoziVrstice = async (vrsteVrstic, izvor) => {
       const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","dopust","omejitve"], ["ime","full_name"]);
@@ -1019,7 +1018,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     setUvozBusy(true); setUvozMsg(null);
     try {
       const { vrsteVrstic, tip, url } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) — uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
       // .gsheet je bližnjica z Google Drive: ni podatek, ampak povezava.
       if (tip === "gsheet") { await uvoziIzSheets(url); return; }
       await uvoziVrstice(vrsteVrstic, file.name);
@@ -1030,7 +1029,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     }
   };
 
-  // Uvoz iz Google Sheets po povezavi — ista oblika stolpcev kot pri
+  // Uvoz iz Google Sheets po povezavi – ista oblika stolpcev kot pri
   // datoteki. Preglednica mora biti deljena kot "vsak s povezavo lahko
   // ogleda" (brez OAuth drugače ni berljiva).
   const uvoziIzSheets = async (predlogaUrl) => {
@@ -1060,7 +1059,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
 
   // Uvoz barvnega koledarja (Kadris): prebere datoteko, poišče znane barve
   // (absence_color_map) in prikaže predogled + nove, še ne preslikane barve
-  // za potrditev spodaj — glej potrdiBarvniUvoz.
+  // za potrditev spodaj – glej potrdiBarvniUvoz.
   const uvoziBarvniExcel = async (file) => {
     if (!file || !barvnaMapa) return;
     setBarvniBusy(true); setBarvniMsg(null); setBarvniPredogled(null);
@@ -1078,7 +1077,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
         barveNove, neujemanja, steviloOseb: vrstice.length, steviloUjemanj,
       });
       setIzbireBarv({});
-      setBarvniMsg(`Prebranih ${vrstice.length} vrstic (osebe) iz "${file.name}" — preveri predogled spodaj pred potrditvijo.`);
+      setBarvniMsg(`Prebranih ${vrstice.length} vrstic (osebe) iz "${file.name}" – preveri predogled spodaj pred potrditvijo.`);
     } catch (e) {
       setBarvniMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
     } finally {
@@ -1086,7 +1085,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     }
   };
 
-  // Fotografija se steka v ISTI predogled kot barvni Excel — od tod naprej
+  // Fotografija se steka v ISTI predogled kot barvni Excel – od tod naprej
   // je pot enaka (nove barve, ujemanje oseb, potrditev).
   const vrsticeIzFoto = (vrstice) => {
     const barveVSliki = new Set();
@@ -1100,7 +1099,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       barveNove, neujemanja, steviloOseb: vrstice.length, steviloUjemanj,
     });
     setIzbireBarv({});
-    setBarvniMsg(`Prebranih ${vrstice.length} vrstic s fotografije — preveri predogled spodaj pred potrditvijo.`);
+    setBarvniMsg(`Prebranih ${vrstice.length} vrstic s fotografije – preveri predogled spodaj pred potrditvijo.`);
   };
 
   const potrdiBarvniUvoz = async () => {
@@ -1166,7 +1165,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   const zavrniUrejanje = (ime) => {
     setStatus(
       !jeAdmin && !imenaSeUjemata(ime, myFullName)
-        ? "Ni dovoljeno — lahko urejaš samo svojo vrstico."
+        ? "Ni dovoljeno – lahko urejaš samo svojo vrstico."
         : "Rok za vnos za ta mesec je potekel (10. v prejšnjem mesecu)."
     );
   };
@@ -1206,27 +1205,27 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     <div>
       <p className="hint">
         Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
-        samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" — LD (dopust) samodejno blokira tudi dan pred
+        samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" – LD (dopust) samodejno blokira tudi dan pred
         začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan. Mreža je razdeljena po
-        primarnem oddelku vsake osebe (isti oddelek, ki šteje za generator razporeda) — če za osebo v tem mesecu ni
+        primarnem oddelku vsake osebe (isti oddelek, ki šteje za generator razporeda) – če za osebo v tem mesecu ni
         nobenega vnosa, se šteje, da je na voljo cel mesec.
         {jeAdmin
           ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
-          : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico — in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
+          : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico – in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
       </p>
       {jeAdmin && (
         <React.Fragment>
           <RazporedUvozVir ikona="📗" naziv="Želje iz Google Sheets"
             opis="dopust in omejitve po povezavi" onClick={() => uvoziIzSheets(null)} />
           <RazporedUvozVir ikona="📄" naziv="Želje iz datoteke"
-            opis="CSV / Excel / JSON — ime, dopust, omejitve"
+            opis="CSV / Excel / JSON – ime, dopust, omejitve"
             onClick={() => uvozRef.current && uvozRef.current.click()} />
           <RazporedUvozVir ikona="📷" naziv="Želje s fotografije"
-            opis={barvnaMapa ? `barve celic — v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
+            opis={barvnaMapa ? `barve celic – v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
             onemogocen={!barvnaMapa}
             onClick={() => setFotoOdprt(true)} />
           <RazporedUvozVir ikona="📅" naziv="Barvni koledar (Kadris)"
-            opis={barvnaMapa ? `Excel — barva celice je vrsta odsotnosti; uvozi v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
+            opis={barvnaMapa ? `Excel – barva celice je vrsta odsotnosti; uvozi v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
             onemogocen={!barvnaMapa}
             onClick={() => barvniRef.current && barvniRef.current.click()} />
         </React.Fragment>
@@ -1266,12 +1265,12 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
               </p>
               {barvniPredogled.barveNove.length > 0 && (
                 <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:10}}>
-                  <p className="hint" style={{margin:0, fontWeight:700}}>Nove barve — določi vrsto odsotnosti:</p>
+                  <p className="hint" style={{margin:0, fontWeight:700}}>Nove barve – določi vrsto odsotnosti:</p>
                   {barvniPredogled.barveNove.map(b => (
                     <div key={b} style={{display:"flex", alignItems:"center", gap:8}}>
                       <span style={{width:22, height:22, borderRadius:6, border:"1px solid var(--line)", background:barvaCSS(b), display:"inline-block", flex:"0 0 auto"}}></span>
                       <select value={izbireBarv[b] || ""} onChange={e => setIzbireBarv(s => ({...s, [b]: e.target.value}))}>
-                        <option value="">— izberi —</option>
+                        <option value="">– izberi –</option>
                         {Object.keys(PEN_META).map(k => <option key={k} value={k}>{PEN_META[k].label}</option>)}
                         <option value="prezri">Ignoriraj (ni odsotnost)</option>
                       </select>
@@ -1392,7 +1391,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
                           backgroundColor: val ? PEN_META[val].barva : undefined,
                           cursor: urejeno ? "pointer" : "not-allowed",
                         }}
-                        title={ime + " — " + d + ". " + MESECI_SL[view.month] + ": " + (val ? PEN_META[val].label : "brez vnosa") + (urejeno ? "" : " (ni urejljivo)")}
+                        title={ime + " – " + d + ". " + MESECI_SL[view.month] + ": " + (val ? PEN_META[val].label : "brez vnosa") + (urejeno ? "" : " (ni urejljivo)")}
                         onClick={() => onCellClick(ime, iso)}
                         onPointerDown={(e) => onCellPointerDown(e, ime, iso)}
                       />
@@ -1411,7 +1410,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       {role === "admin" && (
         <React.Fragment>
           <h2 className="section no-print">Zgodovina sprememb</h2>
-          <p className="hint no-print">Vidno samo administratorjem — vsak vnos/sprememba se beleži ne glede na to, kdo jo naredi.</p>
+          <p className="hint no-print">Vidno samo administratorjem – vsak vnos/sprememba se beleži ne glede na to, kdo jo naredi.</p>
           <ul className="logList no-print">
             {log.length === 0 && <li className="log-empty">Ni še zabeleženih sprememb.</li>}
             {log.map(entry => {
@@ -1431,10 +1430,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
   );
 }
 
-// Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) —
+// Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) –
 // 6 SMS/TZN oddelkov + FLEXI + NZV (na izrecno navodilo). Imena oseb za
 // izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
-// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster) — NZV
+// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster) – NZV
 // je tam že pravilno napolnjen (vsi z vlogo vodja/admin), enako kot
 // ostalih 7 skupin, zato ni več potreben poseben primer za lead_departments.
 function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded }){
@@ -1581,7 +1580,7 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
       )}
 
       <div className="no-print">
-        <h2 className="section">Nov vnos — {oddelek === "NZV" ? "NZV" : "oddelek " + oddelek}</h2>
+        <h2 className="section">Nov vnos – {oddelek === "NZV" ? "NZV" : "oddelek " + oddelek}</h2>
         <VnosForma oddelek={oddelek} skupine={skupine} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
       </div>
 
@@ -1638,7 +1637,7 @@ function Lightbox({ src, onClose }){
 
 function App({ role, myId, myFullName, myDept, ogled, profil }){
   const [tab, setTab] = useState("razpredelnica");
-  const [roster, setRoster] = useState(null); // { skupine, vsiLjudje } — glej nalozizRoster
+  const [roster, setRoster] = useState(null); // { skupine, vsiLjudje } – glej nalozizRoster
   useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
 
   return (
@@ -1667,7 +1666,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
 
       <footer className="foot no-print">
         <p><b>Razpredelnica dopusti/omejitve</b> je shranjena v Supabase (leave_entries) in jo generator dežurstev (admin.html) prebere samodejno.</p>
-        <p><b>Seznam želja</b> je razdeljen po oddelkih (B, C, C1, D, E1, E2, Vodje) — zaposleni vidi in vnaša samo v svoj oddelek, administrator in vodja pa vse.</p>
+        <p><b>Seznam želja</b> je razdeljen po oddelkih (B, C, C1, D, E1, E2, Vodje) – zaposleni vidi in vnaša samo v svoj oddelek, administrator in vodja pa vse.</p>
       </footer>
 
       <RazporedNav active="zelje" role={role} unread={0} />

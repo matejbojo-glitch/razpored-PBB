@@ -3,9 +3,9 @@
 //
 // Dva načina:
 //   - privzeto: pravo vabilo po e-pošti za nastavitev lastnega gesla
-//     (ista povezava/stran kot "Pozabljeno geslo" v aplikaciji —
+//     (ista povezava/stran kot "Pozabljeno geslo" v aplikaciji –
 //     reset-geslo.html). Za produkcijo, ko naj ljudje dejansko dobijo mail.
-//   - --test: ustvari enak pravi Auth račun, a BREZ pošiljanja e-pošte —
+//   - --test: ustvari enak pravi Auth račun, a BREZ pošiljanja e-pošte –
 //     dodeli začetno geslo (fiksno iz roster/zaposleni-vloge-gesla.csv
 //     stolpca geslo_predlog, če obstaja, sicer naključno), izpisano samo
 //     lokalno (in v lokalno, gitignored poročilo). Za testno fazo, ko
@@ -64,7 +64,7 @@ function preveriOkolje() {
 }
 
 // Naključno začasno geslo za --test način (nikoli poslano po e-pošti,
-// samo izpisano lokalno) — dovolj dolgo in naključno za Supabase pravila.
+// samo izpisano lokalno) – dovolj dolgo in naključno za Supabase pravila.
 function generirajZacasnoGeslo() {
   return crypto.randomBytes(12).toString("base64").replace(/[+/=]/g, "x");
 }
@@ -144,7 +144,7 @@ async function main() {
     if (SUHO) {
       if (TEST) {
         const vir = gesloPredlog ? `fiksno geslo iz roster CSV: ${gesloPredlog}` : "naključno geslo (v CSV-ju ni geslo_predlog)";
-        console.log(`  (bi ustvaril, TEST način, brez e-pošte) ${fullName} <${email}> — ${vir}`);
+        console.log(`  (bi ustvaril, TEST način, brez e-pošte) ${fullName} <${email}> – ${vir}`);
       } else {
         console.log(`  (bi ustvaril) ${fullName} <${email}>`);
       }
@@ -153,10 +153,10 @@ async function main() {
 
     if (TEST) {
       // Fiksno geslo iz roster/zaposleni-vloge-gesla.csv (geslo_predlog), če
-      // obstaja — admin ga lahko osebno sporoči zaposlenemu. Za ~3 osebe brez
+      // obstaja – admin ga lahko osebno sporoči zaposlenemu. Za ~3 osebe brez
       // vira pade nazaj na naključno geslo. V OBEH primerih je geslo znano
       // (viru/adminu), zato must_change_password:true prisili spremembo ob
-      // prvi prijavi (glej requireAuth() v supabase-client.js) — oseba si
+      // prvi prijavi (glej requireAuth() v supabase-client.js) – oseba si
       // mora izbrati svoje geslo, preden lahko uporablja aplikacijo.
       const geslo = gesloPredlog || generirajZacasnoGeslo();
       const { error } = await client.auth.admin.createUser({
@@ -167,7 +167,7 @@ async function main() {
       });
       if (!error) {
         rezultati.ustvarjeni.push({ email, fullName, geslo });
-        console.log(`  ✓ ustvarjen (brez maila): ${fullName} <${email}> — začasno geslo: ${geslo}${gesloPredlog ? "" : " (naključno, ni bilo v CSV-ju)"}`);
+        console.log(`  ✓ ustvarjen (brez maila): ${fullName} <${email}> – začasno geslo: ${geslo}${gesloPredlog ? "" : " (naključno, ni bilo v CSV-ju)"}`);
       } else if (/already|obstaja|registered/i.test(error.message || "")) {
         rezultati.obstojeci.push({ email, fullName });
         console.log(`  – že obstaja, preskočeno: ${fullName} <${email}>`);

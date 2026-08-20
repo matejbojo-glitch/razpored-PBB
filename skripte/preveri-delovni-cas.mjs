@@ -5,7 +5,7 @@
 //
 // Zakaj kopija sploh obstaja: "supabase functions deploy" naloži samo
 // drevo supabase/functions/, zato robna funkcija "koledar" ne more
-// uvoziti datoteke iz korena repozitorija — namestitev bi odpovedala z
+// uvoziti datoteke iz korena repozitorija – namestitev bi odpovedala z
 // "Module not found". Kopija je torej nujna, razhajanje med njima pa
 // nevarno: koledar bi zaposlenim kazal druge ure kot aplikacija.
 //
@@ -36,7 +36,7 @@ try {
 }
 
 if (vsebinaA.equals(vsebinaB)) {
-  console.log("OK — delovni-cas.js in kopija v _shared/ sta identična.");
+  console.log("OK – delovni-cas.js in kopija v _shared/ sta identična.");
   process.exit(0);
 }
 

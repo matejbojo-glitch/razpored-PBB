@@ -1,6 +1,6 @@
-/* Razpored PBB — export-utils.js
+/* Razpored PBB – export-utils.js
  * Skupna izvozna logika (Excel), ki jo vključujejo strani z razpredelnicami.
- * Bere xlsx.core.min.js (SheetJS, window.XLSX) — ta je do zdaj v aplikaciji
+ * Bere xlsx.core.min.js (SheetJS, window.XLSX) – ta je do zdaj v aplikaciji
  * vključen samo za BRANJE (uvoz), pisanje (XLSX.writeFile) je bilo
  * neuporabljeno kljub temu, da knjižnica to že polno podpira.
  * Nima builda: nalaga se kot navaden <script>, po xlsx.core.min.js.
@@ -8,7 +8,7 @@
 (function (root) {
   "use strict";
 
-  // listi: [{ ime, glave: [...], vrstice: [[...], ...] }] — vsak vnos postane
+  // listi: [{ ime, glave: [...], vrstice: [[...], ...] }] – vsak vnos postane
   // svoj zavihek v datoteki. Excel omejuje ime zavihka na 31 znakov in
   // prepoveduje nekaj posebnih znakov, zato oboje tu počistimo.
   function varnoImeLista(ime, uporabljena) {

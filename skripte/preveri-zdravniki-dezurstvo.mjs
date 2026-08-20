@@ -55,7 +55,7 @@ function trdi(pogoj, opis) {
   console.log((pogoj ? "  ✓ " : "  ✗ ") + opis);
   if (!pogoj) napake.push(opis);
 }
-function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`)); }
+function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`)); }
 
 const sandbox = { console };
 sandbox.window = sandbox; // skupni moduli se predstavijo prek window, kot v brskalniku
@@ -179,5 +179,5 @@ console.log("8) tretji krog (dipl. m.s./zn.) se res shrani");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------
-// Razpored PBB — Edge Function "koledar"
+// Razpored PBB – Edge Function "koledar"
 //
 // Živa koledarska naročnina (iCal subscription). Odjemalec (Google
 // Koledar, Apple Koledar, Outlook) periodično pokliče ta naslov in dobi
-// vedno SVEŽ razpored — za razliko od enkratnega prenosa .ics, kjer je
+// vedno SVEŽ razpored – za razliko od enkratnega prenosa .ics, kjer je
 // vsebina zamrznjena v trenutku prenosa.
 //
 //   GET /functions/v1/koledar?t=<žeton>
@@ -16,7 +16,7 @@
 //   * oseba ga lahko kadar koli zamenja (Nastavitve → Koledar), s čimer
 //     prejšnja povezava takoj neha delovati.
 //
-// Ure izmen NISO zapisane tu — bere jih delovni-cas.js, isti modul kot
+// Ure izmen NISO zapisane tu – bere jih delovni-cas.js, isti modul kot
 // aplikacija. Datoteka nima uvozov/izvozov, zato jo Deno naloži kot
 // stranski učinek, ki napolni globalThis.DelovniCas (enako kot v
 // brskalniku napolni window.DelovniCas). Tako ostaja en sam vir resnice
@@ -30,7 +30,7 @@
 //   supabase functions deploy koledar --no-verify-jwt
 // ---------------------------------------------------------------------
 import { createClient } from "npm:@supabase/supabase-js@2";
-// POZOR: uvoz mora ostati ZNOTRAJ supabase/functions/ — "supabase functions
+// POZOR: uvoz mora ostati ZNOTRAJ supabase/functions/ – "supabase functions
 // deploy" naloži samo to drevo, zato uvoz datoteke iz korena repozitorija
 // (../../../delovni-cas.js) pri namestitvi odpove z "Module not found".
 // _shared/delovni-cas.js je zato bajt-za-bajt kopija korenske datoteke;
@@ -40,7 +40,7 @@ import "../_shared/delovni-cas.js";
 const DelovniCas = (globalThis as any).DelovniCas;
 
 // Če se modul ne naloži, se raje ustavimo takoj z jasnim sporočilom, kot da
-// bi vrnili koledar z napačnimi urami — tiho napačen razpored je hujši od
+// bi vrnili koledar z napačnimi urami – tiho napačen razpored je hujši od
 // nedelujoče naročnine.
 if (!DelovniCas || typeof DelovniCas.podatkiIzmene !== "function") {
   throw new Error(
@@ -81,7 +81,7 @@ function pobegni(besedilo: string): string {
 
 // RFC 5545 zahteva, da vrstica ne presega 75 oktetov; daljše se prelomijo
 // s presledkom na začetku nadaljevanja. Prelamljamo po BAJTIH, ne po
-// znakih — sicer bi se šumnik (2 bajta v UTF-8) lahko prerezal na pol.
+// znakih – sicer bi se šumnik (2 bajta v UTF-8) lahko prerezal na pol.
 function zlomiVrstico(vrstica: string): string {
   const bajti = new TextEncoder().encode(vrstica);
   if (bajti.length <= 75) return vrstica;
@@ -137,14 +137,14 @@ function sestaviICS(ime: string, vrstice: Vrstica[]): string {
 
     // UID mora biti STABILEN med osveževanji. Če bi se ob vsakem klicu
     // spremenil (npr. z naključjem), bi odjemalec vsakič pobrisal in znova
-    // ustvaril vse dogodke — kar pomeni podvojene vnose in odveč opozorila.
+    // ustvaril vse dogodke – kar pomeni podvojene vnose in odveč opozorila.
     // Oseba+dan je naravni ključ (schedule_entries ima unique na
     // (employee_id, work_date)), zato je dovolj za enoličnost.
     const uid = "pbb-" + r.work_date + "-" + encodeURIComponent(ime) + "@razpored.netlify.app";
     const podatki = DelovniCas.podatkiIzmene(sifra);
 
     // Pogoj je "ure != null", ne le obstoj zacetek/konec. DEŽURSTVO ima
-    // zapisano 15:30–07:00, a to velja SAMO med tednom — ob vikendih in
+    // zapisano 15:30–07:00, a to velja SAMO med tednom – ob vikendih in
     // praznikih traja 24 h (07:00–07:00) in aplikacija te razlike (še) ne
     // modelira, zato so mu ure namenoma null. Če bi ga izpisali kot
     // časovni dogodek, bi koledar v soboto trdil napačno uro prihoda.
@@ -185,7 +185,7 @@ function sestaviICS(ime: string, vrstice: Vrstica[]): string {
     "PRODID:-//Razpored PBB//Koledar//SL",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    zlomiVrstico("X-WR-CALNAME:" + pobegni("Razpored — " + ime)),
+    zlomiVrstico("X-WR-CALNAME:" + pobegni("Razpored – " + ime)),
     "X-WR-TIMEZONE:Europe/Ljubljana",
     // Namig odjemalcu, kako pogosto naj osveži (Apple bere X-PUBLISHED-TTL,
     // novejši odjemalci REFRESH-INTERVAL). Razpored se ne spreminja po
@@ -238,7 +238,7 @@ Deno.serve(async (req: Request) => {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'inline; filename="razpored.ics"',
-      // Naročnina naj se ne servira iz predpomnilnika posrednika — sicer
+      // Naročnina naj se ne servira iz predpomnilnika posrednika – sicer
       // bi bila poanta žive povezave izgubljena.
       "Cache-Control": "no-cache, max-age=0",
     },

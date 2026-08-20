@@ -6,7 +6,7 @@
  * vrstici komaj kakšen vnos ali nobenega, razpored pa se je zdel, kot da
  * se konča sredi meseca. Vzrok je bil isti kot pri NZV mreži: mreža se
  * je polnila samo iz objavljenih schedule_entries, za vodje pa se dnevni
- * razpored ne objavlja — njihova enota je stalna in zapisana v
+ * razpored ne objavlja – njihova enota je stalna in zapisana v
  * lead_departments.
  *
  * Preverjamo:
@@ -15,7 +15,7 @@
  *   - objavljen vnos in odsotnost imata prednost pred izpeljavo;
  *   - daljša odsotnost (porodniška) zapolni mesec z uradno kratico POR,
  *     ne pusti prazne vrstice;
- *   - oddelčni kader (vloga user) se ne izpeljuje — ti imajo objavljen
+ *   - oddelčni kader (vloga user) se ne izpeljuje – ti imajo objavljen
  *     razpored in vikende delajo normalno;
  *   - izpeljane celice so označene, da jih izris loči od objavljenih.
  *
@@ -56,7 +56,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 // ---------------------------------------------------------------------
@@ -84,7 +84,7 @@ vm.runInContext([
 
 // Izsek iz useEffect-a v StanjeRazpredelnica: del, ki iz objavljenih
 // vnosov, odsotnosti in nosilcev zgradi mrežo "id|datum". Prenesen
-// dobesedno iz imenik.html — če se tam spremeni, se mora spremeniti tudi
+// dobesedno iz imenik.html – če se tam spremeni, se mora spremeniti tudi
 // tu, sicer preizkus začne preverjati zastarelo pravilo.
 const zacetekIzseka = html.indexOf("      const m2 = {};");
 const konecIzseka = html.indexOf("      setPoDnevih(m2);");
@@ -145,14 +145,14 @@ function mreza({ vpisi = [], odsotnosti = [], nosilci = NOSILCI, dnevi = DNEVI }
   return sandbox.zgradiMrezo(SEZNAM, nosilci, vpisi, odsotnosti, dnevi, POKRIVANJA);
 }
 
-console.log("1) Nosilec ima vnos za VSAK delovni dan — do konca meseca, ne le do določenega dne");
+console.log("1) Nosilec ima vnos za VSAK delovni dan – do konca meseca, ne le do določenega dne");
 {
   const m = mreza();
   const delovni = DNEVI.filter(d => !sandbox.window.Prazniki.jeDelaProstDan(d.iso));
   ["a", "m", "t"].forEach(id => {
     const manjka = delovni.filter(d => !m[id + "|" + d.iso]).map(d => d.dan);
     trdi(manjka.length === 0,
-      `${id}: vseh ${delovni.length} delovnih dni je zapolnjenih` + (manjka.length ? ` — manjkajo dnevi ${manjka.join(", ")}` : ""));
+      `${id}: vseh ${delovni.length} delovnih dni je zapolnjenih` + (manjka.length ? ` – manjkajo dnevi ${manjka.join(", ")}` : ""));
   });
   eq(m["m|2026-09-30"].kratica, "DOP", "Mušič Ines ima vnos tudi 30.9. (zadnji dan meseca)");
   eq(m["t|2026-09-01"].kratica, "DOP", "Tomaževič Simona ima vnos že 1.9. (prvi dan meseca)");
@@ -172,7 +172,7 @@ console.log("2) Vikend in dela prost praznik ostaneta prazna");
 console.log("3) Daljša odsotnost zapolni mesec z uradno kratico, ne pusti prazne vrstice");
 {
   const m = mreza();
-  eq(m["p|2026-09-01"].kratica, "POR", "Pogačnik Teja — porodniški dopust");
+  eq(m["p|2026-09-01"].kratica, "POR", "Pogačnik Teja – porodniški dopust");
   eq(m["p|2026-09-30"].kratica, "POR", "in to do konca meseca");
   eq(m["p|2026-09-05"], undefined, "vikend ostane prazen tudi njej");
 }
@@ -207,7 +207,7 @@ console.log("4b) Celica pove tudi ENOTO, in to po dejanskem razporedu");
   trdi(!m2["a|2026-09-02"].enota, "ob dopustu se enota ne izpiše - tisti dan ni na nobeni");
 }
 
-console.log("5) Oddelčni kader se NE izpeljuje — nima zapisa nosilca");
+console.log("5) Oddelčni kader se NE izpeljuje – nima zapisa nosilca");
 {
   const m = mreza();
   eq(m["n|2026-09-01"], undefined, "Novak Ana (vloga user) ostane prazna");

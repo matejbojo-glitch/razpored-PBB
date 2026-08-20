@@ -44,7 +44,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const koda = [
@@ -96,5 +96,5 @@ console.log("5) sam ?uvoz=1 (brez parametrov) odpre uvoz s privzetim oddelkom/me
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus window.Parafa.lastniki() — kdo je lastnik parafe.
+/* Preizkus window.Parafa.lastniki() – kdo je lastnik parafe.
  *
  * Ozadje: uvoz razporeda je javljal "POG (parafa se ujema z več osebami)"
  * in "TOM (…)" ter OBE osebi preskočil, torej izgubil njune izmene.
@@ -33,7 +33,7 @@ function trdi(pogoj, opis) {
   console.log((pogoj ? "  ✓ " : "  ✗ ") + opis);
   if (!pogoj) napake.push(opis);
 }
-function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`)); }
+function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`)); }
 
 // Profili kot jih vrne Supabase. Parafe so iz uradnega izvoza; kdor je v
 // izvozu ni imel, je tu brez nje (točno tako, kot je v bazi).
@@ -51,7 +51,7 @@ console.log("1) izhodišče: izpeljana parafa se res prekriva z izrecno");
   trdi(!P.jeIzpeljana(POGACNIK_TEJA, "2026-08"), "Tejina je IZRECNA");
 }
 
-console.log("2) avgust 2026: izrecna parafa premaga izpeljano — nič se ne izgubi");
+console.log("2) avgust 2026: izrecna parafa premaga izpeljano – nič se ne izgubi");
 {
   const { poParafi, podvojene } = P.lastniki(PROFILI, "2026-08");
   eq(podvojene.length, 0, "nobene nerazrešljive parafe");
@@ -75,7 +75,7 @@ console.log("4) natančno na meji prestopa");
   eq((P.lastniki(PROFILI, "2026-10-01").poParafi.POG || {}).id, "m", "1. 10. 2026 že Matej");
 }
 
-console.log("5) PRAVI trki ostanejo trki — pravilo ne sme skriti dvoumnosti");
+console.log("5) PRAVI trki ostanejo trki – pravilo ne sme skriti dvoumnosti");
 {
   // Dve IZRECNI enaki parafi: tega aplikacija ne sme razrešiti sama.
   const dveIzrecni = [
@@ -118,5 +118,5 @@ console.log("7) index.html res uporablja skupno razreševanje (brez druge kopije
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");
