@@ -906,6 +906,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const [cells, setCells] = useState({}); // "IME|ISO" -> kind
+  // "IME|ISO" -> ime, KAKRŠNO je zapisano v bazi. Potrebno, ker se zapis
+  // imena med ročnim vnosom in uvozom iz CSV razlikuje; brez tega bi
+  // popravek take celice ustvaril drugo vrstico namesto da bi prvo popravil.
+  const [zapisanoIme, setZapisanoIme] = useState({});
   const [pen, setPen] = useState("omejitev");
   const [nacin, setNacin] = useState(() => (
     typeof window !== "undefined" && window.innerWidth <= 640 ? "dnevi" : "mreza"
@@ -949,9 +953,24 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     RazporedAuth.client.from("leave_entries").select("full_name, work_date, kind")
       .gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data }) => {
+        // Ključ prek imena.js in NE surovega imena: uvoz iz CSV shrani imena
+        // z VELIKIMI črkami ("BOJIĆ MATEJ"), ročni vnos pa tako, kot so v
+        // Imeniku ("Bojić Matej"). Ob dobesedni primerjavi uvožena vrstica
+        // v razpredelnici sploh NI bila vidna, čeprav je v bazi bila - in
+        // razporedi so jo (odkar berejo po ključu) upoštevali. Zaslon in
+        // razpored sta si torej nasprotovala.
         const m = {};
-        (data || []).forEach(r => { m[r.full_name + "|" + r.work_date] = r.kind; });
+        const zapisano = {};   // ključ -> ime, KAKRŠNO je v bazi
+        const poKljucu = {};
+        vsiLjudje.forEach(({ ime }) => { poKljucu[window.Imena.kljuc(ime)] = ime; });
+        (data || []).forEach(r => {
+          const ime = poKljucu[window.Imena.kljuc(r.full_name)] || r.full_name;
+          const k = ime + "|" + r.work_date;
+          m[k] = r.kind;
+          zapisano[k] = r.full_name;
+        });
         setCells(m);
+        setZapisanoIme(zapisano);
         setNalagam(false);
       });
     RazporedAuth.client.from("leave_entries_log").select("*").order("created_at", { ascending:false }).limit(80)
@@ -971,6 +990,16 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
     setStatus("Shranjujem …");
     try {
       let error;
+      // Če je vrstica v bazi zapisana pod DRUGAČNO obliko imena (uvoz z
+      // velikimi črkami), se najprej pobriše ta - sicer bi upsert po
+      // (full_name, work_date) ustvaril DRUGO vrstico za isto osebo in
+      // isti dan, in v bazi bi ostala dva zapisa, ki si nasprotujeta.
+      const staroIme = zapisanoIme[ime + "|" + iso];
+      if (staroIme && staroIme !== ime) {
+        await RazporedAuth.client.from("leave_entries")
+          .delete().eq("full_name", staroIme).eq("work_date", iso);
+        setZapisanoIme(z => { const n = { ...z }; delete n[ime + "|" + iso]; return n; });
+      }
       if (vrednost) {
         ({ error } = await RazporedAuth.client.from("leave_entries").upsert(
           { full_name: ime, work_date: iso, kind: vrednost, created_by: myId },
