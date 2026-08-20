@@ -468,7 +468,17 @@
 // da že objavljeni razporedi delujejo naprej. Spremenjeni generator-core.js,
 // delovni-cas.js (+ kopija), dashboard-core.js, admin.html, index.html.
 
-const CACHE = 'razpored-pbb-v92';
+// v93: tri stvari, ki jih je uporabnik prijavil večkrat.
+//   1. "Prekini ogled" se je ustavil na omrežju - preusmeritev se je
+//      zgodila šele PO zapisu v revizijo; če ta ni odgovoril, nikoli.
+//      Admin je ostal pri tuji osebi.
+//   2. Odjava ogleda ni počistila, zato je bil admin po ponovni prijavi v
+//      istem zavihku spet v pogledu tuje osebe.
+//   3. Klik na ime ni odprl profila: povezave "imenik.html?id=" so
+//      obstajale, a Imenik parametra ni prebral.
+// Poleg tega je delovišče v "Moj razpored" zdaj v oklepaju: "Dopoldne (MO)".
+
+const CACHE = 'razpored-pbb-v93';
 const ASSETS = [
   './',
   './index.html',

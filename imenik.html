@@ -1972,7 +1972,8 @@ function StanjeRazpredelnica({ oddelki }){
                 return (
                 <tr key={o.id}>{/* nosilec = vrstica iz lead_departments, če oseba to je */}
                   <td className="name">
-                    {o.full_name}
+                    <a href={"imenik.html?id=" + o.id} style={{color:"inherit"}}
+                       title="Odpri profil">{o.full_name}</a>
                     {/* Pod imenom stoji SAMO stalna enota nosilca. Kdo koga
                         nadomešča, je v celoti spodaj v "Pregledu nadomeščanj"
                         pod razpredelnico - dve dodatni vrstici pri vsakem
@@ -2208,7 +2209,24 @@ function App(){
   const [osebe, setOsebe] = useState([]);
   const [cakajoce, setCakajoce] = useState([]); // še ne povezane osebe (contact_imports_public) – vidne VSEM, na izrecno željo
   const [oddelki, setOddelki] = useState([]);
-  const [odprtId, setOdprtId] = useState(null);
+  // Naslov "imenik.html?id=<uuid>" mora odpreti profil te osebe. Parameter
+  // se je doslej samo ZAPISOVAL (ob kliku v seznamu), nikoli pa prebral,
+  // zato so povezave iz drugih zaslonov (Razpored -> Po oddelkih,
+  // Generator, Nastavitve) pripeljale le na navaden seznam - videti je
+  // bilo, kot da klik na ime ne naredi ničesar.
+  const [odprtId, setOdprtId] = useState(() => {
+    try { return new URL(location.href).searchParams.get("id") || null; }
+    catch (e) { return null; }
+  });
+  // Gumb "nazaj" v brskalniku mora profil zapreti oziroma odpreti prejšnjega.
+  useEffect(() => {
+    const naNazaj = () => {
+      try { setOdprtId(new URL(location.href).searchParams.get("id") || null); }
+      catch (e) { setOdprtId(null); }
+    };
+    window.addEventListener("popstate", naNazaj);
+    return () => window.removeEventListener("popstate", naNazaj);
+  }, []);
   const [reloadKey, setReloadKey] = useState(0);
   const [pogled, setPogled] = useState("seznam"); // "seznam" | "dopust" (slednje samo admin)
   const [napakaOsebe, setNapakaOsebe] = useState(null);

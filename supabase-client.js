@@ -91,12 +91,33 @@
     return { error: null };
   }
 
+  // Zapis v revizijo NE SME zadrževati izhoda iz ogleda. Prej se je
+  // preusmeritev zgodila šele PO tem zapisu; če omrežje ni odgovorilo
+  // (počasna povezava, prekinjen WiFi), se ni zgodila nikoli - admin je
+  // pritisnil "Prekini ogled", stran pa je ostala pri tuji osebi in
+  // videti je bilo, kot da je ostal prijavljen kot ona.
+  //
+  // Odslej: sessionStorage se počisti takoj, na zapis počakamo NAJVEČ
+  // kratek čas (da se v običajnem primeru revizija lepo zaključi), nato
+  // gremo naprej ne glede na vse.
+  var IZHOD_NAJVEC_MS = 1500;
+
+  function zRokom(obljuba, ms) {
+    return Promise.race([
+      Promise.resolve(obljuba).catch(function () { return null; }),
+      new Promise(function (r) { setTimeout(r, ms); }),
+    ]);
+  }
+
   async function koncajOgled() {
     var ogled = trenutniOgled();
     sessionStorage.removeItem(OGLED_KLJUC);
     if (ogled && ogled.logId) {
       try {
-        await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId);
+        await zRokom(
+          client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId),
+          IZHOD_NAJVEC_MS
+        );
       } catch (e) { /* ni usodno – sessionStorage je vseeno počiščen */ }
     }
     location.href = "index.html";
@@ -140,7 +161,12 @@
   }
 
   async function signOut() {
-    await client.auth.signOut();
+    // Ogled MORA pasti skupaj z odjavo. Prej se ključ ni počistil, zato je
+    // admin po odjavi in ponovni prijavi v ISTEM zavihku spet pristal v
+    // pogledu tuje osebe - brez očitnega razloga in brez poti nazaj.
+    sessionStorage.removeItem(OGLED_KLJUC);
+    // Tudi tu odjava ne sme obviseti na omrežju (glej koncajOgled zgoraj).
+    await zRokom(client.auth.signOut(), IZHOD_NAJVEC_MS);
     location.replace("login.html");
   }
 
