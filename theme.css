@@ -842,3 +842,34 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   cursor: pointer;
   min-height: 44px;
 }
+
+/* Most iz Želja v Generator: pod razpredelnico, ko je izbrana ena skupina.
+   Poudarjen, ker je to naslednji korak v delu (vpis omejitev → generiranje),
+   a še vedno le povezava – generira se v Generatorju. */
+.vGenerator{
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.vGeneratorGumbi{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vGeneratorBtn{
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.vGeneratorBtn:hover{ background: var(--accent-2); color: var(--bg-grad); }

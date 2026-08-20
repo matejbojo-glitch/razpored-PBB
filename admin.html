@@ -270,6 +270,39 @@ const WARDS_META = {
   E2: { naziv:"E2 – oddelek", hsuffix:false },
 };
 
+// ---------------------------------------------------------------------
+// Napotilo iz Želja: "admin.html?tab=kalup&oddelek=C1&mesec=2026-10" ali
+// "admin.html?tab=nzv&pod=dez&mesec=2026-10". Stran Želje pošlje sem s tem
+// naslovom, da koordinatorju ni treba istega oddelka in meseca izbirati
+// znova - tam je pravkar vpisal dopuste in omejitve, generator pa jih
+// prebere iz baze sam.
+//
+// Naslov je ZUNANJI vhod (uporabnik ga lahko poljubno spremeni ali deli
+// naprej), zato se vsako polje preveri proti znanim vrednostim, namesto da
+// bi se mu zaupalo. Neveljavna vrednost pomeni "uporabi privzeto", ne
+// napake - enako kot pri "index.html?uvoz=1&…" (glej preberiUvozIzNaslova
+// v index.html). Ta funkcija NIČESAR ne generira in ne objavi: samo
+// prednastavi zavihek, oddelek in mesec, sprožiti pa mora uporabnik sam.
+const NAPOTILO_ZAVIHKI = ["kalup", "nzv", "uporabniki", "dopust", "place", "revizija"];
+function preberiNapotiloIzNaslova(search){
+  const p = new URLSearchParams(search || "");
+  const tab = (p.get("tab") || "").trim().toLowerCase();
+  const oddelek = (p.get("oddelek") || "").trim().toUpperCase();
+  const pod = (p.get("pod") || "").trim().toLowerCase();
+  const mesec = (p.get("mesec") || "").trim();
+  const veljaven = {
+    tab: NAPOTILO_ZAVIHKI.includes(tab) ? tab : null,
+    // Generator rotacije pozna samo 6 SMS/TZN oddelkov (WARDS_META).
+    // FLEXI in NZV se tu NE generirata - Želje za FLEXI napotijo drugam.
+    oddelek: Object.prototype.hasOwnProperty.call(WARDS_META, oddelek) ? oddelek : null,
+    pod: (pod === "vodje" || pod === "dez") ? pod : null,
+    mesec: /^\d{4}-(0[1-9]|1[0-2])$/.test(mesec) ? mesec : null,
+  };
+  // Brez enega samega veljavnega podatka naslov ni napotilo - stran se
+  // odpre povsem po svoje, kot doslej.
+  return Object.keys(veljaven).some(k => veljaven[k]) ? veljaven : null;
+}
+
 // Vrne [[ime, rotacijskaČrka], ...] za en oddelek – ista oblika, kot jo je
 // prej vračal WARDS_META[koda].staff, da ostane vsa nadaljnja koda (Kalup,
 // PrednostniPanel) nespremenjena. Manjkajoč rotation_slot (nova oseba, še
@@ -934,9 +967,9 @@ function UvozRazporedaNapotek({ koda, month }){
   );
 }
 
-function KalupTab(){
-  const [koda, setKoda] = useState("B");
-  const [month, setMonth] = useState("2026-11");
+function KalupTab({ zacetniOddelek, zacetniMesec }){
+  const [koda, setKoda] = useState(zacetniOddelek || "B");
+  const [month, setMonth] = useState(zacetniMesec || "2026-11");
   const [letters, setLetters] = useState({}); // override startLetter po imenu
   // "ime|monday" -> "LD" (letni dopust) | undefined (navadna rotacija).
   // Oznaka "POMOC" ("Pomoč na drugem oddelku") je bila odstranjena na
@@ -1443,9 +1476,9 @@ function PravicnostPregled({ roster }){
 }
 
 // ---------------------------------------------------------------------
-function DezurstvaTab(){
+function DezurstvaTab({ zacetniMesec }){
   const [roster, setRoster] = useState(null);
-  const [month, setMonth] = useState("2026-09");
+  const [month, setMonth] = useState(zacetniMesec || "2026-09");
   const [minRazmik, setMinRazmik] = useState(3);
   const [prostDan, setProstDan] = useState(true);
   const [maxVikend, setMaxVikend] = useState(true);
@@ -1862,8 +1895,8 @@ function kratica(imePolno){
 }
 const LEAVE_KOLONA = { ld: "LD", bs: "BS", sti: "IZOB" }; // "omejitev" nima lastnega stolpca (glej opombo v UI)
 
-function VodjeTab(){
-  const [month, setMonth] = useState("2026-09");
+function VodjeTab({ zacetniMesec }){
+  const [month, setMonth] = useState(zacetniMesec || "2026-09");
   const [vodje, setVodje] = useState(null);
   const [oddelki, setOddelki] = useState([]);
   const [rezultat, setRezultat] = useState(null);
@@ -2670,16 +2703,16 @@ function DopustTab(){
 // na enem mestu ("bo skupaj naredi da bo pregledno in razumljivo") – sama
 // logika generiranja obeh (VodjeTab/DezurstvaTab) ostaja nespremenjena,
 // samo dostop je zdaj pod enim skupnim zavihkom namesto dveh ločenih.
-function NzvTab(){
-  const [pod, setPod] = useState("vodje"); // "vodje" | "dez"
+function NzvTab({ zacetniPod, zacetniMesec }){
+  const [pod, setPod] = useState(zacetniPod || "vodje"); // "vodje" | "dez"
   return (
     <div>
       <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
         <button role="tab" aria-selected={pod==="vodje"} onClick={() => setPod("vodje")}>Vodstvena pokritost</button>
         <button role="tab" aria-selected={pod==="dez"} onClick={() => setPod("dez")}>Dežurstva</button>
       </div>
-      {pod==="vodje" && <VodjeTab/>}
-      {pod==="dez" && <DezurstvaTab/>}
+      {pod==="vodje" && <VodjeTab zacetniMesec={zacetniMesec}/>}
+      {pod==="dez" && <DezurstvaTab zacetniMesec={zacetniMesec}/>}
     </div>
   );
 }
@@ -3067,7 +3100,12 @@ function RevizijaRazporeda(){
 }
 
 function App({ ogled, profil }){
-  const [tab, setTab] = useState("kalup");
+  // Napotilo iz Želja (glej preberiNapotiloIzNaslova) - prebere se enkrat,
+  // ob odprtju; poznejši kliki po zavihkih ga ne vlečejo več za sabo.
+  const napotilo = useMemo(() => {
+    try { return preberiNapotiloIzNaslova(window.location.search); } catch (e) { return null; }
+  }, []);
+  const [tab, setTab] = useState((napotilo && napotilo.tab) || "kalup");
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
@@ -3089,8 +3127,8 @@ function App({ ogled, profil }){
         </div>
       </header>
 
-      {tab==="kalup" && <KalupTab/>}
-      {tab==="nzv" && <NzvTab/>}
+      {tab==="kalup" && <KalupTab zacetniOddelek={napotilo && napotilo.oddelek} zacetniMesec={napotilo && napotilo.mesec}/>}
+      {tab==="nzv" && <NzvTab zacetniPod={napotilo && napotilo.pod} zacetniMesec={napotilo && napotilo.mesec}/>}
       {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
       {tab==="place" && <PlaceTab/>}
