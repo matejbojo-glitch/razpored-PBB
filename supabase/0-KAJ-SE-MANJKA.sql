@@ -1,0 +1,119 @@
+-- ---------------------------------------------------------------------
+-- KAJ ŠE MANJKA? — poženi TO PRVO
+--
+-- Ta poizvedba NIČESAR ne spremeni. Samo pogleda stanje baze in izpiše
+-- seznam: kaj je urejeno in katero datoteko je treba še pognati.
+--
+-- Kako: Supabase -> SQL Editor -> prilepi vse -> Run.
+--
+-- Vsaka točka VEDNO izpiše svojo vrstico. Če je ni mogoče preveriti, to
+-- tudi piše - manjkajoča vrstica se ne sme brati kot "vse v redu".
+-- ---------------------------------------------------------------------
+
+create temp table if not exists pbb_pregled (zap int, tocka text, stanje text);
+truncate pbb_pregled;
+
+do $$
+declare
+  n int;
+  slabi int := 0;
+  ima_enote boolean;
+begin
+  ima_enote := to_regclass('public.lead_departments') is not null
+    and exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'lead_departments'
+                   and column_name = 'enote');
+
+  -- 1) Enote nosilcev: brez tega Razpredelnica ne ve, kdo je na kateri enoti.
+  if to_regclass('public.lead_departments') is null then
+    insert into pbb_pregled values (1, 'Enote nosilcev', 'NAPAKA: tabele lead_departments ni -> poženi schema.sql');
+  elsif not ima_enote then
+    insert into pbb_pregled values (1, 'Enote nosilcev', 'MANJKA -> poženi nzv-nosilci-oddelkov.sql');
+  else
+    execute 'select count(*) from public.lead_departments where coalesce(enote, '''') <> ''''' into n;
+    insert into pbb_pregled values (1, 'Enote nosilcev',
+      case when n = 0 then 'PRAZNO -> poženi nzv-nosilci-oddelkov.sql'
+           else 'OK (' || n || ' nosilcev ima enoto)' end);
+  end if;
+
+  -- 2) Lastne enote (Lelič ima E2, ne "E2/E1").
+  if not ima_enote then
+    insert into pbb_pregled values (2, 'Lastne enote (brez poševnic pri parih)', 'NI MOGOČE PREVERITI (najprej točka 1)');
+  else
+    execute 'select count(*) from public.lead_departments where enote like ''%/%''' into n;
+    insert into pbb_pregled values (2, 'Lastne enote (brez poševnic pri parih)',
+      case when n > 3 then 'PREVERI -> morda poženi nzv-lastne-enote.sql (' || n || ' sestavljenih)'
+           else 'OK (' || n || ' sestavljenih enot - to je pričakovano)' end);
+  end if;
+
+  -- 3) Nadomeščanja: brez tega ni Lelič -> Maglić.
+  if to_regclass('public.nadomescanja') is null then
+    insert into pbb_pregled values (3, 'Nadomeščanja', 'MANJKA -> poženi nzv-nadomescanja.sql');
+  else
+    execute 'select count(*) from public.nadomescanja' into n;
+    insert into pbb_pregled values (3, 'Nadomeščanja',
+      case when n = 0 then 'PRAZNO -> poženi nzv-nadomescanja.sql' else 'OK (' || n || ' parov)' end);
+  end if;
+
+  -- 4) Nastavitve SA (tedensko menjavanje dopoldan/popoldan).
+  if to_regclass('public.nzv_nastavitve') is null then
+    insert into pbb_pregled values (4, 'Nastavitve SA', 'MANJKA -> poženi nzv-nastavitve.sql');
+  else
+    insert into pbb_pregled values (4, 'Nastavitve SA', 'OK (tabela obstaja)');
+  end if;
+
+  -- 5) Pokvarjeni zapisi imen (ALUKIÄ† DINO ipd.).
+  if to_regclass('public.lead_departments') is null and to_regclass('public.nadomescanja') is null then
+    insert into pbb_pregled values (5, 'Pokvarjeni zapisi imen', 'NI MOGOČE PREVERITI (tabel še ni)');
+  else
+    if to_regclass('public.lead_departments') is not null then
+      execute 'select count(*) from public.lead_departments where full_name ~ ''[ÄÅÂ]''' into n;
+      slabi := slabi + n;
+    end if;
+    if to_regclass('public.nadomescanja') is not null then
+      execute 'select count(*) from public.nadomescanja where nosilec ~ ''[ÄÅÂ]'' or nadomesca ~ ''[ÄÅÂ]''' into n;
+      slabi := slabi + n;
+    end if;
+    insert into pbb_pregled values (5, 'Pokvarjeni zapisi imen',
+      case when slabi = 0 then 'OK (ni jih)'
+           else 'NAJDENIH ' || slabi || ' -> poženi nzv-pocisti-pokvarjena-imena.sql' end);
+  end if;
+
+  -- 6) Nosilec enote PO.
+  if not ima_enote then
+    insert into pbb_pregled values (6, 'Nosilec enote PO (Tomaževič Simona)', 'NI MOGOČE PREVERITI (najprej točka 1)');
+  else
+    execute 'select count(*) from public.lead_departments where enote = ''PO'' and upper(full_name) like ''TOMA%''' into n;
+    insert into pbb_pregled values (6, 'Nosilec enote PO (Tomaževič Simona)',
+      case when n = 0 then 'MANJKA -> poženi nzv-po-tomazevic.sql' else 'OK' end);
+  end if;
+
+  -- 7) Imena oddelkov - samo kozmetika, nič ne pokvari.
+  if to_regclass('public.departments') is null then
+    insert into pbb_pregled values (7, 'Imena oddelkov (kozmetika)', 'NI MOGOČE PREVERITI (tabele departments ni)');
+  else
+    execute 'select count(*) from public.departments where name like ''% - ODDELEK''' into n;
+    insert into pbb_pregled values (7, 'Imena oddelkov (kozmetika)',
+      case when n = 0 then 'OK' else 'STARI ZAPIS (' || n || ') -> poženi imena-oddelkov-tipografija.sql' end);
+  end if;
+
+  -- 8) September: ali so v razporedu ljudje, ki jih je uvoz prej preskočil.
+  if to_regclass('public.schedule_entries') is null or to_regclass('public.profiles') is null then
+    insert into pbb_pregled values (8, 'September: prej preskočeni zaposleni', 'NI MOGOČE PREVERITI (manjka schedule_entries/profiles)');
+  else
+    execute 'select count(distinct p.full_name)
+               from public.schedule_entries se
+               join public.profiles p on p.id = se.employee_id
+              where se.work_date between date ''2026-09-01'' and date ''2026-09-30''
+                and (upper(p.full_name) like ''BE%IROVI%''
+                  or upper(p.full_name) like ''GAZIBARA%''
+                  or upper(p.full_name) like ''STARE%''
+                  or upper(p.full_name) like ''ROZMAN%'')' into n;
+    insert into pbb_pregled values (8, 'September: prej preskočeni zaposleni',
+      case when n < 4 then 'NEPOPOLNO (' || n || ' od 4) -> ponovno uvozi september v aplikaciji'
+           else 'OK (vsi 4 so v razporedu)' end);
+  end if;
+end $$;
+
+select zap as "št.", tocka as "kaj", stanje as "stanje / kaj narediti"
+  from pbb_pregled order by zap;
