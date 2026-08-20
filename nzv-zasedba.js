@@ -204,7 +204,20 @@ window.NzvZasedba = (function () {
   // odsotnosti tega dne (glej leave_entries.kind).
   var KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
 
-  function razporedDneva(opts) {
+  // Kdo je ta dan na kateri enoti - s podrobnostmi.
+  //
+  // Vrne { vrstice, enakovredni }:
+  //   vrstice      kot razporedDneva (nosilec + kode + berljiv zapis enot)
+  //   enakovredni  koda enote -> imena, ki so za to enoto ENAKO ustrezna
+  //
+  // "enakovredni" obstaja zaradi uporabnikovega pravila (avgust 2026):
+  // "Humar je prva SA, nadomesti jo Trpin ali Bizjak ... se določi sproti."
+  // Kadar ima več nadomeščevalcev ISTO prednost, ni ene same pravilne
+  // rešitve - katera koli od njih je v redu. Razpored zato izbere prvo
+  // (da je predlog določen in se ne spreminja med osvežitvami), pregled
+  // odstopanj pa sprejme vse. Brez tega bi vsak dan javljal napako pri
+  // tisti od obeh, ki tokrat ni bila izbrana.
+  function razporedDnevaPodrobno(opts) {
     var nosilci = opts.nosilci || [], pari = opts.pari || [];
     var kljuc = opts.kljuc, jeOdsoten = opts.jeOdsoten;
     var vKode = function (enote) { return enoteVKode(enote, opts.saKoda, opts.veljavne); };
@@ -245,6 +258,20 @@ window.NzvZasedba = (function () {
       dodatno[k] = (dodatno[k] || []).concat(kode);
       dodatnoBesedilo[k] = (dodatnoBesedilo[k] || []).concat([besedilo]);
     }
+    // Enakovredni nadomeščevalci: vsi, ki imajo isto prednost kot izbrani
+    // in tisti dan niso odsotni. Katera koli od njih je pravilna rešitev.
+    var enakovredni = {};
+    function zabeleziEnakovredne(kandidati, izbrani, kode) {
+      var stopnja = izbrani.prednost || 1;
+      var imena = kandidati
+        .filter(function (k) { return (k.prednost || 1) === stopnja && !jeOdsoten(k.nadomesca); })
+        .map(function (k) { return k.nadomesca; });
+      if (imena.length < 2) return;   // ena sama možnost - ni kaj izbirati
+      kode.forEach(function (koda) {
+        var ze = enakovredni[koda] = enakovredni[koda] || [];
+        imena.forEach(function (i) { if (ze.indexOf(i) < 0) ze.push(i); });
+      });
+    }
     // Vrstni red mora biti določen (ne po naključju iz baze), sicer bi ob
     // dveh hkratnih odsotnostih isti nadomeščevalec enkrat pripadel enemu
     // in drugič drugemu.
@@ -264,12 +291,14 @@ window.NzvZasedba = (function () {
           if (kandidati[i].poleg_svoje) {
             // Svojo enoto obdrži, zato zanjo NI 2. ravni: ni je zapustil.
             prevzemiPoleg(kn, kode, kandidati[i].enota || v.enote);
+            zabeleziEnakovredne(kandidati, kandidati[i], kode);
             break;
           }
           // Kdor že pokriva tujo enoto poleg svoje, se ne seli še tretjič.
           if (dodatno[kn]) continue;
           preseljen[kn] = kode;
           preseljenBesedilo[kn] = kandidati[i].enota || v.enote;
+          zabeleziEnakovredne(kandidati, kandidati[i], kode);
           break;
         }
       });
@@ -327,7 +356,13 @@ window.NzvZasedba = (function () {
         .filter(Boolean).join(", ");
       if (kode.length) out.push({ nosilec: v, kode: kode, enote: besedilo });
     });
-    return out;
+    return { vrstice: out, enakovredni: enakovredni };
+  }
+
+  // Ovoj za klicatelje, ki potrebujejo samo razpored (mreža, Razpredelnica,
+  // generator) - podrobnosti o enakovrednih uporablja le pregled odstopanj.
+  function razporedDneva(opts) {
+    return razporedDnevaPodrobno(opts).vrstice;
   }
 
   return {
@@ -349,5 +384,6 @@ window.NzvZasedba = (function () {
     IZMENA_PRISOTEN: IZMENA_PRISOTEN,
     stalnaZasedba: stalnaZasedba,
     razporedDneva: razporedDneva,
+    razporedDnevaPodrobno: razporedDnevaPodrobno,
   };
 })();
