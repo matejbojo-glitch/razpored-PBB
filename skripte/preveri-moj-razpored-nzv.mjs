@@ -53,9 +53,18 @@ vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
 // mora biti v peskovniku tudi ta.
 vm.runInContext(izvleciFn("shiftLabel"), sandbox);
 vm.runInContext(izvleciFn("nzvPrikaz"), sandbox);
+// prikazNaZaslonu je ZADNJI korak pred izpisom. Prejšnja različica tega
+// testa je klicala samo nzvPrikaz in zato ni opazila, da je zaslon
+// rezultat pognal še enkrat skozi shiftLabel in ga skrčil nazaj na golo
+// "Dopoldne" (enota in dežurstvo sta izginila). Odslej se preverja
+// natanko tisto, kar uporabnik prebere.
+vm.runInContext(izvleciFn("prikazNaZaslonu"), sandbox);
 
 const { stalnaZasedba } = sandbox.window.NzvZasedba;
-const { nzvPrikaz } = sandbox;
+const { nzvPrikaz, prikazNaZaslonu } = sandbox;
+// Natanko veriga iz MyScheduleView: <span className="txt">{prikazNaZaslonu(prikaz)}</span>
+const naZaslonu = (sifra, dan, datum, enota) =>
+  prikazNaZaslonu(nzvPrikaz(sifra, dan, true, datum, enota));
 
 const NOSILEC = { full_name: "TOMAŽEVIČ SIMONA", enote: "A", odsotnost_tip: null, odsotnost_do: null };
 const PORODNISKA = { full_name: "POGAČNIK TEJA", enote: "E1", odsotnost_tip: "porodniška", odsotnost_do: "2027-07-31" };
@@ -112,13 +121,40 @@ console.log("3) Objavljena izmena, dežurstvo in dopust se ne prepišejo");
   eq(m["2026-09-01"], "PRISOTEN", "prazen dan se še vedno dopolni");
 }
 
-console.log("4) Kar zaslon izpiše (nzvPrikaz) je smiselno");
+console.log("4) Kar zaslon RES izpiše (nzvPrikaz -> prikazNaZaslonu)");
 {
   const m = mojRazpored({ "2026-09-02": "DEŽURSTVO" });
-  eq(nzvPrikaz(m["2026-09-01"], "TO", true, "2026-09-01"), "Dopoldne", "navaden delovni dan (PRISOTEN se izpiše kot dopoldan)");
-  eq(nzvPrikaz(m["2026-09-02"], "SR", true, "2026-09-02"), "Dopoldne + Dežurstvo",
+  eq(naZaslonu(m["2026-09-01"], "TO", "2026-09-01", ""), "Dopoldne", "navaden delovni dan (PRISOTEN se izpiše kot dopoldan)");
+  eq(naZaslonu(m["2026-09-02"], "SR", "2026-09-02", ""), "Dopoldne + Dežurstvo",
     "dežurstvo med tednom je po redni prisotnosti");
-  eq(nzvPrikaz(m["2026-09-05"], "SO", true, "2026-09-05"), "", "sobota ostane prazna");
+  eq(naZaslonu(m["2026-09-05"], "SO", "2026-09-05", ""), "Prosto", "sobota je prosta");
+}
+
+console.log("4b) Enota v ISTI vrstici – to je bilo na zaslonu pokvarjeno");
+{
+  // Regresija (avgust 2026): nzvPrikaz je sestavil pravilno besedilo,
+  // zaslon pa ga je pognal še enkrat skozi shiftLabel. vnos() pobriše
+  // presledke in pike, zato se je "Dopoldne (MO) + Dežurstvo" ujel z
+  // /^dopoldne/ in se skrčil nazaj na "Dopoldne". Uporabnik je videl gol
+  // "Dopoldne" na vseh dneh, čeprav je bila enota pravilno izračunana.
+  eq(naZaslonu("PRISOTEN", "PO", "2026-08-24", "MO"), "Dopoldne (MO)",
+    "vodja na svoji enoti: Dopoldne (MO)");
+  eq(naZaslonu("DEŽURSTVO", "SR", "2026-08-26", "MO"), "Dopoldne (MO) + Dežurstvo",
+    "dežurstvo med tednom: enota IN dežurstvo, oboje v isti vrstici");
+  eq(naZaslonu("PRISOTEN", "TO", "2026-08-25", "E2, E1"), "Dopoldne (E2, E1)",
+    "ob nadomeščanju se izpišeta obe enoti (Maglić, ko je Lelić na dopustu)");
+  eq(naZaslonu("popoldan", "ČE", "2026-08-27", "C1"), "Popoldne (C1)",
+    "popoldanska izmena na drugi enoti");
+  eq(naZaslonu("DEŽURSTVO", "NE", "2026-08-30", "MO"), "Dežurstvo",
+    "vikendno dežurstvo je cel dan – brez dopoldanskega dela in brez enote");
+}
+
+console.log("4c) Na odsotnosti se enota NE pripiše (tisti dan ni na nobeni enoti)");
+{
+  eq(naZaslonu("LD", "PO", "2026-08-24", "MO"), "Letni dopust", "letni dopust");
+  eq(naZaslonu("BS", "TO", "2026-08-25", "MO"), "Bolniški stalež", "bolniški stalež");
+  eq(naZaslonu("STI", "SR", "2026-08-26", "MO"), "Strokovno izobraževanje", "strokovno izobraževanje");
+  eq(naZaslonu("KPU", "ČE", "2026-08-27", "MO"), "Koriščenje prostih ur", "koriščenje prostih ur");
 }
 
 console.log("5) Porodniška zapolni mesec z uradno kratico");
@@ -134,6 +170,26 @@ console.log("6) Kdor ni nosilec enote, ostane nedotaknjen");
   eq(Object.keys(mojRazpored({}, null)).length, 0, "brez zapisa nosilca ni dopolnitev");
   eq(Object.keys(mojRazpored({}, { full_name: "X", enote: null })).length, 0,
     "prazne enote pomenijo, da oseba ni nosilec oddelka");
+}
+
+console.log("7) Gosta mreža ('Po oddelkih'): kratica za odsotnosti, cel naziv za delo");
+{
+  // Uporabnikova odločitev (avgust 2026): kratica v razpredelnici, cela
+  // beseda v "Moj razpored". Delovne izmene ostanejo Dopoldne/Popoldne/
+  // Nočna, ker je prav ta zapis zahteval za celotno aplikacijo.
+  const g = sandbox.window.Izmene.nazivZaMrezo;
+  eq(g("dopoldan"), "Dopoldne", "dopoldan");
+  eq(g("popoldan"), "Popoldne", "popoldan");
+  eq(g("NOČNA"), "Nočna", "nočna");
+  eq(g("DNEVNA12"), "Dnevna 12", "dnevna 12");
+  eq(g("LD"), "LD", "letni dopust je kratica, ne stavek");
+  eq(g("BS"), "BS", "bolniški stalež");
+  eq(g("POR"), "POR", "porodniški dopust");
+  eq(g("STI"), "STI", "strokovno izobraževanje");
+  eq(g("KPU"), "KPU", "koriščenje prostih ur");
+  eq(g(""), "", "prazna celica ostane prazna");
+  // Ista šifra v "Moj razpored" pove cel stavek – tam je prostora dovolj.
+  eq(sandbox.window.Izmene.naziv("LD"), "Letni dopust", "v Moj razpored ostane cel naziv");
 }
 
 console.log("");

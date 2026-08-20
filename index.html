@@ -390,7 +390,13 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   // Delovišče v oklepaju, na ISTI vrstici kot izmena: "Dopoldne (MO)".
   // Zaposleni mora na prvi pogled vedeti ne le KDAJ, ampak tudi KJE je
   // tisti dan razpisan (uporabnikova zahteva).
-  const zEnoto = (besedilo) => (enota ? besedilo + " (" + enota + ")" : besedilo);
+  // Enota se pripiše SAMO, kadar oseba tisti dan res dela. Na dopustu,
+  // bolniški ali strokovnem izobraževanju ni na nobeni enoti, zato bi
+  // "Letni dopust (MO)" bralca zavedel (uporabnikovo pravilo iz
+  // Razpredelnice: "ob dopustu se ne izpiše").
+  const naDelu = window.Izmene.stanje(sifra) === "delo"
+    || window.Izmene.stanje(sifra) === "dezurstvo";
+  const zEnoto = (besedilo) => (enota && naDelu ? besedilo + " (" + enota + ")" : besedilo);
   // "Dežurstvo" z veliko začetnico kot lastno ime izmene, ne z verzalkami:
   // v uradni legendi je zapisano tako, verzalke pa na zaslonu delujejo kot
   // vpitje (uporabnikova pripomba).
@@ -404,6 +410,17 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   // šifri in uporabnik bi videl "PRISOTEN C1" namesto "Dopoldne C1".
   if (!jeNzv || !vikend) return sifra ? zEnoto(shiftLabel(sifra)) : sifra;
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
+}
+
+// nzvPrikaz vrne ŽE pripravljeno besedilo za zaslon ("Dopoldne (MO) +
+// Dežurstvo"), ne šifre izmene. Če bi ga pognali še skozi shiftLabel, bi
+// ga legenda prebrala kot šifro (vnos() pobriše presledke in pike, zato
+// se "dopoldne(mo)+dežurstvo" ujame z /^dopoldne/) in ga skrčila nazaj na
+// golo "Dopoldne" - enota in dežurstvo bi tiho izginila. Prazno besedilo
+// pomeni prost dan; "Prosto" tu, ker ga nzvPrikaz namenoma ne izpiše sam
+// (pri NZV vikendu vrne "" tudi sredi letnega dopusta).
+function prikazNaZaslonu(prikaz){
+  return prikaz || "Prosto";
 }
 
 // Zdravniki posameznega dne, pripravljeni za izpis. Uradni dokument ima
@@ -661,7 +678,7 @@ function MyScheduleView({ userId, month, jeNzv }){
             <span className="dot" style={{background: todayPrikaz === "" || !todaySifra
               ? window.Izmene.STANJE_BARVA.prosto.barva : window.Izmene.barva(todaySifra)}}></span>
             <div>
-              <div className="shiftName">{shiftLabel(todayPrikaz)}</div>
+              <div className="shiftName">{prikazNaZaslonu(todayPrikaz)}</div>
               <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
               {todayCls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[iso]).map(z => (
                 <div key={z.oznaka} className="shiftTime">🩺 {z.oznaka}: {z.ime}</div>
@@ -714,7 +731,7 @@ function MyScheduleView({ userId, month, jeNzv }){
                     }}>
                     <span className="dot" style={{background: cls==="dez" ? "#fff" : (barvaDneva || "var(--off)")}}></span>
                     <span style={{minWidth:0, overflow:"hidden"}}>
-                      <span className="txt">{shiftLabel(prikaz)}</span>
+                      <span className="txt">{prikazNaZaslonu(prikaz)}</span>
                       {cls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[dn.datum]).map(z => (
                         <span key={z.oznaka} className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
                           🩺 {z.oznaka}: {z.ime}
@@ -980,9 +997,11 @@ function WardView({ deptCode, month, myId }){
                     // Barva je iz URADNE legende (izmene.js), enaka kot v
                     // Imenik -> Razpredelnica - prej je bila tu ena od
                     // sedmih grobih skupin, zato je bila ista izmena tu
-                    // ena barva in tam druga. Besedilo v celici ostaja
-                    // POIMENSKO (cela koda izmene), ne kratica: ta pogled
-                    // ima široke stolpce in uporabnik bere ime izmene.
+                    // ena barva in tam druga. Besedilo v celici: delovne
+                    // izmene s polnim nazivom ("Dopoldne"), odsotnosti in
+                    // prosti dnevi s kratico ("LD", "KPU") - ta pogled ima
+                    // sicer široke stolpce, a cel stavek "Letni dopust" bi
+                    // jih razbil (uporabnikova odločitev, avgust 2026).
                     const barvaIzmene = window.Izmene.barva(sifra);
                     const opisIzmene = window.Izmene.naziv(sifra)
                       + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "");
@@ -998,7 +1017,7 @@ function WardView({ deptCode, month, myId }){
                         {sifra && (
                           <span className="swatch" title={opisIzmene}
                             style={{background: barvaIzmene, color: window.Izmene.barvaBesedila(barvaIzmene)}}>
-                            {shiftLabel(sifra)}
+                            {window.Izmene.nazivZaMrezo(sifra)}
                           </span>
                         )}
                       </td>

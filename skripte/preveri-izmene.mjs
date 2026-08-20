@@ -189,15 +189,16 @@ console.log("6) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(!/^const IZMENA_KRATICE = \[/m.test(imenik), "imenik.html nima več svoje kopije legende");
   trdi(!/const BARVE = \{ dop:/.test(index + admin), "nobena stran nima več svoje tabele barv");
 
-  // Razpored (Po oddelkih) mora barvati po legendi in izpisovati POLNO
-  // ime izmene, ne kratice – uporabnikova izrecna zahteva.
+  // Razpored (Po oddelkih) mora barvati po legendi in izpisovati ime
+  // izmene iz legende, ne surove šifre – uporabnikova izrecna zahteva.
   trdi(/window\.Izmene\.barva\(sifra\)/.test(index),
     "Po oddelkih: barva celice je iz uradne legende");
-  // Polno ime pride iz legende (shiftLabel -> Izmene.naziv), ne iz surove
-  // šifre: šifre so neenotne ("dopoldan", "NOČNA"), naziv pa je pravilno
-  // zapisan ("Dopoldne", "Nočna").
-  trdi(/<span className="swatch" title=\{opisIzmene\}[\s\S]{0,220}\{shiftLabel\(sifra\)\}/.test(index),
-    "Po oddelkih: v celici je POLNO ime izmene iz legende, ne kratica");
+  // Delovne izmene s polnim nazivom ("Dopoldne", "Nočna" – šifre so
+  // neenotne: "dopoldan", "NOČNA"), odsotnosti in prosti dnevi pa s
+  // kratico ("LD", "KPU"), ker bi cel stavek razbil ozko celico.
+  // Uporabnikova odločitev, avgust 2026.
+  trdi(/<span className="swatch" title=\{opisIzmene\}[\s\S]{0,220}\{window\.Izmene\.nazivZaMrezo\(sifra\)\}/.test(index),
+    "Po oddelkih: v celici je nazivZaMrezo (naziv za delo, kratica za odsotnost)");
   trdi(/const legendaIzmen = useMemo/.test(index),
     "Po oddelkih: legenda pod tabelo je izpeljana iz izmen tega meseca");
 
