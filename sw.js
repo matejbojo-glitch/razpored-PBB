@@ -428,7 +428,14 @@
 // je dvig različice nujen – brez njega bi uporabniki z že nameščenim
 // service workerjem videli staro besedilo.
 
-const CACHE = 'razpored-pbb-v85';
+// v86: Razpredelnica pokaže ENOTO namesto kratice DOP (vodje NZV delajo
+// vedno dopoldne, zato DOP ni povedal nič), in popravek nadomeščanja v
+// nzv-zasedba.js: kdor prevzame tujo enoto in svoje NIMA kdo prevzeti, jo
+// obdrži poleg prevzete (Lelič odsotna -> Maglić ima "E2, E1"). Prej je
+// taka enota iz razporeda izginila. nzv-zasedba.js se streže iz
+// predpomnilnika, zato je dvig različice nujen.
+
+const CACHE = 'razpored-pbb-v86';
 const ASSETS = [
   './',
   './index.html',

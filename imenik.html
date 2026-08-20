@@ -2004,6 +2004,13 @@ function StanjeRazpredelnica({ oddelki }){
                     const barva = zapis ? zapis.barva : STANJE_BARVA.prosto.barva;
                     const vnos = kratica ? vnosPoKratici(kratica) : null;
                     const zamenjano = !!menjani[o.id + "|" + d.iso];
+                    // NZV vodje in administratorji delajo vedno dopoldne
+                    // (PON-PET 07:00-15:00), zato "DOP" v vsaki celici ne
+                    // pove ničesar - pove pa enota. Kjer je enota znana,
+                    // stoji namesto kratice. Druge kratice (DEŽ, LD, BS,
+                    // STI) ostanejo, ker nosijo podatek, enota pa je nad
+                    // njimi.
+                    const samoEnota = !!(zapis && zapis.enota && kratica === "DOP");
                     const opis = vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
                       : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
                     return (
@@ -2028,14 +2035,19 @@ function StanjeRazpredelnica({ oddelki }){
                           color: zapis ? barvaBesedila(barva) : "#2B2717"}}>
                         {/* Enota, na kateri je oseba TA DAN po dejanskem
                             razporedu - ne stalna enota. Ob nadomeščanju se
-                            spremeni (Arnež gre s C na C1), zato je edino
+                            spremeni (Arnež gre s C na C1; ob Leličini
+                            odsotnosti ima Maglić "E2, E1"), zato je edino
                             tu razvidno, kje kdo v resnici je. */}
-                        {zapis && zapis.enota && (
-                          <span style={{display:"block", fontSize:8, fontWeight:600, opacity:.85, lineHeight:1.1}}>
-                            {zapis.enota}
-                          </span>
+                        {samoEnota ? zapis.enota : (
+                          <React.Fragment>
+                            {zapis && zapis.enota && (
+                              <span style={{display:"block", fontSize:8, fontWeight:600, opacity:.85, lineHeight:1.1}}>
+                                {zapis.enota}
+                              </span>
+                            )}
+                            {kratica}
+                          </React.Fragment>
                         )}
-                        {kratica}
                         {zamenjano && (
                           <span aria-hidden="true" style={{position:"absolute", top:0, right:1, fontSize:8,
                             lineHeight:1, opacity:.85}}>↔</span>

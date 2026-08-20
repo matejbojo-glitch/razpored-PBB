@@ -206,6 +206,9 @@ window.NzvZasedba = (function () {
     // 2. raven: zapuščene enote prevzame naslednji, in to POLEG svojih.
     var dodatno = {};
     var dodatnoBesedilo = {};
+    // Kdo od preseljenih je svojo staro enoto res oddal. Če je ni oddal
+    // nihče, jo obdrži sam (glej spodaj) - delo na njej ne izgine.
+    var zapuscenoPokrito = {};
     Object.keys(preseljen).forEach(function (kb) {
       var b = poKljucu[kb];
       if (!b || !b.enote) return;
@@ -217,6 +220,7 @@ window.NzvZasedba = (function () {
         if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kc]) continue;
         dodatno[kc] = (dodatno[kc] || []).concat(vKode(b.enote));
         dodatnoBesedilo[kc] = (dodatnoBesedilo[kc] || []).concat([b.enote]);
+        zapuscenoPokrito[kb] = true;
         break;
       }
     });
@@ -225,8 +229,22 @@ window.NzvZasedba = (function () {
     nosilci.forEach(function (v) {
       if (!v.enote || jeOdsoten(v.full_name)) return;
       var k = kljuc(v.full_name);
-      // Preseljeni NIMA več svoje enote - to je bistvo preselitve.
+      // Preseljeni praviloma NIMA več svoje enote - to je bistvo
+      // preselitve (Salkić odsotna -> Arnež gre s C na C1, njegov C
+      // prevzame Lunar).
+      //
+      // Izjema: če njegove stare enote ni prevzel NIHČE, jo obdrži sam in
+      // pokriva obe. To se zgodi pri vzajemnih parih, kjer se dva
+      // nadomeščata med sabo in tretjega ni: Lelič (E2) in Maglić (E1)
+      // sta drug drugemu edini nadomeščevalec, zato ob Leličini odsotnosti
+      // E1 nima kdo prevzeti - Maglić ima tisti dan E2 in E1. Brez tega bi
+      // enota E1 tisti dan v razporedu izginila, čeprav delo na njej ostaja.
       var kode = preseljen[k] ? preseljen[k].slice() : vKode(v.enote);
+      if (preseljen[k] && !zapuscenoPokrito[k]) {
+        vKode(v.enote).forEach(function (koda) {
+          if (kode.indexOf(koda) < 0) kode.push(koda);
+        });
+      }
       (dodatno[k] || []).forEach(function (koda) {
         if (kode.indexOf(koda) < 0) kode.push(koda);
       });
@@ -234,6 +252,7 @@ window.NzvZasedba = (function () {
       // stolpcem mreže in za človeka niso najbolj razumljive ("SADOP",
       // "B1B2"). Vrstni red je isti kot pri kodah.
       var besedilo = [preseljen[k] ? preseljenBesedilo[k] : v.enote]
+        .concat(preseljen[k] && !zapuscenoPokrito[k] ? [v.enote] : [])
         .concat(dodatnoBesedilo[k] || [])
         .filter(Boolean).join(", ");
       if (kode.length) out.push({ nosilec: v, kode: kode, enote: besedilo });

@@ -199,12 +199,36 @@ console.log("4b) Celica pove tudi ENOTO, in to po dejanskem razporedu");
   eq(m["a|2026-09-01"].enota, "ŽO", "Alukić na svoji enoti");
   eq(m["m|2026-09-01"].enota, "UA/SA", "Mušič na svojih enotah");
 
-  // Ko je Alukić odsoten, ga po tabeli pokrivanj nadomesti Torkar - ta se
-  // PRESELI na ŽO in na svojem DB je tisti dan ni.
+  // Ko je Alukić odsoten, ga po tabeli pokrivanj nadomesti Torkar - ta
+  // prevzame ŽO. Njegovega DB v tem naboru nima kdo prevzeti, zato ga
+  // obdrži POLEG prevzetega: enako kot pri Lelič/Maglić, kjer ima Maglić
+  // ob njeni odsotnosti "E2, E1". Delo na zapuščeni enoti ne izgine.
   const m2 = mreza({ odsotnosti: [{ full_name: "Alukić Dino", work_date: "2026-09-02", kind: "ld" }] });
-  eq(m2["t2|2026-09-02"] && m2["t2|2026-09-02"].enota, "ŽO", "Torkar se preseli na ŽO");
+  eq(m2["t2|2026-09-02"] && m2["t2|2026-09-02"].enota, "ŽO, DB",
+    "Torkar prevzame ŽO in obdrži svoj DB (prevzeti ga nima kdo)");
   eq(m2["a|2026-09-02"].kratica, "LD", "Alukić je tisti dan na dopustu");
   trdi(!m2["a|2026-09-02"].enota, "ob dopustu se enota ne izpiše - tisti dan ni na nobeni");
+}
+
+console.log("4c) V celici piše ENOTA, ne \"DOP\" - vodje delajo vedno dopoldne");
+{
+  // Uporabnikova zahteva: "pri vseh lahko odstraniš DOP, ostane le
+  // oddelek". Kratica DOP je pri NZV brez vrednosti, ker ti ljudje
+  // delajo vedno PON-PET 07:00-15:00; enota pa je edino, kar se med
+  // dnevi res spreminja. Druge kratice (DEŽ, LD, BS, POR) ostanejo,
+  // ker povedo nekaj, česar enota ne.
+  const src = readFileSync(join(koren, "imenik.html"), "utf8");
+  trdi(/const samoEnota = !!\(zapis && zapis\.enota && kratica === "DOP"\);/.test(src),
+    "pravilo je zapisano: samo enota, kadar je kratica DOP in je enota znana");
+  trdi(/\{samoEnota \? zapis\.enota : \(/.test(src),
+    "izris ga tudi uporabi - namesto kratice izpiše enoto");
+
+  // In da to velja SAMO za DOP: dežurstvo in dopust morata ostati vidna.
+  const m = mreza();
+  eq(m["a|2026-09-01"].kratica, "DOP", "podatek o izmeni v ozadju ostane (za opis ob dotiku)");
+  const m3 = mreza({ odsotnosti: [{ full_name: "Alukić Dino", work_date: "2026-09-02", kind: "ld" }] });
+  eq(m3["a|2026-09-02"].kratica, "LD", "LD se še vedno izpiše kot kratica");
+  trdi(!m3["a|2026-09-02"].enota, "in ob njej ni enote");
 }
 
 console.log("5) Oddelčni kader se NE izpeljuje – nima zapisa nosilca");
