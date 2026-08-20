@@ -108,6 +108,9 @@ vm.runInContext([
   izvleciConst("NZV_ENOTE"),
   izvleciFn("razvrstiSA"),
   izvleciConst("NZV_STOLPCI"),
+  // NZV_KODE_STOLPCEV: nalozizPodatkeNzv z njim preveri, ali pokriva_oddelek
+  // res našteva stolpce NZV mreže (in ne FLEXI oznake kot "C/E2").
+  izvleciConst("NZV_KODE_STOLPCEV"),
   izvleciConst("NZV_KIND_KODA"),
   izvleciConst("JE_NZV_VLOGA"),
   izvleciConst("saNastavitveIz"),

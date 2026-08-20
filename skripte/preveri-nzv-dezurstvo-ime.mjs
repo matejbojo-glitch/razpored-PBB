@@ -88,10 +88,14 @@ const koda = [
   readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst("NZV_ENOTE")),
   izvleci("razvrstiSA"),
-  izvleci("poisciEnoteNzv"),
   izvleci("vrsticaJePrazna"),
   izvleci("obdelajBlok"),
   izvleci("nzvNazivVKodo"),
+  izvleci("nzvKljucGlave"),
+  izvleci("nzvNazivVKodoNorm"),
+  izvleciVrstico("const NZV_GLAVA_NAJVEC_NAZAJ"),
+  izvleciVrstico("const NZV_GLAVA_NAJMANJ_ZADETKOV"),
+  izvleci("poisciEnoteNzv"),
   constVKotVar(izvleciConst("NZV_KIND_KODA")),
   constVKotVar(izvleciConst("NZV_ODSOTNOST_KIND")),
   // Ujemanje imen živi v imena.js (skupni modul), zato ga tu ne luščimo
@@ -102,6 +106,7 @@ const koda = [
   "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),
   izvleci("ocistiNazivOsebe"),
+  izvleci("zdruziNzvZapise"),
   izvleci("obdelajNzvVrstice"),
 ].join("\n\n");
 

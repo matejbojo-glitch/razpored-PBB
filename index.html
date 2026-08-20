@@ -1102,6 +1102,10 @@ const kljucImenaNzv = window.Imena.kljuc;
 
 // Naziv stolpca (kot v uradni predlogi) -> notranja koda. Skupno za izris,
 // izvoz, uvoz IN pisanje nazaj, da se štirje kraji ne razidejo.
+// Kode stolpcev NZV mreže (vključno z DEZ) - s tem se pokriva_oddelek bere
+// samo takrat, ko res našteva stolpce te mreže.
+const NZV_KODE_STOLPCEV = new Set([...NZV_STOLPCI.map(([k]) => k), "DEZ"]);
+
 function nzvNazivVKodo(){
   const m = { "Dežurstvo": "DEZ", "DEŽURSTVO": "DEZ", "SA DOP": "SADOP", "SA POP": "SAPOP", "LD": "LD", "IZOB": "IZOB", "BS": "BS" };
   NZV_ENOTE.forEach(([koda, naziv]) => { m[naziv] = koda; });
@@ -1133,8 +1137,18 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // leave_entries prek ločene poizvedbe. Namig mora ostati tudi ob
     // morebitnem preimenovanju omejitve, zato je vezan na IME STOLPCA, ne na
     // ime tujega ključa.
-    client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
-      .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO),
+    // "pokriva_oddelek": ista oseba je isti dan pogosto na več enotah
+    // (Džamastagić PDZN + SOBO + U2). Baza dovoli en zapis na osebo in dan,
+    // zato so dodatne enote zapisane tu (glej zdruziNzvZapise). Brez branja
+    // tega stolpca bi se v mreži videla samo prva enota. V starejših bazah
+    // stolpca še ni - takrat poizvedbo ponovimo brez njega, da mreža deluje
+    // kot prej, namesto da bi ostala prazna.
+    client.from("schedule_entries").select("department_code, pokriva_oddelek, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
+      .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
+      .then(r => r.error
+        ? client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
+            .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
+        : r),
     client.from("leave_entries").select("full_name, work_date, kind")
       .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
     client.from("profiles").select("full_name, role, parafa, parafa_pred_oktobrom_2026"),
@@ -1168,12 +1182,27 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // stolpcev v NZV predlogi, zato je stolpec "D" prikazal vseh devet
     // sester oddelka D namesto vodij, ki to enoto tisti dan pokrivajo.
     if (!JE_NZV_VLOGA.has(r.profiles.role)) return;
-    const koda = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
-    const key = koda + "|" + r.work_date;
     const parafa = parafaOd(r.profiles, r.work_date);
     zeVpisan.add(kljucImenaNzv(r.profiles.full_name) + "|" + r.work_date);
-    objavljeno.add(key);
-    podatki[key] = podatki[key] ? podatki[key] + ", " + parafa : parafa;
+    // Vse enote te osebe za ta dan: primarna iz department_code, dodatne iz
+    // pokriva_oddelek. Dežurstvo se prebere iz IZMENE in ne iz oddelka -
+    // dežurni vodja je med tednom hkrati na svoji enoti, zato njegov zapis
+    // nosi enoto v department_code, dežurstvo pa v shift_code.
+    // Če je pokriva_oddelek izpolnjen, je v njem CEL seznam stolpcev tega
+    // dne in je merodajen; department_code je takrat le prvi od njih.
+    // Sicer (starejši zapisi, en sam stolpec) velja department_code, pri SA
+    // pa se dopoldan/popoldan razbere iz izmene.
+    const izPokrivanja = String(r.pokriva_oddelek || "").split(/[\/,+]/)
+      .map(x => x.trim().toUpperCase()).filter(x => NZV_KODE_STOLPCEV.has(x));
+    const primarna = r.department_code === "SA" ? razvrstiSA(r.shift_code) : r.department_code;
+    const kodeVrstice = izPokrivanja.length ? izPokrivanja.slice() : [primarna];
+    if (classify(r.shift_code) === "dez" && kodeVrstice.indexOf("DEZ") < 0) kodeVrstice.push("DEZ");
+    kodeVrstice.forEach(k => {
+      const key = k + "|" + r.work_date;
+      objavljeno.add(key);
+      const ze = (podatki[key] || "").split(", ").filter(Boolean);
+      if (ze.indexOf(parafa) < 0) podatki[key] = ze.concat([parafa]).join(", ");
+    });
   });
   (dopusti || []).forEach(d => {
     const koda = NZV_KIND_KODA[d.kind];
@@ -1901,11 +1930,50 @@ async function zapisiOddelekVSheets(url, wardCode, ciljniMesec){
 // bloka (naslov meseca je še eno vrstico višje, glej realno predlogo
 // "Letni dopusti in omejitve za NZV") - offset -1 je zato dovolj, brez
 // potrebe po VLOGA_RX preskakovanju kot pri uvoziOddelek.
+// Ista glava je v resničnih datotekah zapisana z različnimi presledki:
+// aplikacija piše "B1,B2", uporabnikova datoteka pa "B1, B2". Ker se je
+// primerjalo znak za znak, je bil CEL stolpec B1/B2 (Mavri Tratnik, Šubic,
+// Bizjak - vsak delovni dan) tiho preskočen. Zato pred primerjavo iz obeh
+// strani odstranimo presledke in poenotimo velikost črk. "SA DOP" -> "SADOP"
+// se pri tem ne zaleti v nič drugega (preverjeno v preveri-nzv-sheets.mjs).
+function nzvKljucGlave(naziv){
+  return String(naziv || "").replace(/\s+/g, "").toUpperCase();
+}
+function nzvNazivVKodoNorm(){
+  const vir = nzvNazivVKodo();
+  const m = {};
+  Object.keys(vir).forEach(k => { m[nzvKljucGlave(k)] = vir[k]; });
+  return m;
+}
+
+// Vrstica z glavami enot za blok, ki se začne pri "zacetekBloka".
+//
+// Prej se je pogledala natanko ENA vrstica višje. V pravi datoteki pa med
+// glavo in prvim datumom stoji PRAZNA vrstica - tako je na vseh 20 mesečnih
+// listih datoteke "Letni dopusti in omejitve za NZV". Posledica: glava se ni
+// našla nikoli in uvoz je tiho prinesel NIČ. (Oddelčni uvoz je hodil navzgor
+// že prej - glej najdiVrsticoImen v sheets-mreza.js; manjkalo je samo tu.)
+//
+// Namesto "prva vrstica z neprazno drugo celico" zahtevamo, da se vsaj DVE
+// celici res ujameta z znano enoto. Naslovna vrstica ("SEPTEMBER 2026") ali
+// kakšna opomba tako ne more biti zamenjana za glavo.
+// 8 in ne 2: v starejših listih (npr. "Razpored APRIL 2025") stoji med
+// glavo in prvim pravim datumom še nekaj vrstic z besedilnimi datumi
+// ("31. mar.", "1. apr."), ki jih aplikacija ne prebere kot datum. Iskanje
+// navzgor je varno, ker zahtevamo DVE ujemajoči se glavi enot - naslovna
+// vrstica ali podatkovna vrstica tega pogoja ne izpolni.
+const NZV_GLAVA_NAJVEC_NAZAJ = 8;
+const NZV_GLAVA_NAJMANJ_ZADETKOV = 2;
 function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
-  const i = zacetekBloka - 1;
-  if (i < 0) return null;
-  if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]))) return null;
-  return (vrsteVrstic[i][1] || "").trim() ? i : null;
+  const nazivVKodo = nzvNazivVKodoNorm();
+  for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < NZV_GLAVA_NAJVEC_NAZAJ; i--, korakov++) {
+    const vrstica = vrsteVrstic[i] || [];
+    // Nad nami je že prejšnji mesečni blok - glave tega bloka ni.
+    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null;
+    const zadetki = vrstica.slice(1).filter(c => nazivVKodo[nzvKljucGlave(c)]).length;
+    if (zadetki >= NZV_GLAVA_NAJMANJ_ZADETKOV) return i;
+  }
+  return null;
 }
 
 // Stolpci LD/IZOB/BS niso razpored (schedule_entries), ampak odsotnost
@@ -2044,7 +2112,7 @@ function ocistiNazivOsebe(s){ return (s || "").replace(NAZIV_OSEBE_RX, "").trim(
 // ista vloga kot poParafi za vse ostale stolpce, glej zgoraj.
 function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
   const { startISO, endISO } = monthRange(ciljniMesec);
-  const nazivVKodo = nzvNazivVKodo();
+  const nazivVKodo = nzvNazivVKodoNorm();
   const zapisi = [];
   const dopusti = [];
   const neujemanja = new Set();
@@ -2055,7 +2123,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum) => {
       stolpci.forEach((naziv, idx) => {
-        const virKoda = nazivVKodo[naziv];
+        const virKoda = nazivVKodo[nzvKljucGlave(naziv)];
         if (!virKoda) return;
         const vsebina = (vrstica[1 + idx] || "").trim();
         if (!vsebina) return;
@@ -2071,6 +2139,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
           vsebina.split(",").map(s => ocistiNazivOsebe(s)).filter(Boolean).forEach(ime => {
             const oseba = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime));
             if (!oseba) { neujemanja.add(ime); return; }
+            // Brez "stolpec": dežurstvo ni enota, ampak stanje - glej zdruziNzvZapise.
             zapisi.push({ employee_id: oseba.id, department_code: "DEZ", work_date: datum, shift_code: "DEŽURSTVO" });
           });
           return;
@@ -2082,12 +2151,72 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
         vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
           const oseba = poParafi[parafa.toUpperCase()];
           if (!oseba) { neujemanja.add(parafa); return; }
-          zapisi.push({ employee_id: oseba.id, department_code: koda, work_date: datum, shift_code: sifra });
+          zapisi.push({ employee_id: oseba.id, department_code: koda, work_date: datum,
+                        shift_code: sifra, stolpec: virKoda });
         });
       });
     }, stanje);
   }
-  return { zapisi, dopusti, neujemanja, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+  return { zapisi: zdruziNzvZapise(zapisi), dopusti, neujemanja,
+           najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
+// Ista oseba je isti dan pogosto na VEČ enotah - v uporabnikovi datoteki
+// "Letni dopusti in omejitve za NZV" je takih primerov 98 v septembru in 79
+// v avgustu 2026 (npr. 1. 9. je Džamastagić na PDZN, SOBO IN U2, Lelič na
+// E1 in E2, Arnež na B in C). To je normalno stanje, ne napaka v predlogi.
+//
+// schedule_entries pa ima unique (employee_id, work_date): en zapis na
+// osebo in dan. Vsaka nadaljnja enota iste osebe je bila zato ob shranjevanju
+// ali zavrnjena ("ON CONFLICT DO UPDATE command cannot affect row a second
+// time") ali tiho prepisana - natanko to so "pomanjkljive celice".
+//
+// Rešitev je stolpec, ki v aplikaciji za to že obstaja: pokriva_oddelek
+// (FLEXI ga uporablja za "C/E2"). Prva enota po vrstnem redu stolpcev v
+// predlogi gre v department_code, vse nadaljnje pa v pokriva_oddelek,
+// ločene s poševnico - enak zapis, kot ga pozna enoteVKode.
+//
+// Dežurstvo ni enota, ampak stanje: če je oseba tisti dan dežurna IN na
+// enoti (med tednom je to pravilo, ne izjema), obvelja shift_code
+// "DEŽURSTVO", enote pa se ohranijo v department_code/pokriva_oddelek.
+function zdruziNzvZapise(zapisi){
+  const poOsebiInDnevu = new Map();
+  (zapisi || []).forEach(z => {
+    const kljuc = z.employee_id + "|" + z.work_date;
+    const prej = poOsebiInDnevu.get(kljuc);
+    if (!prej) {
+      poOsebiInDnevu.set(kljuc, { employee_id: z.employee_id, work_date: z.work_date,
+        department_code: z.department_code, shift_code: z.shift_code,
+        stolpci: z.stolpec ? [z.stolpec] : [] });
+      return;
+    }
+    // Dežurstvo nima svojega stolpca enote (stolpec je undefined) in ne sme
+    // prevzeti department_code, če je oseba tisti dan tudi na enoti.
+    if (!z.stolpec) { prej.shift_code = z.shift_code; return; }
+    if (!prej.stolpci.length) {
+      // Doslej samo dežurstvo - enota postane primarna, dežurstvo ostane
+      // v shift_code.
+      prej.department_code = z.department_code;
+      prej.stolpci = [z.stolpec];
+      return;
+    }
+    if (prej.stolpci.indexOf(z.stolpec) < 0) prej.stolpci.push(z.stolpec);
+  });
+  return [...poOsebiInDnevu.values()].map(v => {
+    const zapis = { employee_id: v.employee_id, department_code: v.department_code,
+                    work_date: v.work_date, shift_code: v.shift_code };
+    // Kdaj sam department_code NE zadostuje in je treba izpisati cel seznam
+    // stolpcev:
+    //   - oseba je na več enotah hkrati;
+    //   - oseba je dežurna. Takrat shift_code nosi "DEŽURSTVO" in ne več
+    //     "Dopoldne"/"Popoldne" - pri SA pa je prav izmena edino, kar loči
+    //     stolpec SA DOP od SA POP. Brez tega je Trpin 9. 9. 2026 (SA POP
+    //     in hkrati dežurna) pristala v stolpcu SA DOP.
+    const potrebenSeznam = v.stolpci.length > 1
+      || (v.stolpci.length === 1 && String(v.shift_code || "").toUpperCase() === "DEŽURSTVO");
+    if (potrebenSeznam) zapis.pokriva_oddelek = v.stolpci.join("/");
+    return zapis;
+  });
 }
 
 async function uvoziNzv(url, ciljniMesec, myId){
@@ -2236,7 +2365,7 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
 // stolpcev, kot ga ima NZV_STOLPCI, dokler so nazivi enaki uradni predlogi.
 function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
   const { startISO, endISO } = monthRange(ciljniMesec);
-  const nazivVKodo = nzvNazivVKodo();
+  const nazivVKodo = nzvNazivVKodoNorm();
   const posodobitve = [];
   const stanje = { najdenDatum: false, najdenaGlava: false };
   let i = 0;
@@ -2245,7 +2374,7 @@ function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum, j) => {
       stolpci.forEach((naziv, idx) => {
-        const koda = nazivVKodo[naziv];
+        const koda = nazivVKodo[nzvKljucGlave(naziv)];
         if (!koda) return;
         posodobitve.push({ vrstica: j, stolpec: 1 + idx, vrednost: podatki[koda + "|" + datum] || "" });
       });

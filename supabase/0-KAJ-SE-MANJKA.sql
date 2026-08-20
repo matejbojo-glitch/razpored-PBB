@@ -141,6 +141,21 @@ begin
       case when n >= 6 then 'OK (' || n || ' parov)'
            else 'STOLPEC JE, VREDNOSTI NI (' || n || ' od 6) -> poženi nzv-nadomescanja-poleg-svoje.sql' end);
   end if;
+
+  -- 10) pokriva_oddelek: nujen za NZV, kjer je ista oseba isti dan pogosto
+  --     na več enotah (Džamastagić PDZN + SOBO + U2). Brez tega stolpca
+  --     schedule_entries zmore le eno enoto na osebo in dan.
+  if to_regclass('public.schedule_entries') is null then
+    insert into pbb_pregled values (10, 'Stolpec pokriva_oddelek', 'NI MOGOČE PREVERITI (tabele schedule_entries ni)');
+  elsif not exists (
+      select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'schedule_entries'
+         and column_name = 'pokriva_oddelek') then
+    insert into pbb_pregled values (10, 'Stolpec pokriva_oddelek',
+      'MANJKA -> poženi dodaj-pokriva-oddelek.sql (brez njega se pri uvozu NZV izgubijo dodatne enote)');
+  else
+    insert into pbb_pregled values (10, 'Stolpec pokriva_oddelek', 'OK');
+  end if;
 end $$;
 
 select zap as "št.", tocka as "kaj", stanje as "stanje / kaj narediti"
