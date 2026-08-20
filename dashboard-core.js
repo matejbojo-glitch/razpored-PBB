@@ -27,8 +27,10 @@
     var t = (sifra || "").toLowerCase().replace(/\s+/g, "");
     if (t.indexOf("nočna") !== -1) return "noc"; // zajame NOČNA, NOČNA12, NOČNA od 19 ...
     if (t.indexOf("dnevna12") !== -1) return "dnevna12"; // tudi DNEVNA12F (flexi 07-19)
-    if (t.indexOf("dopoldan") !== -1) return "dop";
-    if (t.indexOf("popoldan") !== -1) return "pop";
+    // Obe pisavi: stari zapisi v bazi ("dopoldan") in novi iz kalupa
+    // ("Dopoldne").
+    if (t.indexOf("dopoldan") !== -1 || t.indexOf("dopoldne") !== -1) return "dop";
+    if (t.indexOf("popoldan") !== -1 || t.indexOf("popoldne") !== -1) return "pop";
     return "off"; // LD, KPU, prazno
   }
 

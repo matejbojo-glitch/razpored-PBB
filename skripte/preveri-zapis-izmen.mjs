@@ -89,17 +89,64 @@ console.log("4) zasloni izpisujejo NAZIV, ne surove šifre");
     "obrazec.html legendo tudi naloži");
 }
 
-console.log("5) ŠIFRA V BAZI se NE spreminja (uradni Sheet ostane nedotaknjen)");
+console.log("5) generator ustvarja NOVI zapis (uporabnikova odločitev)");
 {
-  // Generator še naprej ustvarja zgodovinske šifre; te gredo v bazo in v
-  // Google Sheet. Če bi se spremenile, bi aplikacija v bolnišnični
-  // dokument pisala drugo besedo, kot je v njem zdaj.
-  const gen = readFileSync(join(koren, "generator-core.js"), "utf8");
-  trdi(/"dopoldan"/.test(gen), "generator-core.js še vedno zapiše 'dopoldan'");
-  trdi(/"popoldan"/.test(gen), "in 'popoldan'");
-  const sheets = readFileSync(join(koren, "sheets-mreza.js"), "utf8");
-  trdi(!/Izmene\.naziv|shiftLabel/.test(sheets),
-    "zapis v Google Sheets ne uporablja prikaznega naziva");
+  // Prej je kalup ustvarjal "dopoldan"/"NOČNA" in uporabnik je videl dve
+  // pisavi na istem zaslonu. Odslej ustvarja enak zapis kot legenda.
+  // Posledica, ki jo je uporabnik izrecno sprejel: v razpored in v
+  // bolnišnični Google Sheet se odslej zapiše nova beseda.
+  // Komentarje odstranimo: v njih je stara pisava navedena kot POJASNILO
+  // ("prej je kalup ustvarjal dopoldan/NOČNA") in preizkus bi se ujel na
+  // lastnem besedilu namesto na kodi.
+  const gen = readFileSync(join(koren, "generator-core.js"), "utf8")
+    .split("\n").filter(v => !/^\s*(\/\/|\*|\/\*)/.test(v)).join("\n");
+  trdi(/"Dopoldne"/.test(gen), "kalup zapiše 'Dopoldne'");
+  trdi(/"Popoldne"/.test(gen), "in 'Popoldne'");
+  trdi(/"Nočna"/.test(gen), "in 'Nočna'");
+  trdi(!/"dopoldan"|"popoldan"|"NOČNA"/.test(gen), "stare pisave ne ustvarja več");
+}
+
+console.log("6) STARI zapisi v bazi in v preglednicah delujejo NAPREJ");
+{
+  // To je pogoj, brez katerega bi sprememba pokvarila že objavljene
+  // razporede: ure, statistika in pokritost se računajo iz šifre.
+  const sb = { console }; sb.window = sb;
+  vm.createContext(sb);
+  vm.runInContext(readFileSync(join(koren, "delovni-cas.js"), "utf8"), sb);
+  const DC = sb.window.DelovniCas;
+  [["dopoldan", "Dopoldne"], ["popoldan", "Popoldne"],
+   ["popoldan do 19", "Popoldne do 19"], ["NOČNA", "Nočna"],
+   ["NOČNA12", "Nočna 12"], ["DNEVNA12", "Dnevna 12"],
+   ["NOČNA od 19h", "Nočna od 19h"]].forEach(([stara, nova]) => {
+    const a = DC.podatkiIzmene ? DC.podatkiIzmene(stara) : DC.IZMENE[stara];
+    const b = DC.podatkiIzmene ? DC.podatkiIzmene(nova) : DC.IZMENE[nova];
+    trdi(!!a && !!b && a.zacetek === b.zacetek && a.konec === b.konec && a.ure === b.ure,
+      `"${stara}" in "${nova}" imata iste ure`);
+  });
+
+  const sb2 = { console }; sb2.window = sb2;
+  vm.createContext(sb2);
+  vm.runInContext(readFileSync(join(koren, "dashboard-core.js"), "utf8"), sb2);
+  const DB = sb2.window.DashboardCore || sb2.DashboardCore;
+  if (DB && DB.classifyForStats) {
+    eq(DB.classifyForStats("Dopoldne"), DB.classifyForStats("dopoldan"), "statistika: dopoldne = dopoldan");
+    eq(DB.classifyForStats("Popoldne"), DB.classifyForStats("popoldan"), "statistika: popoldne = popoldan");
+    eq(DB.classifyForStats("Nočna"), "noc", "statistika: Nočna je nočna");
+  } else {
+    trdi(/dopoldne/.test(readFileSync(join(koren, "dashboard-core.js"), "utf8")),
+      "dashboard-core.js prepozna tudi 'dopoldne'");
+  }
+
+  const adm = readFileSync(join(koren, "admin.html"), "utf8");
+  trdi(/startsWith\("dopoldne"\)/.test(adm), "admin.html (pokritost) prepozna 'dopoldne'");
+  trdi(/startsWith\("popoldne"\)/.test(adm), "in 'popoldne'");
+}
+
+console.log("7) obvezna kopija delovni-cas.js je usklajena");
+{
+  const a = readFileSync(join(koren, "delovni-cas.js"), "utf8");
+  const b = readFileSync(join(koren, "supabase", "functions", "_shared", "delovni-cas.js"), "utf8");
+  trdi(a === b, "koledarska naročnina računa po istem pravilu kot aplikacija");
 }
 
 console.log("");

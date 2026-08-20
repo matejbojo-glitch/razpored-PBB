@@ -461,7 +461,14 @@
 // pod imenom ostane samo enota - kdo koga nadomešča, je v celoti spodaj v
 // "Pregledu nadomeščanj". Spremenjena index.html in imenik.html.
 
-const CACHE = 'razpored-pbb-v91';
+// v92: kalup (Admin -> Oddelki) odslej ustvarja enak zapis izmen kot
+// legenda - "Dopoldne", "Popoldne", "Nočna". Prej je ustvarjal "dopoldan"
+// in "NOČNA", zato sta bili v mreži generatorja dve pisavi. Odjemalci
+// (delovni-cas.js, dashboard-core.js, admin.html) sprejemajo OBE pisavi,
+// da že objavljeni razporedi delujejo naprej. Spremenjeni generator-core.js,
+// delovni-cas.js (+ kopija), dashboard-core.js, admin.html, index.html.
+
+const CACHE = 'razpored-pbb-v92';
 const ASSETS = [
   './',
   './index.html',

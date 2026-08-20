@@ -2043,7 +2043,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
         // SA DOP/SA POP pišeta isto department_code "SA", ločeno samo prek
         // shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda.
         const koda = virKoda === "SADOP" || virKoda === "SAPOP" ? "SA" : virKoda;
-        const sifra = virKoda === "SADOP" ? "dopoldan" : virKoda === "SAPOP" ? "popoldan" : "PRISOTEN";
+        const sifra = virKoda === "SADOP" ? "Dopoldne" : virKoda === "SAPOP" ? "Popoldne" : "PRISOTEN";
         vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
           const oseba = poParafi[parafa.toUpperCase()];
           if (!oseba) { neujemanja.add(parafa); return; }

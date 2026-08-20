@@ -411,11 +411,13 @@ function shiftBucket(sifra){
   if (t.includes("nočna12")) return "PONOCI";
   if (t.includes("dnevna12")) return "DOPOLDNE";
   if (t.startsWith("nočna")) return "PONOCI";
-  if (t.startsWith("dopoldan")) return "DOPOLDNE";
-  if (t.startsWith("popoldan")) return "POPOLDNE";
+  // Obe pisavi: stari zapisi v bazi ("dopoldan") in novi iz kalupa
+  // ("Dopoldne").
+  if (t.startsWith("dopoldan") || t.startsWith("dopoldne")) return "DOPOLDNE";
+  if (t.startsWith("popoldan") || t.startsWith("popoldne")) return "POPOLDNE";
   return null;
 }
-const IZMENA_LABEL = { DOPOLDNE: "Dopoldan", POPOLDNE: "Popoldan", PONOCI: "Nočna" };
+const IZMENA_LABEL = { DOPOLDNE: "Dopoldne", POPOLDNE: "Popoldne", PONOCI: "Nočna" };
 
 async function nalozizMinimume(koda){
   const { data, error } = await client.from("department_shift_minimums").select("*").eq("department_code", koda);
