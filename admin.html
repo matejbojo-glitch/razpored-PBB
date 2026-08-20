@@ -1419,6 +1419,9 @@ function DezurstvaTab(){
   const [prostDan, setProstDan] = useState(true);
   const [maxVikend, setMaxVikend] = useState(true);
   const [rezultat, setRezultat] = useState(null);
+  // Že objavljeni dnevi se ob ponovnem generiranju ne premešajo.
+  const [zakleniObjavljeno, setZakleniObjavljeno] = useState(true);
+  const [zaklenjeni, setZaklenjeni] = useState({});
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
   const [uvozMsg, setUvozMsg] = useState(null);
@@ -1524,7 +1527,23 @@ function DezurstvaTab(){
     setPdfBesedilo(null);
   };
 
-  const generiraj = () => {
+  // Kaj je za ta mesec ŽE objavljeno - te dneve generator ne premeša.
+  // Brez tega je ponovno generiranje sredi meseca prerazporedilo tudi
+  // tisti del, ki je bil že potrjen in sporočen ljudem.
+  const nalozitObjavljena = async (mesec) => {
+    const { startISO: s2, endISO: e2 } = monthRange(mesec);
+    const { data } = await client.from("schedule_entries")
+      .select("work_date, shift_code, profiles!employee_id(full_name)")
+      .eq("department_code", "DEZ").gte("work_date", s2).lte("work_date", e2);
+    const m = {};
+    (data || []).forEach(r => {
+      if (!r.profiles || !jeDezurstvoSifra(r.shift_code)) return;
+      m[r.work_date] = (r.profiles.full_name || "").toUpperCase();
+    });
+    return m;
+  };
+
+  const generiraj = async () => {
     const staff = roster.map(z => ({
       ime: z.ime,
       obstojeceStevilo: Number(z.stevilo) || 0,
@@ -1537,11 +1556,31 @@ function DezurstvaTab(){
       maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
       samoMedTednom: !!z.samoMedTednom,
     }));
+    const zakleni = zakleniObjavljeno ? await nalozitObjavljena(month) : {};
+    setZaklenjeni(zakleni);
     const res = Generator.generirajDezurstva({
       startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
-      maxVikendMesecno: maxVikend, staff,
+      maxVikendMesecno: maxVikend, staff, zaklenjeni: zakleni,
     });
-    setRezultat({ mesec: month, ...res });
+    setRezultat({ mesec: month, staff, ...res });
+  };
+
+  // Ročni popravek posameznega dne. Kršitve se preračunajo za CEL mesec -
+  // ena zamenjava spremeni razmike tudi pri drugih dnevih iste osebe.
+  const nastaviDezurnega = (datum, ime) => {
+    setRezultat(r => {
+      if (!r) return r;
+      const razpored = r.razpored.map(x => x.datum === datum
+        ? Object.assign({}, x, { zaposleni: ime || null, rocno: true, sila: false }) : x);
+      const preverba = {};
+      Generator.preveriDezurstva({
+        razpored, staff: r.staff, minRazmikDni: Number(minRazmik), maxVikendMesecno: maxVikend,
+      }).forEach(p => { preverba[p.datum] = p.krsitve; });
+      return Object.assign({}, r, {
+        razpored: razpored.map(x => Object.assign({}, x, { krsitve: preverba[x.datum] || [] })),
+      });
+    });
+    setPublishMsg(null);
   };
 
   const prenesi = () => {
@@ -1553,9 +1592,12 @@ function DezurstvaTab(){
     if (!rezultat) return;
     setPublishBusy(true); setPublishMsg(null);
     try {
+      // Objavi se UREJEN razpored (r.zaposleni je lahko ročno popravljen).
+      const brezDezurnega = rezultat.razpored.filter(r => !r.zaposleni).length;
       const rows = rezultat.razpored.filter(r => r.zaposleni).map(r => ({ ime: r.zaposleni, datum: r.datum, sifra: "DEŽURSTVO" }));
       const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows("DEZ", rows);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.`
+        + (brezDezurnega ? ` Pozor: ${brezDezurnega} dni je ostalo brez dežurnega.` : "") + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
     } finally {
@@ -1568,7 +1610,7 @@ function DezurstvaTab(){
   return (
     <div>
       <h2 className="section no-print">1 · Dežurni kader – stanje ob začetku meseca</h2>
-      <p className="hint no-print">Članstvo (kdo je dežurni kader) pride živo iz Imenika (oddelek »DEZ«). Število in datum zadnjega dežurstva se izračunata samodejno: zaprta zgodovina do 31. 8. 2026 + vse, kar je od takrat objavljeno v Supabase – po potrebi ju spodaj ročno popravite samo za to generiranje. Dopust/omejitve pridejo iz razpredelnice Želje in se ob spremembi meseca počistijo (znova jih uvozite ali osvežite spodaj). "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni nastavljen v Imeniku. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek – sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" in "Prost dan"/"Samo med tednom" so privzeto iz Imenika (HR podatki), tu jih lahko za to generiranje spremenite.</p>
+      <p className="hint no-print">Članstvo (kdo je dežurni kader) pride živo iz Imenika (oddelek »DEZ«). Število in datum zadnjega dežurstva se izračunata samodejno: zaprta zgodovina do 31. 8. 2026 + vse, kar je od takrat objavljeno v Supabase – po potrebi ju spodaj ročno popravite samo za to generiranje. Dopust/omejitve pridejo iz razpredelnice Želje in se ob spremembi meseca samodejno znova naložijo. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni nastavljen v Imeniku. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek – sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" in "Prost dan"/"Samo med tednom" so privzeto iz Imenika (HR podatki), tu jih lahko za to generiranje spremenite.</p>
       {!roster ? <p className="hint no-print">Nalagam dežurni kader …</p> : (
       <React.Fragment>
       <ManjkajociDezurni roster={roster} />
@@ -1669,6 +1711,16 @@ function DezurstvaTab(){
           <input id="mv" type="checkbox" checked={maxVikend} onChange={e => setMaxVikend(e.target.checked)} />
           <label htmlFor="mv">Največ 1 sobota/nedelja na osebo na koledarski mesec</label>
         </div>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="zo" type="checkbox" checked={zakleniObjavljeno}
+            onChange={e => setZakleniObjavljeno(e.target.checked)} />
+          <label htmlFor="zo">Ne premeščaj že objavljenih dežurstev tega meseca</label>
+        </div>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Če je pol meseca že objavljenega in sporočenega ljudem, ponovno generiranje brez tega
+          prerazporedi tudi tisti del. Zaklenjeni dnevi so v razporedu spodaj označeni s ključavnico
+          in se ne dajo spremeniti; ostale lahko popraviš v spustnem seznamu.
+        </p>
         <p className="hint" style={{marginTop:8, marginBottom:0}}>
           Pravilo iz analize "Dežurstva 2026" (uporabljeno za september): noben zaposleni naj nima obeh vikend dni
           (sobote in nedelje) v istem mesecu. Stolpec "Prost dan v tednu" zgoraj je stalna omejitev osebe (npr. Matej
@@ -1692,14 +1744,35 @@ function DezurstvaTab(){
           <div className="printBlok" ref={printRef}>
             <h2 className="section">3 · Predlagan razpored – {rezultat.mesec}</h2>
             <table className="dutyTable">
-              <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th></tr></thead>
+              <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th><th>Opomba</th></tr></thead>
               <tbody>
-                {rezultat.razpored.map(r => (
-                  <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni ? "warn" : "")}>
+                {rezultat.razpored.map(r => {
+                  const krsi = (r.krsitve || []).length > 0;
+                  return (
+                  <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni || krsi ? "warn" : "")}>
                     <td>{window.Datum.slo(r.datum)}</td><td>{r.dan}</td>
-                    <td>{r.zaposleni || <span className="pill" style={{background:"var(--danger)",color:"#2A1608"}}>ni rešitve</span>}</td>
+                    <td>
+                      {r.zaklenjeno ? (
+                        <span title="Že objavljeno – generator tega dne ne premeša">🔒 {r.zaposleni}</span>
+                      ) : (
+                        <select value={r.zaposleni || ""} onChange={e => nastaviDezurnega(r.datum, e.target.value)}
+                          aria-label={"Dežurni " + window.Datum.slo(r.datum)} style={{minWidth:170}}>
+                          <option value="">– nihče –</option>
+                          {(roster || []).map(z => <option key={z.ime} value={z.ime}>{z.ime}</option>)}
+                        </select>
+                      )}
+                    </td>
+                    <td className="hint" style={{whiteSpace:"normal"}}>
+                      {!r.zaposleni && <span>dan je brez dežurnega</span>}
+                      {krsi && (
+                        <span>{(r.sila ? "predlagan kljub pravilom: " : "")
+                          + r.krsitve.map(k => Generator.KRSITVE_OPIS[k] || k).join(", ")}</span>
+                      )}
+                      {r.zaklenjeno && <span>že objavljeno</span>}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
