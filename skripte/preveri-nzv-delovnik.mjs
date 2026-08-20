@@ -9,7 +9,7 @@
  *     "dopust", ampak navaden prost dan (na posnetku zaslona je 1.8. v
  *     soboto kazalo "LD", 2.8. v nedeljo pa "PRISOTEN");
  *   - dežurstvo MED TEDNOM se opravlja PO redni prisotnosti (15:30-07:00),
- *     zato tak dan pomeni oboje: "dopoldan + DEŽURSTVO". Vikend dežurstvo
+ *     zato tak dan pomeni oboje: "dopoldan + Dežurstvo". Vikend dežurstvo
  *     traja 07:00-07:00 in redne prisotnosti ob njem ni.
  *
  * Ključno je tudi, česa pravilo NE sme spremeniti: oddelčni kader
@@ -51,6 +51,9 @@ vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 // classify živi v izmene.js (skupni modul za vse zaslone).
 vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
 vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
+// nzvPrikaz kliče shiftLabel (preslikava PRISOTEN -> dopoldan), zato
+// mora biti v peskovniku tudi ta.
+vm.runInContext(izvleci("shiftLabel"), sandbox);
 vm.runInContext(izvleci("nzvPrikaz"), sandbox);
 const { nzvPrikaz, classify } = sandbox;
 const jeVikendISO = sandbox.window.Prazniki.jeVikend;
@@ -59,15 +62,15 @@ const NZV = true, ODDELEK = false;
 
 console.log("1) NZV med tednom: dežurstvo pomeni PRISOTEN + DEŽURSTVO (dežurstvo je po redni prisotnosti)");
 {
-  eq(nzvPrikaz("DEŽURSTVO", "TO", NZV), "dopoldan + DEŽURSTVO", "torek z dežurstvom");
-  eq(nzvPrikaz("DEŽURSTVO", "PO", NZV), "dopoldan + DEŽURSTVO", "ponedeljek z dežurstvom");
-  eq(nzvPrikaz("DEŽURSTVO", "PE", NZV), "dopoldan + DEŽURSTVO", "petek z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "TO", NZV), "dopoldan + Dežurstvo", "torek z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "PO", NZV), "dopoldan + Dežurstvo", "ponedeljek z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "PE", NZV), "dopoldan + Dežurstvo", "petek z dežurstvom");
 }
 
 console.log("2) NZV vikend: dežurstvo je SAMO dežurstvo (07:00-07:00, brez ločene prisotnosti)");
 {
-  eq(nzvPrikaz("DEŽURSTVO", "SO", NZV), "DEŽURSTVO", "sobota z dežurstvom");
-  eq(nzvPrikaz("DEŽURSTVO", "NE", NZV), "DEŽURSTVO", "nedelja z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "SO", NZV), "Dežurstvo", "sobota z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "NE", NZV), "Dežurstvo", "nedelja z dežurstvom");
 }
 
 console.log("3) NZV vikend brez dežurstva je PROST – tudi če je v podatkih PRISOTEN ali LD");
@@ -81,7 +84,7 @@ console.log("3) NZV vikend brez dežurstva je PROST – tudi če je v podatkih P
 
 console.log("4) NZV med tednom ostane nespremenjen");
 {
-  eq(nzvPrikaz("PRISOTEN", "SR", NZV), "PRISOTEN", "sreda: prisoten");
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV), "dopoldan", "sreda: prisoten (PRISOTEN se izpiše kot dopoldan)");
   eq(nzvPrikaz("LD", "ČE", NZV), "LD", "četrtek: letni dopust velja");
   eq(nzvPrikaz("", "PO", NZV), "", "prazen delovni dan ostane prazen");
 }
@@ -97,9 +100,9 @@ console.log("5) ODDELČNI kader se pravila NE dotakne – vikende dela normalno"
 console.log("6) barva: 'PRISOTEN + DEŽURSTVO' se mora obarvati kot DEŽURSTVO, ne kot prisotnost");
 {
   // V izrisu se barva računa iz IZVIRNE kode, prav zaradi tega primera -
-  // classify("dopoldan + DEŽURSTVO") bi se ujel na "prisoten" (zeleno).
-  eq(classify("DEŽURSTVO"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
-  eq(classify("dopoldan + DEŽURSTVO"), "dop", "sestavljeno besedilo bi se obarvalo zeleno - zato se barva NE računa iz njega");
+  // classify("dopoldan + Dežurstvo") bi se ujel na "prisoten" (zeleno).
+  eq(classify("Dežurstvo"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
+  eq(classify("dopoldan + Dežurstvo"), "dop", "sestavljeno besedilo bi se obarvalo zeleno - zato se barva NE računa iz njega");
 }
 
 console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v 'Moj razpored'");
@@ -133,7 +136,7 @@ console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila
     "velikonočni ponedeljek: NZV je prost, čeprav je ponedeljek");
   eq(nzvPrikaz("LD", "PO", NZV, "2026-04-06"), "",
     "in dopust se tisti dan ne vodi");
-  eq(nzvPrikaz("DEŽURSTVO", "PO", NZV, "2026-04-06"), "DEŽURSTVO",
+  eq(nzvPrikaz("Dežurstvo", "PO", NZV, "2026-04-06"), "Dežurstvo",
     "dežurstvo na praznik OSTANE - in samo dežurstvo, brez prisotnosti");
   eq(nzvPrikaz("dopoldan", "PO", NZV, "2026-04-07"), "dopoldan",
     "naslednji dan (torek) je spet navaden delovnik");
@@ -141,6 +144,35 @@ console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila
     "oddelčnega kadra se praznik ne dotakne");
   // Brez datuma mora ostati staro vedenje (klic iz starejše kode).
   eq(nzvPrikaz("dopoldan", "PO", NZV), "dopoldan", "brez datuma se praznik ne more upoštevati");
+}
+
+console.log("9) Delovišče se pripiše izmeni (uporabnikova zahteva)");
+{
+  // "Moj razpored" mora povedati ne le KDAJ, ampak tudi KJE.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "C1"), "dopoldan C1",
+    "vodja: dopoldan + enota");
+  eq(nzvPrikaz("dopoldan", "SR", ODDELEK, "2026-09-02", "D"), "dopoldan D",
+    "oddelčni kader: izmena + oddelek");
+  eq(nzvPrikaz("popoldan", "SR", ODDELEK, "2026-09-02", "E2"), "popoldan E2",
+    "velja za vse izmene, ne le dopoldan");
+
+  // Ob nadomeščanju je enot lahko več - izpišeta se obe.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "E2, E1"), "dopoldan E2, E1",
+    "nadomeščanje: obe enoti");
+
+  // Brez znane enote ostane zapis kot prej - nič se ne izmisli.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", ""), "dopoldan",
+    "brez enote ostane samo izmena");
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02"), "dopoldan",
+    "enota je neobvezen podatek");
+
+  // Dežurstvo: velika začetnica, ne verzalke, in enota se pripiše dnevnemu delu.
+  eq(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO"), "dopoldan MO + Dežurstvo",
+    "dežurstvo med tednom: enota pri dnevnem delu");
+  eq(nzvPrikaz("DEŽURSTVO", "SO", NZV, "2026-09-05", "MO"), "Dežurstvo",
+    "vikendno dežurstvo je samo dežurstvo (dnevnega dela ni)");
+  trdi(!/DEŽURSTVO/.test(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO")),
+    "nikjer več ni zapisa z verzalkami");
 }
 
 console.log("");

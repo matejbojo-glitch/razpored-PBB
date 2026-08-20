@@ -101,7 +101,10 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
   // a) Moj razpored
   trdi(/datum \? window\.Prazniki\.jePraznik\(datum\) : false/.test(index),
     "Moj razpored (nzvPrikaz) upošteva praznik");
-  trdi(/nzvPrikaz\(sifra, dn\.dan, jeNzv, dn\.datum\)/.test(index),
+  // Bistvo je, da je DATUM podan; za njim lahko sledijo še drugi
+  // argumenti (od avgusta 2026 tudi delovišče), zato zapisa ne vežemo na
+  // zaklepaj.
+  trdi(/nzvPrikaz\(sifra, dn\.dan, jeNzv, dn\.datum[,)]/.test(index),
     "in mu je datum tudi podan (sicer bi pravilo tiho odpadlo)");
 
   // b) mreža Po oddelkih -> NZV

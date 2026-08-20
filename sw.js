@@ -446,7 +446,12 @@
 // (odločitev vodstva ZN). Spremenjen delovni-cas.js, ki se streže iz
 // predpomnilnika, zato dvig različice.
 
-const CACHE = 'razpored-pbb-v88';
+// v89: "Moj razpored" pove tudi DELOVIŠČE ("dopoldan C1"), dežurstvo pa je
+// zapisano kot "Dežurstvo" in ne z verzalkami. Enota se računa po istem
+// pravilu kot v Imeniku -> Razpredelnica, zato se ob nadomeščanju izpiše
+// tista, na kateri oseba TA DAN res je.
+
+const CACHE = 'razpored-pbb-v89';
 const ASSETS = [
   './',
   './index.html',
