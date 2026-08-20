@@ -64,25 +64,25 @@ window.Izmene = (function () {
     [/^nočna12|^nocna12/,      "N12",  "Nočna 12",                "SO/NE in prazniki 17:50-06:00", "#2F4785", "delo"],
     [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11", "Nočna 11 (od 19)", "PON-PET 18:50-06:00", "#7C90CE", "delo"],
     [/^nočna|^nocna/,          "N10",  "Nočna",                   "PON-PET 20:50-06:00", "#4A67B0", "delo"],
-    [/^popoldando19/,          "PO5",  "Popoldan do 19",          "PON-PET 13:50-19:00", "#E8A867", "delo"],
+    [/^popoldando19|^popoldnedo19/,          "PO5",  "Popoldne do 19",          "PON-PET 13:50-19:00", "#E8A867", "delo"],
     // "popoldan do 20" (10x v 2026_SMS_RAZPORED_2) je v uradni legendi NI.
     // Uporabnik je potrdil novo kratico po istem vzorcu kot obstoječi dve:
     // PO5 = 5 ur (do 19), PO6 = 6 ur (do 20), PO7 = 7 ur (do 21).
-    [/^popoldando20/,          "PO6",  "Popoldan do 20",          "PON-PET 13:50-20:00", "#D98E4E", "delo"],
+    [/^popoldando20|^popoldnedo20/,          "PO6",  "Popoldne do 20",          "PON-PET 13:50-20:00", "#D98E4E", "delo"],
     // Omejen delovni čas (zdravstvena/zakonska omejitev na 4 oz. 6 ur na
     // dan). Vzorec /^dop\D*6/ ujame zapise kot "dopoldan (6h)",
     // "dopoldan 6 ur", "dop. 6h" - ne ujame pa "dop. 7.h-13.h" ali
     // "dopoldan (7-15h)", ker \D* ne more preskočiti števke.
     // MORA stati pred splošnima /^dopoldan/ in /^popoldan/.
-    [/^dop\D*6/,               "DO6",  "Dopoldan 6 ur",           "omejitev 6 ur/dan", "#63B588", "delo"],
-    [/^dop\D*4/,               "DO4",  "Dopoldan 4 ure",          "omejitev 4 ur/dan", "#A7DCC0", "delo"],
-    [/^pop\D*4/,               "PO4",  "Popoldan 4 ure",          "omejitev 4 ur/dan", "#F0C08A", "delo"],
-    [/^popoldan/,              "PO7",  "Popoldan",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
-    [/^do7|^dopoldan7/,        "DO7",  "Dopoldan (pripravnik)",   "PON-PET 07:00-14:00", "#8FCBA4", "delo"],
+    [/^dop\D*6/,               "DO6",  "Dopoldne 6 ur",           "omejitev 6 ur/dan", "#63B588", "delo"],
+    [/^dop\D*4/,               "DO4",  "Dopoldne 4 ure",          "omejitev 4 ur/dan", "#A7DCC0", "delo"],
+    [/^pop\D*4/,               "PO4",  "Popoldne 4 ure",          "omejitev 4 ur/dan", "#F0C08A", "delo"],
+    [/^popoldan|^popoldne/,              "PO7",  "Popoldne",                "PON-PET 13:50-21:00", "#C9713F", "delo"],
+    [/^do7|^dopoldan7/,        "DO7",  "Dopoldne (pripravnik)",   "PON-PET 07:00-14:00", "#8FCBA4", "delo"],
     // "PRISOTEN" je koda, ki jo aplikacija zapiše za NZV/vodje - to je po
     // uradni datoteki prva vrstica (DMS, PON-PET 07:00-15:00), torej DOP.
     // Ločene kratice "PRI" zato ni (uporabnikova izrecna zahteva).
-    [/^dopoldan|^prisoten/,    "DOP",  "Dopoldan",                "PON-PET 05:50-14:00 · DMS/vodje 07:00-15:00", "#4F9B6B", "delo"],
+    [/^dopoldan|^dopoldne|^prisoten/,    "DOP",  "Dopoldne",                "PON-PET 05:50-14:00 · DMS/vodje 07:00-15:00", "#4F9B6B", "delo"],
     [/^kpu/,                   "KPU",  "Koriščenje prostih ur",   "", "#B8B29C", "prosto"],
     [/^ld/,                    "LD",   "Letni dopust",            "", "#E06666", "dopust"],
     [/^por/,                   "POR",  "Porodniški dopust",       "", "#E8A0C8", "dopust"],

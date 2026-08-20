@@ -102,6 +102,7 @@
 <script src="react.production.min.js"></script>
 <script src="react-dom.production.min.js"></script>
 <script src="babel.min.js"></script>
+<script src="izmene.js"></script>
 <script src="delovni-cas.js"></script>
 <script src="supabase-js.min.js"></script>
 <script src="supabase-client.js"></script>
@@ -132,6 +133,14 @@ const STATUS_LABEL = {
   preklican: { text: "Preklican", cls: "no" },
 };
 const DEJANJE_STOPNJA = ["ODDANO", "SODELAVEC_POTRDIL/ZAVRNIL", "VODJA_ODOBRIL/ZAVRNIL", "KOORDINATOR_POTRDIL/ZAVRNIL"];
+
+// Kar uporabnik VIDI namesto surove šifre iz baze: naziv iz uradne
+// legende (izmene.js) - "Dopoldne", "Popoldne", "Nočna". Šifra v bazi
+// ostane nespremenjena.
+function oznakaIzmene(sifra){
+  if (!sifra) return "prosto";
+  return (window.Izmene && window.Izmene.naziv(sifra)) || sifra;
+}
 
 function fmtDatum(iso){
   return window.Datum.slo(iso);
@@ -311,7 +320,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
             <div className="field">
               <label htmlFor="da">Moj datum</label>
               <input id="da" type="date" value={datum} onChange={e => setDatum(e.target.value)} />
-              {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {mojaIzmena || "prosto"}</div>}
+              {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {oznakaIzmene(mojaIzmena)}</div>}
             </div>
             {datum && (
               <button type="button" className="ghostBtn no-print" disabled={kandidatiBusy} onClick={poisciSodelavce}>
@@ -325,7 +334,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
                   <div className="candidate" key={k.profile_id + k.njihov_datum}>
                     <div>
                       <div className="who">{k.full_name}</div>
-                      <div className="meta">{fmtDatum(k.njihov_datum)} · {k.njihova_izmena} · {k.jaz_pridem_prej ? "ti prideš prej" : "on/ona pride prej"}</div>
+                      <div className="meta">{fmtDatum(k.njihov_datum)} · {oznakaIzmene(k.njihova_izmena)} · {k.jaz_pridem_prej ? "ti prideš prej" : "on/ona pride prej"}</div>
                     </div>
                     <button type="button" className="candBtn" aria-pressed={izbranSodelavec && izbranSodelavec.profile_id === k.profile_id && izbranSodelavec.njihov_datum === k.njihov_datum}
                       onClick={() => setIzbranSodelavec(k)}>Izberi</button>
@@ -546,7 +555,7 @@ function DetajlObrazca({ obrazec, profil, onNazaj }){
       <div className="card">
         <div className="field"><label>Vrsta</label><div>{VRSTA_LABEL[obrazec.vrsta]}</div></div>
         {obrazec.vrsta === "menjava_sluzbe" && (
-          <div className="field"><label>Menjava</label><div>Moja izmena {p.izmena_a} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {p.izmena_b} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+          <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
         )}
         {obrazec.vrsta === "rocno_evidentiranje" && (
           <div className="field"><label>Ročno evidentiranje</label><div>{p.datum && fmtDatum(p.datum)} · prihod {p.prihod} · odhod {p.odhod}</div></div>

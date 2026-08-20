@@ -441,7 +441,22 @@
 // nadomeščanja so označena kot PREDLOGI in se objavijo šele po potrditvi.
 // Spremenjeni so nzv-zasedba.js, theme.css, index.html in admin.html.
 
-const CACHE = 'razpored-pbb-v87';
+// v88: po dežurstvu sledi normalen delovnik in to ni več javljeno kot
+// kršitev počitka - tako se zagotavlja neprekinjeno zdravstveno varstvo
+// (odločitev vodstva ZN). Spremenjen delovni-cas.js, ki se streže iz
+// predpomnilnika, zato dvig različice.
+
+// v89: "Moj razpored" pove tudi DELOVIŠČE ("dopoldan C1"), dežurstvo pa je
+// zapisano kot "Dežurstvo" in ne z verzalkami. Enota se računa po istem
+// pravilu kot v Imeniku -> Razpredelnica, zato se ob nadomeščanju izpiše
+// tista, na kateri oseba TA DAN res je.
+
+// v90: izmene se uporabniku povsod izpišejo kot "Dopoldne", "Popoldne",
+// "Nočna" (naziv iz uradne legende), ne kot surova šifra iz baze
+// ("dopoldan", "NOČNA"). Šifra v bazi in v Google Sheetu ostane
+// nespremenjena. Spremenjeni izmene.js, index.html, obrazec.html.
+
+const CACHE = 'razpored-pbb-v90';
 const ASSETS = [
   './',
   './index.html',

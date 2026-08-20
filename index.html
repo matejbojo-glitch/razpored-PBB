@@ -260,10 +260,15 @@ const classify = window.Izmene.skupina;
 // brati kot navadna izmena - "dopoldan" (uporabnikova izrecna zahteva).
 // Zapisana koda se NE spremeni: po nji se ravna obračun ur (glej NI_DELO
 // v delovni-cas.js), zato bi tiha zamenjava kode spremenila zavihek Plače.
+// Kar uporabnik VIDI namesto surove šifre iz baze. Šifre so zgodovinske in
+// neenotne ("dopoldan", "NOČNA", "PRISOTEN"), naziv v uradni legendi
+// (izmene.js) pa je enoten in pravilno zapisan: "Dopoldne", "Popoldne",
+// "Nočna". Šifra v bazi se NE spreminja - ostaja tak zapis, kot je v
+// bolnišničnih preglednicah, sicer bi aplikacija v uradni Google Sheet
+// pisala drugo besedo, kot je v njem zdaj.
 function shiftLabel(sifra){
   if (!sifra) return "Prosto";
-  if (/^prisoten$/i.test(String(sifra).trim())) return "dopoldan";
-  return sifra;
+  return window.Izmene.naziv(sifra) || sifra;
 }
 
 // ---------------------------------------------------------------------
@@ -375,12 +380,26 @@ const daysInRange = window.Datum.dnevi;
 // pravilo ne sme dotakniti.
 // "datum" je neobvezen; kadar je podan, se poleg sobote/nedelje upošteva
 // tudi dela prost PRAZNIK (uporabnikova izrecna dopolnitev pravila).
-function nzvPrikaz(sifra, danKratica, jeNzv, datum){
+function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   const vikend = danKratica === "SO" || danKratica === "NE"
     || (datum ? window.Prazniki.jePraznik(datum) : false);
   const jeDezurstvo = classify(sifra) === "dez";
-  if (jeDezurstvo) return vikend ? "DEŽURSTVO" : "dopoldan + DEŽURSTVO";
-  if (!jeNzv || !vikend) return sifra;
+  // Delovišče se pripiše izmeni ("dopoldan C1"), da "Moj razpored" pove ne
+  // le KDAJ, ampak tudi KJE. Ob nadomeščanju je to lahko tudi več enot
+  // ("E2, E1") - takrat se izpišeta obe, ker oseba tisti dan pokriva obe.
+  const zEnoto = (besedilo) => (enota ? besedilo + " " + enota : besedilo);
+  // "Dežurstvo" z veliko začetnico kot lastno ime izmene, ne z verzalkami:
+  // v uradni legendi je zapisano tako, verzalke pa na zaslonu delujejo kot
+  // vpitje (uporabnikova pripomba).
+  // Naziv dnevnega dela in dežurstva vzameta iz legende (izmene.js), da
+  // se zapis ne razide s preostalo aplikacijo.
+  if (jeDezurstvo) {
+    const dez = window.Izmene.naziv("DEŽURSTVO").replace(/\s*\(NZV\)\s*$/, "");
+    return vikend ? dez : zEnoto(window.Izmene.naziv("dopoldan")) + " + " + dez;
+  }
+  // shiftLabel PRED dodajanjem enote: brez tega bi se enota pripela surovi
+  // šifri in uporabnik bi videl "PRISOTEN C1" namesto "Dopoldne C1".
+  if (!jeNzv || !vikend) return sifra ? zEnoto(shiftLabel(sifra)) : sifra;
   return ""; // NZV vikend brez dežurstva: prosto (tudi sredi letnega dopusta)
 }
 
@@ -430,9 +449,20 @@ function MyScheduleView({ userId, month, jeNzv }){
   useEffect(() => {
     let cancelled = false;
     setEntries(null);
-    client.from("schedule_entries").select("work_date, shift_code")
+    // Poleg izmene potrebujemo tudi DELOVIŠČE, da "Moj razpored" pove ne
+    // le KDAJ, ampak tudi KJE ("dopoldan C1"). Pri FLEXI je pravi oddelek
+    // v pokriva_oddelek (department_code je takrat "FLEXI"). Ta stolpec v
+    // starejših bazah morda še ne obstaja, zato ob napaki poizvedbo
+    // ponovimo brez njega - prikaz izmene ne sme pasti zaradi delovišča.
+    client.from("schedule_entries").select("work_date, shift_code, department_code, pokriva_oddelek")
       .eq("employee_id", userId).gte("work_date", startISO).lte("work_date", endISO)
-      .then(({ data }) => { if (!cancelled) setEntries(data || []); });
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (!error) { setEntries(data || []); return; }
+        client.from("schedule_entries").select("work_date, shift_code, department_code")
+          .eq("employee_id", userId).gte("work_date", startISO).lte("work_date", endISO)
+          .then(({ data: d2 }) => { if (!cancelled) setEntries(d2 || []); });
+      });
     return () => { cancelled = true; };
   }, [userId, startISO, endISO]);
 
@@ -501,12 +531,16 @@ function MyScheduleView({ userId, month, jeNzv }){
   // manjko kot v NZV mreži in v Imenik -> Razpredelnici. Pravilo je v
   // nzv-zasedba.js (en sam vir); tu preberemo samo SVOJ zapis nosilca.
   const [mojNosilec, setMojNosilec] = useState(null);
+  // Lastno ime potrebuje tudi izračun enote po dnevih (spodaj), zato ga
+  // shranimo, namesto da bi profil brali dvakrat.
+  const [mojeIme, setMojeIme] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    setMojNosilec(null);
+    setMojNosilec(null); setMojeIme(null);
     if (!jeNzv) return;
     client.from("profiles").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
       if (cancelled || !profil) return;
+      setMojeIme(profil.full_name);
       return client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do")
         .then(({ data }) => {
           if (cancelled) return;
@@ -516,6 +550,63 @@ function MyScheduleView({ userId, month, jeNzv }){
     });
     return () => { cancelled = true; };
   }, [userId, jeNzv]);
+
+  // Enota po dnevih za NZV: isti izračun kot v Imeniku -> Razpredelnica in
+  // v "Po oddelkih" (nzv-zasedba.js). Zato "Moj razpored" ob nadomeščanju
+  // pokaže enoto, na kateri oseba TA DAN res je - ne stalne.
+  const [enotaNaDan, setEnotaNaDan] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    setEnotaNaDan({});
+    if (!jeNzv || !mojeIme) return;
+    Promise.all([
+      client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
+      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost").then(r => r, () => ({ data: [] })),
+      client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
+      client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
+    ]).then(([{ data: nosilci }, { data: pari }, { data: nast }, { data: odsotnosti }]) => {
+      if (cancelled) return;
+      const kljucIme = window.Imena.kljuc;
+      const saNast = window.NzvZasedba.saNastavitveIz(nast || []);
+      const poImenu = {};
+      (nosilci || []).forEach(v => { poImenu[kljucIme(v.full_name)] = v; });
+      const odsotenNa = {};
+      (odsotnosti || []).forEach(r => { odsotenNa[kljucIme(r.full_name) + "|" + r.work_date] = true; });
+      const jeOdsoten = (ime, datum) => {
+        const v = poImenu[kljucIme(ime)];
+        if (v && window.NzvZasedba.trajnoOdsoten(v, datum)) return true;
+        return !!odsotenNa[kljucIme(ime) + "|" + datum];
+      };
+      const out = {};
+      const mojKljuc = kljucIme(mojeIme);
+      days.forEach(dn => {
+        if (window.Prazniki.jeDelaProstDan(dn.datum)) return;
+        const vrstice = window.NzvZasedba.razporedDneva({
+          nosilci: nosilci || [],
+          pari: pari || [],
+          kljuc: kljucIme,
+          jeOdsoten: ime => jeOdsoten(ime, dn.datum),
+          saKoda: window.NzvZasedba.saStolpec(dn.datum, saNast),
+          veljavne: window.NzvZasedba.KODE_STOLPCEV,
+        });
+        const moj = vrstice.find(v => kljucIme(v.nosilec.full_name) === mojKljuc);
+        if (moj && moj.enote) out[dn.datum] = moj.enote;
+      });
+      setEnotaNaDan(out);
+    });
+    return () => { cancelled = true; };
+  }, [jeNzv, mojeIme, startISO, endISO, days]);
+
+  // Delovišče za en dan: pri NZV iz izračuna zgoraj, sicer iz objavljenega
+  // vnosa (pri FLEXI je pravi oddelek v pokriva_oddelek).
+  const enotaZaDan = useMemo(() => {
+    const izVnosa = {};
+    (entries || []).forEach(e => {
+      const kje = (e.pokriva_oddelek || "").trim() || (e.department_code || "").trim();
+      if (kje && kje.toUpperCase() !== "FLEXI") izVnosa[e.work_date] = kje;
+    });
+    return (datum) => enotaNaDan[datum] || izVnosa[datum] || "";
+  }, [entries, enotaNaDan]);
 
   const byDate = useMemo(() => {
     const m = {};
@@ -531,7 +622,7 @@ function MyScheduleView({ userId, month, jeNzv }){
   const iso = todayISO();
   const todayDan = (days.find(d => d.datum === iso) || {}).dan;
   const todaySifra = byDate[iso];
-  const todayPrikaz = nzvPrikaz(todaySifra, todayDan, jeNzv, iso);
+  const todayPrikaz = nzvPrikaz(todaySifra, todayDan, jeNzv, iso, enotaZaDan(iso));
   const todayCls = classify(todayPrikaz === "" ? "" : todaySifra);
 
   const tedni = useMemo(() => {
@@ -589,7 +680,7 @@ function MyScheduleView({ userId, month, jeNzv }){
               // Barva se vedno računa iz IZVIRNE kode (npr. "PRISOTEN +
               // DEŽURSTVO" se mora obarvati kot dežurstvo, ne kot prisotnost),
               // besedilo pa iz pravila NZV delovnika.
-              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum);
+              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum, enotaZaDan(dn.datum));
               const cls = classify(prikaz === "" ? "" : sifra);
               // Barva iz URADNE legende (izmene.js), ista kot v Imenik →
               // Razpredelnica in v "Po oddelkih". Prej je bila tu ena od
@@ -903,7 +994,7 @@ function WardView({ deptCode, month, myId }){
                         {sifra && (
                           <span className="swatch" title={opisIzmene}
                             style={{background: barvaIzmene, color: window.Izmene.barvaBesedila(barvaIzmene)}}>
-                            {sifra}
+                            {shiftLabel(sifra)}
                           </span>
                         )}
                       </td>
