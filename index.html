@@ -1159,7 +1159,11 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // Če stolpca/tabele (še) ni, PostgREST vrne napako in data = null;
     // "|| []" spodaj poskrbi, da mreža v tem primeru dela kot prej (samo
     // objavljeni vnosi), namesto da bi se sesula.
-    client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
+    // select("*") in ne naštetih stolpcev: pregled odstopanj potrebuje tudi
+    // dezurstvo_dovoljeno (kdo je v krogu dežurnih), tabela pa dobiva nove
+    // stolpce sproti. Z naštevanjem bi manjkajoč stolpec vrnil napako in
+    // mreža bi ostala prazna, namesto da bi samo izpustila eno preverbo.
+    client.from("lead_departments").select("*"),
     client.from("nadomescanja").select("*"),
     client.from("nzv_nastavitve").select("kljuc, vrednost"),
   ]);
@@ -1240,6 +1244,8 @@ async function nalozizPodatkeNzv(startISO, endISO){
   const poPravilu = {};
   // Enote, kjer je poleg izbranega sprejemljiv še kdo drug (enaka prednost).
   const dopustno = {};
+  // Kdo je kateri dan odsoten (po parafah) - glej odstopanjaNzv.
+  const odsotniPoDnevih = {};
   const nosilci = (vodje || []).filter(v => v.enote);
   if (nosilci.length) {
     const profilZaIme = ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime));
@@ -1253,6 +1259,19 @@ async function nalozizPodatkeNzv(startISO, endISO){
       if (odsotenDan.has(kljucImenaNzv(ime) + "|" + datum)) return true;
       return window.NzvZasedba.trajnoOdsoten(vodjaZaIme[kljucImenaNzv(ime)], datum);
     };
+    // Kdo je kateri dan odsoten - po parafah, za pregled odstopanj.
+    // Če je oseba tisti dan odsotna IN vpisana v razpored, to ni "napačna
+    // enota", ampak protislovje: na dopustu in hkrati na delu.
+    daysInRange(startISO, endISO).forEach(dn => {
+      if (window.Prazniki.jeDelaProstDan(dn.datum)) return;
+      nosilci.forEach(v => {
+        if (!jeOdsotenNa(v.full_name, dn.datum)) return;
+        const profil = profilZaIme(v.full_name);
+        if (!profil) return;
+        (odsotniPoDnevih[dn.datum] = odsotniPoDnevih[dn.datum] || new Set())
+          .add(parafaOd(profil, dn.datum));
+      });
+    });
 
     // Enoto lahko pokriva VEČ nosilcev hkrati (URGENCA: Bizjak, Trpin,
     // Mušič) - zato se izpeljane parafe seštevajo, tako kot se seštevajo
@@ -1312,7 +1331,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     });
   }
   const preglednica = odstopanjaNzv({
-    podatki, poPravilu, dopustno, nosilci, startISO, endISO,
+    podatki, poPravilu, dopustno, odsotniPoDnevih, nosilci, startISO, endISO,
     profilZaIme: ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime)),
   });
   return { podatki, entries: entries || [], izpeljano, saNast,
@@ -1329,6 +1348,15 @@ function kljucOdstopanja(koda){
 // Enote, ki jih pravilo nadomeščanja NE pokriva in jih zato ne primerjamo:
 // dežurstvo ima svoj generator, LD/IZOB/BS pa so odsotnosti, ne enote.
 const ODSTOPANJA_PRESKOCI = new Set(["DEZ", "LD", "IZOB", "BS"]);
+
+// Enote, ki jih po dogovoru OBČASNO pokrije kdor koli iz kroga dežurnih.
+// Uporabnikova navedba, avgust 2026: "urgenco občasno pokrivamo vsi, ki
+// dežuramo ... zato je tako". Vpis takega človeka tam torej ni napaka, in
+// pravila zanj ni mogoče vnaprej zapisati - odloči se sproti.
+//
+// Kdo je v krogu, pove lead_departments.dezurstvo_dovoljeno (isti podatek,
+// po katerem se sestavlja razpored dežurstev).
+const ENOTE_KROGA_DEZURNIH = new Set(["URGENCA"]);
 
 // Kje se objavljen razpored razhaja s pravili nadomeščanja.
 //
@@ -1351,12 +1379,18 @@ const ODSTOPANJA_PRESKOCI = new Set(["DEZ", "LD", "IZOB", "BS"]);
 function odstopanjaNzv(opts){
   const podatki = opts.podatki, poPravilu = opts.poPravilu, nosilci = opts.nosilci;
   const dopustno = opts.dopustno || {};
+  const odsotniPoDnevih = opts.odsotniPoDnevih || {};
   const startISO = opts.startISO, endISO = opts.endISO, profilZaIme = opts.profilZaIme;
 
   const parafeNosilcev = new Set();
+  // Kdo je v krogu dežurnih - ti smejo občasno pokriti URGENCO.
+  const parafeDezurnih = new Set();
   (nosilci || []).forEach(v => {
     const profil = profilZaIme(v.full_name);
-    if (profil) parafeNosilcev.add(parafaOd(profil, startISO));
+    if (!profil) return;
+    const parafa = parafaOd(profil, startISO);
+    parafeNosilcev.add(parafa);
+    if (v.dezurstvo_dovoljeno) parafeDezurnih.add(parafa);
   });
 
   // Enote, ki jih po lead_departments sploh nima nihče (npr. U2, SA POP).
@@ -1399,11 +1433,22 @@ function odstopanjaNzv(opts){
     });
     Object.keys(dejansko).forEach(par => {
       if (!parafeNosilcev.has(par)) return;         // FLEXI - ročno, ni odstopanje
+      // Na dopustu (ali bolniški) IN hkrati v razporedu - to ni vprašanje
+      // prave enote, ampak protislovje v samem razporedu. Zato svoja vrsta,
+      // sicer se pokaže kot nerazumljivo "po pravilu: -".
+      if ((odsotniPoDnevih[dn.datum] || new Set()).has(par)) {
+        out.push({ vrsta: "odsotenAVRazporedu", datum: dn.datum, oseba: par,
+                   poPravilu: [], vRazporedu: [...dejansko[par]].sort() });
+        return;
+      }
       const naj = pravilo[par] || new Set();
       // Enote brez nosilca (U2) izpustimo: pravila zanje ni, zato vpis tam
       // ne more biti "napačen".
       const napacne = [...dejansko[par]].filter(e => {
         if (naj.has(e) || brezNosilcaSet.has(e)) return false;
+        // URGENCO občasno pokrije kdor koli iz kroga dežurnih - dogovor,
+        // ne razpored, zato tega ni mogoče vnaprej zapisati kot pravilo.
+        if (ENOTE_KROGA_DEZURNIH.has(e) && parafeDezurnih.has(par)) return false;
         // Enakovreden nadomeščevalec za to enoto ta dan - ni napaka.
         const dop = dopustno[e + "|" + dn.datum];
         return !(dop && dop.has(par));
@@ -1478,6 +1523,10 @@ function SaNastavitveUrejanje({ saNast, naShranjeno }){
 // Berljiv opis ene vrstice odstopanja.
 function opisOdstopanja(o){
   if (o.vrsta === "nepokrita") return "enota " + o.enota + " ta dan nima nikogar";
+  if (o.vrsta === "odsotenAVRazporedu") {
+    return o.oseba + ": ta dan je označen kot odsoten (dopust/bolniška), a je vpisan na "
+      + o.vRazporedu.join(", ");
+  }
   if (o.vrsta === "niVRazporedu") {
     return o.oseba + ": po pravilu na " + o.poPravilu.join(" / ") + ", v razporedu ga ni nikjer";
   }
@@ -1507,12 +1556,13 @@ function OdstopanjaNzv({ odstopanja, brezNosilca }){
       </div>
     );
   }
-  const stevec = { napacnaEnota: 0, niVRazporedu: 0, nepokrita: 0 };
+  const stevec = { napacnaEnota: 0, niVRazporedu: 0, nepokrita: 0, odsotenAVRazporedu: 0 };
   odstopanja.forEach(o => { stevec[o.vrsta]++; });
   const povzetek = [
     stevec.nepokrita ? `${stevec.nepokrita}× enota brez nikogar` : null,
     stevec.napacnaEnota ? `${stevec.napacnaEnota}× na drugi enoti, kot pravi pravilo` : null,
     stevec.niVRazporedu ? `${stevec.niVRazporedu}× po pravilu bi moral delati, a ga ni v razporedu` : null,
+    stevec.odsotenAVRazporedu ? `${stevec.odsotenAVRazporedu}× na dopustu in hkrati v razporedu` : null,
   ].filter(Boolean).join(" · ");
   return (
     <div className="opozorilnoPolje" style={{margin:"8px 0 12px"}}>
@@ -1536,7 +1586,9 @@ function OdstopanjaNzv({ odstopanja, brezNosilca }){
                 <tr key={i}>
                   <td className="name">{datumSlo(o.datum)}</td>
                   <td>{o.vrsta === "nepokrita" ? <b>{o.enota}</b> : <b>{o.oseba}</b>}</td>
-                  <td>{o.vrsta === "nepokrita" ? "vsaj en nosilec" : (o.poPravilu.join(", ") || "–")}</td>
+                  <td>{o.vrsta === "nepokrita" ? "vsaj en nosilec"
+                        : o.vrsta === "odsotenAVRazporedu" ? "odsoten (dopust/bolniška)"
+                        : (o.poPravilu.join(", ") || "–")}</td>
                   <td>{o.vrsta === "nepokrita" ? "nihče"
                         : (o.vRazporedu && o.vRazporedu.length ? o.vRazporedu.join(", ") : "nikjer")}</td>
                 </tr>

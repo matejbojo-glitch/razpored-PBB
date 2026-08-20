@@ -125,6 +125,7 @@ vm.runInContext([
   // Pregled odstopanj od pravil nadomeščanja - nalozizPodatkeNzv ga kliče.
   izvleciFn("kljucOdstopanja"),
   izvleciConst("ODSTOPANJA_PRESKOCI"),
+  izvleciConst("ENOTE_KROGA_DEZURNIH"),
   izvleciFn("odstopanjaNzv"),
   izvleciAsyncFn("nalozizPodatkeNzv"),
 ].join("\n\n"), sandbox);
@@ -769,6 +770,93 @@ console.log("11) URGENCA in SA: vrstni red in enakovredni nadomeščevalci");
     trdi(o2.some(o => o.oseba === "ŠUB" && o.vrsta === "napacnaEnota"),
       "Šubic na SA (ni med nadomeščevalci) PA je odstopanje");
   }
+}
+
+
+console.log("12) URGENCO občasno pokrije kdor koli iz kroga dežurnih");
+{
+  // Uporabnikova navedba, avgust 2026: "urgenco občasno pokrivamo vsi, ki
+  // dežuramo ... zato je tako". Tega ni mogoče vnaprej zapisati kot
+  // pravilo nadomeščanja - odloči se sproti - zato vpis takega človeka na
+  // URGENCI ni odstopanje. Arnež (nosilec C, je v krogu dežurnih) je bil
+  // zaradi tega v septembru 2026 javljen 5-krat.
+  const vnos = (ime, kratica, koda, datum) => ({
+    department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: "PRISOTEN",
+    created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+  });
+  const nosilci = [
+    { full_name: "ARNEŽ GREGA", enote: "C", dezurstvo_dovoljeno: true, odsotnost_tip: null, odsotnost_do: null },
+    { full_name: "TRPIN SAŠA", enote: "UA/SA", dezurstvo_dovoljeno: true, odsotnost_tip: null, odsotnost_do: null },
+    // Lelič NI v krogu dežurnih (dezurstvo_dovoljeno = false v
+    // nzv-nosilci-oddelkov.sql) - zanjo to pravilo ne velja.
+    { full_name: "LELIČ DIJANA", enote: "E2", dezurstvo_dovoljeno: false, odsotnost_tip: null, odsotnost_do: null },
+  ];
+
+  console.log("   a) kdor dežura, na URGENCI ni odstopanje");
+  {
+    const { odstopanja } = await poglej({
+      vodje: nosilci, nadomescanja: [],
+      entries: [vnos("Arnež Grega", "ARN", "URGENCA", "2026-09-01")],
+    });
+    jseq(odstopanja.filter(o => o.oseba === "ARN"), [],
+      "Arnež na URGENCI ni odstopanje – v krogu dežurnih je");
+  }
+
+  console.log("   b) kdor NE dežura, na URGENCI PA je odstopanje");
+  {
+    const { odstopanja } = await poglej({
+      vodje: nosilci, nadomescanja: [],
+      entries: [vnos("Lelič Dijana", "LEL", "URGENCA", "2026-09-01")],
+    });
+    trdi(odstopanja.some(o => o.oseba === "LEL" && o.vrsta === "napacnaEnota"),
+      "Lelič ni v krogu dežurnih, zato je njen vpis na URGENCI odstopanje");
+  }
+
+  console.log("   c) pravilo velja SAMO za URGENCO, ne za druge enote");
+  {
+    const { odstopanja } = await poglej({
+      vodje: nosilci, nadomescanja: [],
+      entries: [vnos("Arnež Grega", "ARN", "E2", "2026-09-01")],
+    });
+    trdi(odstopanja.some(o => o.oseba === "ARN" && (o.napacne || []).includes("E2")),
+      "Arnež na E2 je odstopanje – dogovor velja le za URGENCO");
+    jseq([...sandbox.ENOTE_KROGA_DEZURNIH], ["URGENCA"],
+      "nabor takih enot je natanko ena: URGENCA");
+  }
+}
+
+
+console.log("13) Na dopustu IN hkrati v razporedu - svoja vrsta odstopanja");
+{
+  // V uporabnikovem razporedu za september 2026 sta Torkar (17., 18. 9.)
+  // in Trpin (18. 9.) v stolpcu LD in hkrati na svoji enoti. (Tu je
+  // uporabljena Lunar, ker Torkar v tem naboru profilov ni - brez profila
+  // se oseba šteje za FLEXI in se ne preverja.) Prej se je to
+  // pokazalo kot "napačna enota, po pravilu: -", kar ni razumljivo - gre
+  // za protislovje v razporedu samem, ne za vprašanje prave enote.
+  const vnos = (ime, kratica, koda, datum) => ({
+    department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: "PRISOTEN",
+    created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+  });
+  const { odstopanja } = await poglej({
+    entries: [vnos("Lunar Mateja", "LUN", "B", "2026-09-01")],
+    vodje: [{ full_name: "LUNAR MATEJA", enote: "B", odsotnost_tip: null, odsotnost_do: null }],
+    nadomescanja: [],
+    dopusti: [{ full_name: "Lunar Mateja", work_date: "2026-09-01", kind: "ld" }],
+  });
+  const o = odstopanja.find(x => x.oseba === "LUN" && x.datum === "2026-09-01");
+  trdi(!!o && o.vrsta === "odsotenAVRazporedu",
+    "na dopustu in v razporedu -> vrsta 'odsotenAVRazporedu', ne 'napacnaEnota'");
+  jseq(o ? o.vRazporedu : [], ["B"], "pove, kje je vpisan");
+
+  // Nadzorna točka: brez dopusta je isti vpis popolnoma v redu.
+  const { odstopanja: o2 } = await poglej({
+    entries: [vnos("Lunar Mateja", "LUN", "B", "2026-09-01")],
+    vodje: [{ full_name: "LUNAR MATEJA", enote: "B", odsotnost_tip: null, odsotnost_do: null }],
+    nadomescanja: [],
+  });
+  jseq(o2.filter(x => x.oseba === "LUN"), [],
+    "brez vpisanega dopusta je Lunar na svojem B brez pripombe");
 }
 
 };
