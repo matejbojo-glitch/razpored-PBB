@@ -285,11 +285,23 @@ async function nalozizOddelek(koda){
 // Dnevne "rumene" omejitve (Razpredelnica Želje, leave_entries.kind="omejitev")
 // za dani razpon – Kalup generator jih uporabi za samodejno iskanje
 // nadomestila (glej generirajKalup v generator-core.js).
-async function nalozizOmejitve(startISO, endISO){
+// "imena" so imena osebja, kot jih pozna kalup - izid se vrne pod TEMI
+// imeni, ne pod tistimi iz leave_entries. Ujemanje gre prek imena.js
+// (isti modul kot NZV), ker so imena v leave_entries zapisana različno:
+// ročni vnos v Razpredelnici tako kot v Imeniku, uvoz iz CSV pa z velikimi
+// črkami. Z dobesedno primerjavo se je prenesel le tisti del, ki se je
+// slučajno ujemal črko v črko.
+async function nalozizOmejitve(startISO, endISO, imena){
   const { data } = await client.from("leave_entries").select("full_name, work_date")
     .eq("kind", "omejitev").gte("work_date", startISO).lte("work_date", endISO);
+  const poKljucu = {};
+  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
   const map = {};
-  (data || []).forEach(r => { (map[r.full_name] = map[r.full_name] || []).push(r.work_date); });
+  (data || []).forEach(r => {
+    const ime = poKljucu[kljucImena(r.full_name)];
+    if (!ime) return;
+    (map[ime] = map[ime] || []).push(r.work_date);
+  });
   return map;
 }
 
@@ -298,9 +310,11 @@ async function nalozizOmejitve(startISO, endISO){
 // Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
 // dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
 // izpraznil cel teden rotacije.
-async function nalozizLdTedne(startISO, endISO, tedni){
+async function nalozizLdTedne(startISO, endISO, tedni, imena){
   const { data } = await client.from("leave_entries").select("full_name, work_date")
     .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
+  const poKljucu = {};
+  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
   const stetje = {}; // "ime|ponedeljek" -> stevilo dni LD
   (data || []).forEach(r => {
     const d = new Date(r.work_date + "T00:00:00Z");
@@ -308,7 +322,12 @@ async function nalozizLdTedne(startISO, endISO, tedni){
     d.setUTCDate(d.getUTCDate() - zamik);
     const mo = d.toISOString().slice(0, 10);
     if (!tedni.includes(mo)) return;
-    const k = r.full_name + "|" + mo;
+    // Ključ pod IMENOM OSEBJA (ne pod imenom iz leave_entries) - ročni
+    // popravki v razpredelnici uporabljajo isti zapis in se morajo z
+    // izpeljanimi tedni sešteti, ne izključevati.
+    const ime = poKljucu[kljucImena(r.full_name)];
+    if (!ime) return;
+    const k = ime + "|" + mo;
     stetje[k] = (stetje[k] || 0) + 1;
   });
   const out = {};
@@ -351,8 +370,13 @@ const DEZURNI_OSNOVA_DO_31_8_2026 = {
 // pri čemer bi bil zaslon videti povsem normalen. Zato se išče po vreči
 // besed v velikih črkah – isto pravilo kot imenaSeUjemataAdmin, le
 // predračunano v slovar, ker tu iščemo in ne primerjamo dveh imen.
+// Ključ prek imena.js (skupni modul), ne lastne različice: ta je poleg
+// velikih črk in vrstnega reda besed odstranila tudi strešice, admin pa
+// ne - "Bojić Matej" in "BOJIC MATEJ" sta se tu razhajala, drugod pa ne.
+// Dve pravili za isto stvar sta pri razporedu nevarni: ista oseba je bila
+// enkrat prepoznana in drugič ne, odvisno od zaslona.
 function kljucImena(s){
-  return (s || "").trim().toUpperCase().replace(/\s+/g, " ").split(" ").sort().join(" ");
+  return window.Imena.kljuc(s);
 }
 const DEZURNI_OSNOVA_PO_KLJUCU = Object.fromEntries(
   Object.entries(DEZURNI_OSNOVA_DO_31_8_2026).map(([ime, v]) => [kljucImena(ime), v])
@@ -1005,8 +1029,8 @@ function KalupTab(){
       // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
       // odločitve koordinatorja.
       const [omejitveMap, samodejniLd] = await Promise.all([
-        nalozizOmejitve(startISO, endISO),
-        nalozizLdTedne(startISO, endISO, tedni),
+        nalozizOmejitve(startISO, endISO, staffList.map(([ime]) => ime)),
+        nalozizLdTedne(startISO, endISO, tedni, staffList.map(([ime]) => ime)),
       ]);
       const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
       setTedenskoStanje(zdruzenoStanje);
@@ -1445,9 +1469,16 @@ function DezurstvaTab(){
     const { data, error } = await client.from("leave_entries").select("full_name, work_date, kind")
       .gte("work_date", s).lte("work_date", e);
     if (error || !data) return null;
+    // Ključ prek imena.js in NE surovega imena z velikimi črkami: v
+    // leave_entries so imena zapisana različno - ročni vnos v Razpredelnici
+    // jih shrani tako, kot so v Imeniku ("Bojić Matej"), uvoz iz CSV pa z
+    // VELIKIMI ("BOJIĆ MATEJ"). Prej se je iskalo z izZelja[z.ime], torej
+    // surovo ime proti velikim črkam - ujemanja ni bilo NIKOLI in dopusti
+    // ter omejitve se v razpored dežurstev sploh niso prenesli.
     const grouped = {};
     data.forEach(row => {
-      const key = (row.full_name || "").toUpperCase();
+      const key = kljucImena(row.full_name);
+      if (!key) return;
       if (!grouped[key]) grouped[key] = { dopust: [], omejitve: [] };
       if (row.kind === "ld") grouped[key].dopust.push(row.work_date);
       else grouped[key].omejitve.push(row.work_date);
@@ -1458,9 +1489,10 @@ function DezurstvaTab(){
   const uporabiVZelja = (izZelja) => {
     setRoster(r => r.map(z => {
       let dopust = "", omejitve = "";
-      if (izZelja && izZelja[z.ime]) {
-        dopust = izZelja[z.ime].dopust.join(",");
-        omejitve = izZelja[z.ime].omejitve.join(",");
+      const zadetek = izZelja && izZelja[kljucImena(z.ime)];
+      if (zadetek) {
+        dopust = zadetek.dopust.join(",");
+        omejitve = zadetek.omejitve.join(",");
       }
       return { ...z, dopust, omejitve, odsotnosti:"" };
     }));
