@@ -5,14 +5,14 @@
  * Zakaj obstaja: uporabnik je večkrat poročal "stanje je isto" tudi po
  * tem, ko je bila sprememba že objavljena. Service worker sicer kliče
  * skipWaiting() + clients.claim(), a stran, ki je TA HIP odprta, je svoje
- * .js datoteke naložila prej — iz starega predpomnilnika. Videti je bilo
+ * .js datoteke naložila prej – iz starega predpomnilnika. Videti je bilo
  * treba osvežiti DVAKRAT, česar ni razumno pričakovati.
  *
  * Preverjamo torej celotno pot:
  *   1. vse skripte, ki jih strani nalagajo, so tudi v predpomnilniku
  *      (sicer nova datoteka sploh ne pride zraven);
  *   2. service worker prevzame takoj (skipWaiting + clients.claim);
- *   3. stran ob prevzemu sama osveži — a NE, če je uporabnik že tipkal,
+ *   3. stran ob prevzemu sama osveži – a NE, če je uporabnik že tipkal,
  *      ker bi to pomenilo izgubljen vnos v Menjavi;
  *   4. osveži samo enkrat (brez zanke) in ne ob prvem obisku.
  *
@@ -31,7 +31,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 console.log("1) vse naložene skripte so tudi v predpomnilniku");
@@ -49,7 +49,7 @@ console.log("1) vse naložene skripte so tudi v predpomnilniku");
 
   const manjkajo = [...nalozene].filter(f => !vCache.has(f)).sort();
   trdi(manjkajo.length === 0, `vseh ${nalozene.size} skript je v ASSETS`
-    + (manjkajo.length ? ` — manjkajo: ${manjkajo.join(", ")}` : ""));
+    + (manjkajo.length ? ` – manjkajo: ${manjkajo.join(", ")}` : ""));
 }
 
 console.log("2) service worker prevzame takoj, ne šele ob zaprtju vseh zavihkov");

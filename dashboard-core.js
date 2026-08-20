@@ -1,4 +1,4 @@
-/* Razpored PBB — dashboard-core.js
+/* Razpored PBB – dashboard-core.js
  * Logika za nadzorno ploščo pravičnosti: iz izvozov generatorja (modul 2)
  * izračuna prispevek posameznega meseca in ga zlije z obstoječim stanjem.
  * Enako kot generator-core.js: deluje v brskalniku in v Node (za teste).
@@ -6,7 +6,7 @@
 (function (root) {
   "use strict";
 
-  // Slovenski dela prosti dnevi 2026 (ZDPD) — stalen seznam, uporaben za
+  // Slovenski dela prosti dnevi 2026 (ZDPD) – stalen seznam, uporaben za
   // kateri koli mesec, ne le za obdobje, ki smo ga doslej analizirali.
   var PRAZ_2026 = [
     "2026-01-01", "2026-01-02", "2026-02-08", "2026-04-05", "2026-04-06",
@@ -19,7 +19,7 @@
     return (d.getUTCDay() + 6) % 7; // 0=PO..6=NE
   }
 
-  // Natančnejša razvrstitev kot v koledarskem prikazu — tu moramo ločiti
+  // Natančnejša razvrstitev kot v koledarskem prikazu – tu moramo ločiti
   // nočno 12-urno izmeno od dnevne 12-urne, ker se za pravičnost štejeta
   // različno (nočna šteje med nočne ure, dnevna ne).
   function classifyForStats(sifra) {
@@ -77,7 +77,7 @@
 
   /**
    * Zlije rezultat generatorja dežurstev (rezultat.stanje iz generator-core.js)
-   * v obstoječo osnovo dežurnega kadra. Posodobi samo število dežurstev —
+   * v obstoječo osnovo dežurnega kadra. Posodobi samo število dežurstev –
    * ur/REDI/NZV ta generator ne proizvaja, za to je potreben uvoz iz Kadrisa.
    */
   function mergeDezBaseline(baseline, novoStanje) {

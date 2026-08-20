@@ -126,5 +126,5 @@ console.log("6) parafaMapa() uporabi pravo stran prestopa za CEL ciljni mesec");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

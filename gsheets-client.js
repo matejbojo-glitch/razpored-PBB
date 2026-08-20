@@ -1,19 +1,19 @@
-/* Razpored PBB — gsheets-client.js
+/* Razpored PBB – gsheets-client.js
  * Živa povezava do Google Sheets: prijava (Google Identity Services, OAuth
- * "token" model — brez lastnega strežnika, brez shranjevanja skrivnosti) +
+ * "token" model – brez lastnega strežnika, brez shranjevanja skrivnosti) +
  * ustvarjanje/pisanje v nov Google Sheets dokument prek Sheets API v4.
  *
- * NASTAVITEV (enkratno, naredi admin sam v Google Cloud Console — glej
+ * NASTAVITEV (enkratno, naredi admin sam v Google Cloud Console – glej
  * GSHEETS-SETUP.md v korenu repozitorija za natančna navodila po korakih):
  *   1. console.cloud.google.com → nov ali obstoječ projekt.
  *   2. "APIs & Services" → "Library" → omogoči "Google Sheets API".
  *   3. "APIs & Services" → "OAuth consent screen" → nastavi (ime aplikacije,
- *      e-pošta) — če je bolnišnica na Google Workspace domeni, izberi
+ *      e-pošta) – če je bolnišnica na Google Workspace domeni, izberi
  *      "Internal" (izogne se Googlovemu opozorilu "unverified app").
  *   4. "APIs & Services" → "Credentials" → "Create Credentials" →
  *      "OAuth client ID" → vrsta "Web application".
  *   5. "Authorized JavaScript origins" dodaj natanko naslov aplikacije
- *      (npr. https://razpored.netlify.app) — brez tega prijava zavrne.
+ *      (npr. https://razpored.netlify.app) – brez tega prijava zavrne.
  *   6. Kopiran "Client ID" (konča se na .apps.googleusercontent.com) prilepi
  *      spodaj namesto prazne vrednosti CLIENT_ID.
  *
@@ -47,7 +47,7 @@
   function pridobiZeton(zeliInteraktivno) {
     return new Promise(function (resolve, reject) {
       if (!CLIENT_ID) {
-        reject(new Error("Izvoz v Google Sheets še ni nastavljen — manjka Google Client ID (glej GSHEETS-SETUP.md)."));
+        reject(new Error("Izvoz v Google Sheets še ni nastavljen – manjka Google Client ID (glej GSHEETS-SETUP.md)."));
         return;
       }
       if (trenutniZeton && trenutniZeton.expires_at > Date.now() + 30000) { resolve(trenutniZeton.access_token); return; }
@@ -78,7 +78,7 @@
   }
 
   // naslovDokumenta: ime novega Google Sheets dokumenta.
-  // listi: [{ ime, glave: [...], vrstice: [[...], ...] }] — isti format kot
+  // listi: [{ ime, glave: [...], vrstice: [[...], ...] }] – isti format kot
   // ExportUtils.izvoziXLSX, da lahko strani pripravijo podatke enkrat in jih
   // uporabijo za oba izvoza. Vrne URL novo ustvarjenega dokumenta.
   async function izvoziVSheets(naslovDokumenta, listi) {
@@ -115,7 +115,7 @@
 
   // ---------------------------------------------------------------------
   // Branje/pisanje POSAMEZNIH CELIC v obstoječ dokument (za "Zapiši nazaj v
-  // Sheets" na Razporedu — piše popravke naravnost v admin-ov že obstoječ,
+  // Sheets" na Razporedu – piše popravke naravnost v admin-ov že obstoječ,
   // ročno voden dokument, namesto da bi ob vsakem izvozu naredila nov).
   //
   // preberiVrednosti/zapisiVObstojeciList NAMENOMA ne uporabljata javnega
@@ -158,7 +158,7 @@
     var moj = gid != null ? listi.filter(function (s) { return String(s.sheetId) === String(gid); })[0] : listi[0];
     if (!moj) {
       throw new Error(
-        "V dokumentu ni zavihka z gid=" + gid + " — preveri, da je povezava kopirana IZ PRAVEGA zavihka " +
+        "V dokumentu ni zavihka z gid=" + gid + " – preveri, da je povezava kopirana IZ PRAVEGA zavihka " +
         "(klikni zavihek na dnu preglednice, šele nato kopiraj naslov iz naslovne vrstice)."
       );
     }

@@ -1,4 +1,4 @@
-/* Izmene: uradna legenda, barve in razvrstitev — EN SAM VIR.
+/* Izmene: uradna legenda, barve in razvrstitev – EN SAM VIR.
  *
  * Vir: stolpec "kratica za aplikacijo" v delovnik.xlsx ("Razpored
  * delovnega časa - Služba za ZN in oskrbo", velja od 1. 7. 2022).
@@ -7,8 +7,8 @@
  * del resnice:
  *
  *   imenik.html  polna legenda (22 kratic, natančne barve in časi)
- *   index.html   classify() + BARVE — samo 7 grobih skupin
- *   admin.html   classify() + BARVE — samo 5 skupin, LD šteje kot "prosto"
+ *   index.html   classify() + BARVE – samo 7 grobih skupin
+ *   admin.html   classify() + BARVE – samo 5 skupin, LD šteje kot "prosto"
  *
  * Posledica: ista izmena je bila v Imeniku ena barva, v Razporedu druga.
  * Odslej je legenda ena sama, obe grobi razvrstitvi pa sta iz nje

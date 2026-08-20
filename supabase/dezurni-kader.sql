@@ -1,8 +1,8 @@
 -- ---------------------------------------------------------------------
--- Dežurni kader (DMS/DZN) — članstvo za vseh 14 oseb dežurnega kroga.
+-- Dežurni kader (DMS/DZN) – članstvo za vseh 14 oseb dežurnega kroga.
 --
 -- "DEZ" ni oddelek, ampak ČLANSTVO. Generator → Dežurstva bere krog prav
--- iz njega. NZV tega ne nadomesti — NZV so vsi vodje in administratorji,
+-- iz njega. NZV tega ne nadomesti – NZV so vsi vodje in administratorji,
 -- dežurstvo pa opravlja le del njih.
 --
 -- Članstvo se doda kot SEKUNDARNI oddelek (sort_order > 0), da ostane
@@ -15,7 +15,7 @@
 -- od tu ni vidno. Izpis manjkajočih zato šteje OSEBO, ne vrstice.
 --
 -- ZAKAJ EN SAM STAVEK: Supabase SQL Editor poganja stavke prek
--- povezovalnika, kjer vsak stavek lahko dobi svojo sejo — začasna tabela
+-- povezovalnika, kjer vsak stavek lahko dobi svojo sejo – začasna tabela
 -- iz prejšnjega stavka takrat ne obstaja.
 --
 -- Varno za ponovni zagon.

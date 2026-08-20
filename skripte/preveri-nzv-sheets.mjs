@@ -85,7 +85,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const koda = [
@@ -95,9 +95,13 @@ const koda = [
   // naredi index.html.
   readFileSync(join(koren, "datum.js"), "utf8"),
   "var monthRange = window.Datum.obseg;",
+  // NZV_ENOTE/NZV_STOLPCI zdaj kažeta na skupni nzv-zasedba.js (prej sta
+  // bila zapisana v index.html), zato mora biti modul naložen PRED njima.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst("NZV_ENOTE")),
   izvleci("razvrstiSA"),
-  constVKotVar(izvleciConstIife("NZV_STOLPCI")),
+  constVKotVar(izvleciConst("NZV_STOLPCI")),
   constVKotVar(izvleciConst("NZV_KIND_KODA")),
   izvleci("nzvNazivVKodo"),
   izvleci("poisciEnoteNzv"),
@@ -107,10 +111,12 @@ const koda = [
   constVKotVar(izvleciConst("NZV_ODSOTNOST_KIND")),
 ].join("\n\n");
 
-const sandbox = {
-  window: { ImportUtils: { normalizirajDatum: normalizirajDatum } },
-  console,
-};
+// "window" mora kazati na sam sandbox, ker skupni moduli (imena.js,
+// nzv-zasedba.js) nanj obesijo svoje objekte. Vsebina prejšnjega
+// nadomestka (ImportUtils) se zato prestavi naravnost v sandbox.
+const sandbox = { console };
+sandbox.window = sandbox;
+sandbox.ImportUtils = { normalizirajDatum: normalizirajDatum };
 function normalizirajDatum(s) {
   const t = (s || "").toString().trim();
   if (!t) return "";
@@ -154,7 +160,7 @@ const vrsteVrstic = [
   vrstica("1. 9. 2026", ["ZEK", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "BOJ", "", "NOV", ""]),
 ];
 
-console.log("1) avgustovski blok — enote IN LD/IZOB/BS najdejo prave koordinate");
+console.log("1) avgustovski blok – enote IN LD/IZOB/BS najdejo prave koordinate");
 {
   const podatki = { "PDZN|2026-08-01": "KAR", "DEZ|2026-08-01": "BOJ", "LD|2026-08-01": "NOV, PET" };
   const { posodobitve, najdenDatum, najdenaGlava } = pripraviPosodobitveNzv(vrsteVrstic, "2026-08", podatki);
@@ -175,7 +181,7 @@ console.log("1) avgustovski blok — enote IN LD/IZOB/BS najdejo prave koordinat
   trdi(posodobitve.every(p => p.vrstica !== 7 && p.vrstica !== 9), "podpisni/verzijski blok (v1:/Razpored pripravil) ni med posodobitvami");
 }
 
-console.log("2) septembrski blok — svoja glava, ne pobere avgustovskih vrednosti");
+console.log("2) septembrski blok – svoja glava, ne pobere avgustovskih vrednosti");
 {
   const podatki = { "PDZN|2026-09-01": "ZEK" }; // september nima vrednosti za DEZ/LD, samo PDZN
   const { posodobitve } = pripraviPosodobitveNzv(vrsteVrstic, "2026-09", podatki);
@@ -196,5 +202,5 @@ console.log("3) uvoziNzv loči enote (schedule_entries) od LD/IZOB/BS (leave_ent
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

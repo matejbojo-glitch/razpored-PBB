@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------
-// Razpored PBB — Edge Function "posiljaj-push"
+// Razpored PBB – Edge Function "posiljaj-push"
 //
 // Prebere še neposlana obvestila iz tabele notifications (push_sent_at is
 // null) in jih odpošlje kot Web Push na vse naprave, ki jih je posamezni
@@ -7,7 +7,7 @@
 // označi s push_sent_at, mrtve naročnine (404/410 = uporabnik je odstranil
 // aplikacijo ali počistil brskalnik) pa pobriše.
 //
-// NE pošilja neposredno iz sprožilca v bazi — glej razlago v
+// NE pošilja neposredno iz sprožilca v bazi – glej razlago v
 // supabase/schema.sql sekcija 27. Tabela notifications je edini vir
 // resnice; ta funkcija je samo dostavljalec.
 //
@@ -40,7 +40,7 @@ webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 // kliče funkcijo pogosto, preostanek gre v naslednjem krogu (push_sent_at
 // poskrbi, da se nič ne podvoji in nič ne izgubi).
 const NAJVEC_NA_KLIC = 200;
-// Starejših obvestil ne pošiljamo (npr. po daljšem izpadu) — potisno
+// Starejših obvestil ne pošiljamo (npr. po daljšem izpadu) – potisno
 // obvestilo o dogodku izpred tedna je bolj moteče kot koristno; v
 // aplikaciji ga uporabnik še vedno vidi.
 const NAJSTAREJSE_URE = 48;
@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
-  // Dovoljen je samo klic z znano skrivnostjo (pg_cron/ročni zagon) —
+  // Dovoljen je samo klic z znano skrivnostjo (pg_cron/ročni zagon) –
   // funkcija namreč teče s service_role pravicami.
   if (!PUSH_CRON_SECRET || req.headers.get("x-cron-secret") !== PUSH_CRON_SECRET) {
     return new Response("Unauthorized", { status: 401 });
@@ -101,7 +101,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // Kanali po osebi (sekcija 30). Kdor nastavitve ni odprl, ima oboje
-  // vklopljeno — brez tega bi molk pomenil, da ne izve ničesar.
+  // vklopljeno – brez tega bi molk pomenil, da ne izve ničesar.
   const { data: prejemniki } = await db.rpc("prejemniki_obvestil", { p_ids: idjiPrejemnikov });
   const nastavitve = new Map<string, { email: string | null; email_enabled: boolean; push_enabled: boolean }>();
   for (const p of prejemniki ?? []) {
@@ -142,7 +142,7 @@ Deno.serve(async (req: Request) => {
               to: [kanali.email],
               subject: o.title ?? "Razpored PBB",
               text: `${o.message}\n\n${APP_URL}/${o.url ?? "index.html"}\n\n` +
-                `— Razpored PBB, Psihiatrična bolnišnica Begunje\n` +
+                `– Razpored PBB, Psihiatrična bolnišnica Begunje\n` +
                 `Obveščanje po e-pošti lahko izklopiš v Nastavitvah.`,
             }),
           });
@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
             poslanihEpost++;
             epostaOpravljeno.push(o.id);
           } else {
-            // 4xx pomeni trajno napako (napačen naslov, zavrnjena domena) —
+            // 4xx pomeni trajno napako (napačen naslov, zavrnjena domena) –
             // označimo, da ne blokira vrste. 5xx/omrežje pustimo za naslednjič.
             const status = odgovor.status;
             console.error("Resend:", status, await odgovor.text());
@@ -164,7 +164,7 @@ Deno.serve(async (req: Request) => {
 
     // --- potisno obvestilo ---
     if (o.push_sent_at !== null) continue; // v tem svežnju je bilo samo zaradi e-pošte
-    // Označimo tudi, kadar oseba potisnih noče ali nima naprave — sicer bi
+    // Označimo tudi, kadar oseba potisnih noče ali nima naprave – sicer bi
     // obvestilo ostalo v vrsti za vedno.
     pushOpravljeno.push(o.id);
     if (!kanali.push_enabled) continue;
@@ -188,7 +188,7 @@ Deno.serve(async (req: Request) => {
         const koda = (e as { statusCode?: number }).statusCode;
         // 404/410 = naročnina ne obstaja več (odstranjena aplikacija,
         // počiščen brskalnik). Vse drugo (omrežje, 429 …) pustimo pri
-        // miru — naslednjič gre lahko skozi.
+        // miru – naslednjič gre lahko skozi.
         if (koda === 404 || koda === 410) mrtveNarocnine.push(n.id);
         else console.error("Napaka pri pošiljanju:", koda, (e as Error).message);
       }
@@ -197,7 +197,7 @@ Deno.serve(async (req: Request) => {
 
   // Vsak kanal se označi LOČENO in samo za tiste vrstice, ki jih je ta
   // zagon dejansko obdelal. Prej se je push_sent_at postavil čez cel
-  // sveženj — zdaj bi to pomenilo, da obvestilo, ki je v svežnju le zaradi
+  // sveženj – zdaj bi to pomenilo, da obvestilo, ki je v svežnju le zaradi
   // manjkajoče e-pošte, po nesreči obvelja za "push poslan".
   const zdaj = new Date().toISOString();
   if (pushOpravljeno.length) {

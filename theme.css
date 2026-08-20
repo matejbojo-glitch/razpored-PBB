@@ -1,13 +1,19 @@
 /* ============================================================
-   Razpored PBB — skupni oblikovni sistem (theme.css)
+   Razpored PBB – skupni oblikovni sistem (theme.css)
    Ena datoteka, ki jo vključujejo vse strani aplikacije.
-   Barve so NAMENOMA nespremenjene (bolnišnična identiteta) —
+   Barve so NAMENOMA nespremenjene (bolnišnična identiteta) –
    izboljšana so razmerja, tipografija, sence, presledki in
    ponovno uporabni gradniki (.btn, .card, .field …), da je
    videz na vseh straneh dosleden.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+/* Pisava Fraunces se NE nalaga tu z @import: @import v slogovni
+   datoteki zadržuje izvajanje vseh skript za njo, zato je stran ob
+   nedosegljivem Google Fonts (požarni zid, ni signala) obtičala na
+   beli - tudi prijavna stran. Vsaka stran jo namesto tega vključi
+   neblokirno v <head> (media="print" + onload). Rezerva spodaj
+   (--font-display: ui-serif, Georgia, serif) je zato normalno
+   stanje, ne napaka. */
 
 :root{
   /* --- barve: identične prejšnjim, samo zbrane na enem mestu --- */
@@ -36,6 +42,17 @@
   --accent-rgb: 167,148,72;
   --danger-rgb: 179,64,42;
   --ok-rgb: 79,155,107;
+  /* Nežni ozadji za sporočila o uspehu/napaki in hladna modra za grafe.
+     Doslej jih theme.css NI imel, zato jih je vsaka stran definirala
+     zase - prav taka podvojitev je povzročila, da se je --ok razšel
+     (#4C8C63 po straneh proti #4F9B6B tu). Zdaj so na enem mestu. */
+  --ok-bg: #EAF3EC;
+  --danger-bg: #FBEAE6;
+  --cool: #4A67B0;
+  /* Rumena za "izračunano, a še ne potrjeno" - predlogi nadomeščanja v
+     generatorju. Ista barva kot "omejitev" v uradnih predlogah NZV. */
+  --predlog: #FFD966;
+  --predlog-rgb: 255,217,102;
 
   /* --- merski sistem --- */
   --radius-sm: 10px;
@@ -76,18 +93,18 @@ body{
   padding-bottom: env(safe-area-inset-bottom);
 }
 /* ENA SAMA lestvica širin vsebine za vso aplikacijo. Strani je ne
-   prepisujejo več — prej je vsaka nosila svojo številko (640/720/780/820,
+   prepisujejo več – prej je vsaka nosila svojo številko (640/720/780/820,
    "wide" pa 1040 proti 1320 proti 1400), zato je bila ista aplikacija na
    namizju vsakič drugače široka. Tri stopnje pokrijejo vse primere:
-     .wrap        — branje, obrazci, nastavitve
-     .wrap.wide   — seznami in razpredelnice
-     .wrap.polna  — mreže, ki potrebujejo vso širino (mesečna razpredelnica
+     .wrap        – branje, obrazci, nastavitve
+     .wrap.wide   – seznami in razpredelnice
+     .wrap.polna  – mreže, ki potrebujejo vso širino (mesečna razpredelnica
                     z 31 stolpci, razpored po oddelkih) */
 .wrap{ max-width: 640px; margin: 0 auto; padding: 0 16px 40px; }
 
 /* ------------------------------------------------------------------
    Skupni gradniki strani (.card, .sub, .field, h2.section, p.hint,
-   .submitBtn) so definirani NIŽE v tej datoteki — tam, kjer je
+   .submitBtn) so definirani NIŽE v tej datoteki – tam, kjer je
    oblikovni sistem. Strani svojih kopij nimajo več: prej jih je vsaka
    nosila po svoje (61 znakovno enakih podvojitev in 13 razredov, ki so
    se razhajali), zato je bila ista kartica drugje drugačna.
@@ -97,7 +114,7 @@ a, button, input, select, textarea{ font-family: inherit; }
 :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 ::selection{ background: rgba(var(--accent-rgb),.30); }
 
-/* scrollbar (webkit) — tanek, v barvah sheme */
+/* scrollbar (webkit) – tanek, v barvah sheme */
 *::-webkit-scrollbar{ height:8px; width:8px; }
 *::-webkit-scrollbar-track{ background:transparent; }
 *::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 999px; }
@@ -437,7 +454,7 @@ footer.foot b{ color: var(--text); }
    izkoristijo prostor) se na širših zaslonih razširijo prek "wide" razreda,
    ki ga stran doda na svoj .wrap. Dve ravni: 900px (isti prag kot vrh-nav
    v nav.js) in 1400px+ za res velike monitorje. Prijavne strani (login,
-   reset-geslo) namenoma NE uporabljajo "wide" — kratek obrazec naj ostane
+   reset-geslo) namenoma NE uporabljajo "wide" – kratek obrazec naj ostane
    ozek in berljiv ne glede na širino zaslona. */
 @media (min-width: 640px){
   /* Tablica: razpredelnice dobijo nekaj več od bralne širine, še preden
@@ -455,7 +472,7 @@ footer.foot b{ color: var(--text); }
 /* ============================================================
    Poravnava obstoječih, na posamezni strani "domačih" imen
    razredov (nastala, ker je bila vsaka stran zgrajena posebej)
-   na en sam, dosleden vizualni jezik — brez spreminjanja JSX,
+   na en sam, dosleden vizualni jezik – brez spreminjanja JSX,
    torej brez tveganja za obstoječo funkcionalnost.
    ============================================================ */
 
@@ -573,7 +590,7 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 .logo{ height:46px; width:auto; display:block; margin:0 auto 14px; filter: drop-shadow(var(--shadow-sm)); }
 
 /* ============================================================
-   PRENOVA UI/UX — skupni kartični gradniki
+   PRENOVA UI/UX – skupni kartični gradniki
    Uporabljajo jih vsi moduli (Generator, Razpored, Menjava,
    Imenik, Statistika, Želje). Barvna paleta ostaja nespremenjena
    (olivno zelena + topli bež), spremeni se samo postavitev:

@@ -2,11 +2,11 @@
 /* Preizkus izbrisa zaposlenega na PRAVI bazi PostgreSQL.
  *
  * Zakaj tak preizkus obstaja: izbris osebe se je v razvoju trikrat zalomil
- * na način, ki ga z branjem kode ni bilo videti —
+ * na način, ki ga z branjem kode ni bilo videti –
  *   1. supabase/schema.sql ni znal postaviti delujoče baze (manjkal je
  *      stolpec schedule_entries.created_at, ki ga sprožilec nastavlja),
  *   2. sprožilci dnevnika ob izbrisu SAMI zapišejo novo vrstico z imenom
- *      izbrisane osebe — čiščenje dnevnika pred izbrisom torej ne zaleže,
+ *      izbrisane osebe – čiščenje dnevnika pred izbrisom torej ne zaleže,
  *   3. sprožilec schedule_entries_touch je izbrisanega avtorja vrnil nazaj
  *      in v vrstici pustil povezavo na profil, ki ne obstaja več.
  * Vsakega od teh treh pokaže samo pravi zagon proti pravi bazi.
@@ -48,7 +48,7 @@ function psql(sql, { baza = BAZA } = {}) {
 try {
   pg("psql -At -c 'select 1'", { tiho: true });
 } catch {
-  console.log("PostgreSQL ni na voljo — preizkus preskočen.");
+  console.log("PostgreSQL ni na voljo – preizkus preskočen.");
   process.exit(0);
 }
 
@@ -136,7 +136,7 @@ try {
   trdi(false, "UPDATE na schedule_entries uspe: " + String(e.stderr || e).slice(0, 200));
 }
 
-// Avtorstvo nastavimo z izklopljenimi sprožilci — sprožilec ga ob rednem
+// Avtorstvo nastavimo z izklopljenimi sprožilci – sprožilec ga ob rednem
 // pisanju prepiše z auth.uid() (v tem preizkusu prazno), zato preizkus brez
 // tega sploh ne bi preveril povezave, ki izbris ustavi.
 psql(`
@@ -146,7 +146,7 @@ update public.schedule_entries set created_by = '${ODHAJA_A}', updated_by = '${O
 set session_replication_role = origin;
 `);
 
-console.log("3) skripta za izbris — vsak ukaz v svoji seji");
+console.log("3) skripta za izbris – vsak ukaz v svoji seji");
 const brezKomentarjev = readFileSync(join(DELO, "izbris.sql"), "utf8")
   .split("\n").filter(v => !v.trim().startsWith("--")).join("\n");
 const ukazi = brezKomentarjev.split(";").map(u => u.trim()).filter(Boolean);
@@ -195,5 +195,5 @@ trdi(vrednost(`select count(*) from public.profiles where vodja_id = '${ODHAJA_A
 
 pg(`dropdb --if-exists ${BAZA}`);
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

@@ -16,7 +16,7 @@
 -- OPOMBA o generiranju žetona: uporabljamo dva gen_random_uuid() brez
 -- pomišljajev (2 x 32 = 64 šestnajstiških znakov), NE encode(gen_random_bytes...).
 -- gen_random_bytes prihaja iz razširitve pgcrypto, ta pa v Supabase ni v shemi
--- "public" ampak v "extensions" — ob "set search_path = public, pg_temp" je
+-- "public" ampak v "extensions" – ob "set search_path = public, pg_temp" je
 -- torej nedosegljiva in klic odpove z "function gen_random_bytes(integer) does
 -- not exist". gen_random_uuid() je od PostgreSQL 13 del jedra, zato deluje
 -- povsod in brez razširitev. Naključnost ostaja kriptografska (2 x 122 bita).
@@ -70,7 +70,7 @@ begin
 end;
 $$;
 
--- Zamenja žeton — prejšnja povezava takoj preneha delovati (za primer,
+-- Zamenja žeton – prejšnja povezava takoj preneha delovati (za primer,
 -- ko je bila povezava pomotoma deljena).
 create or replace function public.koledar_token_ponastavi()
 returns text

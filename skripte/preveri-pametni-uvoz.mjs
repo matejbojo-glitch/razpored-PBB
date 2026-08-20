@@ -63,7 +63,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const koda = [
@@ -78,6 +78,10 @@ const koda = [
   "var monthRange = window.Datum.obseg;",
   constVKotVar(izvleciConst("PO_ODDELKIH_KODE")),
   izvleci("najdiVrsticoImen"),
+  // NZV_ENOTE/NZV_STOLPCI zdaj kažeta na skupni nzv-zasedba.js (prej sta
+  // bila zapisana v index.html), zato mora biti modul naložen PRED njima.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst("NZV_ENOTE")),
   izvleci("nzvNazivVKodo"),
   izvleci("poisciEnoteNzv"),
@@ -98,10 +102,12 @@ const koda = [
   izvleci("zdruziPoKljucu"),
 ].join("\n\n");
 
-const sandbox = {
-  window: { ImportUtils: { normalizirajDatum: normalizirajDatum } },
-  console,
-};
+// "window" mora kazati na sam sandbox, ker skupni moduli (imena.js,
+// nzv-zasedba.js) nanj obesijo svoje objekte. Vsebina prejšnjega
+// nadomestka (ImportUtils) se zato prestavi naravnost v sandbox.
+const sandbox = { console };
+sandbox.window = sandbox;
+sandbox.ImportUtils = { normalizirajDatum: normalizirajDatum };
 function normalizirajDatum(s) {
   const t = (s || "").toString().trim();
   if (!t) return "";
@@ -223,5 +229,5 @@ console.log("6) resnični scenarij, ki je javil Postgres napako: ista oseba, ist
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

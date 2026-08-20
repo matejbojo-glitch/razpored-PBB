@@ -82,6 +82,10 @@ const indexKoda = [
   // naredi index.html.
   readFileSync(join(koren, "datum.js"), "utf8"),
   "var monthRange = window.Datum.obseg;",
+  // NZV_ENOTE/NZV_STOLPCI zdaj kažeta na skupni nzv-zasedba.js (prej sta
+  // bila zapisana v index.html), zato mora biti modul naložen PRED njima.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ENOTE")),
   izvleciFn(htmlSrc, "nzvNazivVKodo"),
   izvleciFn(htmlSrc, "poisciEnoteNzv"),
@@ -124,7 +128,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 // Zgradi PRAVO .xlsx celico z znano "pokvarjeno" serijsko številko (ista
@@ -200,5 +204,5 @@ console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih 
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

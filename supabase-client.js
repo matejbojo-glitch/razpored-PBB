@@ -1,4 +1,4 @@
-/* Razpored PBB — supabase-client.js
+/* Razpored PBB – supabase-client.js
  * Init Supabase odjemalca + skupni auth/vloge helperji za vse strani.
  * Nima builda: nalaga se kot navaden <script>, po supabase-js.min.js.
  */
@@ -15,9 +15,9 @@
   var ROLE_LABEL = { admin: "Administrator", vodja: "Vodja ekipe", user: "Zaposleni" };
 
   // ------------------------------------------------------------------
-  // "Prijavi se kot" (ogled kot izbran uporabnik) — SAMO za administratorje.
+  // "Prijavi se kot" (ogled kot izbran uporabnik) – SAMO za administratorje.
   // To NI prava zamenjava Supabase seje (za to bi potreboval service_role
-  // ključ na strežniku, ki ga to brez-strežniško postavljanje varno nima) —
+  // ključ na strežniku, ki ga to brez-strežniško postavljanje varno nima) –
   // prava avtentikacija ostane administratorjeva, samo profil/"jaz" se
   // med ogledom lokalno preslika na ciljno osebo, zato vsaka stran (ki
   // kliče requireAuth/requireRole) samodejno prikaže pogled/vloge/pravice
@@ -58,7 +58,7 @@
     return { session: session, profile: profile, ogled: false };
   }
 
-  // target: { id, full_name, email }. Klicatelj mora biti admin — preveri
+  // target: { id, full_name, email }. Klicatelj mora biti admin – preveri
   // se tu (sveži profil iz baze), ne samo v UI, ker gre za varnostno
   // občutljivo funkcijo.
   async function zacniOgled(target) {
@@ -76,7 +76,7 @@
     if (prejsnji && prejsnji.logId) {
       try {
         await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", prejsnji.logId);
-      } catch (e) { /* ni usodno — nov ogled se vseeno zabeleži spodaj */ }
+      } catch (e) { /* ni usodno – nov ogled se vseeno zabeleži spodaj */ }
     }
     var { data: vrstica, error } = await client
       .from("admin_view_as_log")
@@ -97,7 +97,7 @@
     if (ogled && ogled.logId) {
       try {
         await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId);
-      } catch (e) { /* ni usodno — sessionStorage je vseeno počiščen */ }
+      } catch (e) { /* ni usodno – sessionStorage je vseeno počiščen */ }
     }
     location.href = "index.html";
   }
@@ -111,7 +111,7 @@
       return null;
     }
     // Računi, ustvarjeni prek skripte/uvoz-racunov.mjs --test, dobijo znano
-    // (fiksno ali naključno, a adminu vidno) začetno geslo — must_change_password
+    // (fiksno ali naključno, a adminu vidno) začetno geslo – must_change_password
     // v user_metadata prisili spremembo na reset-geslo.html, preden lahko
     // oseba uporablja karkoli drugega. Zastavica se počisti tam ob uspešni
     // spremembi gesla (client.auth.updateUser z data.must_change_password:false).

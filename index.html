@@ -14,6 +14,12 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="icon" href="icon-192.png" />
 <link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
 
 <style>
   /* Stran-specifično za index.html: samo tisk v PDF na točno 1 stran
@@ -43,7 +49,7 @@
      spremenjena OB MERJENJU, ne šele med dejanskim tiskanjem. */
   #printMy.pdfCols .weeksGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
 
-  /* "Po oddelkih" — tabela postavljena kot uradna predloga "2026 SMS
+  /* "Po oddelkih" – tabela postavljena kot uradna predloga "2026 SMS
      RAZPORED": dnevi v vrsticah (stolpec "Dan" je zdaj samo datum, ne ime
      osebe), osebe v stolpcih glave. Vikend obarva celo vrstico (kot v
      predlogi), ne posamezne celice; lastni stolpec (bralec sam) je rahlo
@@ -124,7 +130,7 @@
   html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
 
-  /* NZV — dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
+  /* NZV – dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
      uradni predlogi "Letni dopusti in omejitve za NZV". Manjše pisave, ker
      je stolpcev veliko (17 enot + Dežurstvo); celica prikaže polno ime
      osebe, ki to enoto ta dan pokriva (ne ročno kodirane kratice iz
@@ -151,7 +157,7 @@
   }
   .saNastavitve .napaka{ color:var(--danger); flex-basis:100%; }
   @media print{ .saNastavitve{ display:none; } }
-  table.wardTableNzv th.dez, table.wardTableNzv td.dez{ background: rgba(179,64,42,.07); font-weight:700; }
+  table.wardTableNzv th.dez, table.wardTableNzv td.dez{ background: rgba(var(--danger-rgb),.07); font-weight:700; }
   table.wardTableNzv tbody tr.weekend td{ background: rgba(201,113,63,.08); }
   @media (min-width:900px), (orientation: landscape){
     table.wardTableNzv{ width:100%; table-layout:fixed; }
@@ -221,7 +227,7 @@ function priimekZacetnica(fullName){
 // sicer groba samodejna privzeta vrednost (prve 3 črke priimka), ki jo
 // admin lahko ročno popravi, če se dve osebi ujemata.
 // PREDPOSTAVKA: full_name je zapisan kot "Priimek Ime" (tako je povsod v
-// aplikaciji), zato je priimek VSE RAZEN zadnje besede — s tem so zajeti
+// aplikaciji), zato je priimek VSE RAZEN zadnje besede – s tem so zajeti
 // tudi dvobesedni priimki ("Mavri Tratnik Magdalena" -> "MAV"). Dokler so
 // bili nekateri zapisani obratno, je ta funkcija zanje vračala prve tri
 // črke OSEBNEGA imena ("Aldin Gazibara" -> "ALD" namesto "GAZ").
@@ -233,7 +239,7 @@ function priimekZacetnica(fullName){
 const PARAFA_PRESTOP = window.Parafa.PRESTOP;
 function autoParafa(fullName){ return window.Parafa.auto(fullName); }
 function parafaOd(profil, datum){ return window.Parafa.zaDatum(profil, datum); }
-// Prikaz ur izmene pride iz skupnega delovni-cas.js (edini vir resnice) —
+// Prikaz ur izmene pride iz skupnega delovni-cas.js (edini vir resnice) –
 // prej je bila ista tabela zapisana še enkrat tu in še enkrat v admin.html.
 const DELOVNI_ČAS = Object.fromEntries(
   Object.entries(window.DelovniCas.IZMENE)
@@ -345,7 +351,7 @@ function currentMonthStr(){
 const monthRange = window.Datum.obseg;
 const daysInRange = window.Datum.dnevi;
 
-// Delovnik NZV (vodje/administratorji) — pravilo, ki ga je uporabnik
+// Delovnik NZV (vodje/administratorji) – pravilo, ki ga je uporabnik
 // večkrat izrecno ponovil in ga prikaz doslej ni upošteval:
 //
 //   * redni delovnik je od PONEDELJKA DO PETKA;
@@ -728,13 +734,13 @@ function MenjaveVMesecu({ month }){
     return () => { cancelled = true; };
   }, [startISO, endISO]);
 
-  const dan = (iso) => window.Datum.slo(iso) || "—";
+  const dan = (iso) => window.Datum.slo(iso) || "–";
 
   return (
     <div className="no-print" style={{marginTop:24}}>
       <h2 className="section">Menjave v tem mesecu</h2>
       <p className="hint" style={{marginTop:0}}>
-        Potrjena menjava je v razporedu zgoraj že upoštevana — izmeni se zamenjata samodejno ob potrditvi koordinatorja.
+        Potrjena menjava je v razporedu zgoraj že upoštevana – izmeni se zamenjata samodejno ob potrditvi koordinatorja.
       </p>
       {vrstice === null && <p className="sub">Nalagam …</p>}
       {vrstice !== null && vrstice.length === 0 && <p className="sub">V tem mesecu ni nobene menjave.</p>}
@@ -889,7 +895,7 @@ function WardView({ deptCode, month, myId }){
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
                         {/* Prej je bilo tu vedno kvečjemu 3 znake ("dop", "NOČ") in vsaka
-                            "off" celica (KPU ALI resnično prazna) je pokazala isti "–" —
+                            "off" celica (KPU ALI resnično prazna) je pokazala isti "–" –
                             KPU se torej ni dalo ločiti od praznega dneva. Zdaj: prazna
                             celica ne izriše ničesar (kot v uradni predlogi "2026 SMS
                             RAZPORED"), vsaka druga pokaže celotno kodo. */}
@@ -928,11 +934,11 @@ function WardView({ deptCode, month, myId }){
 // vedno lahko ena od teh starih kod - glej supabase/schema.sql sekcija 23,
 // namenoma niso izbrisane iz departments prav zaradi te uporabe). Ločeno
 // od WardView, ker gre za popolnoma drugačno obliko (enote, ne osebe).
-const NZV_ENOTE = [
-  ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
-  ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
-  ["URGENCA", "URGENCA"], ["U2", "U2"],
-];
+// Seznam enot je v skupnem nzv-zasedba.js, ker ga poleg tega prikaza
+// potrebuje tudi generator (admin.html). Prej je bil samo tu in generator
+// je zato delal po SVOJIH stolpcih - ena od stvari, zaradi katerih sta se
+// prikaz in kreiranje razporeda razšla.
+const NZV_ENOTE = window.NzvZasedba.ENOTE;
 // "SA" nima nobenega samodejnega generatorja (za razliko od ostalih enot) -
 // v uradni predlogi je razdeljena na dva stolpca (dopoldan/popoldan), zato
 // tu isto razdelimo po vsebini shift_code (glej razvrstiSA spodaj), namesto
@@ -947,17 +953,13 @@ function razvrstiSA(sifra){
 // zato tu sestavimo pravi prikazni vrstni red ločeno od NZV_ENOTE (ki ostaja
 // nespremenjen, ker ga poizvedba in uvoz uporabljata brez odvisnosti od
 // vrstnega reda stolpcev).
-const NZV_STOLPCI = (() => {
-  const brezUrgence = NZV_ENOTE.filter(([k]) => k !== "URGENCA" && k !== "U2");
-  const urgencaU2 = NZV_ENOTE.filter(([k]) => k === "URGENCA" || k === "U2");
-  return [...brezUrgence, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"], ...urgencaU2];
-})();
+const NZV_STOLPCI = window.NzvZasedba.STOLPCI;
 // Zadnji trije stolpci uradne predloge ("LD", "IZOB", "BS") niso enote, ampak
 // POVZETEK odsotnosti tega dne (glej leave_entries.kind) - kdo je ta dan na
 // letnem dopustu / strokovnem izobraževanju / bolniški. Isti vir kot Želje →
 // Razpredelnica (zelje.html), tu prikazan skupaj s končnim razporedom, ker
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
-const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+const NZV_KIND_KODA = window.NzvZasedba.KIND_KODA;
 
 // Kdo sodi v NZV razpored, je v nzv-zasedba.js - isti nabor potrebuje
 // tudi Imenik -> Razpredelnica, zato en sam vir.
@@ -1153,7 +1155,7 @@ function SaNastavitveUrejanje({ saNast, naShranjeno }){
       // Tabele še ni -> administrator mora pognati SQL. Povemo katerega.
       const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
       setNapaka(manjkaTabela
-        ? "Tabele nzv_nastavitve še ni — v Supabase poženi supabase/nzv-nastavitve.sql."
+        ? "Tabele nzv_nastavitve še ni – v Supabase poženi supabase/nzv-nastavitve.sql."
         : (error.message || "Shranjevanje ni uspelo."));
       return;
     }
@@ -1244,13 +1246,13 @@ function NzvView({ month, profile }){
       <InfoToggle>
         Celice prikazujejo parafe (Imenik → admin lahko nastavi natančno parafo osebe; brez nastavitve aplikacija
         sama izpelje grobo privzeto iz priimka). Enote/Dežurstvo prikazujejo, kdo pokriva katero enoto posamezen dan
-        — iz objavljenega razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). LD/IZOB/BS prikazujejo
-        odsotnosti (letni dopust/strokovno izobraževanje/bolniška) iz Želje → Razpredelnica za ta dan — to so
+        – iz objavljenega razporeda (Generator → NZV → Vodstvena pokritost/Dežurstva). LD/IZOB/BS prikazujejo
+        odsotnosti (letni dopust/strokovno izobraževanje/bolniška) iz Želje → Razpredelnica za ta dan – to so
         omejitve, ki jih generator upošteva pri sestavi razporeda, tu prikazane skupaj s končnim razporedom za
         pregled na enem mestu. <b>Bledeje</b> zapisana parafa ni objavljen vnos, ampak izpeljana stalna zasedba:
         nosilec enote (Imenik → Razpredelnica → Nadomeščanja) je na svoji enoti vsak delovni dan, ob njegovi
         odsotnosti pa je prikazan njegov nadomeščevalec. Objavljen razpored ima vedno prednost pred izpeljavo.
-        Stolpca <b>SA DOP</b> in <b>SA POP</b> se izmenjujeta tedensko (v poletnih mesecih je SA samo dopoldne) —
+        Stolpca <b>SA DOP</b> in <b>SA POP</b> se izmenjujeta tedensko (v poletnih mesecih je SA samo dopoldne) –
         administrator pravilo popravi v vrstici nad mrežo. <b>URGENCA 2 (U2)</b> nima samodejnega pravila: kdo je
         tam, določi administrator z objavo razporeda (uvoz iz Google Sheets, stolpec »U2«).
         Prazna celica pomeni, da enota nima nosilca in za ta dan ni objavljenega vnosa.
@@ -1312,7 +1314,7 @@ function DezurstvaZdravnikiTabela({ month }){
 
   return (
     <div style={{marginTop:20}}>
-      <h3 className="section" style={{marginBottom:6}}>Dežurstva — urgenca in NZV</h3>
+      <h3 className="section" style={{marginBottom:6}}>Dežurstva – urgenca in NZV</h3>
       <p className="hint" style={{marginTop:0}}>
         Iz uradnega dokumenta <i>Razporeditev zaposlenih v urgentno ambulanto in neprekinjeno zdravstveno varstvo</i>.
         Ob vikendih urgentne ambulante ni, zato je tisti stolpec prazen.
@@ -1372,7 +1374,7 @@ function preberiUvozIzNaslova(search){
 }
 
 // ---------------------------------------------------------------------
-// Uvoz iz Google Sheets (admin) — javna povezava ("vsak s povezavo lahko
+// Uvoz iz Google Sheets (admin) – javna povezava ("vsak s povezavo lahko
 // ogleda"), brez OAuth, isti mehanizem kot imenik.html (ImportUtils.
 // preberiGoogleSheet). Namenoma ISTA oblika, ki jo ta stran tudi izvozi
 // (glava "Datum, Dan, ..."), da je krog izvozi→uredi v Sheets→uvozi
@@ -1517,7 +1519,7 @@ function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obde
 }
 
 async function uvoziMojRazpored(url, myId, deptCode, ciljniMesec){
-  if (!deptCode) throw new Error("Nimaš nastavljenega oddelka v profilu (Imenik) — uvoz zahteva primarni oddelek.");
+  if (!deptCode) throw new Error("Nimaš nastavljenega oddelka v profilu (Imenik) – uvoz zahteva primarni oddelek.");
   const { startISO, endISO } = monthRange(ciljniMesec);
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["datum", "dan", "izmena"], ["datum"]);
@@ -1684,9 +1686,9 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
   const { zapisi, neujemanja, najdenDatum, najdenaGlava } = zapisiRes;
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   if (!zapisi.length) {
-    if (!najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK — v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
+    if (!najdenDatum) throw new Error(`Ni najdenih vrstic za ${MESECI[Number(ciljniMesec.split("-")[1]) - 1]} ${ciljniMesec.split("-")[0]} v tej datoteki/zavihku. Najverjetnejši vzrok: povezava kaže na NAPAČEN ZAVIHEK – v Google Sheets klikni zavihek za ta oddelek (dno zaslona) in šele PO TEM kopiraj naslov iz naslovne vrstice (mora vsebovati "#gid=..."); sicer se vedno uvozi prvi zavihek v dokumentu.`);
     if (!najdenaGlava) throw new Error("Najdene vrstice za izbrani mesec, a nad njimi ni najti vrstice z imeni oseb.");
-    throw new Error(`Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: ${[...neujemanja].join(", ")}. Če so imena videti pravilna, je verjetno kriv napačen zavihek (glej zgoraj) — preveri, da povezava kaže na zavihek TEGA oddelka.`);
+    throw new Error(`Najdene vrstice za izbrani mesec, a nobeno ime se ni ujemalo z osebo v aplikaciji: ${[...neujemanja].join(", ")}. Če so imena videti pravilna, je verjetno kriv napačen zavihek (glej zgoraj) – preveri, da povezava kaže na zavihek TEGA oddelka.`);
   }
   opozoriloPokrivaOddelek = null;
   await shraniZapiseRazporeda(zapisi);
@@ -1695,7 +1697,7 @@ async function uvoziOddelek(url, wardCode, ciljniMesec){
 }
 
 // ---------------------------------------------------------------------
-// Pisanje NAZAJ v Google Sheets — samo za oddelčne zavihke (kot uvoziOddelek
+// Pisanje NAZAJ v Google Sheets – samo za oddelčne zavihke (kot uvoziOddelek
 // zgoraj), ne za "Moj razpored"/NZV (drugačna oblika, glej "kasneje" v
 // pogovoru z uporabnikom). Piše SAMO v celice, ki jih uvoziOddelek tudi
 // prebere - iste (vrstica, stolpec) koordinate, izračunane z isto logiko
@@ -1744,7 +1746,7 @@ function pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDa
 
 async function zapisiOddelekVSheets(url, wardCode, ciljniMesec){
   if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
-    throw new Error("Pisanje v Google Sheets še ni nastavljeno — manjka Google Client ID (glej GSHEETS-SETUP.md).");
+    throw new Error("Pisanje v Google Sheets še ni nastavljeno – manjka Google Client ID (glej GSHEETS-SETUP.md).");
   }
   const { startISO, endISO } = monthRange(ciljniMesec);
   const [{ data: employees }, { data: entries }] = await Promise.all([
@@ -2127,7 +2129,7 @@ function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
 
 async function zapisiNzvVSheets(url, ciljniMesec){
   if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
-    throw new Error("Pisanje v Google Sheets še ni nastavljeno — manjka Google Client ID (glej GSHEETS-SETUP.md).");
+    throw new Error("Pisanje v Google Sheets še ni nastavljeno – manjka Google Client ID (glej GSHEETS-SETUP.md).");
   }
   const { startISO, endISO } = monthRange(ciljniMesec);
   const { podatki } = await nalozizPodatkeNzv(startISO, endISO);
@@ -2151,7 +2153,7 @@ function kljucUvoza(kontekst){ return "razpored-uvoz-url-" + (kontekst || "my");
 
 // Odpiranje NI notranje stanje te komponente: sprožilna ikona živi v
 // fiksni vrstici ikon zgoraj desno (RazporedLogout "pred"), sama pa mora
-// ostati zunaj nje, ker je ta vrstica z-index kontekst — modalno okno v
+// ostati zunaj nje, ker je ta vrstica z-index kontekst – modalno okno v
 // njej bi se stackalo skupaj z njo. Zato "odprto"/"naZapri" prideta od
 // strani, tu pa se izriše samo okno.
 function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZapri }){
@@ -2268,10 +2270,10 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           </div>
 
           <p className="hint" style={{marginTop:0, marginBottom:6}}>
-            <b>Najlažje:</b> naloži Excel izvoz razporeda (.xlsx) — lahko cel delovni zvezek z več zavihki (npr. cel
+            <b>Najlažje:</b> naloži Excel izvoz razporeda (.xlsx) – lahko cel delovni zvezek z več zavihki (npr. cel
             dokument "2026 SMS RAZPORED"). Aplikacija sama prepozna, kateri zavihek je kateri oddelek/mesec, in
             uvozi vse naenkrat, ne glede na to, kateri oddelek je trenutno izbran zgoraj. Datoteko lahko naložiš
-            tudi večkrat zapored (nova različica, naslednji mesec …) — vsak nov uvoz samo prepiše/dopolni obstoječe
+            tudi večkrat zapored (nova različica, naslednji mesec …) – vsak nov uvoz samo prepiše/dopolni obstoječe
             vpise, nič se ne podvoji.
           </p>
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
@@ -2282,7 +2284,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           </div>
 
           <p className="hint" style={{marginTop:0, marginBottom:6}}>
-            Ločeno: uradni mesečni PDF "Razporeditev zaposlenih v UA in DEŽ" — vpiše, kateri zdravnik je dežuren
+            Ločeno: uradni mesečni PDF "Razporeditev zaposlenih v UA in DEŽ" – vpiše, kateri zdravnik je dežuren
             (Urgenca ZDR/Dežurstvo ZDR), da se to imenu prikaže poleg dežurstva v "Moj razpored". Ni vezano na
             izbrani oddelek zgoraj.
           </p>
@@ -2354,7 +2356,7 @@ function InfoToggle({ children }){
 // Zakaj sploh: potisna obvestila na iPhonu delujejo IZKLJUČNO, če je
 // aplikacija dodana na domači zaslon in odprta od tam. Safari dogodka
 // "beforeinstallprompt" nikoli ne sproži, zato uporabnik iPhona brez tega
-// ne dobi nobenega namiga — obvestil preprosto ne bo, brez napake in brez
+// ne dobi nobenega namiga – obvestil preprosto ne bo, brez napake in brez
 // pojasnila. Ob uvedbi za celotno ekipo bi to pomenilo, da bi velik del
 // mislil, da obveščanje ne dela, čeprav dela.
 //
@@ -2427,7 +2429,7 @@ function Uvod({ myId, deferredPrompt, naNamesti }){
               <div className="uvodOpis">
                 V Safariju pritisni <b>Deli</b> (kvadratek s puščico navzgor) → <b>Dodaj na začetni zaslon</b> →
                 <b> Dodaj</b>. Nato aplikacijo odpri s te ikone.
-                <div style={{marginTop:4}}>Na iPhonu je to <b>nujno</b> — brez tega obvestila ne delujejo.</div>
+                <div style={{marginTop:4}}>Na iPhonu je to <b>nujno</b> – brez tega obvestila ne delujejo.</div>
               </div>
             ) : (
               <div className="uvodOpis">Odpira se kot samostojna aplikacija, brez brskalnika.</div>
@@ -2495,7 +2497,7 @@ function App(){
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
   // Uvozno okno odpira ikona 📥 v fiksni vrstici zgoraj desno (poleg ⚙ in
-  // 🚪), samo okno pa se izriše niže — zato stanje živi tu, med obema.
+  // 🚪), samo okno pa se izriše niže – zato stanje živi tu, med obema.
   const [uvozOdprt, setUvozOdprt] = useState(!!zacetniUvoz);
   // Ko je uvozno okno enkrat odprto prek ?uvoz=1, parametre pobrišemo iz
   // naslova - sicer bi se okno znova odprlo ob vsakem osveževanju strani
@@ -2572,7 +2574,7 @@ function App(){
       const imenaPoKodi = {};
       (data || []).forEach(d => { imenaPoKodi[d.code] = d.name; });
       const seznam = PO_ODDELKIH_KODE.map(k => ({ code: k, name: imenaPoKodi[k] || k }));
-      seznam.push({ code: "NZV", name: "NZV — vodje, administratorji (+ dežurstva)" });
+      seznam.push({ code: "NZV", name: "NZV – vodje, administratorji (+ dežurstva)" });
       setDepts(seznam);
     });
   }, []);
@@ -2596,7 +2598,7 @@ function App(){
     setDeferredPrompt(null);
   };
 
-  // Excel/Google Sheets izvoz — kliče ga kompaktni ikonski meni ob polju
+  // Excel/Google Sheets izvoz – kliče ga kompaktni ikonski meni ob polju
   // Mesec (glej RazporedIzvoz compact spodaj). PDF izvoz (PrintFit) dela
   // neposredno nad izrisano tabelo/kartico, tu pa gre za surove podatke
   // (glave+vrstice), zato ju je treba znova prebrati - isti poizvedbi kot
@@ -2725,7 +2727,7 @@ function App(){
   // še naprej ločuje vloga, tako v vmesniku kot v RLS politikah.
 
   // Izvoz je ikona v isti fiksni vrstici kot uvoz/nastavitve/odjava, zato
-  // je element definiran tu in podan navzdol — prej je stal v vrstici z
+  // je element definiran tu in podan navzdol – prej je stal v vrstici z
   // izbirnikom meseca in ji jemal širino.
   const izvozniVir = (
         <RazporedIzvozVir
@@ -2776,7 +2778,7 @@ function App(){
         <RazporedUvozVir
           ikona="📗"
           naziv="Razpored iz Google Sheets"
-          opis={view === "ward" ? (wardCode === "NZV" ? "NZV" : "oddelek " + (wardCode || "—")) : "Moj razpored"}
+          opis={view === "ward" ? (wardCode === "NZV" ? "NZV" : "oddelek " + (wardCode || "–")) : "Moj razpored"}
           onClick={() => setUvozOdprt(true)}
         />
       )}
@@ -2857,7 +2859,7 @@ function App(){
       <Uvod myId={session.user.id} deferredPrompt={deferredPrompt} naNamesti={install} />
 
       <footer className="foot">
-        <p><b>Razpored PBB</b> — prijavljen dostop. Za spremembe ali zamenjave uporabi "Menjava" spodaj.</p>
+        <p><b>Razpored PBB</b> – prijavljen dostop. Za spremembe ali zamenjave uporabi »Menjava« spodaj.</p>
         <p>Razpored temelji na osnovnem kalupu; dejanske spremembe (bolniška, odobrene menjave) se odražajo sproti. Preverite tudi na oglasni deski oddelka.</p>
       </footer>
 

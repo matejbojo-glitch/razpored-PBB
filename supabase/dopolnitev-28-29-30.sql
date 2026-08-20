@@ -1,5 +1,5 @@
 -- =====================================================================
--- Razpored PBB — DOPOLNITEV SHEME (sekcije 28, 29, 30)
+-- Razpored PBB – DOPOLNITEV SHEME (sekcije 28, 29, 30)
 --
 -- Kaj doda:
 --   28) Revizijska sled sprememb PRAVIC (kdo je komu dal/vzel dostop)
@@ -14,21 +14,21 @@
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 28) profiles_log — revizijska sled SPREMEMB PRAVIC (RBAC audit).
+-- 28) profiles_log – revizijska sled SPREMEMB PRAVIC (RBAC audit).
 --
 --     Sekcija 26 zgoraj revidira razpored (kdo je komu spremenil izmeno).
 --     Kdo je komu podelil ali odvzel PRAVICE, pa doslej ni bilo nikjer
---     zabeleženo — administrator lahko v Generator → Uporabniki komurkoli
+--     zabeleženo – administrator lahko v Generator → Uporabniki komurkoli
 --     nastavi vlogo "admin", in po tem dejanju ni ostalo nobene sledi.
 --     Za "pravno skladnost in varnost podatkov" je to večja vrzel od
 --     revizije razporeda: brez nje ni mogoče odgovoriti na vprašanje
 --     "kdo je tej osebi omogočil dostop do kadrovskih podatkov in kdaj".
 --
 --     Beležijo se samo štiri polja, ki dejansko določajo pravice:
---       role            — admin / vodja / user
---       department_code — kateri oddelek vodja vidi in ureja
---       vodja_id        — komu je oseba podrejena (veriga odobritev)
---       is_koordinator  — enostopenjska odobritev menjav
+--       role            – admin / vodja / user
+--       department_code – kateri oddelek vodja vidi in ureja
+--       vodja_id        – komu je oseba podrejena (veriga odobritev)
+--       is_koordinator  – enostopenjska odobritev menjav
 --     Ostala polja (ime, e-pošta, parafa, naziv) niso varnostno
 --     relevantna in bi dnevnik samo napolnila.
 --
@@ -98,7 +98,7 @@ begin
     values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
   end if;
   if old.vodja_id is distinct from new.vodja_id then
-    -- Zapiše se IME vodje, ne uuid — dnevnik mora biti berljiv brez
+    -- Zapiše se IME vodje, ne uuid – dnevnik mora biti berljiv brez
     -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
     -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
     -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
@@ -126,22 +126,22 @@ create trigger profiles_audit
 -- 29) Živa koledarska naročnina (iCal subscription).
 --
 --     Doslej je bil izvoz .ics ENKRATEN prenos: kar si prenesel, je v
---     telefonu obtičalo takšno, kot je bilo — sprememba razporeda se v
+--     telefonu obtičalo takšno, kot je bilo – sprememba razporeda se v
 --     koledarju ni poznala. Tu se doda naslov, na katerega se koledar
 --     naroči in ga sam občasno osveži.
 --
 --     ZAKAJ LOČENA TABELA IN NE STOLPEC V profiles:
 --     politika profiles_select je "for select to authenticated using
---     (true)" — vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
+--     (true)" – vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
 --     žeton živel tam, bi vsak zaposleni videl žetone vseh sodelavcev in
 --     se lahko naročil na njihov razpored. Zato svoja tabela, kjer
 --     politika omeji branje na lastnika vrstice.
 --
 --     Žeton je nosilni podatek (kdor ga ima, vidi razpored te osebe brez
---     prijave — koledarski odjemalci se ne znajo prijaviti), zato:
+--     prijave – koledarski odjemalci se ne znajo prijaviti), zato:
 --       * 32 naključnih bajtov iz pgcrypto (ne uuid, ki je deloma
 --         predvidljiv in se ponekod izpisuje v naslovih),
---       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje —
+--       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje –
 --         admin razpored že vidi v aplikaciji,
 --       * zamenljiv z eno potezo (koledar_token_ponastavi), s čimer
 --         prejšnja povezava takoj neha delovati.
@@ -153,13 +153,13 @@ create table if not exists public.calendar_tokens (
   last_used_at timestamptz
 );
 -- Stikalo za vklop/izklop sinhronizacije. Ločeno od brisanja žetona:
--- izklop naj povezavo USTAVI, ne pa pozabi — kdor jo pozneje spet vklopi,
+-- izklop naj povezavo USTAVI, ne pa pozabi – kdor jo pozneje spet vklopi,
 -- naj mu ni treba znova urejati koledarja na telefonu. Ob izklopu vir
 -- vrne 404, enako kot pri neveljavnem žetonu.
 alter table public.calendar_tokens add column if not exists enabled boolean not null default true;
 
 alter table public.calendar_tokens enable row level security;
--- Samo lastnik. Brez insert/update/delete politik — vse gre prek
+-- Samo lastnik. Brez insert/update/delete politik – vse gre prek
 -- security definer funkcij spodaj.
 drop policy if exists calendar_tokens_own on public.calendar_tokens;
 create policy calendar_tokens_own on public.calendar_tokens
@@ -168,7 +168,7 @@ create policy calendar_tokens_own on public.calendar_tokens
 -- OPOMBA o generiranju žetona: uporabljamo dva gen_random_uuid() brez
 -- pomišljajev (2 x 32 = 64 šestnajstiških znakov), NE encode(gen_random_bytes...).
 -- gen_random_bytes prihaja iz razširitve pgcrypto, ta pa v Supabase ni v shemi
--- "public" ampak v "extensions" — ob "set search_path = public, pg_temp" je
+-- "public" ampak v "extensions" – ob "set search_path = public, pg_temp" je
 -- torej nedosegljiva in klic odpove z "function gen_random_bytes(integer) does
 -- not exist". gen_random_uuid() je od PostgreSQL 13 del jedra, zato deluje
 -- povsod in brez razširitev. Naključnost ostaja kriptografska (2 x 122 bita).
@@ -222,7 +222,7 @@ begin
 end;
 $$;
 
--- Zamenja žeton — prejšnja povezava takoj preneha delovati (za primer,
+-- Zamenja žeton – prejšnja povezava takoj preneha delovati (za primer,
 -- ko je bila povezava pomotoma deljena).
 create or replace function public.koledar_token_ponastavi()
 returns text
@@ -260,7 +260,7 @@ declare
   v_profile uuid;
 begin
   -- "and ct.enabled" pomeni, da izklopljena sinhronizacija izgleda
-  -- popolnoma enako kot neveljaven žeton — brez namiga, ali oseba obstaja.
+  -- popolnoma enako kot neveljaven žeton – brez namiga, ali oseba obstaja.
   select ct.profile_id into v_profile
   from public.calendar_tokens ct
   where ct.token = p_token and ct.enabled;
@@ -282,7 +282,7 @@ $$;
 revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
--- 30) notification_settings — kanali obveščanja po osebi.
+-- 30) notification_settings – kanali obveščanja po osebi.
 --
 --     Doslej je bilo obveščanje vse-ali-nič in vezano na NAPRAVO: potisna
 --     obvestila si vklopil na telefonu (push_subscriptions), drugih poti

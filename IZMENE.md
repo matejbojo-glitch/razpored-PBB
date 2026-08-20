@@ -1,6 +1,6 @@
 # Šifrant izmen
 
-Ure izmen so na **enem samem mestu** — `delovni-cas.js`. Od tam jih berejo
+Ure izmen so na **enem samem mestu** – `delovni-cas.js`. Od tam jih berejo
 razpored, obračun ur v zavihku Plače, preverjanje delovnopravnih pravil in
 koledarska naročnina, zato se prikaz in obračun ne moreta razíti.
 
@@ -14,10 +14,10 @@ koledarska naročnina, zato se prikaz in obračun ne moreta razíti.
 | `NOČNA12` | 17:50–06:00 | 12:10 | da |
 | `DNEVNA12` | 05:50–18:00 | 12:10 | ne |
 | `DNEVNA12F` | 07:00–19:00 | 12:00 | ne |
-| `DEŽURSTVO` | 15:30–07:00 | — | da |
+| `DEŽURSTVO` | 15:30–07:00 | – | da |
 
 Odsotnosti in prosto (`LD`, `KPU`, `BS`, `STI`, `POR`, `POMOČ DRUGJE`,
-prazno) niso delo — ne štejejo v ure niti v počitek med izmenama.
+prazno) niso delo – ne štejejo v ure niti v počitek med izmenama.
 
 ---
 
@@ -26,12 +26,12 @@ prazno) niso delo — ne štejejo v ure niti v počitek med izmenama.
 To je bil najdlje odprt razhod v podatkih, zato je zapisan tu:
 
 - **`DNEVNA12` (05:50–18:00)** je oddelčna. Začne se ob 05:50 in konča ob
-  18:00, ker ob 17:50 nastopi `NOČNA12` — enak vzorec 10-minutne predaje
+  18:00, ker ob 17:50 nastopi `NOČNA12` – enak vzorec 10-minutne predaje
   kot pri vseh ostalih oddelčnih izmenah. Dejansko traja **12 h 10 min**.
 - **`DNEVNA12F` (07:00–19:00)** je flexi (od tod „F"). Traja **točno 12 h**,
   brez predaje.
 
-Uradna legenda „Razpored delovnega časa — Služba za ZN in oskrbo" ju je
+Uradna legenda „Razpored delovnega časa – Služba za ZN in oskrbo" ju je
 navajala pod enim samim imenom „Dnevna 12" z urami **07:00–19:00**,
 aplikacija pa je uporabljala **05:50–18:00** in obračunavala 12,00 h.
 Od tod dolgotrajno neujemanje **12,00 : 12,17** v izvozu za plače.
@@ -51,7 +51,7 @@ preverjanja počitka.
 
 1. Popravi **samo** `delovni-cas.js`.
 2. `cp delovni-cas.js supabase/functions/_shared/`
-3. `node skripte/preveri-delovni-cas.mjs` — mora izpisati OK.
+3. `node skripte/preveri-delovni-cas.mjs` – mora izpisati OK.
 4. `supabase functions deploy koledar --no-verify-jwt`
 5. Dvigni verzijo predpomnilnika v `sw.js`, sicer zaposleni še naprej
    vidijo stare ure.
@@ -59,5 +59,5 @@ preverjanja počitka.
 Korak 2 ni podvajanje iz malomarnosti: `supabase functions deploy` naloži
 samo drevo `supabase/functions/`, zato robna funkcija ne more uvoziti
 datoteke iz korena repozitorija. Skripta iz koraka 3 javi razhajanje z
-izhodno kodo 1 — razhajanje bi pomenilo, da koledar kaže druge ure kot
+izhodno kodo 1 – razhajanje bi pomenilo, da koledar kaže druge ure kot
 aplikacija.

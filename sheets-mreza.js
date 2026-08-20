@@ -1,4 +1,4 @@
-// sheets-mreza.js — piše PREDOGLED (osnutek, še ne objavljen v Supabase) iz
+// sheets-mreza.js – piše PREDOGLED (osnutek, še ne objavljen v Supabase) iz
 // Admin → Kalup nazaj v obstoječi Google Sheets dokument, na iste koordinate,
 // ki jih index.html uporablja za že objavljen razpored (glej tam
 // pripraviPosodobitveOddelka/zapisiOddelekVSheets - ista logika iskanja

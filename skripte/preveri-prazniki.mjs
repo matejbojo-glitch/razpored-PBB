@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus prazniki.js — slovenski dela prosti dnevi in skupno pravilo
+/* Preizkus prazniki.js – slovenski dela prosti dnevi in skupno pravilo
  * "kdaj je za NZV prost dan".
  *
  * Ozadje: uporabnik je pravilo ponovil že večkrat ("delovnik od ponedeljka
@@ -30,7 +30,7 @@ function trdi(pogoj, opis) {
   console.log((pogoj ? "  ✓ " : "  ✗ ") + opis);
   if (!pogoj) napake.push(opis);
 }
-function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`)); }
+function eq(a, b, opis) { trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`)); }
 
 console.log("1) stalni dela prosti dnevi");
 {
@@ -47,9 +47,9 @@ console.log("2) premakljivi prazniki (velika noč se računa, ne prepisuje)");
   eq(P.naziv("2026-04-05"), "velikonočna nedelja", "2026");
   eq(P.naziv("2026-04-06"), "velikonočni ponedeljek", "2026");
   eq(P.naziv("2026-05-24"), "binkoštna nedelja", "2026 (49 dni po veliki noči)");
-  eq(P.naziv("2027-03-28"), "velikonočna nedelja", "2027 — drugo leto, drug datum");
+  eq(P.naziv("2027-03-28"), "velikonočna nedelja", "2027 – drugo leto, drug datum");
   eq(P.naziv("2027-03-29"), "velikonočni ponedeljek", "2027");
-  eq(P.naziv("2025-04-21"), "velikonočni ponedeljek", "2025 — nazaj v preteklost");
+  eq(P.naziv("2025-04-21"), "velikonočni ponedeljek", "2025 – nazaj v preteklost");
 }
 
 console.log("3) prazniki, ki dela NISO prosti, se NE štejejo");
@@ -110,7 +110,7 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(/window\.Prazniki\.jeDelaProstDan\(d\.work_date\)/.test(index),
     "mreža NZV: LD/IZOB/BS prav tako");
 
-  // c) Imenik -> Razpredelnica — tu je pravilo nazadnje manjkalo
+  // c) Imenik -> Razpredelnica – tu je pravilo nazadnje manjkalo
   trdi(/jeNzvOseba\[v\.employee_id\]\s*\n\s*&& window\.Prazniki\.jeDelaProstDan\(v\.work_date\)/.test(imenik),
     "Razpredelnica: izmene NZV se ob prostih dneh izpustijo");
   trdi(/jeNzvOseba\[id\] && window\.Prazniki\.jeDelaProstDan\(o\.work_date\)/.test(imenik),
@@ -118,7 +118,7 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(/stanjeIzKode\(v\.shift_code\) !== "dezurstvo"/.test(imenik),
     "Razpredelnica: DEŽURSTVO ob prostem dnevu OSTANE");
   trdi(/const JE_NZV_VLOGA = new Set\(window\.NzvZasedba\.VLOGE\);/.test(imenik),
-    "Razpredelnica ve, kdo je NZV — nabor vlog iz skupnega vira");
+    "Razpredelnica ve, kdo je NZV – nabor vlog iz skupnega vira");
   trdi(/select\("id, full_name, role, department_code"\)/.test(imenik),
     "in vlogo tudi res prebere (sicer bi bil filter vedno prazen)");
 
@@ -137,5 +137,5 @@ console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------
-// Razpored PBB — Edge Function "admin-uporabnik"
+// Razpored PBB – Edge Function "admin-uporabnik"
 //
 // Admin v Imeniku (imenik.html) tu ustvari nov Auth račun (prijavo) za
 // novo osebo, ali TRAJNO izbriše obstoječega. Obojemu je skupno, da
-// potrebuje service_role ključ — brskalnik ga nikoli ne sme imeti
+// potrebuje service_role ključ – brskalnik ga nikoli ne sme imeti
 // neposredno, zato gre prek te funkcije (isti razlog kot posiljaj-push).
 //
 //   POST /functions/v1/admin-uporabnik
@@ -12,7 +12,7 @@
 //
 // Klic iz aplikacije: client.functions.invoke("admin-uporabnik", { body }).
 // supabase-js sam doda Authorization (žeton prijavljenega admina) in
-// apikey glavo — ta funkcija samo preveri, da je klicatelj RES admin
+// apikey glavo – ta funkcija samo preveri, da je klicatelj RES admin
 // (sveže iz baze prek service_role odjemalca, ne zaupa ničemur, kar pride
 // v telesu zahteve).
 //
@@ -20,7 +20,7 @@
 // (supabase/schema.sql) razširi na profiles in od tam naprej na
 // schedule_entries, employee_wishes, contact_phones itd. Osebe, ki imajo
 // menjave/obrazce (swap_requests.requester_id/target_id, obrazci.
-// vlagatelj_id/sodelavec_id — NAMENOMA brez kaskade) izbris zavrne s
+// vlagatelj_id/sodelavec_id – NAMENOMA brez kaskade) izbris zavrne s
 // tujim-ključnim napako. To je namerno varovalo, ne hrošč: Postgres izvede
 // izbris v eni transakciji, zato ob taki napaki NIČ ni delno izbrisano.
 // Za take osebe (prava zgodovina, ne novo dodan pomotoma) admin uporabi
@@ -38,7 +38,7 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Klic pride iz brskalnika, z drugega izvora (Netlify) kot ta funkcija
-// (Supabase) — brez teh glav bi brskalnik zahtevo zavrnil, še preden bi
+// (Supabase) – brez teh glav bi brskalnik zahtevo zavrnil, še preden bi
 // prišla do kode spodaj (CORS predhodna OPTIONS zahteva).
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -54,7 +54,7 @@ function odgovor(telo: unknown, status = 200): Response {
 }
 
 // Isti vzorec kot skripte/uvoz-racunov.mjs (generirajZacasnoGeslo), samo z
-// Web Crypto API namesto Node "crypto" — Deno nima Node modula "crypto"
+// Web Crypto API namesto Node "crypto" – Deno nima Node modula "crypto"
 // brez node: predpone, globalni "crypto" pa je na voljo povsod.
 function nakljucnoGeslo(): string {
   const bajti = new Uint8Array(12);
@@ -69,11 +69,11 @@ Deno.serve(async (req: Request) => {
   const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return odgovor({ napaka: "Nisi prijavljen." }, 401);
 
-  // anon-ključni odjemalec SAMO za preverjanje žetona — ne teče s
+  // anon-ključni odjemalec SAMO za preverjanje žetona – ne teče s
   // service_role pravicami, zato sam po sebi ne more ničesar spremeniti.
   const anon = createClient(SUPABASE_URL, ANON_KEY);
   const { data: { user }, error: userErr } = await anon.auth.getUser(jwt);
-  if (userErr || !user) return odgovor({ napaka: "Neveljavna seja — prijavi se znova." }, 401);
+  if (userErr || !user) return odgovor({ napaka: "Neveljavna seja – prijavi se znova." }, 401);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const { data: klicatelj } = await svc.from("profiles").select("role").eq("id", user.id).single();
@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
       password: geslo,
       email_confirm: true,
       // must_change_password prisili spremembo gesla ob prvi prijavi
-      // (requireAuth() v supabase-client.js) — enak vzorec kot
+      // (requireAuth() v supabase-client.js) – enak vzorec kot
       // skripte/uvoz-racunov.mjs --test.
       user_metadata: { full_name: polnoIme, must_change_password: true },
     });
@@ -120,7 +120,7 @@ Deno.serve(async (req: Request) => {
     const noviId = ustvarjen.user.id;
     // handle_new_user() (schema.sql) je ob zgornjem vstavljanju v auth.users
     // že ustvaril vrstico v profiles (role='user', full_name/email iz
-    // metapodatkov) — tu jo samo dopolnimo z vlogo/oddelkom, ki ju je admin
+    // metapodatkov) – tu jo samo dopolnimo z vlogo/oddelkom, ki ju je admin
     // izbral v obrazcu.
     const { error: posodobiErr } = await svc.from("profiles")
       .update({ role: vloga, department_code: oddelek })

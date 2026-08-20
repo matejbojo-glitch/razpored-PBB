@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-/* Preizkus izmene.js — uradna legenda, barve in razvrstitev izmen.
+/* Preizkus izmene.js – uradna legenda, barve in razvrstitev izmen.
  *
  * Zakaj obstaja: iste stvari so bile na treh mestih in vsako je poznalo
- * drug del resnice — imenik.html polno uradno legendo (19 kratic z
+ * drug del resnice – imenik.html polno uradno legendo (19 kratic z
  * natančnimi barvami), index.html in admin.html pa vsak svojo grobo
  * razvrstitev v 7 oz. 5 skupin. Posledica: ista izmena je bila v Imeniku
  * ena barva in v Razporedu druga.
  *
  * Najpomembnejši del je 1. sklop: razvrstitev je zdaj skupna, zato na
- * naboru resničnih kod dokažemo, da se izid NI SPREMENIL — ne za
+ * naboru resničnih kod dokažemo, da se izid NI SPREMENIL – ne za
  * Razpored (index.html) ne za Generator (admin.html). Stari različici
  * sta tu prepisani dobesedno, tako kot sta bili pred poenotenjem.
  *
@@ -27,7 +27,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const sandbox = { console };
@@ -37,7 +37,7 @@ vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
 const I = sandbox.window.Izmene;
 
 // ---------------------------------------------------------------------
-// Stari, PODVOJENI različici — prepisani dobesedno iz index.html in
+// Stari, PODVOJENI različici – prepisani dobesedno iz index.html in
 // admin.html, kakršni sta bili pred poenotenjem. Služita samo kot merilo.
 // ---------------------------------------------------------------------
 function staraRazpored(sifra) {
@@ -83,11 +83,11 @@ console.log("1) razvrstitev se s poenotenjem NI spremenila");
 {
   const razlikeR = KODE.filter(k => I.skupina(k) !== staraRazpored(k));
   trdi(razlikeR.length === 0, `Razpored: vseh ${KODE.length} kod da isti izid kot prej`
-    + (razlikeR.length ? " — razlike: " + razlikeR.map(k => `${JSON.stringify(k)}: ${staraRazpored(k)}→${I.skupina(k)}`).join(", ") : ""));
+    + (razlikeR.length ? " – razlike: " + razlikeR.map(k => `${JSON.stringify(k)}: ${staraRazpored(k)}→${I.skupina(k)}`).join(", ") : ""));
 
   const razlikeG = KODE.filter(k => I.skupinaGeneratorja(k) !== staraGenerator(k));
   trdi(razlikeG.length === 0, `Generator: vseh ${KODE.length} kod da isti izid kot prej`
-    + (razlikeG.length ? " — razlike: " + razlikeG.map(k => `${JSON.stringify(k)}: ${staraGenerator(k)}→${I.skupinaGeneratorja(k)}`).join(", ") : ""));
+    + (razlikeG.length ? " – razlike: " + razlikeG.map(k => `${JSON.stringify(k)}: ${staraGenerator(k)}→${I.skupinaGeneratorja(k)}`).join(", ") : ""));
 }
 
 console.log("2) razvrstitvi se RAZLIKUJETA točno tam, kjer se morata");
@@ -104,7 +104,7 @@ console.log("2) razvrstitvi se RAZLIKUJETA točno tam, kjer se morata");
   const drugod = KODE.filter(k => !/^(ld|dežurstvo|prisoten)/i.test(String(k || "").trim()));
   const neujemanja = drugod.filter(k => I.skupina(k) !== I.skupinaGeneratorja(k));
   trdi(neujemanja.length === 0, "drugod sta razvrstitvi enaki"
-    + (neujemanja.length ? " — razhajata se pri: " + neujemanja.map(k => JSON.stringify(k)).join(", ") : ""));
+    + (neujemanja.length ? " – razhajata se pri: " + neujemanja.map(k => JSON.stringify(k)).join(", ") : ""));
 }
 
 console.log("3) uradna legenda je popolna in nedvoumna");
@@ -114,10 +114,10 @@ console.log("3) uradna legenda je popolna in nedvoumna");
   eq(new Set(kratice).size, kratice.length, "nobena kratica se ne ponovi");
   const predolge = kratice.filter(k => k.length > 3 && k !== "DF12");
   trdi(predolge.length === 0, "kratice so največ 3 znaki (edina izjema DF12)"
-    + (predolge.length ? " — predolge: " + predolge.join(", ") : ""));
+    + (predolge.length ? " – predolge: " + predolge.join(", ") : ""));
   const brezBarve = I.KRATICE.filter(v => !/^#[0-9A-Fa-f]{6}$/.test(v[4]));
   trdi(brezBarve.length === 0, "vsaka vrstica ima veljavno barvo"
-    + (brezBarve.length ? " — brez: " + brezBarve.map(v => v[1]).join(", ") : ""));
+    + (brezBarve.length ? " – brez: " + brezBarve.map(v => v[1]).join(", ") : ""));
   const barve = I.KRATICE.map(v => v[4].toUpperCase());
   eq(new Set(barve).size, barve.length, "nobeni dve izmeni nimata iste barve (sicer se v mreži ne ločita)");
 }
@@ -190,7 +190,7 @@ console.log("6) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(!/const BARVE = \{ dop:/.test(index + admin), "nobena stran nima več svoje tabele barv");
 
   // Razpored (Po oddelkih) mora barvati po legendi in izpisovati POLNO
-  // ime izmene, ne kratice — uporabnikova izrecna zahteva.
+  // ime izmene, ne kratice – uporabnikova izrecna zahteva.
   trdi(/window\.Izmene\.barva\(sifra\)/.test(index),
     "Po oddelkih: barva celice je iz uradne legende");
   trdi(/<span className="swatch" title=\{opisIzmene\}[\s\S]{0,220}\{sifra\}/.test(index),

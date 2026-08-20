@@ -5,12 +5,12 @@
 -- Vir je kadrovska evidenca, zato je merodajna: obstoječe vrednosti se
 -- PREPIŠEJO.
 --
--- Ujemanje teče po e-pošti iz auth.users — ta je v izvozu enolična za
+-- Ujemanje teče po e-pošti iz auth.users – ta je v izvozu enolična za
 -- vseh 69 vrstic, imena pa se med sistemi pišejo različno (ena oseba
 -- ima e-pošto na prejšnji priimek). Ime je le rezerva.
 --
 -- ZAKAJ EN SAM STAVEK: Supabase SQL Editor poganja stavke prek
--- povezovalnika, kjer vsak stavek lahko dobi svojo sejo — začasna tabela
+-- povezovalnika, kjer vsak stavek lahko dobi svojo sejo – začasna tabela
 -- iz prejšnjega stavka takrat ne obstaja.
 --
 -- Varno za ponovni zagon.

@@ -1,8 +1,8 @@
 -- =====================================================================
---  RAZPORED PBB — vse potrebne posodobitve baze v enem zagonu
+--  RAZPORED PBB – vse potrebne posodobitve baze v enem zagonu
 --
 --  Prilepi CELO datoteko v Supabase → SQL Editor in klikni Run.
---  Varno je pognati večkrat — ponovni zagon ne spremeni ničesar.
+--  Varno je pognati večkrat – ponovni zagon ne spremeni ničesar.
 --
 --  Vrstni red ni naključen: imena se poenotijo PRVA, ker naslednji dve
 --  poizvedbi osebo iščeta po e-pošti in kot rezervo po imenu.
@@ -12,7 +12,7 @@
 --  stavek lahko dobi svojo sejo, zato začasna tabela iz prejšnjega
 --  stavka ne obstaja ("relation _imena does not exist").
 --
---  Vsak razdelek vrne svojo razpredelnico. Poglej jih — povedo, kdo se
+--  Vsak razdelek vrne svojo razpredelnico. Poglej jih – povedo, kdo se
 --  ni ujel (praviloma tisti, ki še nima računa v aplikaciji).
 -- =====================================================================
 
@@ -24,7 +24,7 @@
 -- ---------------------------------------------------------------------
 -- Enoten zapis imen: povsod "Priimek Ime" (69 oseb).
 --
--- Doslej sta v bazi soobstajala oba zapisa — večina "Ime Priimek"
+-- Doslej sta v bazi soobstajala oba zapisa – večina "Ime Priimek"
 -- (Aldin Gazibara), trije administratorji pa "PRIIMEK IME". To ni bilo
 -- le vprašanje videza: imenik se razvršča po full_name, torej po OSEBNEM
 -- imenu namesto po priimku, autoParafa() v index.html pa je za priimek
@@ -35,7 +35,7 @@
 -- ZADNJA beseda ujema z osebnim imenom iz e-pošte (ime.priimek@), zato
 -- je znano, kateri del je priimek tudi pri dvobesednem ("MAVRI TRATNIK
 -- MAGDALENA" -> "Mavri Tratnik Magdalena"). Samodejnega obračanja po
--- pravilu "zadnja beseda je priimek" NAMENOMA ni — tak priimek bi
+-- pravilu "zadnja beseda je priimek" NAMENOMA ni – tak priimek bi
 -- obrnilo narobe.
 --
 -- ZAKAJ EN SAM STAVEK IN BREZ ZAČASNIH TABEL: Supabase SQL Editor
@@ -137,7 +137,7 @@ where not exists (select 1 from auth.users u where lower(u.email) = v.email)
 union all
 -- Profili zunaj seznama, ki so videti zapisani obratno ("Ime Priimek"):
 -- prva beseda se ujema z osebnim imenom iz e-pošte. Te je treba popraviti
--- ročno v Imeniku — poizvedba jih namenoma ne ugiba, ker pri dvobesednem
+-- ročno v Imeniku – poizvedba jih namenoma ne ugiba, ker pri dvobesednem
 -- priimku ni mogoče vedeti, kje se priimek konča.
 select 'ročno preveri (zunaj seznama)', p.full_name || '  <' || u.email || '>'
 from public.profiles p
@@ -160,12 +160,12 @@ order by 1, 2;
 -- Vir je kadrovska evidenca, zato je merodajna: obstoječe vrednosti se
 -- PREPIŠEJO.
 --
--- Ujemanje teče po e-pošti iz auth.users — ta je v izvozu enolična za
+-- Ujemanje teče po e-pošti iz auth.users – ta je v izvozu enolična za
 -- vseh 69 vrstic, imena pa se med sistemi pišejo različno (ena oseba
 -- ima e-pošto na prejšnji priimek). Ime je le rezerva.
 --
 -- ZAKAJ EN SAM STAVEK: Supabase SQL Editor poganja stavke prek
--- povezovalnika, kjer vsak stavek lahko dobi svojo sejo — začasna tabela
+-- povezovalnika, kjer vsak stavek lahko dobi svojo sejo – začasna tabela
 -- iz prejšnjega stavka takrat ne obstaja.
 --
 -- Varno za ponovni zagon.
@@ -282,10 +282,10 @@ order by 1, 2;
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- Dežurni kader (DMS/DZN) — članstvo za vseh 14 oseb dežurnega kroga.
+-- Dežurni kader (DMS/DZN) – članstvo za vseh 14 oseb dežurnega kroga.
 --
 -- "DEZ" ni oddelek, ampak ČLANSTVO. Generator → Dežurstva bere krog prav
--- iz njega. NZV tega ne nadomesti — NZV so vsi vodje in administratorji,
+-- iz njega. NZV tega ne nadomesti – NZV so vsi vodje in administratorji,
 -- dežurstvo pa opravlja le del njih.
 --
 -- Članstvo se doda kot SEKUNDARNI oddelek (sort_order > 0), da ostane
@@ -298,7 +298,7 @@ order by 1, 2;
 -- od tu ni vidno. Izpis manjkajočih zato šteje OSEBO, ne vrstice.
 --
 -- ZAKAJ EN SAM STAVEK: Supabase SQL Editor poganja stavke prek
--- povezovalnika, kjer vsak stavek lahko dobi svojo sejo — začasna tabela
+-- povezovalnika, kjer vsak stavek lahko dobi svojo sejo – začasna tabela
 -- iz prejšnjega stavka takrat ne obstaja.
 --
 -- Varno za ponovni zagon.

@@ -1,7 +1,7 @@
-/* Razpored PBB — push-client.js
+/* Razpored PBB – push-client.js
  * Vklop/izklop potisnih obvestil (Web Push) na tej napravi.
  *
- * VAPID_JAVNI_KLJUC je JAVNI del para ključev in je namenoma v kodi —
+ * VAPID_JAVNI_KLJUC je JAVNI del para ključev in je namenoma v kodi –
  * brskalnik ga potrebuje ob naročanju in ni skrivnost. ZASEBNI ključ je
  * izključno v Supabase Edge Function skrivnostih (glej PUSH-SETUP.md) in
  * ga v repozitoriju NI in ne sme biti.
@@ -44,7 +44,7 @@
   async function vklopi(profileId) {
     if (!podprto()) throw new Error("Ta brskalnik ne podpira potisnih obvestil.");
     if (Notification.permission === "denied") {
-      throw new Error("Obvestila so blokirana v nastavitvah brskalnika — najprej jih dovoli tam.");
+      throw new Error("Obvestila so blokirana v nastavitvah brskalnika – najprej jih dovoli tam.");
     }
 
     var dovoljenje = await Notification.requestPermission();
@@ -88,7 +88,7 @@
 
     var endpoint = narocnina.endpoint;
     await narocnina.unsubscribe();
-    // Vrstico v bazi pobrišemo tudi, če odjava v brskalniku ne uspe —
+    // Vrstico v bazi pobrišemo tudi, če odjava v brskalniku ne uspe –
     // sicer bi strežnik še naprej pošiljal na mrtvo naročnino.
     await root.RazporedAuth.client.from("push_subscriptions").delete().eq("endpoint", endpoint);
     return true;

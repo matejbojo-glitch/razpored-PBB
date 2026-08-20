@@ -1,149 +1,149 @@
-// Razpored PBB — service worker
-// Faza 4: dodana prijava/vloge — HTML strani zdaj network-first (da nova
+// Razpored PBB – service worker
+// Faza 4: dodana prijava/vloge – HTML strani zdaj network-first (da nova
 // objava vedno pride skozi), knjižnice ostajajo cache-first (nespremenljive
 // med objavami). Prazna delovanje brez signala ostaja kot rezerva iz cacha.
-// v3: nov logo/barve bolnišnice — dvignjena verzija, da se slikovne datoteke
+// v3: nov logo/barve bolnišnice – dvignjena verzija, da se slikovne datoteke
 // (ikone, logo-pbb.png), ki so cache-first, ponovno prenesejo.
 // v4: dodana stran imenik.html (kontakti/imenik zaposlenih).
 // v5: dodana stran nastavitve.html (ikona ⚙️ poleg odjave).
-// v6: dodan uvoz Excel/Google Sheets/PDF (xlsx.core.min.js, import-utils.js) —
+// v6: dodan uvoz Excel/Google Sheets/PDF (xlsx.core.min.js, import-utils.js) –
 // pdf.min.mjs/pdf.worker.min.mjs se NISTA dodala v precache, ker se naložita
 // šele ob prvi uporabi uvoza PDF (dynamic import), splošni fetch-handler spodaj
 // pa ju po prvem nalaganju vseeno predpomni (cache-first veja za ne-HTML/JSON).
 // v7: import-utils.js razširjen (glava-po-imenu mapiranje stolpcev, datumi iz
-// Excela) — dvignjena verzija, da se cache-first predpomnjena stara različica
+// Excela) – dvignjena verzija, da se cache-first predpomnjena stara različica
 // datoteke povsod zamenja s to novo.
-// v8: popravek pravega hrošča — "Datum rojstva" kot besedilo DD.MM.LLLL (ne
+// v8: popravek pravega hrošča – "Datum rojstva" kot besedilo DD.MM.LLLL (ne
 // prava Excel datumska celica) se je pošiljalo v Postgres "date" stolpec
 // nepretvorjeno, kar je za dneve >12 vrglo napako, za ostale pa tiho
 // zamenjalo dan/mesec (import-utils.js normalizirajDatum()).
 // v9: dodana stran reset-geslo.html (pozabljeno geslo) + korak "nastavi
 // geslo" takoj po registraciji v login.html.
-// v10: nov skupni theme.css (vizualna prenova) — dodan v precache, da je
+// v10: nov skupni theme.css (vizualna prenova) – dodan v precache, da je
 // oblikovanje na voljo tudi brez signala; dvignjena verzija, da se povsod
 // takoj prenese.
 // v11: nova stran obrazec.html (evidentiranje prisotnosti/menjava službe) +
 // posodobljen nav.js (dodana ikona "Obrazec"). nav.js se je do zdaj serviral
 // cache-first (ni HTML/JSON), zato brez dviga verzije nova ikona v navigaciji
 // ne bi nikoli prišla do uporabnikov z že nameščenim service workerjem.
-// v12: spletna/namizna različica — nav.js dobi zgornjo (namizno) navigacijsko
+// v12: spletna/namizna različica – nav.js dobi zgornjo (namizno) navigacijsko
 // vrstico namesto spodnje na širokih zaslonih, theme.css dobi širše "wrap.wide"
 // prelome. Oba se servirata cache-first (nista .html/.json), zato spet
 // potreben dvig verzije, da sprememba doseže brskalnike z že nameščenim SW.
-// v13: Excel/Google Sheets izvoz na vseh straneh z razpredelnicami — 3 nove
+// v13: Excel/Google Sheets izvoz na vseh straneh z razpredelnicami – 3 nove
 // skupne datoteke (export-utils.js, gsheets-client.js, export-buttons.js),
 // vse cache-first, zato v precache in nova verzija.
-// v14: menjave.html (swap_requests, dvostopenjski vodja→admin) ukinjena —
+// v14: menjave.html (swap_requests, dvostopenjski vodja→admin) ukinjena –
 // združena v obrazec.html ("Menjava", nav.js dobi en sam vnos namesto dveh).
 // menjave.html odstranjena iz precache (dvig verzije, da cache.addAll ne
 // poskuša naložiti ukinjene datoteke in podre namestitve service workerja).
-// v15: nav.js gumb "Pravičnost" preimenovan v "Statistika" — cache-first,
+// v15: nav.js gumb "Pravičnost" preimenovan v "Statistika" – cache-first,
 // zato dvig verzije.
 // v16: export-buttons.js dobi "compact" ikonski način izvoza (mobilna
-// prilagoditev index.html) — cache-first, zato dvig verzije. manifest.json
+// prilagoditev index.html) – cache-first, zato dvig verzije. manifest.json
 // se ob tem tudi na novo prenese (orientation: "any" namesto zaklenjeno na
 // pokončno, da telefon lahko obrne zaslon).
 // v17: import-utils.js popravek normalizirajDatum (datumi s presledki po
-// pikah, "1. 9. 2026") — cache-first, zato dvig verzije.
+// pikah, "1. 9. 2026") – cache-first, zato dvig verzije.
 // v18: theme.css dobi barvno kodirane značke za izmene (swatch-*, nov --ld
-// zelena za letni dopust) + zložljiva pomoč (.infoToggle/.infoPanel) —
+// zelena za letni dopust) + zložljiva pomoč (.infoToggle/.infoPanel) –
 // cache-first, zato dvig verzije.
 // v19: export-buttons.js dobi nov neobvezen "ical" prop (izvoz osebnega
-// razporeda v .ics za "Moj razpored") — cache-first, zato dvig verzije.
-// v20: potisna obvestila (Web Push) — nov push-client.js v precache, sam
+// razporeda v .ics za "Moj razpored") – cache-first, zato dvig verzije.
+// v20: potisna obvestila (Web Push) – nov push-client.js v precache, sam
 // sw.js dobi 'push'/'notificationclick' poslušalca. Dvig verzije je tu
 // nujen tudi zato, da se nov service worker sploh namesti (brez tega stari
 // SW brez push poslušalca ostane aktiven in obvestila ne bi delovala).
-// v21: prenova UI/UX — theme.css dobi skupne kartične gradnike (KPI
+// v21: prenova UI/UX – theme.css dobi skupne kartične gradnike (KPI
 // kartice, stolpčni graf, toplotna karta, časovna premica, napredkovne
-// vrstice, avatar s statusom, modalno okno, koledar na dotik) —
+// vrstice, avatar s statusom, modalno okno, koledar na dotik) –
 // cache-first, zato dvig verzije.
 // v22: prenova Generatorja (nadzorna plošča "Generiraj takoj", zložljivi
-// razdelki, značke vlog, vrstice napredka) — theme.css spet spremenjen
+// razdelki, značke vlog, vrstice napredka) – theme.css spet spremenjen
 // (prikaz pravil kot bloka), zato dvig verzije.
 // v23: nov skupni delovni-cas.js (edini vir resnice o urah izmen +
-// preverjanje delovnopravnih pravil) — cache-first, zato dvig verzije in
+// preverjanje delovnopravnih pravil) – cache-first, zato dvig verzije in
 // vpis v precache.
-// v24: Generator (Kalup) — delovnopravne kršitve zdaj obarvajo tudi
+// v24: Generator (Kalup) – delovnopravne kršitve zdaj obarvajo tudi
 // posamezne celice v mreži (rdeč/oranžen rob + opomba na hover), ne samo
-// povzetek zgoraj — cache-first, zato dvig verzije.
+// povzetek zgoraj – cache-first, zato dvig verzije.
 // v25: zavihek "Uporabniki" (admin.html) prenovljen na kartični prikaz
-// (isti vzorec kot Imenik) namesto vodoravno-drseče tabele — bolj
-// uporabno na mobilnem — cache-first, zato dvig verzije.
-// v26: Faza 1 (skladnost) — revizija sprememb pravic (Revizija → Pravice
+// (isti vzorec kot Imenik) namesto vodoravno-drseče tabele – bolj
+// uporabno na mobilnem – cache-first, zato dvig verzije.
+// v26: Faza 1 (skladnost) – revizija sprememb pravic (Revizija → Pravice
 // in dostopi), delovnopravno opozorilo pri menjavi (obrazec.html zdaj
 // nalaga delovni-cas.js) in "Po oddelkih" odprt vsem zaposlenim za vse
-// oddelke — cache-first, zato dvig verzije.
+// oddelke – cache-first, zato dvig verzije.
 
-// v27: Faza 2 — živa koledarska naročnina (Nastavitve → Koledar), nova
+// v27: Faza 2 – živa koledarska naročnina (Nastavitve → Koledar), nova
 // robna funkcija "koledar" in RazporedAuth.SUPABASE_URL v supabase-client.js
-// — cache-first, zato dvig verzije.
+// – cache-first, zato dvig verzije.
 
-// v28: Faza 3 — matična številka v zbirnem izvozu ur za plače (računovodstvo
+// v28: Faza 3 – matična številka v zbirnem izvozu ur za plače (računovodstvo
 // in Kadris osebo prepoznata po njej, ne po imenu) + opozorilo na osebe, ki
-// je še nimajo — cache-first, zato dvig verzije.
+// je še nimajo – cache-first, zato dvig verzije.
 
-// v29: Faza 2 — izbira kanalov obveščanja po osebi (Nastavitve → Kam naj
-// pridejo obvestila) in dostava po e-pošti — cache-first, zato dvig verzije.
+// v29: Faza 2 – izbira kanalov obveščanja po osebi (Nastavitve → Kam naj
+// pridejo obvestila) in dostava po e-pošti – cache-first, zato dvig verzije.
 
-// v30: koledarska naročnina — vklop/izklop sinhronizacije po osebi
-// (Nastavitve → Koledar) — cache-first, zato dvig verzije.
+// v30: koledarska naročnina – vklop/izklop sinhronizacije po osebi
+// (Nastavitve → Koledar) – cache-first, zato dvig verzije.
 // v31: uvodna kartica na Razporedu (namestitev na domači zaslon + vklop
-// obvestil) — spremenjena index.html in theme.css, zato dvig verzije.
+// obvestil) – spremenjena index.html in theme.css, zato dvig verzije.
 // v32: ločeni dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
-// 07:00-19:00) — spremenjeni delovni-cas.js, dashboard-core.js,
+// 07:00-19:00) – spremenjeni delovni-cas.js, dashboard-core.js,
 // index.html in admin.html. Brez dviga bi zaposleni še naprej videli
 // stare ure.
 
 // v33: "DEZ" je spet dodeljiv v Imeniku (kot članstvo, ne domači oddelek)
-// in Dežurstva javijo, koga od 14 manjka — spremenjena imenik.html in
+// in Dežurstva javijo, koga od 14 manjka – spremenjena imenik.html in
 // admin.html.
 
 // v34: neprosojna lepljiva glava (prekrivanje besedila) in enako široke
-// vrstice Imenika — spremenjene imenik/zelje/obrazec/nastavitve/admin.
+// vrstice Imenika – spremenjene imenik/zelje/obrazec/nastavitve/admin.
 
-// v35: enoten zapis imen "Priimek Ime" — spremenjeni login/imenik/admin/
+// v35: enoten zapis imen "Priimek Ime" – spremenjeni login/imenik/admin/
 // index (naslovi stolpcev, polje ob registraciji, komentar pri parafi).
 
 // v36: uvoz (📥) in izvoz (⬇) na Razporedu sta se preselila v vrstico
-// ikon zgoraj desno (poleg ⚙ in 🚪) — prej sta zasedala vrstico pod
+// ikon zgoraj desno (poleg ⚙ in 🚪) – prej sta zasedala vrstico pod
 // izbirnikom meseca. Spremenjeni index.html in nav.js (nav.js je
 // cache-first, zato je dvig verzije nujen).
 
 // v37: izvoz je na VSEH straneh v vrstici ikon zgoraj desno (register
 // izvoznih virov v export-buttons.js), uvoz zna prebrati še .json/.jsonl/
 // .gsheet in pri slikah/Wordu pove, zakaj ne gre. Spremenjeni
-// export-buttons.js, import-utils.js, nav.js in vse strani —
+// export-buttons.js, import-utils.js, nav.js in vse strani –
 // prvi trije so cache-first, zato je dvig verzije nujen.
 
-// v38: uvoz dobi svojo ikono 📥 z menijem (isti register kot izvoz) —
+// v38: uvoz dobi svojo ikono 📥 z menijem (isti register kot izvoz) –
 // na vsaki strani našteje, kaj je tam mogoče uvoziti. Želje dobijo uvoz
 // iz Google Sheets. Spremenjeni export-buttons.js in strani.
 
-// v39: Želje je mogoče uvoziti s fotografije razpredelnice — bere se
+// v39: Želje je mogoče uvoziti s fotografije razpredelnice – bere se
 // BARVA celice (ne besedilo), mrežo določi uporabnik z dotikom štirih
 // vogalov. Spremenjena zelje.html.
 
 // v40: še zadnji izvozi (CSV, JSON osnova, PDF) na Generatorju in
-// Statistiki so v meniju ikone ⬇ — v vsebini ni več izvoznih gumbov.
+// Statistiki so v meniju ikone ⬇ – v vsebini ni več izvoznih gumbov.
 // Spremenjeni export-buttons.js, admin.html, dashboard.html.
 
 // v41: dežurna pravila (najmanj/največ na mesec, prost dan, samo med
-// tednom) je mogoče trajno urejati v Imeniku — doslej jih je bilo mogoče
+// tednom) je mogoče trajno urejati v Imeniku – doslej jih je bilo mogoče
 // spremeniti le za eno generiranje. Spremenjena imenik.html.
 
-// v42: enotna postavitev — širine vsebine so ena lestvica v theme.css
+// v42: enotna postavitev – širine vsebine so ena lestvica v theme.css
 // (.wrap / .wrap.wide / .wrap.polna), strani pa ne nosijo več svojih
 // kopij skupnih razredov (.card, .sub, .field, h2.section, p.hint,
 // .submitBtn). Spremenjeni theme.css in vse strani.
 
-// v43: seznami zaposlenih so strnjeni — vidno je samo ime, klik na vrstico
+// v43: seznami zaposlenih so strnjeni – vidno je samo ime, klik na vrstico
 // razpre osnovne podatke, klik na ime odpre celoten zapis. Vzorec je zdaj
 // ena skupna komponenta (oseba-vrstica.js), ne kopija na vsaki strani.
 // Spremenjeni imenik.html, admin.html, theme.css; nov oseba-vrstica.js.
 
 // v44: "Po oddelkih" (SMS razpored) po vzoru uradne predloge "2026 SMS
-// RAZPORED" — celica zdaj kaže CELO kodo izmene (prej kvečjemu 3 znake, kar
+// RAZPORED" – celica zdaj kaže CELO kodo izmene (prej kvečjemu 3 znake, kar
 // je KPU brez razločevanja od prazne celice prikazovalo enako kot "–").
 // Admin lahko razpored zdaj tudi zapiše NAZAJ v obstoječ Google Sheets
 // dokument (samo v ujemajoče se celice - imena/oblika/podpisi ostanejo
@@ -152,7 +152,7 @@
 // branje vseh dni za njo. Spremenjeni index.html, gsheets-client.js.
 
 // v45: NZV pogled usklajen z uradno predlogo "Letni dopusti in omejitve za
-// NZV" — vrstni red stolpcev popravljen (SA DOP/SA POP med DB in URGENCA,
+// NZV" – vrstni red stolpcev popravljen (SA DOP/SA POP med DB in URGENCA,
 // ne na koncu) in dodani trije novi povzetni stolpci LD/IZOB/BS (kdo je ta
 // dan na letnem dopustu/strokovnem izobraževanju/bolniški - iz leave_entries,
 // isti vir kot Želje → Razpredelnica). Uvoz teh treh stolpcev piše v
@@ -361,7 +361,7 @@
 // lažno prost dan bi lahko pomenil, da koordinator nekoga po nesreči
 // razporedi še enkrat. Spremenjena imenik.html.
 
-// v63: parafa.js — izrecno nastavljena parafa premaga izpeljano, zato
+// v63: parafa.js – izrecno nastavljena parafa premaga izpeljano, zato
 //      uvoz ne preskoči več obeh oseb ob "trku" tipa POG/TOM.
 // v83: Razpredelnica pove tudi enoto po dejanskem razporedu; pokvarjeni
 //      zapisi imen se ne prikazujejo več.
@@ -408,7 +408,40 @@
 //      namestitvi vsaka datoteka zahteva s {cache:"reload"}, kar HTTP
 //      predpomnilnik obide. Brez tega bi se to ponovilo ob VSAKI spremembi
 //      skupne .js datoteke.
-const CACHE = 'razpored-pbb-v83';
+// v84: zunanja pisava (fonts.googleapis.com) ne zadržuje več strani.
+// Slogovna datoteka BLOKIRA izvajanje vseh skript za sabo, zato je stran
+// ob nedosegljivem Google Fonts (ni signala, počasno omrežje, bolnišnični
+// požarni zid) obtičala na beli in nav.js se sploh ni izvedel – samodejna
+// osvežitev na novo različico je torej sicer stekla, uporabnik pa je dobil
+// prazno stran. Popravljeno na dveh mestih:
+//   1. theme.css nima več @import, vsaka stran pisavo vključi neblokirno
+//      (media="print" + onload) – to velja tudi ob PRVEM obisku, ko service
+//      workerja še ni (prijavna stran!);
+//   2. sw.js spodaj da tem zahtevam rok in rezervo, hkrati pa uspešno
+//      naloženo pisavo predpomni za delo brez signala.
+// Ker sta spremenjena theme.css in vseh 9 strani, je dvig verzije nujen.
+// Odkrila skripte/preveri-sw-posodobitev-brskalnik.mjs.
+
+// v85: uredniški in tipografski pregled cele aplikacije. Med drugim so
+// spremenjeni theme.css in skupne .js datoteke (nav.js, izmene.js,
+// datum.js, generator-core.js …), ki se strežejo iz predpomnilnika, zato
+// je dvig različice nujen – brez njega bi uporabniki z že nameščenim
+// service workerjem videli staro besedilo.
+
+// v86: Razpredelnica pokaže ENOTO namesto kratice DOP (vodje NZV delajo
+// vedno dopoldne, zato DOP ni povedal nič), in popravek nadomeščanja v
+// nzv-zasedba.js: kdor prevzame tujo enoto in svoje NIMA kdo prevzeti, jo
+// obdrži poleg prevzete (Lelič odsotna -> Maglić ima "E2, E1"). Prej je
+// taka enota iz razporeda izginila. nzv-zasedba.js se streže iz
+// predpomnilnika, zato je dvig različice nujen.
+
+// v87: generator (Admin -> NZV -> Vodstvena pokritost) uporablja ISTA
+// pravila kot prikaz - skupni nzv-zasedba.js namesto svoje kopije. Zdaj
+// pozna sestavljene enote, tedensko menjavanje SA in nadomeščanje;
+// nadomeščanja so označena kot PREDLOGI in se objavijo šele po potrditvi.
+// Spremenjeni so nzv-zasedba.js, theme.css, index.html in admin.html.
+
+const CACHE = 'razpored-pbb-v87';
 const ASSETS = [
   './',
   './index.html',
@@ -475,11 +508,66 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Kako dolgo čakamo na zunanjo pisavo, preden odnehamo. Pisava je zgolj
+// okras – theme.css ima pošteno rezervo (ui-serif, Georgia, serif) – zato
+// je bolje takoj nadaljevati z rezervno pisavo kot pustiti prazno stran.
+const PISAVA_ROK_MS = 3000;
+
+// Samo gostitelja Google Fonts. NAMENOMA ozko: Supabase teče prav tako
+// prek tujega izvora, njegove poizvedbe pa ne smejo dobiti ne roka ne
+// predpomnilnika – sicer bi počasna poizvedba tiho vrnila napako.
+function jePisava(url) {
+  return url.hostname === 'fonts.googleapis.com'
+    || url.hostname === 'fonts.gstatic.com';
+}
+
+function rezervnaPisava(request) {
+  // Slogovna datoteka: prazen, a veljaven CSS, da razčlenjevalnik strani
+  // takoj nadaljuje in se skripte za njo izvedejo.
+  if (request.destination === 'style') {
+    return new Response('/* zunanja pisava ni dosegljiva - rezervna pisava */', {
+      status: 200,
+      headers: { 'Content-Type': 'text/css; charset=utf-8' }
+    });
+  }
+  return Response.error();
+}
+
+function pisavaZRokom(request) {
+  return caches.match(request).then((cached) => {
+    if (cached) return cached;
+    return new Promise((resolve) => {
+      let koncano = false;
+      const koncaj = (odgovor) => {
+        if (koncano) return;
+        koncano = true;
+        resolve(odgovor);
+      };
+      setTimeout(() => koncaj(rezervnaPisava(request)), PISAVA_ROK_MS);
+      fetch(request).then((res) => {
+        if (res && res.ok) {
+          const kopija = res.clone();
+          caches.open(CACHE)
+            .then((cache) => cache.put(request, kopija))
+            .catch(() => {});
+        }
+        koncaj(res);
+      }).catch(() => koncaj(rezervnaPisava(request)));
+    });
+  });
+}
+
 // network-first za HTML/JSON (da uporabnik vedno dobi svežo objavo in svež
 // razpored, brez čakanja na novo različico service workerja), cache-first
-// samo za nespremenljive knjižnice — rezerva iz cacha ostane, če ni signala.
+// samo za nespremenljive knjižnice – rezerva iz cacha ostane, če ni signala.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  if (jePisava(url)) {
+    event.respondWith(pisavaZRokom(event.request));
+    return;
+  }
+
   const isHtmlOrData = event.request.mode === 'navigate'
     || url.pathname.endsWith('.html')
     || url.pathname.endsWith('.json')
@@ -505,7 +593,7 @@ self.addEventListener('fetch', (event) => {
 
 // ---------------------------------------------------------------------
 // Potisna obvestila (Web Push). Vsebino pošlje Edge Function
-// posiljaj-push kot JSON { naslov, telo, url } — glej
+// posiljaj-push kot JSON { naslov, telo, url } – glej
 // supabase/functions/posiljaj-push/index.ts in PUSH-SETUP.md.
 // ---------------------------------------------------------------------
 self.addEventListener('push', (event) => {

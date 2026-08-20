@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/* Preizkus nalozizPodatkeNzv() (index.html) — zapolnjenost stolpcev enot
+/* Preizkus nalozizPodatkeNzv() (index.html) – zapolnjenost stolpcev enot
  * v NZV mreži.
  *
  * Zakaj obstaja: uporabnik je poslal posnetek zaslona, na katerem so bili
  * stolpci PDZN, SOBO, MO, ŽO … prazni čez cel mesec. Vzrok ni bil manjkajoč
  * podatek, ampak to, da se je mreža polnila IZKLJUČNO iz objavljenih
- * schedule_entries — za vodje pa se dnevni razpored ne objavlja, ker je
+ * schedule_entries – za vodje pa se dnevni razpored ne objavlja, ker je
  * njihova enota stalna in zapisana v lead_departments.enote.
  *
  * Preverjamo torej ravno to, kar je manjkalo:
@@ -55,7 +55,7 @@ function izvleciConst(ime) {
   if (zac === -1) throw new Error("const " + ime + " ni v index.html.");
   return html.slice(zac, html.indexOf(";\n", zac) + 1).replace(/^const\s+/, "var ");
 }
-// NZV_STOLPCI je IIFE čez več vrstic — ";\n" se v njem pojavi že prej.
+// NZV_STOLPCI je IIFE čez več vrstic – ";\n" se v njem pojavi že prej.
 function izvleciBlok(zacetek, konec) {
   const z = html.indexOf(zacetek);
   if (z === -1) throw new Error("Bloka " + zacetek + " ni v index.html.");
@@ -76,7 +76,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 // ---------------------------------------------------------------------
@@ -107,7 +107,7 @@ vm.runInContext([
   izvleciFn("parafaOd"),
   izvleciConst("NZV_ENOTE"),
   izvleciFn("razvrstiSA"),
-  izvleciBlok("const NZV_STOLPCI = (() => {", "})();"),
+  izvleciConst("NZV_STOLPCI"),
   izvleciConst("NZV_KIND_KODA"),
   izvleciConst("JE_NZV_VLOGA"),
   izvleciConst("saNastavitveIz"),
@@ -117,7 +117,7 @@ vm.runInContext([
 ].join("\n\n"), sandbox);
 
 // Lažni Supabase odjemalec: vsak from() vrne "thenable", ki se razreši v
-// { data } za svojo tabelo — natanko toliko, kolikor nalozizPodatkeNzv
+// { data } za svojo tabelo – natanko toliko, kolikor nalozizPodatkeNzv
 // uporabi (select/in/gte/lte, brez filtriranja, ker ga tu ne rabimo).
 function postaviOdjemalca(tabele) {
   sandbox.client = {
@@ -147,7 +147,9 @@ const PROFILI = [
   profil("Mušič Ines", "MUŠ"),
   profil("Pogačnik Teja", "POG"),
   profil("Salkić Maruša", "SAL"),
-  profil("Novak Ana", "NOV", "user"), // navadna sestra — v NZV mrežo NE sodi
+  profil("Lelič Dijana", "LEL"),
+  profil("Maglić Aleksander", "MAG"),
+  profil("Novak Ana", "NOV", "user"), // navadna sestra – v NZV mrežo NE sodi
 ];
 const VODJE = [
   { full_name: "ALUKIĆ DINO", enote: "ŽO", odsotnost_tip: null, odsotnost_do: null },
@@ -160,6 +162,11 @@ const VODJE = [
   { full_name: "MAVRI TRATNIK MAGDALENA", enote: "B1", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "BIZJAK TEA", enote: "UA/SA/B2", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "POGAČNIK TEJA", enote: "E1", odsotnost_tip: "porodniška", odsotnost_do: "2027-07-31" },
+  // Vzajemni par: nadomeščata se DRUG DRUGEGA in tretjega ni.
+  // (Pogačnik je tudi nosilka E1, a je na porodniški do 2027, zato E1
+  // dejansko drži Maglić - tako je tudi v nzv-nosilci-oddelkov.sql.)
+  { full_name: "LELIČ DIJANA", enote: "E2", odsotnost_tip: null, odsotnost_do: null },
+  { full_name: "MAGLIĆ ALEKSANDER", enote: "E1", odsotnost_tip: null, odsotnost_do: null },
 ];
 const NADOMESCANJA = [
   { nosilec: "ALUKIĆ DINO", nadomesca: "BOJIĆ MATEJ", enota: "ŽO", prednost: 1 },
@@ -168,6 +175,8 @@ const NADOMESCANJA = [
   { nosilec: "LUNAR MATEJA", nadomesca: "ARNEŽ GREGA", enota: "B", prednost: 1 },
   { nosilec: "SALKIĆ MARUŠA", nadomesca: "ARNEŽ GREGA", enota: "C1", prednost: 1 },
   { nosilec: "MAVRI TRATNIK MAGDALENA", nadomesca: "ŠUBIC PETRA", enota: "B1", prednost: 1 },
+  { nosilec: "LELIČ DIJANA", nadomesca: "MAGLIĆ ALEKSANDER", enota: "E2", prednost: 1 },
+  { nosilec: "MAGLIĆ ALEKSANDER", nadomesca: "LELIČ DIJANA", enota: "E1", prednost: 1 },
 ];
 
 // September 2026: 1.9. je torek. 5./6.9. je vikend. 12./13.9. vikend.
@@ -189,15 +198,15 @@ const test = async () => {
   console.log("1) Nosilec enote je vpisan vsak delovni dan (to je bilo prazno na posnetku)");
   {
     const { podatki, izpeljano } = await poglej();
-    eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. — PDZN");
-    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. — SOBO (samo nosilka Velušček)");
-    eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. — MO");
-    eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. — ŽO");
-    eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. — PDZN (cel mesec, ne le prvi dan)");
+    eq(podatki["PDZN|2026-09-01"], "DŽA", "torek 1.9. – PDZN");
+    eq(podatki["SOBO|2026-09-01"], "VEL", "torek 1.9. – SOBO (samo nosilka Velušček)");
+    eq(podatki["MO|2026-09-01"], "BOJ", "torek 1.9. – MO");
+    eq(podatki["ZO|2026-09-01"], "ALU", "torek 1.9. – ŽO");
+    eq(podatki["PDZN|2026-09-30"], "DŽA", "sreda 30.9. – PDZN (cel mesec, ne le prvi dan)");
     trdi(izpeljano["PDZN|2026-09-01"] === true, "celica je označena kot izpeljana (za bledejši izris)");
   }
 
-  console.log("2) Vikend in praznik ostaneta prazna — delovnik NZV je PON-PET");
+  console.log("2) Vikend in praznik ostaneta prazna – delovnik NZV je PON-PET");
   {
     const { podatki } = await poglej();
     eq(podatki["PDZN|2026-09-05"] || "", "", "sobota 5.9.");
@@ -232,11 +241,11 @@ const test = async () => {
     // 1. 9. 2026 je ISO teden 36 (sod) -> po privzetku popoldanski teden.
     eq(podatki["SADOP|2026-09-01"] || "", "", "\"SA\" v sodem tednu ni v SA DOP");
     eq(podatki["SAPOP|2026-09-01"], "BIZ", "\"SA\" v sodem tednu je v SA POP");
-    // "NOB" ni stolpec v uradni predlogi — ne sme se pojaviti nikjer.
+    // "NOB" ni stolpec v uradni predlogi – ne sme se pojaviti nikjer.
     trdi(!Object.keys(podatki).some(k => k.startsWith("NOB|")), "neznana oznaka \"NOB\" ne ustvari stolpca");
   }
 
-  console.log("3b) Enoto lahko pokriva več nosilcev — parafe se seštejejo, ne prepišejo");
+  console.log("3b) Enoto lahko pokriva več nosilcev – parafe se seštejejo, ne prepišejo");
   {
     const { podatki } = await poglej({
       vodje: [
@@ -269,7 +278,7 @@ const test = async () => {
     postaviOdjemalca({ schedule_entries: [], leave_entries: [], profiles: PROFILI, lead_departments: VODJE, nadomescanja: NADOMESCANJA, nzv_nastavitve: [] });
     const { podatki } = await sandbox.nalozizPodatkeNzv("2026-07-01", "2026-07-31");
     eq(podatki["SADOP|2026-07-01"], "BIZ", "1.7. (lih teden) dopoldne");
-    eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne — poletna izjema");
+    eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne – poletna izjema");
     eq(podatki["SAPOP|2026-07-08"] || "", "", "poleti popoldanskega stolpca ni");
   }
   {
@@ -294,10 +303,15 @@ const test = async () => {
     eq(podatki["SAPOP|2026-09-08"], "BIZ", "in lih teden popoldne");
   }
 
-  console.log("4) Trajna odsotnost (porodniška) — nosilka se ne vpisuje");
+  console.log("4) Trajna odsotnost (porodniška) – nosilka se ne vpisuje");
   {
     const { podatki } = await poglej();
-    eq(podatki["E1|2026-09-01"] || "", "", "Pogačnik Teja je na porodniški do 31.7.2027 — E1 ostane prazen");
+    // Prej je bil E1 prazen, ker je bila Pogačnik edina nosilka. Odkar je
+    // v naboru tudi Maglić (kot v resnici), E1 drži on - bistvo trditve pa
+    // ostaja isto: trajno odsotne osebe v mreži NI.
+    eq(podatki["E1|2026-09-01"], "MAG", "E1 drži Maglić, ne Pogačnik");
+    trdi(podatki["E1|2026-09-01"] !== "POG",
+      "Pogačnik Teja je na porodniški do 31.7.2027 – v mreži je ni");
   }
 
   console.log("5) Ob odsotnosti: nadomeščevalec se PRESELI, tretji pokrije zapuščeno enoto");
@@ -317,7 +331,59 @@ const test = async () => {
   eq(podatki["B|2026-09-01"], "LUN", "Lunar samo na B");
 }
 
-console.log("5b) Veriga se ustavi pri tretjem - ta se NE preseli");
+console.log("5b) Vzajemni par brez tretjega: nadomeščevalec pokriva OBE enoti");
+{
+  // Uporabnikov primer: "ko je Lelič na dopustu ima Maglić e2+e1 oddelek".
+  // Lelič (E2) in Maglić (E1) sta drug drugemu EDINI nadomeščevalec, zato
+  // Magličevega E1 ob njeni odsotnosti ni komu oddati. Prej je E1 tisti
+  // dan iz razporeda preprosto izginil, čeprav delo na njem ostane.
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Lelič Dijana", work_date: "2026-09-02", kind: "ld" }],
+  });
+  eq(podatki["E2|2026-09-02"], "MAG", "Maglić prevzame Leličin E2");
+  eq(podatki["E1|2026-09-02"], "MAG", "in POLEG tega obdrži svoj E1 (prej je E1 izginil)");
+  eq(podatki["LD|2026-09-02"], "LEL", "stolpec LD pokaže Leličino odsotnost");
+
+  // Berljiv zapis enot (to je tisto, kar piše v celici Razpredelnice)
+  // mora povedati oboje, in v tem vrstnem redu.
+  const NZ = sandbox.window.NzvZasedba;
+  const vrstice = NZ.razporedDneva({
+    nosilci: VODJE,
+    pari: NADOMESCANJA,
+    kljuc: sandbox.window.Imena.kljuc,
+    jeOdsoten: (ime) => /LELI/i.test(ime),
+    veljavne: null,
+  });
+  const mag = vrstice.find(v => /MAGLI/i.test(v.nosilec.full_name));
+  eq(mag ? mag.enote : "", "E2, E1", "zapis enot za Maglića je \"E2, E1\"");
+
+  // Dan prej je vsak na svojem.
+  eq(podatki["E2|2026-09-01"], "LEL", "dan prej je Lelič na svojem E2");
+  eq(podatki["E1|2026-09-01"], "MAG", "in Maglić na svojem E1");
+}
+
+console.log("5c) Obratna smer istega para deluje enako");
+{
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Maglić Aleksander", work_date: "2026-09-03", kind: "ld" }],
+  });
+  eq(podatki["E1|2026-09-03"], "LEL", "Lelič prevzame Magličev E1");
+  eq(podatki["E2|2026-09-03"], "LEL", "in obdrži svoj E2");
+}
+
+console.log("5d) Kjer TRETJI obstaja, se nadomeščevalec še vedno PRESELI");
+{
+  // Nadzorna točka za popravek 5c: pravilo ne sme pokvariti verige, kjer
+  // zapuščeno enoto ima kdo prevzeti. Arnež gre s C na C1 in ga na C NI.
+  const { podatki } = await poglej({
+    dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-04", kind: "ld" }],
+  });
+  eq(podatki["C1|2026-09-04"], "ARN", "Arnež se preseli na C1");
+  eq(podatki["C|2026-09-04"], "LUN", "na Arneževem C je Lunar - Arneža tam NI");
+  eq(podatki["B|2026-09-04"], "LUN", "Lunar obdrži tudi svoj B");
+}
+
+console.log("5e) Veriga se ustavi pri tretjem - ta se NE preseli");
 {
   const { podatki } = await poglej({
     dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-02", kind: "ld" }],
@@ -328,7 +394,7 @@ console.log("5b) Veriga se ustavi pri tretjem - ta se NE preseli");
     "tretji je na OBEH enotah hkrati");
 }
 
-console.log("5c) Če je prvi nadomeščevalec tudi odsoten, vskoči drugi");
+console.log("5f) Če je prvi nadomeščevalec tudi odsoten, vskoči drugi");
 {
   const { podatki } = await poglej({
     dopusti: [
@@ -337,10 +403,13 @@ console.log("5c) Če je prvi nadomeščevalec tudi odsoten, vskoči drugi");
     ],
   });
   eq(podatki["ZO|2026-09-02"], "DŽA", "ŽO prevzame drugi po prednosti");
-  eq(podatki["PDZN|2026-09-02"] || "", "", "Džamastagić je preseljen - na svojem PDZN ga ni");
+  // Isto pravilo kot pri Lelič/Maglić (5c): Džamastagić v tem naboru nima
+  // nikogar, ki bi prevzel njegov PDZN, zato ga obdrži POLEG prevzetega
+  // ŽO. Prej je PDZN tisti dan iz mreže izginil, čeprav delo na njem ostane.
+  eq(podatki["PDZN|2026-09-02"], "DŽA", "PDZN obdrži sam – prevzeti ga nima kdo");
 }
 
-console.log("5d) Nihče ne more biti hkrati preseljen in prevzemnik");
+console.log("5g) Nihče ne more biti hkrati preseljen in prevzemnik");
 {
   const { podatki } = await poglej({
     dopusti: [{ full_name: "Salkić Maruša", work_date: "2026-09-02", kind: "ld" }],
@@ -360,7 +429,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     });
     eq(podatki["PDZN|2026-09-01"], "BOJ", "objavljeni vnos obvelja pred izpeljanim nosilcem");
     trdi(!izpeljano["PDZN|2026-09-01"], "objavljena celica ni označena kot izpeljana");
-    eq(podatki["MO|2026-09-01"] || "", "", "Bojić je tisti dan že v mreži — na MO se ne podvoji");
+    eq(podatki["MO|2026-09-01"] || "", "", "Bojić je tisti dan že v mreži – na MO se ne podvoji");
     eq(podatki["ZO|2026-09-01"], "ALU", "ostali nosilci so nedotaknjeni");
     eq(podatki["PDZN|2026-09-02"], "DŽA", "naslednji dan brez objave se izpeljava spet uporabi");
   }
@@ -370,7 +439,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     const { podatki } = await poglej({
       vodje: [...VODJE, { full_name: "NOVAK ANA", enote: "D", odsotnost_tip: null, odsotnost_do: null }],
     });
-    eq(podatki["D|2026-09-01"] || "", "", "Novak Ana ima vlogo user — stolpec D ostane prazen");
+    eq(podatki["D|2026-09-01"] || "", "", "Novak Ana ima vlogo user – stolpec D ostane prazen");
   }
 
   console.log("8) Brez tabel nadomescanja/lead_departments mreža deluje kot prej (ne sesuje se)");

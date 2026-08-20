@@ -229,5 +229,5 @@ console.log("8) stolpec 'DODATNO C/E2 7-19' se ne uvozi, a se PRIJAVI");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

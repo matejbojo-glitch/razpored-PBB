@@ -1,16 +1,16 @@
-/* Razpored PBB — delovni-cas.js
+/* Razpored PBB – delovni-cas.js
  *
  * EDINI vir resnice o izmenah (ure, trajanje, ali je nočna) in o
  * delovnopravnih pravilih. Doslej je bila ista stvar zapisana dvakrat:
  * DELOVNI_ČAS v index.html (samo za prikaz ur) in TRAJANJE_UR v admin.html
- * (samo za izračun plač) — dve definiciji istega dejstva, ki bi se ob
+ * (samo za izračun plač) – dve definiciji istega dejstva, ki bi se ob
  * spremembi urnika zlahka razšli. Tu sta združeni.
  *
- * Ure so iz uradne legende "Razpored delovnega časa — Služba za ZN in
+ * Ure so iz uradne legende "Razpored delovnega časa – Služba za ZN in
  * oskrbo" (velja od 1. 7. 2022).
  *
  * Brez JSX in brez odvisnosti, da se naloži kot navaden <script> pred
- * babel skriptami — in da je preverljiv tudi v Node.
+ * babel skriptami – in da je preverljiv tudi v Node.
  */
 (function (root) {
   "use strict";
@@ -50,12 +50,12 @@
     "PRISOTEN":         { zacetek: "07:00", konec: "15:00", ure: 8,          nocna: false },
   };
 
-  // Kode, ki NISO delo (odsotnost/prosto) — ne štejejo v počitek niti v ure.
+  // Kode, ki NISO delo (odsotnost/prosto) – ne štejejo v počitek niti v ure.
   var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", ""];
 
   // Privzeta delovnopravna pravila. NAMENOMA nastavljiva (in ne trdo
   // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih
-  // mora potrditi kadrovska — tu so samo izhodiščne vrednosti.
+  // mora potrditi kadrovska – tu so samo izhodiščne vrednosti.
   var PRIVZETA_PRAVILA = {
     minPocitekUr: 12,          // najmanj ur med koncem ene in začetkom naslednje izmene
     maxZaporednihNocnih: 2,    // največ zaporednih nočnih izmen
@@ -76,7 +76,7 @@
 
   // Razpored se uvaža iz Google Sheets, kjer isto izmeno kdo zapiše
   // "DNEVNA12F", kdo "DNEVNA 12 F" in kdo z malimi črkami. Iskanje zato
-  // teče po ključu brez presledkov in v malih črkah — sicer bi se
+  // teče po ključu brez presledkov in v malih črkah – sicer bi se
   // neujemajoč zapis tiho obravnaval kot "ni izmena" in bi izpadel iz
   // obračuna ur in iz preverjanja počitka.
   function kljuc(s) { return (s || "").toLowerCase().replace(/\s+/g, ""); }
@@ -129,7 +129,7 @@
    *
    * vnosi: [{ oseba, datum (ISO), sifra, izjema? }]
    *   "izjema" (true) pomeni, da je prekoračitev že evidentirana kot
-   *   zakonska izjema — takrat se kršitev prijavi kot opozorilo, ne kot
+   *   zakonska izjema – takrat se kršitev prijavi kot opozorilo, ne kot
    *   kritična napaka.
    * pravila: glej PRIVZETA_PRAVILA (delni objekt je dovolj)
    *
@@ -216,7 +216,7 @@
               if (izm2 && izm2.ure) ure += izm2.ure;
             }
           }
-          if (dodajDni(d, 6) > zadnji) break; // nepopolno okno — ne ocenjujemo
+          if (dodajDni(d, 6) > zadnji) break; // nepopolno okno – ne ocenjujemo
           if (ure > p.maxTedenskihUr) {
             krsitve.push({
               oseba: oseba, datum: d, vrsta: "tedenskeUre", resnost: "opozorilo",
@@ -226,7 +226,7 @@
           if (p.zahtevajProstDanNaTeden && delovnihDni === 7) {
             krsitve.push({
               oseba: oseba, datum: d, vrsta: "prostDan", resnost: "kriticno",
-              sporocilo: "7 zaporednih delovnih dni od " + d + " — brez prostega dne.",
+              sporocilo: "7 zaporednih delovnih dni od " + d + " – brez prostega dne.",
             });
           }
         }

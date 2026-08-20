@@ -1,12 +1,12 @@
-// import-utils.js — skupna logika za uvoz podatkov iz CSV, Excel (.xlsx/.xls),
+// import-utils.js – skupna logika za uvoz podatkov iz CSV, Excel (.xlsx/.xls),
 // Google Sheets (javno objavljena povezava) in PDF (izvleček besedila), ki jo
 // deli več strani (imenik.html, admin.html ...). Navadna (ne-Babel) datoteka,
-// naložena kot <script src="import-utils.js">, ker JSX tu ni potreben —
+// naložena kot <script src="import-utils.js">, ker JSX tu ni potreben –
 // enako kot supabase-client.js in generator-core.js.
 //
 // XLSX (SheetJS, vendoriran kot xlsx.core.min.js) se naloži klasično in je na
 // voljo takoj. PDF.js (pdf.min.mjs) je ES modul in ga naložimo šele ob prvi
-// uporabi (dynamic import) — velika knjižnica (worker ~1.3 MB), ni smisla, da
+// uporabi (dynamic import) – velika knjižnica (worker ~1.3 MB), ni smisla, da
 // bremeni vsako stran, ki uvoza PDF sploh ne uporabi.
 window.ImportUtils = (function () {
 
@@ -266,12 +266,12 @@ window.ImportUtils = (function () {
   // Glavna vstopna točka: prebere File objekt (iz <input type="file">) in
   // vrne { vrsteVrstic: string[][], tip: "csv"|"xlsx"|"pdf-besedilo" }.
   // Za PDF je vsaka "vrstica" en sam string (golo besedilo), ne razdeljena
-  // po stolpcih — kličoča koda naj to prikaže v urejljivem polju za pregled.
+  // po stolpcih – kličoča koda naj to prikaže v urejljivem polju za pregled.
   // JSON v isto obliko kot CSV/Excel (vrstice x stolpci), da ga preostala
   // uvozna logika obravnava enako.
-  //   .jsonl  — en zapis na vrstico
-  //   .json   — polje objektov, polje polj, ali objekt z enim poljem znotraj
-  //   .gsheet — NI podatek, ampak bližnjica iz Google Drive z URL-jem; vrne
+  //   .jsonl  – en zapis na vrstico
+  //   .json   – polje objektov, polje polj, ali objekt z enim poljem znotraj
+  //   .gsheet – NI podatek, ampak bližnjica iz Google Drive z URL-jem; vrne
   //             se povezava, ki jo stran nato uvozi po običajni poti
   // Glave se sestavijo iz unije ključev, da manjkajoč ključ v posameznem
   // zapisu ne premakne stolpcev.
@@ -298,7 +298,7 @@ window.ImportUtils = (function () {
       catch (e) { throw new Error("Datoteka ni veljaven JSON: " + (e.message || e)); }
       if (Array.isArray(podatki)) zapisi = podatki;
       else if (podatki && typeof podatki === "object") {
-        // Objekt ovija podatke (npr. { "vrstice": [...] }) — vzemi prvo polje.
+        // Objekt ovija podatke (npr. { "vrstice": [...] }) – vzemi prvo polje.
         const polje = Object.keys(podatki).find(k => Array.isArray(podatki[k]));
         if (!polje) throw new Error("V JSON datoteki ni seznama zapisov.");
         zapisi = podatki[polje];
@@ -350,10 +350,10 @@ window.ImportUtils = (function () {
         reader.readAsText(file, "UTF-8");
       } else if (ime.endsWith(".heic") || ime.endsWith(".heif") || /\.(jpe?g|png|webp|gif|bmp|tiff?)$/.test(ime)) {
         // Slika razporeda ni berljiva brez OCR, tega pa aplikacija nima.
-        // Namesto tihe napake ("prazna datoteka") povemo, kaj storiti — ker
+        // Namesto tihe napake ("prazna datoteka") povemo, kaj storiti – ker
         // bi napačno prebran razpored pomenil napačne izmene ljudem.
         reject(new Error(
-          "Slik (" + ime.split(".").pop() + ") aplikacija ne zna prebrati — za to bi bilo potrebno "
+          "Slik (" + ime.split(".").pop() + ") aplikacija ne zna prebrati – za to bi bilo potrebno "
           + "prepoznavanje besedila, ki ga nima. Razpored izvozi iz Excela/Google Sheets "
           + "(.xlsx, .csv) ali prilepi povezavo do Google preglednice."
         ));
@@ -363,7 +363,7 @@ window.ImportUtils = (function () {
           + "označi in prilepi v Excel ali Google Sheets, nato uvozi .xlsx/.csv."
         ));
       } else {
-        // .csv, .txt ali karkoli drugega — obravnavaj kot besedilo
+        // .csv, .txt ali karkoli drugega – obravnavaj kot besedilo
         reader.onload = () => resolve({ vrsteVrstic: csvBesedilaVVrstice(String(reader.result || "")), tip: "csv" });
         reader.readAsText(file, "UTF-8");
       }
@@ -375,7 +375,7 @@ window.ImportUtils = (function () {
   // za deljenje z dovoljenjem "Vsak, ki ima povezavo"). Iz poljubne
   // docs.google.com/spreadsheets/... povezave sestavimo CSV-izvozno povezavo
   // in jo preberemo kot CSV. Če preglednica ni javna, fetch spodleti (bo
-  // vrnil prijavno stran ali 401/403) — to sporočimo uporabniku.
+  // vrnil prijavno stran ali 401/403) – to sporočimo uporabniku.
   function googleSheetCsvUrl(url) {
     const m = String(url || "").match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     if (!m) throw new Error("Ni videti kot povezava Google Sheets (pričakovano: docs.google.com/spreadsheets/d/...).");
@@ -396,7 +396,7 @@ window.ImportUtils = (function () {
     }
     const text = await res.text();
     if (/^\s*<!DOCTYPE html/i.test(text)) {
-      throw new Error("Google je vrnil prijavno stran namesto CSV — preglednica ni javno dostopna.");
+      throw new Error("Google je vrnil prijavno stran namesto CSV – preglednica ni javno dostopna.");
     }
     return { vrsteVrstic: csvBesedilaVVrstice(text), tip: "csv" };
   }
@@ -404,7 +404,7 @@ window.ImportUtils = (function () {
   // Pretvori surove vrstice (string[][]) v vrstice-objekte glede na podano
   // seznam pričakovanih glav stolpcev (v vrstnem redu). Prva vrstica se šteje
   // za glavo, če se prvo polje (case-insensitive) ujema z eno od
-  // moznaGlavaPrviStolpec vrednosti — sicer se privzame, da glave ni in se
+  // moznaGlavaPrviStolpec vrednosti – sicer se privzame, da glave ni in se
   // stolpci mapirajo po vrstnem redu podanih imen.
   function vVrsticeObjekte(vrsteVrstic, imenaStolpcev, moznaGlavaPrviStolpec) {
     if (!vrsteVrstic.length) return [];
@@ -485,7 +485,7 @@ window.ImportUtils = (function () {
     return t;
   }
 
-  // Enoten seznam za "accept" na <input type=file> — da vse strani ponujajo
+  // Enoten seznam za "accept" na <input type=file> – da vse strani ponujajo
   // isto in da se ne razide s tem, kar preberiDatoteko dejansko zna.
   const PODPRTE_PRIPONE = ".csv,.txt,.xlsx,.xls,.xlsb,.json,.jsonl,.gsheet,.pdf";
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-/* Preizkus datum.js — ene same oblike datuma za vso aplikacijo
+/* Preizkus datum.js – ene same oblike datuma za vso aplikacijo
  * (dan.mesec.leto brez presledkov, npr. "27.10.2026").
  *
  * Zakaj: slovenska privzeta oblika (toLocaleDateString("sl-SI")) vstavlja
- * presledke — "27. 10. 2026" — kar se je v ozkem stolpcu DATUM v NZV mreži
+ * presledke – "27. 10. 2026" – kar se je v ozkem stolpcu DATUM v NZV mreži
  * obrezalo v neuporabno "1. 9. 20…". Poleg tega je bil datum po straneh
  * zapisan na tri različne načine ("1. 9. 2026", "1. sep. 2026", "1. 9.").
  *
@@ -27,7 +27,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`));
 }
 
 const sandbox = { window: {}, console, Date, isNaN, Number, String, RegExp };
@@ -90,5 +90,5 @@ console.log("6) nobena stran ne uporablja več privzete slovenske oblike s presl
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

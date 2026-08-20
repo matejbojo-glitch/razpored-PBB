@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus stanjeIzKode()/KIND_STANJE (imenik.html) — razvrščanja v pet
+/* Preizkus stanjeIzKode()/KIND_STANJE (imenik.html) – razvrščanja v pet
  * stanj, ki jih zahteva razpredelnica v Imeniku:
  *   1. na delu, 2. dežurstvo, 3. dopust, 4. bolniška, 5. prosto.
  *
@@ -45,7 +45,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`));
 }
 
 const sandbox = { console };
@@ -133,7 +133,7 @@ console.log("7) neznana koda šteje kot DELO (varneje kot 'prosto')");
   eq(stanjeIzKode("nekaj novega"), "delo", "neznana koda -> na delu, ne prosto");
 }
 
-console.log("8) uradne kratice iz delovnik.xlsx — največ 3 znaki, izjema DF12");
+console.log("8) uradne kratice iz delovnik.xlsx – največ 3 znaki, izjema DF12");
 {
   // Uporabnikovo pravilo: "EDINO DNEVNA12 7-19 IMA 4 ČRKE".
   IZMENA_KRATICE.forEach(([, kratica, naziv, , barva, skupina]) => {
@@ -424,5 +424,5 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

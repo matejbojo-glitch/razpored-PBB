@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-/* Preizkus: ENA oblika datuma v CELOTNI aplikaciji — dan.mesec.leto.
+/* Preizkus: ENA oblika datuma v CELOTNI aplikaciji – dan.mesec.leto.
  *
  * Zakaj obstaja: uporabnik je to zahteval večkrat, pa se je vsakič
- * našlo mesto, ki je bilo spregledano — nazadnje "Stanje dopusta (na dan
+ * našlo mesto, ki je bilo spregledano – nazadnje "Stanje dopusta (na dan
  * 2026-08-11)" v Imeniku, kjer je bil izpisan surov zapis iz baze.
  * Ročno pregledovanje očitno ne zadošča, zato je pravilo tu zaklenjeno:
  *
- *   1. NOBENA stran ne sme uporabljati toLocale* za datum ali uro —
+ *   1. NOBENA stran ne sme uporabljati toLocale* za datum ali uro –
  *      to je bil vir vseh različnih oblik ("11. 8. 2026", "11. avg.",
  *      "11.08.2026"). Vse gre prek datum.js.
  *   2. Znana datumska polja (rojstvo, stanje na dan, delovni datum,
@@ -28,7 +28,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 const sandbox = { console };
@@ -42,7 +42,7 @@ const STRANI = readdirSync(koren).filter(f => f.endsWith(".html"));
 const LASTNE_SKRIPTE = readdirSync(koren)
   .filter(f => f.endsWith(".js") && !f.endsWith(".min.js") && f !== "datum.js");
 
-console.log("1) oblika je dan.mesec.leto — preverjeno z vrednostmi");
+console.log("1) oblika je dan.mesec.leto – preverjeno z vrednostmi");
 {
   eq(D.slo("2026-10-27"), "27.10.2026", "navaden datum");
   eq(D.slo("1991-03-04"), "4.3.1991", "enomestni dan in mesec brez vodilnih ničel");
@@ -67,7 +67,7 @@ console.log("2) NOBENA stran ne oblikuje datuma sama (brez toLocale*)");
     const src = brezKomentarjev(readFileSync(join(koren, f), "utf8"));
     const zadetki = (src.match(/toLocale\w*/g) || []);
     trdi(zadetki.length === 0, `${f} ne uporablja toLocale*`
-      + (zadetki.length ? ` — najdeno: ${[...new Set(zadetki)].join(", ")}` : ""));
+      + (zadetki.length ? ` – najdeno: ${[...new Set(zadetki)].join(", ")}` : ""));
   });
 }
 
@@ -106,7 +106,7 @@ console.log("3) znana datumska polja se ne izpisujejo surova");
       }
     });
     trdi(sporni.size === 0, `${f}: nobeno datumsko polje ni izpisano surovo`
-      + (sporni.size ? ` — ${[...sporni].slice(0, 3).join(" | ")}` : ""));
+      + (sporni.size ? ` – ${[...sporni].slice(0, 3).join(" | ")}` : ""));
   });
 }
 
@@ -124,18 +124,18 @@ console.log("5) mesta, ki so bila že popravljena, ostanejo popravljena");
   // Vsako od teh je uporabnik nekoč videl napačno zapisano; navedena so
   // poimensko, da se ob naslednji predelavi ne izgubijo tiho.
   const mesta = [
-    ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(hr\.leave_balance_asof\)/, "Stanje dopusta — na dan"],
-    ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(naDan\)/, "Napredek dopusta — na dan"],
+    ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(hr\.leave_balance_asof\)/, "Stanje dopusta – na dan"],
+    ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(naDan\)/, "Napredek dopusta – na dan"],
     ["imenik.html", /Rojstvo<\/div><div className="val">\{window\.Datum\.slo\(hr\.birth_date\)/, "Datum rojstva"],
-    ["imenik.html", /<td>\{window\.Datum\.slo\(v\.leave_balance_asof\) \|\| "—"\}<\/td>/, "Seznam stanja dopusta"],
-    ["admin.html", /<td>\{window\.Datum\.slo\(v\.work_date\)\}<\/td>/, "Dnevnik sprememb — delovni datum"],
-    ["admin.html", /\{window\.Datum\.sloSCasom\(v\.changed_at\)\}/, "Dnevnik sprememb — čas"],
-    ["admin.html", /glave: \["Zaposleni", \.\.\.rezultat\.dnevi\.map\(dn => window\.Datum\.slo\(dn\.datum\)\)\]/, "Izvoz kalupa — glave dni"],
-    ["index.html", /window\.Datum\.sloSCasom\(objava\.created_at\)/, "Podpisi — datum objave"],
+    ["imenik.html", /<td>\{window\.Datum\.slo\(v\.leave_balance_asof\) \|\| "–"\}<\/td>/, "Seznam stanja dopusta"],
+    ["admin.html", /<td>\{window\.Datum\.slo\(v\.work_date\)\}<\/td>/, "Dnevnik sprememb – delovni datum"],
+    ["admin.html", /\{window\.Datum\.sloSCasom\(v\.changed_at\)\}/, "Dnevnik sprememb – čas"],
+    ["admin.html", /glave: \["Zaposleni", \.\.\.rezultat\.dnevi\.map\(dn => window\.Datum\.slo\(dn\.datum\)\)\]/, "Izvoz kalupa – glave dni"],
+    ["index.html", /window\.Datum\.sloSCasom\(objava\.created_at\)/, "Podpisi – datum objave"],
     ["index.html", /\{window\.Datum\.mesecLeto\(month\)\}/, "Naslov meseca"],
     ["zelje.html", /\{window\.Datum\.sloSCasom\(e\.created_at\)\}/, "Zgodovina želja"],
-    ["zelje.html", /window\.Datum\.slo\(isoZa\(view\.year, view\.month, d\)\)/, "Izvoz mreže želja — glave dni"],
-    ["obrazec.html", /return window\.Datum\.slo\(iso\);/, "Menjava — datum"],
+    ["zelje.html", /window\.Datum\.slo\(isoZa\(view\.year, view\.month, d\)\)/, "Izvoz mreže želja – glave dni"],
+    ["obrazec.html", /return window\.Datum\.slo\(iso\);/, "Menjava – datum"],
   ];
   mesta.forEach(([f, vzorec, opis]) => {
     const src = readFileSync(join(koren, f), "utf8");

@@ -1,4 +1,4 @@
-/* Razpored PBB — prazniki.js
+/* Razpored PBB – prazniki.js
  * Slovenski DELA PROSTI dnevi in skupno pravilo "kdaj je za NZV prost dan".
  *
  * Zakaj svoja datoteka: pravilo "NZV dela od ponedeljka do petka; sobota,

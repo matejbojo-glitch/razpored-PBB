@@ -3,17 +3,22 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>Prijava · Razpored Begunje</title>
+<title>Prijava · Begunje</title>
 <meta name="theme-color" content="#FAF8F1" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
 <style>
-  :root{
-    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
-    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
-    --danger: #B3402A; --ok: #4C8C63; --radius: 16px; --radius-sm: 10px;
-  }
+  /* Barve in radiji so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej sta imeli ti dve strani svojo kopijo, ki se je
+     razšla: --ok je bil #4C8C63, drugod v aplikaciji #4F9B6B, zato
+     je bila ista "uspešno" zelena na prijavi drugačna kot povsod. */
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
     margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
@@ -142,7 +147,7 @@ function App(){
           </div>
         )}
         {mode === "set-password" && (
-          <p className="sub" style={{margin:"0 0 16px"}}>Račun je ustvarjen — pred nadaljevanjem še enkrat nastavi geslo.</p>
+          <p className="sub" style={{margin:"0 0 16px"}}>Račun je ustvarjen – pred nadaljevanjem še enkrat nastavi geslo.</p>
         )}
         <form onSubmit={submit}>
           {mode==="signup" && (
@@ -150,7 +155,7 @@ function App(){
               {/* Vrstni red je pomemben, ne kozmetičen: cela aplikacija
                   zapisuje "Priimek Ime" (imenik se po tem razvršča, parafa
                   za razpored se vzame iz prvega dela). Prej je polje vabilo
-                  k "Ime in priimek" — od tod mešanica obeh zapisov. */}
+                  k "Ime in priimek" – od tod mešanica obeh zapisov. */}
               <label htmlFor="fn">Priimek in ime</label>
               <input id="fn" type="text" required placeholder="npr. Rozman Anka" value={fullName} onChange={e => setFullName(e.target.value)} />
             </div>
@@ -191,7 +196,7 @@ function App(){
       </div>
       {mode !== "set-password" && (
         <p className="hint">
-          Nov račun ima privzeto vlogo "zaposleni" (vidiš samo razporede in lahko predlagaš menjave).
+          Nov račun ima privzeto vlogo »zaposleni« (vidiš samo razporede in lahko predlagaš menjave).
           Za dostop do koordinatorskih orodij (generator, nadzorna plošča, odobritve) te mora
           po prijavi ročno potrditi administrator.
         </p>

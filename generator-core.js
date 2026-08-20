@@ -1,4 +1,4 @@
-/* Razpored PBB — generator-core.js
+/* Razpored PBB – generator-core.js
  * Čista logika (brez UI), da jo je mogoče testirati neodvisno od brskalnika.
  * Deluje tako v brskalniku (window.Generator) kot v Node.js (module.exports).
  */
@@ -34,7 +34,7 @@
   var DNI = ["PO", "TO", "SR", "ČE", "PE", "SO", "NE"];
 
   // ---------------------------------------------------------------------
-  // 1) KALUP GENERATOR — 5-tedenska rotacija za izmenski (SMS/TZN) kader.
+  // 1) KALUP GENERATOR – 5-tedenska rotacija za izmenski (SMS/TZN) kader.
   //    Ista pravila, ki smo jih uporabili za generiranje oktobra 2026.
   // ---------------------------------------------------------------------
   var CYCLE = ["A", "B", "C", "D", "E"];
@@ -70,17 +70,17 @@
   }
 
   /**
-   * opts.anchorMondayISO — ponedeljek, za katerega poznamo črko kalupa vsakega zaposlenega
-   * opts.startISO / opts.endISO — razpon dni, ki jih generiramo (vključno)
-   * opts.staff — [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool,
+   * opts.anchorMondayISO – ponedeljek, za katerega poznamo črko kalupa vsakega zaposlenega
+   * opts.startISO / opts.endISO – razpon dni, ki jih generiramo (vključno)
+   * opts.staff – [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool,
    *                 dopustTedni: ["YYYY-MM-DD" (ponedeljek tistega tedna), ...],
    *                 omejitve: ["YYYY-MM-DD", ...] }]
-   *   omejitve — dnevi "rumene" omejitve (iz Razpredelnice Želje): če oseba ta dan po kalupu dela,
+   *   omejitve – dnevi "rumene" omejitve (iz Razpredelnice Želje): če oseba ta dan po kalupu dela,
    *   generator poišče nadomestilo med preostalim osebjem istega oddelka, ki je ta dan naravno prosto
-   *   (prazna izmena po LASTNEM vzorcu — NE nekdo na LD/pomoči, da se ne krati zaslužen prost teden) in
+   *   (prazna izmena po LASTNEM vzorcu – NE nekdo na LD/pomoči, da se ne krati zaslužen prost teden) in
    *   nima svoje omejitve/dopusta/pomoči isti dan. Nadomeščanja se pravično porazdelijo (kdor je
    *   nadomeščal manjkrat, ima prednost). Če nadomestila ni, izmena ostane zasedena in generator doda
-   *   opozorilo — koordinator ročno popravi celico (glej "Kalup: poveži ročne popravke z objavo").
+   *   opozorilo – koordinator ročno popravi celico (glej "Kalup: poveži ročne popravke z objavo").
    */
   function generirajKalup(opts) {
     var anchorMonday = toDate(opts.anchorMondayISO);
@@ -104,11 +104,11 @@
       opts.staff.forEach(function (z) {
         if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
         var trenutna = izmene[z.ime];
-        if (!trenutna) return; // že prost ta dan (vzorec/LD) — omejitev je brezpredmetna
+        if (!trenutna) return; // že prost ta dan (vzorec/LD) – omejitev je brezpredmetna
 
         var kandidati = opts.staff.filter(function (k) {
           if (k.ime === z.ime) return false;
-          if (izmene[k.ime]) return false; // dela, na LD-tednu ali pomaga drugje — ni na voljo
+          if (izmene[k.ime]) return false; // dela, na LD-tednu ali pomaga drugje – ni na voljo
           if ((k.omejitve || []).indexOf(iso) !== -1) return false;
           return true;
         }).sort(function (a, b) {
@@ -124,7 +124,7 @@
         } else {
           opozorila.push({
             datum: iso,
-            sporocilo: z.ime + ": omejitev na ta dan, a nihče na oddelku ni na voljo za nadomestilo — izmena (" + trenutna + ") ostaja zasedena, preveri ročno."
+            sporocilo: z.ime + ": omejitev na ta dan, a nihče na oddelku ni na voljo za nadomestilo – izmena (" + trenutna + ") ostaja zasedena, preveri ročno."
           });
         }
       });
@@ -135,7 +135,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // 2) GENERATOR DEŽURSTEV — pravičen razpored 24-urnih dežurstev za
+  // 2) GENERATOR DEŽURSTEV – pravičen razpored 24-urnih dežurstev za
   //    dežurni kader (DMS/DZN), z upoštevanjem:
   //      - minimalnega razmika med dvema dežurstvoma iste osebe
   //      - prostega dne takoj po dežurstvu (odgovor na ugotovitev, da je
@@ -143,29 +143,29 @@
   //      - kumulativne pravičnosti: prednost ima oseba z najmanj dežurstvi
   // ---------------------------------------------------------------------
   /**
-   * opts.startISO / opts.endISO — razpon dni, za katere razporejamo (1 dežurstvo/dan)
-   * opts.minRazmikDni — najmanjši razmik med dvema dežurstvoma iste osebe (privzeto 3)
-   * opts.prostDanPoDezurstvu — ali dan takoj po dežurstvu velja kot blokiran za redno delo (privzeto true)
-   * opts.maxVikendMesecno — ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
-   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje —
+   * opts.startISO / opts.endISO – razpon dni, za katere razporejamo (1 dežurstvo/dan)
+   * opts.minRazmikDni – najmanjši razmik med dvema dežurstvoma iste osebe (privzeto 3)
+   * opts.prostDanPoDezurstvu – ali dan takoj po dežurstvu velja kot blokiran za redno delo (privzeto true)
+   * opts.maxVikendMesecno – ali sme imeti oseba največ 1 soboto/nedeljo na koledarski mesec (privzeto true;
+   *   iz pravila analize "Dežurstva 2026": vsak ima največ en vikend dan, sobota ALI nedelja, nikoli oboje –
    *   ta vikend dan se šteje kot eno od njenih mesečnih dežurstev, ne dodatno zraven)
-   * opts.staff — [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
+   * opts.staff – [{ ime, obstojeceStevilo, zadnjeDezurstvo: "YYYY-MM-DD"|null, odsotnosti: ["YYYY-MM-DD", ...],
    *                 prostDanVTednu: "PO".."NE"|null, dopust: ["YYYY-MM-DD", ...], omejitve: ["YYYY-MM-DD", ...],
    *                 minMesecno: število|null, maxMesecno: število|null, samoMedTednom: bool }]
-   *   prostDanVTednu — stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
+   *   prostDanVTednu – stalna omejitev osebe, da nikoli ne dežura na ta dan v tednu
    *   (npr. Matej Bojić: "PO", iz analize "Dežurstva 2026")
-   *   samoMedTednom — trdo pravilo (iz "Zaposleni - Oddelki", Predloga razporeda vodje NZV): oseba nikoli
+   *   samoMedTednom – trdo pravilo (iz "Zaposleni - Oddelki", Predloga razporeda vodje NZV): oseba nikoli
    *   ne dežura ob sobotah/nedeljah, ne glede na maxVikendMesecno (npr. Salkić Maruša, Trpin Saša: "1x
    *   dežurstvo na mesec med tednom")
-   *   dopust — dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
+   *   dopust – dnevi letnega dopusta ("rdeče" v preglednici omejitev): blokirani so tudi ti dnevi
    *   SAMI PO SEBI, poleg tega se samodejno blokira dan pred ZAČETKOM vsakega strnjenega dopustnega
-   *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim — sobota vmes ostane prosta),
+   *   bloka (in če se blok začne v ponedeljek, tudi petek pred njim – sobota vmes ostane prosta),
    *   po pravilu iz analize "Dežurstva 2026"
-   *   omejitve — dnevi "rumene" omejitve: blokirani samo ti dnevi, brez pravila o dnevu prej
-   *   maxMesecno — trda zgornja meja števila dežurstev osebe na koledarski mesec ZNOTRAJ tega
+   *   omejitve – dnevi "rumene" omejitve: blokirani samo ti dnevi, brez pravila o dnevu prej
+   *   maxMesecno – trda zgornja meja števila dežurstev osebe na koledarski mesec ZNOTRAJ tega
    *   generiranja (npr. Salkić Maruša in Trpin Saša: 1; ostali privzeto brez trde meje, a glej minMesecno).
    *   Kandidat, ki bi to mejo presegel, se ta dan ne razporeja.
-   *   minMesecno — mehak (informativen) cilj: če oseba ob koncu meseca ni dosegla tega števila, se doda
+   *   minMesecno – mehak (informativen) cilj: če oseba ob koncu meseca ni dosegla tega števila, se doda
    *   opozorilo (generiranje se zaradi tega NE ustavi, ker bi lahko bilo neizvedljivo).
    */
   function generirajDezurstva(opts) {
@@ -220,7 +220,7 @@
       });
 
       if (kandidati.length === 0) {
-        opozorila.push({ datum: iso, sporocilo: "Noben zaposleni ne izpolnjuje pogojev (razmik, odsotnost, prost dan ali vikend kvota) — potreben ročni vnos." });
+        opozorila.push({ datum: iso, sporocilo: "Noben zaposleni ne izpolnjuje pogojev (razmik, odsotnost, prost dan ali vikend kvota) – potreben ročni vnos." });
         razpored.push({ datum: iso, dan: DNI[weekdayMon0(d)], zaposleni: null });
         continue;
       }
@@ -228,7 +228,7 @@
       kandidati = kandidati.slice().sort(function (a, b) {
         var sa = stanje[a.ime], sb = stanje[b.ime];
         // Kdor še ni dosegel svojega mesečnega minimuma (minMesecno), ima
-        // prednost pred vsemi, ki so ga že dosegli — ne glede na skupno
+        // prednost pred vsemi, ki so ga že dosegli – ne glede na skupno
         // (celotno) število dežurstev doslej. To zagotavlja, da mesečni
         // minimum dejansko velja za vsakogar, ne le kot mehko opozorilo.
         var moA = a.minMesecno != null && (sa.mesecStevilo[mesecKey] || 0) < a.minMesecno;
@@ -269,7 +269,7 @@
         if (stevMesec < z.minMesecno) {
           opozorila.push({
             datum: mk,
-            sporocilo: z.ime + " ima v mesecu " + mk + " samo " + stevMesec + " dežurstev (cilj: vsaj " + z.minMesecno + ") — zaradi omejitev/dopusta morda ni bilo mogoče doseči cilja."
+            sporocilo: z.ime + " ima v mesecu " + mk + " samo " + stevMesec + " dežurstev (cilj: vsaj " + z.minMesecno + ") – zaradi omejitev/dopusta morda ni bilo mogoče doseči cilja."
           });
         }
       });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus parafa.js — skupne logike paraf, ki jo uporabljata razpored
+/* Preizkus parafa.js – skupne logike paraf, ki jo uporabljata razpored
  * (index.html) in Imenik (pregled paraf za vse zaposlene).
  *
  * Ozadje: uvoz razporeda pripiše izmeno osebi po PARAFI. Uporabnikovo
@@ -26,7 +26,7 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 function eq(a, b, opis) {
-  trdi(a === b, opis + (a === b ? "" : ` — dobil "${a}", pričakoval "${b}"`));
+  trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`));
 }
 
 const sandbox = { window: {}, console, String, Object };
@@ -64,7 +64,7 @@ console.log("3) 'izpeljana' se pravilno loči od izrecno nastavljene");
   trdi(Parafa.jeIzpeljana(POGACNIK_T, "2026-10") === false, "Pogačnik Teja v oktobru (nova 'PT') -> ni izpeljana");
 }
 
-console.log("4) TRK: dve osebi z isto parafo — natanko primer 'POG' iz uporabnikovega poročila");
+console.log("4) TRK: dve osebi z isto parafo – natanko primer 'POG' iz uporabnikovega poročila");
 {
   // Septembra ima Pogačnik Teja staro parafo "POG", Pogačnik Miha pa
   // izpeljano "POG" - uvoz take oznake ne more pripisati eni osebi.
@@ -106,5 +106,5 @@ console.log("7) potrjeni popravki kratkih zapisov iz predlog (Priimek I.)");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");

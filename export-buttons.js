@@ -1,13 +1,13 @@
-/* Razpored PBB — export-buttons.js
+/* Razpored PBB – export-buttons.js
  * Skupen par gumbov "Izvozi v Excel" / "Izvozi v Google Sheets", uporabljen
- * na vseh straneh z razpredelnicami — namesto podvajanja iste gumb+stanje
+ * na vseh straneh z razpredelnicami – namesto podvajanja iste gumb+stanje
  * logike na vsaki strani posebej. Bere export-utils.js in gsheets-client.js
  * (naloži oba pred tem skriptom).
  * Brez JSX (navaden React.createElement), da se naloži kot <script> pred
  * babel skriptami vsake strani.
  *
  * "compact" način (nova ikona + spustni meni namesto dveh gumbov v vrsti) je
- * namenjen ozkim mobilnim zaslonom, kjer poln gumb zavzame preveč prostora —
+ * namenjen ozkim mobilnim zaslonom, kjer poln gumb zavzame preveč prostora –
  * glej index.html. Neobvezen "pdf" prop doda tretjo postavko v meni (stran
  * sama poskrbi za PDF izvoz prek PrintFit, ki ni del tega skripta).
  */
@@ -54,7 +54,7 @@
   // z lastnim stanjem). Dvigovanje njihovih podatkov do vrha strani bi
   // pomenilo predelavo vsake od njih, zato gre obratno: vsaka razpredelnica
   // se ob priklopu PRIJAVI sem, ob odklopu pa se odjavi. Ikona zato vedno
-  // ponuja natanko tisto, kar je ta hip na zaslonu — ob menjavi zavihka se
+  // ponuja natanko tisto, kar je ta hip na zaslonu – ob menjavi zavihka se
   // seznam sam posodobi.
   // ---------------------------------------------------------------------
   // Isti vzorec uporabljata izvoz in uvoz, zato je register tovarna.
@@ -104,7 +104,7 @@
   var uvozRegister = ustvariRegister();
 
   // Uvozna ikona 📥 za vrstico zgoraj desno. Vsaka stran prijavi, kaj je
-  // na njej mogoče uvoziti (imenik, kvote dopusta, barvni koledar ...) —
+  // na njej mogoče uvoziti (imenik, kvote dopusta, barvni koledar ...) –
   // ena sama ikona brez menija ne bi šla, ker ima uvoz na vsaki strani
   // drug pomen. Če stran ne prijavi ničesar, se ikona ne izriše.
   function RazporedUvozIkona() {
@@ -144,7 +144,7 @@
 
   var RazporedIzvozVir = izvozRegister.Vir;
 
-  // Izvozna ikona za vrstico zgoraj desno — ponudi vse trenutno prijavljene
+  // Izvozna ikona za vrstico zgoraj desno – ponudi vse trenutno prijavljene
   // vire. Če ni prijavljen noben (stran nima česa izvoziti), se ne izriše.
   function RazporedOrodja() {
     var viri = izvozRegister.uporabi();
@@ -153,13 +153,13 @@
   }
 
   // props:
-  //   naslov  — ime izvožene datoteke/dokumenta (brez pripone)
-  //   listi   — [{ ime, glave: [...], vrstice: [[...], ...] }], en vnos na zavihek/list
-  //   pripravi — (neobvezno) funkcija () => listi, klicana tik pred izvozom
+  //   naslov  – ime izvožene datoteke/dokumenta (brez pripone)
+  //   listi   – [{ ime, glave: [...], vrstice: [[...], ...] }], en vnos na zavihek/list
+  //   pripravi – (neobvezno) funkcija () => listi, klicana tik pred izvozom
   //              namesto branja `listi` neposredno (za strani, kjer je
   //              sestavljanje podatkov cenejše storiti šele ob kliku)
-  //   compact — (neobvezno) true = ikona + spustni meni namesto dveh gumbov
-  //   pdf     — (neobvezno, samo v compact načinu) { label, onClick } — dodatna
+  //   compact – (neobvezno) true = ikona + spustni meni namesto dveh gumbov
+  //   pdf     – (neobvezno, samo v compact načinu) { label, onClick } – dodatna
   //             prva postavka v meniju za PDF izvoz (stran sama pokliče PrintFit)
   function RazporedIzvoz(props) {
     var busyState = useState(null); // "xlsx" | "sheets" | null
@@ -183,7 +183,7 @@
 
     // "viri" (neobvezno, samo compact): več izvoznih virov pod eno ikono.
     // Nujno za strani, kjer je na zaslonu HKRATI več različnih razpredelnic
-    // (Statistika ima tri, Generator štiri) — ena sama ikona brez izbire
+    // (Statistika ima tri, Generator štiri) – ena sama ikona brez izbire
     // vira bi tri od njih preprosto izgubila. Brez "viri" se komponenta
     // obnaša kot doslej, zato ostale strani ostanejo nespremenjene.
     var viri = props.viri && props.viri.length
@@ -209,7 +209,7 @@
       setBusy("sheets"); setMsg(null);
       try {
         var url = await root.GSheetsExport.izvoziVSheets(vir.naslov, podatki(vir));
-        setMsg({ ok: true, text: "Ustvarjeno — odpiram v novem zavihku …" });
+        setMsg({ ok: true, text: "Ustvarjeno – odpiram v novem zavihku …" });
         setOdprto(false);
         root.open(url, "_blank", "noopener");
       } catch (err) {
@@ -224,7 +224,7 @@
 
       var postavke = [];
       viri.forEach(function (vir, i) {
-        // Naslov skupine se izpiše samo, kadar je virov več — pri enem bi
+        // Naslov skupine se izpiše samo, kadar je virov več – pri enem bi
         // bil odvečen šum.
         if (viri.length > 1) {
           postavke.push(e("p", { key: "n" + i, className: "dlMenuNaslov" }, vir.naziv || "Izvoz"));
@@ -235,7 +235,7 @@
             onClick: function () { setOdprto(false); vir.pdf.onClick(); },
           }, "📄 " + (vir.pdf.label || "Izvozi v PDF")));
         }
-        // Vir brez razpredelnice (samo PDF ali JSON) Excela/Sheets ne ponudi —
+        // Vir brez razpredelnice (samo PDF ali JSON) Excela/Sheets ne ponudi –
         // sicer bi izvoz odpovedal z "ni podatkov" na postavki, ki je za tak
         // vir sploh nima smisla ponujati.
         if (vir.pripravi || vir.listi) {

@@ -1,4 +1,4 @@
-/* Stalna zasedba NZV — EN SAM VIR pravila.
+/* Stalna zasedba NZV – EN SAM VIR pravila.
  *
  * Za vodje in administratorje se dnevni razpored ne objavlja: njihova
  * enota je stalna in zapisana v lead_departments.enote. Zato se njihova
@@ -7,10 +7,10 @@
  *   - index.html  → Po oddelkih → NZV  (dnevi × enote)
  *   - imenik.html → Razpredelnica      (osebe × dnevi)
  *
- * Prej je bilo napisano posebej na vsakem — in vsakič je kje manjkalo:
+ * Prej je bilo napisano posebej na vsakem – in vsakič je kje manjkalo:
  * v NZV mreži so bili prazni stolpci enot, v Razpredelnici pa cele
  * vrstice ljudi brez enega samega vnosa. Enaka zgodba kot pri delovniku
- * (glej prazniki.js) — dokler je pravilo razpršeno, bo vedno kje ušlo.
+ * (glej prazniki.js) – dokler je pravilo razpršeno, bo vedno kje ušlo.
  *
  * Odvisnost: prazniki.js (delovni dan) mora biti naložen prej.
  */
@@ -65,7 +65,7 @@ window.NzvZasedba = (function () {
 
   // --- Enote nosilca ---------------------------------------------------
   // Uradna predloga zapisuje enote kot prosto besedilo ("C/C1", "UA/SA",
-  // "B1/SOB/NOB") — glej supabase/nzv-nosilci-oddelkov.sql.
+  // "B1/SOB/NOB") – glej supabase/nzv-nosilci-oddelkov.sql.
   // Pozor: "SOB" iz zapisa "B1/SOB/NOB" NI enota SOBO. To je bila napačna
   // domneva, zaradi katere sta se Mavri Tratnik in Šubic prikazovala v
   // stolpcu SOBO, kjer nimata kaj iskati - nosilka SOBO je Velušček Metka
@@ -73,7 +73,7 @@ window.NzvZasedba = (function () {
   // "SOB" in "NOB", se kot neznani oznaki tiho preskočita.
   var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "B1": "B1B2", "B2": "B1B2" };
 
-  // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) — oznaka
+  // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) – oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v
   // dopoldanskem IN popoldanskem stolpcu, česar v resnici ni.
   // "veljavne" je nabor kod, ki v mreži res obstajajo; neznana oznaka
@@ -92,14 +92,14 @@ window.NzvZasedba = (function () {
 
   // --- Odsotnost -------------------------------------------------------
   // Daljša odsotnost je zapisana pri nosilcu samem (odsotnost_tip +
-  // odsotnost_do), ne po posameznih dnevih v leave_entries — npr.
+  // odsotnost_do), ne po posameznih dnevih v leave_entries – npr.
   // porodniška do julija 2027. Brez "do" velja odprto naprej.
   function trajnoOdsoten(zapisNosilca, datum) {
     var v = zapisNosilca;
     return !!(v && v.odsotnost_tip && (!v.odsotnost_do || datum <= v.odsotnost_do));
   }
 
-  // Uradna kratica za daljšo odsotnost — da vrstica v Razpredelnici ne
+  // Uradna kratica za daljšo odsotnost – da vrstica v Razpredelnici ne
   // ostane prazna, ampak pove, ZAKAJ je oseba odsotna. Namenoma samo
   // znani vrsti; neznane vrste raje ne ugibamo.
   function dolgaOdsotnostKratica(tip) {
@@ -114,7 +114,7 @@ window.NzvZasedba = (function () {
   // "PON-PET 07:00-15:00").
   var IZMENA_PRISOTEN = "PRISOTEN";
 
-  // Stalna zasedba ene osebe čez dano obdobje — kaj bi imel nosilec enote
+  // Stalna zasedba ene osebe čez dano obdobje – kaj bi imel nosilec enote
   // na posamezen dan, če ni objavljenega vnosa. Vrne SAMO dopolnitve;
   // kam in kako se vpišejo, je stvar klicatelja, ker vsak od treh
   // zaslonov riše drugače (šifra izmene, celica z barvo, parafa).
@@ -164,6 +164,29 @@ window.NzvZasedba = (function () {
   //
   // Vrne [{ nosilec, kode, enote }] - kdo je ta dan na katerih enotah;
   // "kode" so stolpci mreže, "enote" berljiv zapis za izpis.
+  // Organizacijske ENOTE v stolpcih uradne predloge "Letni dopusti in
+  // omejitve za NZV". Doslej je bil ta seznam zapisan samo v index.html;
+  // odkar ga potrebuje tudi generator (admin.html), je tu, da se kopiji ne
+  // moreta raziti - prav to je bil vzrok, da je generator delal po drugih
+  // pravilih kot prikaz.
+  var ENOTE = [
+    ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
+    ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
+    ["URGENCA", "URGENCA"], ["U2", "U2"],
+  ];
+  // Vrstni red stolpcev v uradni predlogi ima "SA DOP"/"SA POP" MED "DB" in
+  // "URGENCA", ne na koncu - zato prikazni vrstni red sestavimo posebej.
+  var STOLPCI = (function () {
+    var brezUrgence = ENOTE.filter(function (v) { return v[0] !== "URGENCA" && v[0] !== "U2"; });
+    var urgencaU2 = ENOTE.filter(function (v) { return v[0] === "URGENCA" || v[0] === "U2"; });
+    return brezUrgence.concat([["SADOP", "SA DOP"], ["SAPOP", "SA POP"]], urgencaU2);
+  })();
+  var KODE_STOLPCEV = STOLPCI.map(function (v) { return v[0]; });
+
+  // Zadnji trije stolpci uradne predloge niso enote, ampak POVZETEK
+  // odsotnosti tega dne (glej leave_entries.kind).
+  var KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+
   function razporedDneva(opts) {
     var nosilci = opts.nosilci || [], pari = opts.pari || [];
     var kljuc = opts.kljuc, jeOdsoten = opts.jeOdsoten;
@@ -206,6 +229,9 @@ window.NzvZasedba = (function () {
     // 2. raven: zapuščene enote prevzame naslednji, in to POLEG svojih.
     var dodatno = {};
     var dodatnoBesedilo = {};
+    // Kdo od preseljenih je svojo staro enoto res oddal. Če je ni oddal
+    // nihče, jo obdrži sam (glej spodaj) - delo na njej ne izgine.
+    var zapuscenoPokrito = {};
     Object.keys(preseljen).forEach(function (kb) {
       var b = poKljucu[kb];
       if (!b || !b.enote) return;
@@ -217,6 +243,7 @@ window.NzvZasedba = (function () {
         if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kc]) continue;
         dodatno[kc] = (dodatno[kc] || []).concat(vKode(b.enote));
         dodatnoBesedilo[kc] = (dodatnoBesedilo[kc] || []).concat([b.enote]);
+        zapuscenoPokrito[kb] = true;
         break;
       }
     });
@@ -225,8 +252,22 @@ window.NzvZasedba = (function () {
     nosilci.forEach(function (v) {
       if (!v.enote || jeOdsoten(v.full_name)) return;
       var k = kljuc(v.full_name);
-      // Preseljeni NIMA več svoje enote - to je bistvo preselitve.
+      // Preseljeni praviloma NIMA več svoje enote - to je bistvo
+      // preselitve (Salkić odsotna -> Arnež gre s C na C1, njegov C
+      // prevzame Lunar).
+      //
+      // Izjema: če njegove stare enote ni prevzel NIHČE, jo obdrži sam in
+      // pokriva obe. To se zgodi pri vzajemnih parih, kjer se dva
+      // nadomeščata med sabo in tretjega ni: Lelič (E2) in Maglić (E1)
+      // sta drug drugemu edini nadomeščevalec, zato ob Leličini odsotnosti
+      // E1 nima kdo prevzeti - Maglić ima tisti dan E2 in E1. Brez tega bi
+      // enota E1 tisti dan v razporedu izginila, čeprav delo na njej ostaja.
       var kode = preseljen[k] ? preseljen[k].slice() : vKode(v.enote);
+      if (preseljen[k] && !zapuscenoPokrito[k]) {
+        vKode(v.enote).forEach(function (koda) {
+          if (kode.indexOf(koda) < 0) kode.push(koda);
+        });
+      }
       (dodatno[k] || []).forEach(function (koda) {
         if (kode.indexOf(koda) < 0) kode.push(koda);
       });
@@ -234,6 +275,7 @@ window.NzvZasedba = (function () {
       // stolpcem mreže in za človeka niso najbolj razumljive ("SADOP",
       // "B1B2"). Vrstni red je isti kot pri kodah.
       var besedilo = [preseljen[k] ? preseljenBesedilo[k] : v.enote]
+        .concat(preseljen[k] && !zapuscenoPokrito[k] ? [v.enote] : [])
         .concat(dodatnoBesedilo[k] || [])
         .filter(Boolean).join(", ");
       if (kode.length) out.push({ nosilec: v, kode: kode, enote: besedilo });
@@ -243,6 +285,10 @@ window.NzvZasedba = (function () {
 
   return {
     VLOGE: VLOGE,
+    ENOTE: ENOTE,
+    STOLPCI: STOLPCI,
+    KODE_STOLPCEV: KODE_STOLPCEV,
+    KIND_KODA: KIND_KODA,
     jeNzvVloga: jeNzvVloga,
     isoTeden: isoTeden,
     SA_PRIVZETO: SA_PRIVZETO,

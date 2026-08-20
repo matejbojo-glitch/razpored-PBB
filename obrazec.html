@@ -8,14 +8,19 @@
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
 
 <style>
-  :root{
-    --bg: #FAF8F1; --bg-grad: #FFFFFF; --surface: #FFFFFF; --surface-2: #F2EEDF;
-    --line: #E1D9C2; --text: #2B2712; --muted: #8A7F5E; --accent: #A79448; --accent-2: #6E5F2A; --accent-ink: #2B2712;
-    --danger: #B3402A; --danger-bg: #FBEAE6; --ok: #4C8C63; --ok-bg: #EAF3EC;
-    --radius: 16px; --radius-sm: 10px;
-  }
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   body{
     margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
@@ -142,15 +147,15 @@ function opisVerige(profile){
   const jeKoordinator = !!(profile && profile.is_koordinator);
 
   if (jeKoordinator) {
-    return "Kot koordinator dokončno potrjuješ menjave dežurstva — po potrditvi sodelavca gredo naravnost k tebi, brez vmesnega koraka pri vodji. Navadne menjave službe (in ročno evidentiranje/drugo) dokončno potrdi kdorkoli ima vlogo administrator.";
+    return "Kot koordinator dokončno potrjuješ menjave dežurstva – po potrditvi sodelavca gredo naravnost k tebi, brez vmesnega koraka pri vodji. Navadne menjave službe (in ročno evidentiranje/drugo) dokončno potrdi kdorkoli ima vlogo administrator.";
   }
   if (rola === "admin") {
-    return "Kot administrator dokončno potrjuješ navadne menjave službe (po potrditvi sodelavca in vodje) ter ročno evidentiranje/drugo (po vodji). Menjave dežurstva namesto tega dokončno potrdi izključno koordinator — te se v tvojem seznamu \"Čaka name\" ne bodo pojavile.";
+    return "Kot administrator dokončno potrjuješ navadne menjave službe (po potrditvi sodelavca in vodje) ter ročno evidentiranje/drugo (po vodji). Menjave dežurstva namesto tega dokončno potrdi izključno koordinator – te se v tvojem seznamu \"Čaka name\" ne bodo pojavile.";
   }
   if (rola === "vodja") {
-    return "Zahtevke oseb, ki imajo tebe nastavljenega za neposrednega vodjo, odobriš na vmesni stopnji (po sodelavcu, pred administratorjem) — razen menjav dežurstva, ki to stopnjo preskočijo in gredo naravnost h koordinatorju. Tvoje lastne zahtevke odobrava enaka veriga, samo s tvojim neposrednim vodjo namesto tebe.";
+    return "Zahtevke oseb, ki imajo tebe nastavljenega za neposrednega vodjo, odobriš na vmesni stopnji (po sodelavcu, pred administratorjem) – razen menjav dežurstva, ki to stopnjo preskočijo in gredo naravnost h koordinatorju. Tvoje lastne zahtevke odobrava enaka veriga, samo s tvojim neposrednim vodjo namesto tebe.";
   }
-  return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator — pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
+  return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator – pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
 }
 
 function StatusPill({ status }){
@@ -201,7 +206,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     || (izbranSodelavec && (izbranSodelavec.njihova_izmena || "").toLowerCase().startsWith("dežurstvo"))
   );
 
-  // Delovnopravno preverjanje menjave (ZDR-1) — generator je te omejitve
+  // Delovnopravno preverjanje menjave (ZDR-1) – generator je te omejitve
   // upošteval, ročna menjava pa jih je doslej lahko tiho podrla: npr.
   // popoldanska izmena zamenjana za jutranjo naslednji dan pomeni manj kot
   // 12 h počitka. Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
@@ -380,7 +385,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               ))}
             </ul>
             <p className="hint" style={{margin:"8px 0 0"}}>
-              Menjavo lahko vseeno oddaš — opozorilo si bosta ogledala še vodja in koordinator,
+              Menjavo lahko vseeno oddaš – opozorilo si bosta ogledala še vodja in koordinator,
               ki menjavo potrdita ali zavrneta.
             </p>
           </div>
@@ -513,7 +518,7 @@ function Casovnica({ obrazec, dnevnik }){
           return (
             <li key={k.stopnja} className={vnos ? (zavrnjen ? "rejected" : "done") : "pending"}>
               <span className="dot"></span>
-              <div className="step">{k.naslov}{vnos ? (zavrnjen ? " — zavrnjeno" : " — potrjeno") : " — čaka"}</div>
+              <div className="step">{k.naslov}{vnos ? (zavrnjen ? " – zavrnjeno" : " – potrjeno") : " – čaka"}</div>
               {vnos && <div className="meta">{vnos.ime_ob_dejanju} ({vnos.vloga_ob_dejanju}) · {fmtCas(vnos.cas)}{vnos.opomba ? " · " + vnos.opomba : ""}</div>}
             </li>
           );
@@ -583,7 +588,7 @@ function MojiObrazci({ rows, onOdpri }){
   );
 }
 
-// "V tem mesecu" — vse menjave službe (ne ročno evidentiranje/drugo) tekočega
+// "V tem mesecu" – vse menjave službe (ne ročno evidentiranje/drugo) tekočega
 // meseca, vidne VSEM prijavljenim (glej razširjeno obrazci_select RLS v
 // supabase/schema.sql, sekcija 22) - ne samo lastnim/udeleženim, ker je
 // uporabnik izrecno zahteval pregleden mesečni seznam za vse.
@@ -728,7 +733,7 @@ function App(){
       {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}
 
       <footer className="foot no-print">
-        <p>Digitalna različica obrazca "Zahtevek za spremembo evidence delovnega časa in razporeda".</p>
+        <p>Digitalna različica obrazca »Zahtevek za spremembo evidence delovnega časa in razporeda«.</p>
         <p>{opisVerige(profile)}</p>
       </footer>
 

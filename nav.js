@@ -1,7 +1,7 @@
-/* Razpored PBB — nav.js
+/* Razpored PBB – nav.js
  * Skupna spodnja navigacijska vrstica (mobilna + spletna različica).
  * Brez JSX (navaden React.createElement), da se naloži kot <script>
- * pred babel skriptami vsake strani — ni potrebe po podvajanju v vsaki.
+ * pred babel skriptami vsake strani – ni potrebe po podvajanju v vsaki.
  */
 (function (root) {
   "use strict";
@@ -11,11 +11,11 @@
   var useRef = root.React.useRef;
 
   // Širina zaslona, od katere naprej štejemo za "spletno/namizno različico"
-  // (nav na vrhu namesto na dnu) — tablica/telefon ostaneta na spodnji
+  // (nav na vrhu namesto na dnu) – tablica/telefon ostaneta na spodnji
   // vrstici, ker je ta tam lažje dosegljiva s palcem.
   var DESKTOP_BP = 900;
   // Fiksna višina zgornje navigacijske vrstice na namizju (mora se ujemati
-  // s "height" spodaj v CSS-ju) — RazporedOgledTrak jo uporabi za izračun
+  // s "height" spodaj v CSS-ju) – RazporedOgledTrak jo uporabi za izračun
   // skupnega odmika telesa strani, ko je hkrati prikazan tudi opozorilni
   // trak "ogled kot uporabnik".
   var NAV_DESKTOP_H = 64;
@@ -42,7 +42,7 @@
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
       // Spletna/namizna različica (≥900px): vrstica se preseli na vrh
       // zaslona (nad vsebino, pod morebitnim opozorilnim trakom "ogled kot
-      // uporabnik" — glej --ogled-h spremenljivko, ki jo nastavi
+      // uporabnik" – glej --ogled-h spremenljivko, ki jo nastavi
       // RazporedOgledTrak), postavke so v vrsti (ikona+napis vodoravno),
       // ne druga pod drugo kot na mobilnem zaslonu.
       "@media (min-width:" + DESKTOP_BP + "px){" +
@@ -71,7 +71,7 @@
       ".rpIconBtn.logout:hover{ background:#FBEAE6; color:#B3402A; border-color:#F0C9BE; }" +
       ".rpIconBtn.settings.active{ background:#F2EEDF; color:#2B2712; border-color:#A79448; }" +
       // Izvozni gumb (export-buttons.js, "compact") je lahko postavljen v to
-      // vrstico prek "pred" — ima svojo obliko, zato tu dobi enak videz kot
+      // vrstico prek "pred" – ima svojo obliko, zato tu dobi enak videz kot
       // sosedi, sicer bi izstopal z drugim ozadjem in brez sence.
       ".rpTopIcons .dlIconBtn{ background:rgba(255,255,255,0.96); border-color:#E1D9C2; color:#6E5F2A;" +
       " box-shadow:0 2px 8px rgba(43,39,18,0.10); }" +
@@ -150,11 +150,11 @@
 
   // Par okroglih ikon, fiksiranih v zgornjem desnem kotu na vseh straneh:
   // nastavitve (⚙️, link na nastavitve.html) in odjava (🚪). Ohranjeno ime
-  // "RazporedLogout" (klicano na vseh straneh) — zdaj izriše oba gumba
+  // "RazporedLogout" (klicano na vseh straneh) – zdaj izriše oba gumba
   // skupaj, da ni treba spreminjati vsake strani posebej.
   //
   // props.pred (neobvezno): dodatna ikona, ki jo posamezna stran postavi
-  // PRED nastavitve — npr. uvoz na Razporedu. Namenoma prek propa in ne
+  // PRED nastavitve – npr. uvoz na Razporedu. Namenoma prek propa in ne
   // trdo zapisano sem: ikona je smiselna samo na eni strani in samo za
   // administratorja, ta funkcija pa teče na vseh straneh za vse vloge.
   function RazporedLogout(props) {

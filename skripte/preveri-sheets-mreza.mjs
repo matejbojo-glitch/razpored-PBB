@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-/* Preizkus pripraviPosodobitveOddelkaIzMreze() (sheets-mreza.js) — funkcije,
+/* Preizkus pripraviPosodobitveOddelkaIzMreze() (sheets-mreza.js) – funkcije,
  * ki za Admin → Kalup "Zapiši predogled v Sheets" izračuna TOČNO katera
  * (vrstica, stolpec) v obstoječem Google Sheets listu ustreza kateri
  * (oseba, datum) v PREDOGLEDU generatorja (torej pred objavo v Supabase,
  * z upoštevanimi ročnimi popravki celic).
  *
  * sheets-mreza.js je NAMENOMA ločena kopija iste iskalne logike, ki jo za
- * že OBJAVLJEN razpored uporablja index.html (pripraviPosodobitveOddelka) —
+ * že OBJAVLJEN razpored uporablja index.html (pripraviPosodobitveOddelka) –
  * admin.html je samostojna stran in do Babel/React funkcij v index.html ne
  * more priti. Ta preizkus:
  *   1. preveri isto obnašanje kot preveri-zapis-v-sheets.mjs (prazna vmesna
@@ -33,7 +33,7 @@ function trdi(pogoj, opis) {
 }
 function jseq(a, b, opis) {
   const enako = JSON.stringify(a) === JSON.stringify(b);
-  trdi(enako, opis + (enako ? "" : ` — dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
 
 function normalizirajDatum(s) {
@@ -97,7 +97,7 @@ const PREDOGLED = {
 };
 const vrednostZa = (ime, datum) => PREDOGLED[ime + "|" + datum] || "";
 
-console.log("1) junijski blok — koordinate za znane osebe, uporabi vrednost IZ PREDOGLEDA (z ročnim popravkom)");
+console.log("1) junijski blok – koordinate za znane osebe, uporabi vrednost IZ PREDOGLEDA (z ročnim popravkom)");
 {
   const { posodobitve, najdenDatum, najdenaGlava, neujemanja } =
     pripraviPosodobitveOddelkaIzMreze(vrsteVrstic, "2026-06", staff, vrednostZa);
@@ -113,7 +113,7 @@ console.log("1) junijski blok — koordinate za znane osebe, uporabi vrednost IZ
   trdi(neujemanja.size === 0, "vsa imena v juniju se ujemajo z znanimi osebami");
 }
 
-console.log("2) julijski blok — DRUG nabor ljudi, svoja glava");
+console.log("2) julijski blok – DRUG nabor ljudi, svoja glava");
 {
   const { posodobitve, neujemanja } = pripraviPosodobitveOddelkaIzMreze(vrsteVrstic, "2026-07", staff, vrednostZa);
   const djedovic1julij = posodobitve.find(p => p.vrstica === 15 && p.stolpec === 5);
@@ -130,5 +130,5 @@ console.log("3) oseba, ki v listu nima svojega stolpca");
 }
 
 console.log("");
-if (napake.length) { console.log("NEUSPEŠNO — " + napake.length + " napak"); process.exit(1); }
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
 console.log("VSE V REDU");
