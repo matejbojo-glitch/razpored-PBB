@@ -793,3 +793,52 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   background: rgba(var(--text-rgb), .03);
   padding: 10px 12px;
 }
+
+/* --- Želje: skupen izbirnik skupine + zložena sekcija želja -----------
+   Prej sta bila dva zavihka, vsak s svojim izbirnikom oddelka, mreža pa je
+   risala vseh osem skupin pod sabo. Na telefonu je bilo treba dolgo drseti
+   do svoje skupine. Zdaj se skupina izbere enkrat in velja za oboje. */
+.skupinaRow{
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 10px 0 14px;
+}
+.skupinaBtn{
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;           /* dovolj velika tarča za prst */
+}
+.skupinaBtn[aria-selected="true"]{
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.skupinaNaslov{ margin-top: 0; }
+
+/* Navodilo je zloženo - odpre se le, kadar ga kdo res potrebuje. */
+.navodilo > summary{
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.zeljeSekcija{ margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.zeljeToggle{
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
