@@ -24,6 +24,23 @@ window.NzvZasedba = (function () {
   var VLOGE = ["vodja", "admin"];
   function jeNzvVloga(vloga) { return VLOGE.indexOf(vloga) >= 0; }
 
+  // --- Kaj je DELOVIŠČE in kaj le pripadnost -----------------------------
+  // schedule_entries.department_code ne pove vedno, KJE oseba tisti dan
+  // dela. Štiri kode so pripadnost skupini, ne kraj dela:
+  //
+  //   DEZ / NEDEZ  dežurni oz. nedežurni kader (kdo je v obtoku dežurstev)
+  //   NZV          vodje in administratorji kot skupina
+  //   FLEXI        plavajoče osebje (pravi oddelek je v pokriva_oddelek)
+  //
+  // Brez tega je vodja na dežurni dan v "Moj razpored" videl
+  // "Dopoldne (DEZ)" - dopoldne pa dela na svoji enoti (MO), dežurstvo je
+  // šele zvečer. Uporabnikova pripomba, avgust 2026.
+  var NI_DELOVISCE = ["DEZ", "NEDEZ", "NZV", "FLEXI"];
+  function jeDelovisce(koda) {
+    var t = String(koda || "").trim().toUpperCase();
+    return !!t && NI_DELOVISCE.indexOf(t) < 0;
+  }
+
   // --- Izmenična zasedba SA -------------------------------------------
   // "SA je izmenično 1 teden dop, drug popoldne … poleti je samo
   // dopoldne" (uporabnikova navedba). Izmenjava teče po ISO tednu in ne
@@ -204,9 +221,30 @@ window.NzvZasedba = (function () {
         (zaNosilca[k] = zaNosilca[k] || []).push(n);
       });
 
-    // 1. raven: kdo se preseli in kam.
+    // 1. raven: kdo prevzame odsotnega in kako.
+    //
+    // Dve različni pravili, ker uporabnik za različne pare zahteva
+    // različno (obe sta v tabeli nadomescanja, stolpec poleg_svoje):
+    //
+    //   PRESELITEV (privzeto, poleg_svoje = false)
+    //     Salkić (C1) odsotna -> Arnež gre s C na C1, svoj C zapusti,
+    //     C prevzame Lunar POLEG svojega B. Tri osebe, tri enote.
+    //
+    //   POLEG SVOJE (poleg_svoje = true)
+    //     Alukić (ŽO) odsoten -> Bojić ima MO IN ŽO. Svoje enote ne
+    //     zapusti, zato je tudi ne prevzema nihče, in Džamastagić
+    //     ostane prost - ta pride na vrsto šele, ko ni NOBENEGA od
+    //     obeh. Uporabnikovo pravilo, avgust 2026:
+    //     "Ko Alukić ni, je Bojić na MO + ŽO; če Bojić ni, je Alukić
+    //      ŽO + MO; če ni obeh, je Džamastagić."
     var preseljen = {};   // ključ nadomeščevalca -> kode enot, ki jih prevzame
     var preseljenBesedilo = {}; // isti ključ -> berljiv zapis ("C1"), za izpis
+    var dodatno = {};           // ključ -> kode enot POLEG svoje
+    var dodatnoBesedilo = {};
+    function prevzemiPoleg(k, kode, besedilo) {
+      dodatno[k] = (dodatno[k] || []).concat(kode);
+      dodatnoBesedilo[k] = (dodatnoBesedilo[k] || []).concat([besedilo]);
+    }
     // Vrstni red mora biti določen (ne po naključju iz baze), sicer bi ob
     // dveh hkratnih odsotnostih isti nadomeščevalec enkrat pripadel enemu
     // in drugič drugemu.
@@ -217,9 +255,19 @@ window.NzvZasedba = (function () {
         var kandidati = zaNosilca[kljuc(v.full_name)] || [];
         for (var i = 0; i < kandidati.length; i++) {
           var kn = kljuc(kandidati[i].nadomesca);
-          if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kn]) continue;
+          if (jeOdsoten(kandidati[i].nadomesca)) continue;
+          // Kdor se je že preselil, je drugje - ne more prevzeti še ene
+          // enote, ne na en ne na drug način.
+          if (preseljen[kn]) continue;
           var kode = vKode(kandidati[i].enota || v.enote);
           if (!kode.length) continue;
+          if (kandidati[i].poleg_svoje) {
+            // Svojo enoto obdrži, zato zanjo NI 2. ravni: ni je zapustil.
+            prevzemiPoleg(kn, kode, kandidati[i].enota || v.enote);
+            break;
+          }
+          // Kdor že pokriva tujo enoto poleg svoje, se ne seli še tretjič.
+          if (dodatno[kn]) continue;
           preseljen[kn] = kode;
           preseljenBesedilo[kn] = kandidati[i].enota || v.enote;
           break;
@@ -227,8 +275,8 @@ window.NzvZasedba = (function () {
       });
 
     // 2. raven: zapuščene enote prevzame naslednji, in to POLEG svojih.
-    var dodatno = {};
-    var dodatnoBesedilo = {};
+    // Velja SAMO za preselitve - kdor svoje enote ni zapustil, je nima
+    // kdo prevzeti.
     // Kdo od preseljenih je svojo staro enoto res oddal. Če je ni oddal
     // nihče, jo obdrži sam (glej spodaj) - delo na njej ne izgine.
     var zapuscenoPokrito = {};
@@ -241,8 +289,7 @@ window.NzvZasedba = (function () {
         // Kdor je sam odsoten ali se je že preselil, ne more prevzeti še
         // ene enote - sicer bi bil hkrati na dveh koncih.
         if (jeOdsoten(kandidati[i].nadomesca) || preseljen[kc]) continue;
-        dodatno[kc] = (dodatno[kc] || []).concat(vKode(b.enote));
-        dodatnoBesedilo[kc] = (dodatnoBesedilo[kc] || []).concat([b.enote]);
+        prevzemiPoleg(kc, vKode(b.enote), b.enote);
         zapuscenoPokrito[kb] = true;
         break;
       }
@@ -285,6 +332,8 @@ window.NzvZasedba = (function () {
 
   return {
     VLOGE: VLOGE,
+    NI_DELOVISCE: NI_DELOVISCE,
+    jeDelovisce: jeDelovisce,
     ENOTE: ENOTE,
     STOLPCI: STOLPCI,
     KODE_STOLPCEV: KODE_STOLPCEV,

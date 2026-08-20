@@ -1794,7 +1794,7 @@ function VodjeTab(){
         .gte("work_date", startISO).lte("work_date", endISO),
       // Nadomeščanja in nastavitve SA: doslej ju generator NI bral, zato je
       // delal po drugih pravilih kot prikaz v Imeniku/Razporedu.
-      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost").then(r => r, () => ({ data: [] })),
+      client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
     ]);
     const leaveMap = {};

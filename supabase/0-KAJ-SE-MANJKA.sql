@@ -125,6 +125,22 @@ begin
       case when n < 4 then 'NEPOPOLNO (' || n || ' od 4) -> ponovno uvozi september v aplikaciji'
            else 'OK (vsi 4 so v razporedu)' end);
   end if;
+
+  -- 9) Nadomeščanje POLEG svoje enote (Alukić / Bojić / Džamastagić).
+  if to_regclass('public.nadomescanja') is null then
+    insert into pbb_pregled values (9, 'Nadomeščanje poleg svoje enote', 'NI MOGOČE PREVERITI (tabele nadomescanja ni)');
+  elsif not exists (
+      select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'nadomescanja'
+         and column_name = 'poleg_svoje') then
+    insert into pbb_pregled values (9, 'Nadomeščanje poleg svoje enote',
+      'MANJKA STOLPEC -> poženi nzv-nadomescanja-poleg-svoje.sql');
+  else
+    execute 'select count(*) from public.nadomescanja where poleg_svoje' into n;
+    insert into pbb_pregled values (9, 'Nadomeščanje poleg svoje enote',
+      case when n >= 6 then 'OK (' || n || ' parov)'
+           else 'STOLPEC JE, VREDNOSTI NI (' || n || ' od 6) -> poženi nzv-nadomescanja-poleg-svoje.sql' end);
+  end if;
 end $$;
 
 select zap as "št.", tocka as "kaj", stanje as "stanje / kaj narediti"

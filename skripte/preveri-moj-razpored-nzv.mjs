@@ -192,6 +192,74 @@ console.log("7) Gosta mreža ('Po oddelkih'): kratica za odsotnosti, cel naziv z
   eq(sandbox.window.Izmene.naziv("LD"), "Letni dopust", "v Moj razpored ostane cel naziv");
 }
 
+console.log("8) Delovišče na DEŽURNI dan je oddelek, ne 'DEZ'");
+{
+  // Uporabnik je javil: na dežurni dan je pisalo "Dopoldne (DEZ)".
+  // schedule_entries.department_code je tisti dan 'DEZ' - to je
+  // pripadnost obtoku dežurstev, ne kraj dela. Dopoldne oseba dela na
+  // svoji enoti (MO), dežurstvo je šele zvečer.
+  //
+  // Preverjamo TELO useMemo-ja iz index.html, ne vzorca v besedilu:
+  // ujemanje z regularnim izrazom bi bilo zeleno tudi, če bi bila logika
+  // znotraj napačna.
+  const zac = html.indexOf("const enotaZaDan = useMemo(() => {");
+  trdi(zac >= 0, "enotaZaDan je v index.html");
+  const konecTelesa = html.indexOf("}, [entries, enotaNaDan, mojNosilec]);", zac);
+  trdi(konecTelesa > zac, "odvisnosti useMemo-ja so nespremenjene (entries, enotaNaDan, mojNosilec)");
+  const telo = html.slice(html.indexOf("{", zac) , konecTelesa + 1);
+
+  const zgradi = (entries, enotaNaDan, mojNosilec) => {
+    const lok = Object.assign(Object.create(sandbox), {
+      entries, enotaNaDan, mojNosilec,
+      useMemo: (f) => f(),
+    });
+    vm.createContext(lok);
+    lok.window = sandbox.window;
+    return vm.runInContext("(function(){ const enotaZaDan = useMemo(() => "
+      + telo + "); return enotaZaDan; })()", lok);
+  };
+
+  // Dežurni dan: vnos ima department_code 'DEZ'. Izračun po dnevih ga
+  // nima (vodji se razpored ne objavlja), zato mora pasti na lastno enoto.
+  const dezurni = zgradi(
+    [{ work_date: "2026-08-04", department_code: "DEZ", pokriva_oddelek: null }],
+    {}, { enote: "MO" });
+  eq(dezurni("2026-08-04"), "MO", "dežurni dan pokaže lastno enoto MO, ne 'DEZ'");
+
+  // Isto za preostale tri kode pripadnosti.
+  ["NEDEZ", "NZV", "FLEXI"].forEach(koda => {
+    const f = zgradi([{ work_date: "2026-08-04", department_code: koda, pokriva_oddelek: null }],
+      {}, { enote: "MO" });
+    eq(f("2026-08-04"), "MO", `${koda} se ne izpiše kot delovišče`);
+  });
+
+  // Pravi oddelek iz vnosa se seveda uporabi.
+  const navaden = zgradi(
+    [{ work_date: "2026-08-03", department_code: "MO", pokriva_oddelek: null }],
+    {}, { enote: "MO" });
+  eq(navaden("2026-08-03"), "MO", "navaden dan: oddelek iz vnosa");
+
+  // FLEXI: pravi oddelek je v pokriva_oddelek in ima prednost.
+  const flexi = zgradi(
+    [{ work_date: "2026-08-05", department_code: "FLEXI", pokriva_oddelek: "C1" }],
+    {}, { enote: "MO" });
+  eq(flexi("2026-08-05"), "C1", "pri FLEXI obvelja pokriva_oddelek");
+
+  // Izračun po dnevih (nadomeščanja) ima prednost pred vnosom.
+  const nadomesca = zgradi(
+    [{ work_date: "2026-08-07", department_code: "DEZ", pokriva_oddelek: null }],
+    { "2026-08-07": "MO, ŽO" }, { enote: "MO" });
+  eq(nadomesca("2026-08-07"), "MO, ŽO", "nadomeščanje prevlada nad vnosom");
+
+  // Brez vsega ostane prazno - ne izmisli si enote.
+  const prazno = zgradi([], {}, null);
+  eq(prazno("2026-08-04"), "", "brez podatka ni izmišljene enote");
+
+  // In celotna veriga do besedila na zaslonu.
+  eq(prikazNaZaslonu(nzvPrikaz("DEŽURSTVO", "TO", true, "2026-08-04", dezurni("2026-08-04"))),
+    "Dopoldne (MO) + Dežurstvo", "cela veriga: dežurni dan pove pravo enoto");
+}
+
 console.log("");
 if (napake.length) {
   console.error(`NAPAKE (${napake.length}):`);

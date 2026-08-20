@@ -582,7 +582,7 @@ function MyScheduleView({ userId, month, jeNzv }){
     if (!jeNzv || !mojeIme) return;
     Promise.all([
       client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
-      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost").then(r => r, () => ({ data: [] })),
+      client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
       client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
     ]).then(([{ data: nosilci }, { data: pari }, { data: nast }, { data: odsotnosti }]) => {
@@ -618,16 +618,26 @@ function MyScheduleView({ userId, month, jeNzv }){
     return () => { cancelled = true; };
   }, [jeNzv, mojeIme, startISO, endISO, days]);
 
-  // Delovišče za en dan: pri NZV iz izračuna zgoraj, sicer iz objavljenega
-  // vnosa (pri FLEXI je pravi oddelek v pokriva_oddelek).
+  // Delovišče za en dan. Trije viri po vrsti, od najbolj do najmanj
+  // natančnega:
+  //   1. izračun po dnevih zgoraj (NZV, upošteva nadomeščanja),
+  //   2. objavljen vnos - a SAMO, če je to res oddelek: DEZ/NEDEZ/NZV/
+  //      FLEXI so pripadnost skupini, ne kraj dela (glej nzv-zasedba.js).
+  //      Prav zato je na dežurni dan pisalo "Dopoldne (DEZ)" - dopoldne
+  //      oseba dela na svoji enoti, dežurstvo je šele zvečer.
+  //   3. lastna stalna enota iz lead_departments.
   const enotaZaDan = useMemo(() => {
+    const jeDelovisce = window.NzvZasedba.jeDelovisce;
     const izVnosa = {};
     (entries || []).forEach(e => {
-      const kje = (e.pokriva_oddelek || "").trim() || (e.department_code || "").trim();
-      if (kje && kje.toUpperCase() !== "FLEXI") izVnosa[e.work_date] = kje;
+      const pokriva = (e.pokriva_oddelek || "").trim();
+      const oddelek = (e.department_code || "").trim();
+      const kje = jeDelovisce(pokriva) ? pokriva : (jeDelovisce(oddelek) ? oddelek : "");
+      if (kje) izVnosa[e.work_date] = kje;
     });
-    return (datum) => enotaNaDan[datum] || izVnosa[datum] || "";
-  }, [entries, enotaNaDan]);
+    const lastna = (mojNosilec && mojNosilec.enote) || "";
+    return (datum) => enotaNaDan[datum] || izVnosa[datum] || lastna;
+  }, [entries, enotaNaDan, mojNosilec]);
 
   const byDate = useMemo(() => {
     const m = {};
@@ -992,8 +1002,11 @@ function WardView({ deptCode, month, myId }){
                     // "C/E2"), sicer pa iz oddelka vpisa - a le, kadar se
                     // razlikuje od oddelka, ki ga gledamo, da se navadni
                     // stolpci ne zasujejo z odvečno oznako.
-                    const pokriva = zapis && (zapis.pokriva_oddelek
+                    // Samo prave oddelke: DEZ/NEDEZ/NZV/FLEXI so pripadnost
+                    // skupini in ne povedo, kje oseba ta dan dela.
+                    const pokrivaSurovo = zapis && (zapis.pokriva_oddelek
                       || (zapis.department_code !== deptCode ? zapis.department_code : null));
+                    const pokriva = window.NzvZasedba.jeDelovisce(pokrivaSurovo) ? pokrivaSurovo : null;
                     // Barva je iz URADNE legende (izmene.js), enaka kot v
                     // Imenik -> Razpredelnica - prej je bila tu ena od
                     // sedmih grobih skupin, zato je bila ista izmena tu
@@ -1130,7 +1143,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // "|| []" spodaj poskrbi, da mreža v tem primeru dela kot prej (samo
     // objavljeni vnosi), namesto da bi se sesula.
     client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
-    client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
+    client.from("nadomescanja").select("*"),
     client.from("nzv_nastavitve").select("kljuc, vrednost"),
   ]);
   const saNast = saNastavitveIz(nastavitveVrstice);
@@ -2819,7 +2832,8 @@ function App(){
     (data || []).forEach(r => {
       // Ista oznaka kot na zaslonu: pri FLEXI pove, kateri oddelek oseba
       // ta dan pokriva ("C: dopoldan"), sicer je pred izmeno ni.
-      const pokriva = r.pokriva_oddelek || (r.department_code !== wardCode ? r.department_code : null);
+      const pokrivaSurovo = r.pokriva_oddelek || (r.department_code !== wardCode ? r.department_code : null);
+      const pokriva = window.NzvZasedba.jeDelovisce(pokrivaSurovo) ? pokrivaSurovo : null;
       byEmpDate[r.employee_id + "|" + r.work_date] = (pokriva ? pokriva + ": " : "") + shiftLabel(r.shift_code);
     });
     return [{
