@@ -80,8 +80,19 @@ console.log("4) zasloni izpisujejo NAZIV, ne surove šifre");
   const index = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/function shiftLabel\(sifra\)\{[\s\S]{0,160}window\.Izmene\.naziv\(sifra\)/.test(index),
     "index.html: shiftLabel vrne naziv iz legende");
-  trdi(/\{shiftLabel\(sifra\)\}/.test(index),
-    "index.html: celica v 'Po oddelkih' izpiše naziv");
+  // "Po oddelkih" je gosta mreža: delovne izmene s polnim nazivom,
+  // odsotnosti s kratico (LD, BS, KPU) - uporabnikova odločitev,
+  // avgust 2026. Zato nazivZaMrezo in ne shiftLabel.
+  trdi(/\{window\.Izmene\.nazivZaMrezo\(sifra\)\}/.test(index),
+    "index.html: celica v 'Po oddelkih' izpiše naziv iz legende");
+  // "Moj razpored" pa izpiše ŽE sestavljeno besedilo (z enoto in
+  // dežurstvom) - nikoli še enkrat skozi shiftLabel, sicer se skrči
+  // nazaj na golo "Dopoldne".
+  trdi(/\{prikazNaZaslonu\(prikaz\)\}/.test(index)
+    && /\{prikazNaZaslonu\(todayPrikaz\)\}/.test(index),
+    "index.html: 'Moj razpored' izpiše prikazNaZaslonu, ne shiftLabel");
+  trdi(!/\{shiftLabel\((prikaz|todayPrikaz)\)\}/.test(index),
+    "index.html: nikjer dvojnega izpisa shiftLabel(nzvPrikaz(...))");
   const obrazec = readFileSync(join(koren, "obrazec.html"), "utf8");
   trdi(/window\.Izmene\.naziv\(sifra\)/.test(obrazec),
     "obrazec.html (Menjava): izmena se izpiše prek legende");

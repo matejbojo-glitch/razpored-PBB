@@ -138,6 +138,22 @@ window.Izmene = (function () {
     return v ? v[2] : String(sifra || "").trim();
   }
 
+  // Naziv za GOSTO MREŽO (dnevi x osebe): Razpredelnica, Kalup, "Po
+  // oddelkih". Uporabnikova odločitev (avgust 2026): kratica v
+  // razpredelnici, cela beseda v "Moj razpored".
+  //
+  // Delovne izmene in dežurstvo ostanejo izpisani s polnim nazivom
+  // ("Dopoldne", "Popoldne", "Nočna") - prav ta zapis je uporabnik
+  // izrecno zahteval za celotno aplikacijo. Odsotnosti in prosti dnevi
+  // (LD, BS, POR, STI, KPU) pa se izpišejo s kratico: "Letni dopust" bi
+  // ozko celico raztegnil čez pol tabele, pove pa natanko isto kot "LD",
+  // ki je hkrati zapis iz uradne legende in iz Google preglednice.
+  function nazivZaMrezo(sifra) {
+    var v = vnos(sifra);
+    if (!v) return naziv(sifra);
+    return (v[5] === "delo" || v[5] === "dezurstvo") ? v[2] : v[1];
+  }
+
   // Delovni čas izmene ("PON-PET 13:50-19:00"), če je znan.
   function cas(sifra) {
     var v = vnos(sifra);
@@ -220,6 +236,7 @@ window.Izmene = (function () {
     jeProst: jeProst,
     kratica: kratica,
     naziv: naziv,
+    nazivZaMrezo: nazivZaMrezo,
     cas: cas,
     barva: barva,
     stanje: stanje,
