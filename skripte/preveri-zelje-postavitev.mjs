@@ -69,12 +69,12 @@ const brskalnik = await chromium.launch(
   process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}
 );
 
-async function odpri(sirina, visina) {
+async function odpri(sirina, visina, vloga, pot) {
   const stran = await brskalnik.newPage({ viewport: { width: sirina, height: visina } });
   const konzola = [];
   stran.on("pageerror", e => konzola.push(String(e)));
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
-  await stran.addInitScript(({ profili, zelje }) => {
+  await stran.addInitScript(({ profili, zelje, vloga }) => {
     // Prijavni ovoj bi nas odnesel na login.html, Supabase pa v tem okolju
     // ni dosegljiv. Prestrežemo RazporedAuth, takoj ko ga postavi
     // supabase-client.js, in podtaknemo sejo + odjemalca.
@@ -114,18 +114,28 @@ async function odpri(sirina, visina) {
       set(v) {
         pravi = v;
         if (v && typeof v === "object") {
-          v.client = { from: (t) => poizvedba(tabele[t] || []) };
-          v.requireAuth = () => Promise.resolve({
-            session: { user: { id: "preizkus" } },
-            profile: { role: "admin", full_name: "Bojić Matej", department_code: "NZV" },
+          const seja = {
+            session: { user: { id: "preizkus", email: "preizkus@example.org" } },
+            profile: { id: "preizkus", role: vloga, full_name: "Bojić Matej", department_code: "NZV" },
             ogled: false,
-          });
+          };
+          v.client = {
+            from: (t) => poizvedba(tabele[t] || []),
+            auth: {
+              getSession: () => Promise.resolve({ data: { session: seja.session } }),
+              getUser: () => Promise.resolve({ data: { user: seja.session.user } }),
+              onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+            },
+          };
+          v.requireAuth = () => Promise.resolve(seja);
+          // Generator (admin.html) uporablja requireRole, ne requireAuth.
+          v.requireRole = () => Promise.resolve(seja);
         }
       },
     });
-  }, { profili: PROFILI, zelje: ZELJE });
-  await stran.goto(`http://127.0.0.1:${VRATA}/zelje.html`, { waitUntil: "load" });
-  await stran.waitForSelector(".skupinaBtn", { timeout: 10000 });
+  }, { profili: PROFILI, zelje: ZELJE, vloga: vloga || "admin" });
+  await stran.goto(`http://127.0.0.1:${VRATA}${pot || "/zelje.html"}`, { waitUntil: "load" });
+  if (!pot) await stran.waitForSelector(".skupinaBtn", { timeout: 10000 });
   await stran.waitForTimeout(600);
   return { stran, konzola };
 }
@@ -202,9 +212,68 @@ try {
   trdi(y < 915, `izbirnik meseca je na prvem zaslonu (${y} px < 915)`);
   const preseg = await tel.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   trdi(!preseg, "nič ne sili v vodoravno drsenje");
+  await tel.close();
+
+  console.log("8) most v Generator: en klik iz Želja na pravi oddelek in mesec");
+  const { stran: g } = await odpri(1100, 900);
+  const naslovGumba = async (kaj) => {
+    const el = await g.$(`.vGeneratorBtn:has-text("${kaj}")`);
+    return el ? el.getAttribute("href") : null;
+  };
+  await izberi(g, "C1");
+  // Mesec vzame iz razpredelnice, ki je odprta - ne iz današnjega dne.
+  const mesecVPrikazu = await g.$eval(".monthLbl", e => e.textContent.trim());
+  trdi(await naslovGumba("Generiraj razpored") === "admin.html?tab=kalup&oddelek=C1&mesec=2026-08",
+    `gumb pri C1 vodi v Generator → Oddelki z že izbranim C1 in mesecem (${mesecVPrikazu}): ` + await naslovGumba("Generiraj razpored"));
+  await g.click(".monthRow .navBtn >> nth=1");   // en mesec naprej
+  await g.waitForTimeout(400);
+  trdi((await naslovGumba("Generiraj razpored") || "").endsWith("mesec=2026-09"),
+    "gumb sledi izbranemu mesecu razpredelnice: " + await naslovGumba("Generiraj razpored"));
+  await izberi(g, "NZV");
+  trdi((await naslovGumba("vodstveno pokritost") || "").includes("tab=nzv&pod=vodje"),
+    "NZV ima svoj gumb za vodstveno pokritost");
+  trdi((await naslovGumba("Generiraj dežurstva") || "").includes("tab=nzv&pod=dez"),
+    "in svoj gumb za dežurstva (dežurstva niso vezana na oddelek)");
+  await izberi(g, "FLEXI");
+  trdi(await naslovGumba("Generiraj") === null, "FLEXI nima gumba 'Generiraj' – ni kalupa, ne sme obljubljati generiranja");
+  trdi((await naslovGumba("FLEXI") || "").startsWith("index.html?uvoz=1&oddelek=FLEXI"),
+    "namesto tega vodi na vnos razporeda FLEXI");
+  await izberi(g, "Vse");
+  trdi((await g.$$(".vGeneratorBtn")).length === 0, "pri 'Vse' gumba ni – generira se po eni skupini");
+  await g.close();
+
+  console.log("9) drugi konec mostu: Generator se RES odpre na tem oddelku in mesecu");
+  // Brez tega bi preizkus dokazal le, da je povezava lepa - ne pa, da
+  // koordinatorju res prihrani izbiranje. Zato odpremo admin.html z istim
+  // naslovom, kot ga sestavi gumb, in preberemo, kaj je izbrano.
+  const { stran: a, konzola: konzolaA } = await odpri(1280, 900, "admin", "/admin.html?tab=kalup&oddelek=C1&mesec=2026-10");
+  await a.waitForSelector("#odd", { timeout: 10000 });
+  trdi(await a.$eval("#odd", e => e.value) === "C1", "zavihek Oddelki je odprt in oddelek je C1: " + await a.$eval("#odd", e => e.value));
+  trdi(await a.$eval("#mm", e => e.value) === "2026-10", "mesec je oktober 2026: " + await a.$eval("#mm", e => e.value));
+  await a.close();
+
+  const { stran: d } = await odpri(1280, 900, "admin", "/admin.html?tab=nzv&pod=dez&mesec=2026-10");
+  await d.waitForSelector("#dmonth", { timeout: 10000 });
+  trdi(await d.$eval("#dmonth", e => e.value) === "2026-10", "NZV → Dežurstva se odpre na oktobru 2026: " + await d.$eval("#dmonth", e => e.value));
+  await d.close();
+
+  // Nespremenjen naslov mora pustiti Generator pri miru (brez regresije).
+  const { stran: b } = await odpri(1280, 900, "admin", "/admin.html");
+  await b.waitForSelector("#odd", { timeout: 10000 });
+  trdi(await b.$eval("#odd", e => e.value) === "B", "brez napotila ostane privzeti oddelek B");
+  await b.close();
+  trdi(konzolaA.filter(t => !/supabase|Failed to fetch|Failed to load resource|net::|401|400|NetworkError|sw\.js|ServiceWorker|manifest/i.test(t)).length === 0,
+    "Generator se odpre brez napak v konzoli");
+
+  console.log("10) navaden zaposleni gumba za generiranje NE vidi");
+  const { stran: u } = await odpri(1100, 900, "user");
+  await izberi(u, "B");
+  trdi((await u.$$(".vGeneratorBtn")).length === 0,
+    "vlogi 'user' se gumb ne prikaže (stran Želje odprejo vsi zaposleni)");
+  await u.close();
+
   const praveTel = konzolaTel.filter(t => !/supabase|Failed to fetch|Failed to load resource|net::|401|400|NetworkError|sw\.js|ServiceWorker|manifest/i.test(t));
   trdi(praveTel.length === 0, "brez napak v konzoli na telefonu" + (praveTel.length ? ": " + praveTel.join(" | ") : ""));
-  await tel.close();
 } finally {
   await brskalnik.close();
   streznik.close();

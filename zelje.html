@@ -898,7 +898,43 @@ function DnevniPogled({ view, vsiLjudje, trenutnaVrednost, smemUrejati, nastaviC
   );
 }
 
-function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine }){
+// Gumb(i) "Generiraj razpored" pod razpredelnico - glej razlago ob klicu.
+// Skupine se obnašajo različno, ker se tudi razporedi delajo različno:
+//   6 SMS/TZN oddelkov -> rotacijski generator (Generator -> Oddelki),
+//   NZV                -> dva ločena razporeda (vodstvena pokritost in
+//                         dežurstva), zato dva gumba,
+//   FLEXI              -> se NE generira samodejno (ni kalupa), vpisuje se
+//                         ročno oz. z uvozom - zato tam samo pojasnilo in
+//                         pot do pravega mesta, ne lažen gumb "Generiraj".
+function VGenerator({ skupina, leto, mesec }){
+  const mesecParam = leto + "-" + String(mesec + 1).padStart(2, "0");
+  const mesecIme = MESECI_SL[mesec] + " " + leto;
+  const povezave = skupina === "NZV"
+    ? [
+        { naslov: `admin.html?tab=nzv&pod=vodje&mesec=${mesecParam}`, ikona: "▶", oznaka: "Generiraj vodstveno pokritost" },
+        { naslov: `admin.html?tab=nzv&pod=dez&mesec=${mesecParam}`, ikona: "▶", oznaka: "Generiraj dežurstva" },
+      ]
+    : skupina === "FLEXI"
+      ? [{ naslov: `index.html?uvoz=1&oddelek=FLEXI&mesec=${mesecParam}`, ikona: "📥", oznaka: "Odpri vnos razporeda FLEXI" }]
+      : [{ naslov: `admin.html?tab=kalup&oddelek=${encodeURIComponent(skupina)}&mesec=${mesecParam}`, ikona: "▶", oznaka: `Generiraj razpored – ${skupina}` }];
+
+  return (
+    <div className="vGenerator no-print">
+      <p className="hint" style={{margin:"0 0 8px"}}>
+        {skupina === "FLEXI"
+          ? <React.Fragment>FLEXI se <b>ne generira samodejno</b> – ni kalupa, vpisuje se ročno oz. z uvozom. Vpisani dopusti in omejitve so vseeno shranjeni in vidni v razporedu.</React.Fragment>
+          : <React.Fragment>Vpisani dopusti in omejitve so shranjeni – generator jih prebere sam. Naslednji korak za <b>{mesecIme}</b>:</React.Fragment>}
+      </p>
+      <div className="vGeneratorGumbi">
+        {povezave.map(p => (
+          <a key={p.naslov} className="vGeneratorBtn" href={p.naslov}>{p.ikona} {p.oznaka} · {mesecIme}</a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupina }){
   const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
   const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
   const [view, setView] = useState(() => {
@@ -1446,6 +1482,16 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine }){
       </div>
       )}
 
+      {/* Most v Generator. Koordinator je pravkar vpisal dopuste in
+          omejitve za TA mesec in TO skupino - naslednji korak je vedno
+          generiranje razporeda. Prej je moral na drugo stran in tam istega
+          oddelka in meseca izbrati znova. Gumb je samo POVEZAVA: odpre
+          Generator z že izbranim oddelkom in mesecem, generiranje in
+          objavo pa sproži uporabnik tam. Namenoma NE generira od tod -
+          Želje vidijo vsi zaposleni, generator pa na en klik prepiše cel
+          mesec za cel oddelek. */}
+      {jeKoordinator && skupina && <VGenerator skupina={skupina} leto={view.year} mesec={view.month} />}
+
       {/* Zlozena: na telefonu je prazna zgodovina zavzela tretjino zaslona
           pod mrezo, cetudi je skoraj vedno ne rabis. */}
       {role === "admin" && (
@@ -1711,6 +1757,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
         <React.Fragment>
           <Razpredelnica role={role} myId={myId} myFullName={myFullName}
             vsiLjudje={ljudjeSkupine}
+            skupina={skupina === VSE_SKUPINE ? null : skupina}
             naslovSkupine={skupina === VSE_SKUPINE ? "Vse skupine" : nazivSkupine[skupina]} />
 
           {/* Želje iste skupine so tik pod razpredelnico, ne v drugem
