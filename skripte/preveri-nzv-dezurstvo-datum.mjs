@@ -82,6 +82,10 @@ const indexKoda = [
   // naredi index.html.
   readFileSync(join(koren, "datum.js"), "utf8"),
   "var monthRange = window.Datum.obseg;",
+  // NZV_ENOTE/NZV_STOLPCI zdaj kažeta na skupni nzv-zasedba.js (prej sta
+  // bila zapisana v index.html), zato mora biti modul naložen PRED njima.
+  readFileSync(join(koren, "imena.js"), "utf8"),
+  readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ENOTE")),
   izvleciFn(htmlSrc, "nzvNazivVKodo"),
   izvleciFn(htmlSrc, "poisciEnoteNzv"),

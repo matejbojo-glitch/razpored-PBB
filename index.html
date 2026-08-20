@@ -934,11 +934,11 @@ function WardView({ deptCode, month, myId }){
 // vedno lahko ena od teh starih kod - glej supabase/schema.sql sekcija 23,
 // namenoma niso izbrisane iz departments prav zaradi te uporabe). Ločeno
 // od WardView, ker gre za popolnoma drugačno obliko (enote, ne osebe).
-const NZV_ENOTE = [
-  ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
-  ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
-  ["URGENCA", "URGENCA"], ["U2", "U2"],
-];
+// Seznam enot je v skupnem nzv-zasedba.js, ker ga poleg tega prikaza
+// potrebuje tudi generator (admin.html). Prej je bil samo tu in generator
+// je zato delal po SVOJIH stolpcih - ena od stvari, zaradi katerih sta se
+// prikaz in kreiranje razporeda razšla.
+const NZV_ENOTE = window.NzvZasedba.ENOTE;
 // "SA" nima nobenega samodejnega generatorja (za razliko od ostalih enot) -
 // v uradni predlogi je razdeljena na dva stolpca (dopoldan/popoldan), zato
 // tu isto razdelimo po vsebini shift_code (glej razvrstiSA spodaj), namesto
@@ -953,17 +953,13 @@ function razvrstiSA(sifra){
 // zato tu sestavimo pravi prikazni vrstni red ločeno od NZV_ENOTE (ki ostaja
 // nespremenjen, ker ga poizvedba in uvoz uporabljata brez odvisnosti od
 // vrstnega reda stolpcev).
-const NZV_STOLPCI = (() => {
-  const brezUrgence = NZV_ENOTE.filter(([k]) => k !== "URGENCA" && k !== "U2");
-  const urgencaU2 = NZV_ENOTE.filter(([k]) => k === "URGENCA" || k === "U2");
-  return [...brezUrgence, ["SADOP", "SA DOP"], ["SAPOP", "SA POP"], ...urgencaU2];
-})();
+const NZV_STOLPCI = window.NzvZasedba.STOLPCI;
 // Zadnji trije stolpci uradne predloge ("LD", "IZOB", "BS") niso enote, ampak
 // POVZETEK odsotnosti tega dne (glej leave_entries.kind) - kdo je ta dan na
 // letnem dopustu / strokovnem izobraževanju / bolniški. Isti vir kot Želje →
 // Razpredelnica (zelje.html), tu prikazan skupaj s končnim razporedom, ker
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
-const NZV_KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+const NZV_KIND_KODA = window.NzvZasedba.KIND_KODA;
 
 // Kdo sodi v NZV razpored, je v nzv-zasedba.js - isti nabor potrebuje
 // tudi Imenik -> Razpredelnica, zato en sam vir.

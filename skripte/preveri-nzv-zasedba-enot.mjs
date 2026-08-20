@@ -107,7 +107,7 @@ vm.runInContext([
   izvleciFn("parafaOd"),
   izvleciConst("NZV_ENOTE"),
   izvleciFn("razvrstiSA"),
-  izvleciBlok("const NZV_STOLPCI = (() => {", "})();"),
+  izvleciConst("NZV_STOLPCI"),
   izvleciConst("NZV_KIND_KODA"),
   izvleciConst("JE_NZV_VLOGA"),
   izvleciConst("saNastavitveIz"),

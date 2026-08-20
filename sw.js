@@ -435,7 +435,13 @@
 // taka enota iz razporeda izginila. nzv-zasedba.js se streže iz
 // predpomnilnika, zato je dvig različice nujen.
 
-const CACHE = 'razpored-pbb-v86';
+// v87: generator (Admin -> NZV -> Vodstvena pokritost) uporablja ISTA
+// pravila kot prikaz - skupni nzv-zasedba.js namesto svoje kopije. Zdaj
+// pozna sestavljene enote, tedensko menjavanje SA in nadomeščanje;
+// nadomeščanja so označena kot PREDLOGI in se objavijo šele po potrditvi.
+// Spremenjeni so nzv-zasedba.js, theme.css, index.html in admin.html.
+
+const CACHE = 'razpored-pbb-v87';
 const ASSETS = [
   './',
   './index.html',

@@ -49,6 +49,10 @@
   --ok-bg: #EAF3EC;
   --danger-bg: #FBEAE6;
   --cool: #4A67B0;
+  /* Rumena za "izračunano, a še ne potrjeno" - predlogi nadomeščanja v
+     generatorju. Ista barva kot "omejitev" v uradnih predlogah NZV. */
+  --predlog: #FFD966;
+  --predlog-rgb: 255,217,102;
 
   /* --- merski sistem --- */
   --radius-sm: 10px;

@@ -164,6 +164,29 @@ window.NzvZasedba = (function () {
   //
   // Vrne [{ nosilec, kode, enote }] - kdo je ta dan na katerih enotah;
   // "kode" so stolpci mreže, "enote" berljiv zapis za izpis.
+  // Organizacijske ENOTE v stolpcih uradne predloge "Letni dopusti in
+  // omejitve za NZV". Doslej je bil ta seznam zapisan samo v index.html;
+  // odkar ga potrebuje tudi generator (admin.html), je tu, da se kopiji ne
+  // moreta raziti - prav to je bil vzrok, da je generator delal po drugih
+  // pravilih kot prikaz.
+  var ENOTE = [
+    ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
+    ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
+    ["URGENCA", "URGENCA"], ["U2", "U2"],
+  ];
+  // Vrstni red stolpcev v uradni predlogi ima "SA DOP"/"SA POP" MED "DB" in
+  // "URGENCA", ne na koncu - zato prikazni vrstni red sestavimo posebej.
+  var STOLPCI = (function () {
+    var brezUrgence = ENOTE.filter(function (v) { return v[0] !== "URGENCA" && v[0] !== "U2"; });
+    var urgencaU2 = ENOTE.filter(function (v) { return v[0] === "URGENCA" || v[0] === "U2"; });
+    return brezUrgence.concat([["SADOP", "SA DOP"], ["SAPOP", "SA POP"]], urgencaU2);
+  })();
+  var KODE_STOLPCEV = STOLPCI.map(function (v) { return v[0]; });
+
+  // Zadnji trije stolpci uradne predloge niso enote, ampak POVZETEK
+  // odsotnosti tega dne (glej leave_entries.kind).
+  var KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+
   function razporedDneva(opts) {
     var nosilci = opts.nosilci || [], pari = opts.pari || [];
     var kljuc = opts.kljuc, jeOdsoten = opts.jeOdsoten;
@@ -262,6 +285,10 @@ window.NzvZasedba = (function () {
 
   return {
     VLOGE: VLOGE,
+    ENOTE: ENOTE,
+    STOLPCI: STOLPCI,
+    KODE_STOLPCEV: KODE_STOLPCEV,
+    KIND_KODA: KIND_KODA,
     jeNzvVloga: jeNzvVloga,
     isoTeden: isoTeden,
     SA_PRIVZETO: SA_PRIVZETO,
