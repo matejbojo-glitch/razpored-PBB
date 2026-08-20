@@ -664,6 +664,113 @@ console.log("10) SOBO: Džamastagić obdrži PDZN in pokrije še SOBO");
   });
 }
 
+
+console.log("11) URGENCA in SA: vrstni red in enakovredni nadomeščevalci");
+{
+  // Svoji podatki, ker gre za skupino, ki je v ostalih sklopih ni
+  // (supabase/nzv-urgenca-sa-vrstni-red.sql). Uporabnikova navedba:
+  // "Trpin je prva v urgenci, nato Bizjak" in "Humar je prva SA,
+  // nadomesti jo Trpin ali Bizjak ... se določi sproti". Zadnje pomeni
+  // ISTO prednost - katera koli od njiju je pravilna rešitev.
+  const NOSILCI = [
+    { full_name: "HUMAR SAŠA", enote: "SA", odsotnost_tip: null, odsotnost_do: null },
+    { full_name: "MUŠIČ INES", enote: "UA/SA", odsotnost_tip: null, odsotnost_do: null },
+    { full_name: "TRPIN SAŠA", enote: "UA/SA", odsotnost_tip: null, odsotnost_do: null },
+    { full_name: "BIZJAK TEA", enote: "UA/SA/B2", odsotnost_tip: null, odsotnost_do: null },
+  ];
+  const PARI = [
+    { nosilec: "MUŠIČ INES", nadomesca: "TRPIN SAŠA", enota: "UA/SA", prednost: 1 },
+    { nosilec: "MUŠIČ INES", nadomesca: "BIZJAK TEA", enota: "UA/SA", prednost: 2 },
+    { nosilec: "HUMAR SAŠA", nadomesca: "TRPIN SAŠA", enota: "SA", prednost: 1 },
+    { nosilec: "HUMAR SAŠA", nadomesca: "BIZJAK TEA", enota: "SA", prednost: 1 },
+    { nosilec: "TRPIN SAŠA", nadomesca: "BIZJAK TEA", enota: "UA/SA", prednost: 1 },
+  ];
+  const NZ = sandbox.window.NzvZasedba;
+  const podrobno = (odsotni) => NZ.razporedDnevaPodrobno({
+    nosilci: NOSILCI, pari: PARI, kljuc: sandbox.window.Imena.kljuc,
+    jeOdsoten: ime => odsotni.some(o => new RegExp(o, "i").test(ime)),
+    saKoda: "SADOP", veljavne: null,
+  });
+
+  console.log("   a) URGENCA: ko Mušič ni, jo pokrije TRPIN in ne Bizjak");
+  {
+    const p = podrobno(["MUŠIČ"]);
+    // Prednost 1 je Trpin; Bizjak je 2 in pride na vrsto le, če Trpin ni.
+    jseq(p.enakovredni["URGENCA"], undefined,
+      "Trpin in Bizjak tu NISTA enakovredni – imata različno prednost");
+    const p2 = podrobno(["MUŠIČ", "TRPIN"]);
+    const kdo = p2.vrstice.map(v => v.nosilec.full_name);
+    trdi(kdo.includes("BIZJAK TEA"), "če ni ne Mušič ne Trpin, vskoči Bizjak");
+  }
+
+  console.log("   b) SA: Trpin IN Bizjak sta enakovredni, ko Humar ni");
+  {
+    const p = podrobno(["HUMAR"]);
+    const zaSa = p.enakovredni["SADOP"] || [];
+    trdi(zaSa.includes("TRPIN SAŠA") && zaSa.includes("BIZJAK TEA"),
+      "obe sta zabeleženi kot enakovredni za SA – " + JSON.stringify(zaSa));
+    const izbrane = p.vrstice.filter(v => (v.kode || []).includes("SADOP"));
+    trdi(izbrane.length >= 1, "razpored kljub temu izbere eno (predlog mora biti določen)");
+  }
+
+  console.log("   c) Ena sama možnost ni 'enakovredna'");
+  {
+    const p = podrobno(["TRPIN"]);
+    jseq(p.enakovredni["URGENCA"], undefined,
+      "kjer je nadomeščevalec en sam, se enakovrednih ne zabeleži");
+  }
+
+  console.log("   d) Kdor je sam odsoten, ni enakovredna možnost");
+  {
+    // Če je poleg Humarjeve odsotna še Trpin, ostane ena sama možnost -
+    // Bizjak. Takrat ni kaj "določati sproti" in enakovrednih ni.
+    const p = podrobno(["HUMAR", "TRPIN"]);
+    jseq(p.enakovredni["SADOP"], undefined,
+      "odsotna Trpin se ne šteje med enakovredne");
+  }
+
+  console.log("   e) Enakovredna nadomeščevalka ni odstopanje");
+  {
+    // POZOR: pri pravih podatkih sta Trpin in Bizjak OBE nosilki UA/SA,
+    // zato njun vpis na SA nikoli ni odstopanje - tudi brez tega pravila.
+    // Prvi poskus tega preizkusa je bil zato ZELEN IZ NAPAČNEGA RAZLOGA.
+    // Da preizkus res preveri PRAVILO in ne tega naključja, sta tu
+    // nadomeščevalki z DRUGIH enot, ki SA sami ne pokrivata.
+    const nosilci = [
+      { full_name: "HUMAR SAŠA", enote: "SA", odsotnost_tip: null, odsotnost_do: null },
+      { full_name: "MAVRI TRATNIK MAGDALENA", enote: "B1", odsotnost_tip: null, odsotnost_do: null },
+      { full_name: "LUNAR MATEJA", enote: "B", odsotnost_tip: null, odsotnost_do: null },
+    ];
+    const pari = [
+      { nosilec: "HUMAR SAŠA", nadomesca: "MAVRI TRATNIK MAGDALENA", enota: "SA", prednost: 1, poleg_svoje: true },
+      { nosilec: "HUMAR SAŠA", nadomesca: "LUNAR MATEJA", enota: "SA", prednost: 1, poleg_svoje: true },
+    ];
+    const vnos = (ime, kratica, koda, datum, sifra) => ({
+      department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: sifra || "PRISOTEN",
+      created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+    });
+    const { odstopanja } = await poglej({
+      vodje: nosilci, nadomescanja: pari,
+      entries: [
+        vnos("Lunar Mateja", "LUN", "SA", "2026-09-01", "Dopoldne"),
+        vnos("Mavri Tratnik Magdalena", "TRA", "B1B2", "2026-09-01"),
+      ],
+      dopusti: [{ full_name: "Humar Saša", work_date: "2026-09-01", kind: "ld" }],
+    });
+    jseq(odstopanja.filter(o => o.oseba === "LUN" && o.datum === "2026-09-01"), [],
+      "Lunar na SA (enakovredna možnost) ni odstopanje – določi se sproti");
+    // Nadzorna točka: kdor NI med enakovrednimi, na isti enoti JE odstopanje.
+    const { odstopanja: o2 } = await poglej({
+      vodje: nosilci.concat([{ full_name: "ŠUBIC PETRA", enote: "B1", odsotnost_tip: null, odsotnost_do: null }]),
+      nadomescanja: pari,
+      entries: [vnos("Šubic Petra", "ŠUB", "SA", "2026-09-01", "Dopoldne")],
+      dopusti: [{ full_name: "Humar Saša", work_date: "2026-09-01", kind: "ld" }],
+    });
+    trdi(o2.some(o => o.oseba === "ŠUB" && o.vrsta === "napacnaEnota"),
+      "Šubic na SA (ni med nadomeščevalci) PA je odstopanje");
+  }
+}
+
 };
 
 test().then(() => {
