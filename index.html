@@ -1238,6 +1238,8 @@ async function nalozizPodatkeNzv(startISO, endISO){
   // glede na to, ali je za tisti dan objavljen razpored ali ne. Iz tega se
   // spodaj izračunajo odstopanja (glej odstopanjaNzv).
   const poPravilu = {};
+  // Enote, kjer je poleg izbranega sprejemljiv še kdo drug (enaka prednost).
+  const dopustno = {};
   const nosilci = (vodje || []).filter(v => v.enote);
   if (nosilci.length) {
     const profilZaIme = ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime));
@@ -1272,14 +1274,27 @@ async function nalozizPodatkeNzv(startISO, endISO){
       // Kdo je ta dan na kateri enoti (vključno s preselitvijo ob
       // odsotnosti in prevzemom zapuščene enote) - eno samo pravilo v
       // nzv-zasedba.js, glej razporedDneva.
-      window.NzvZasedba.razporedDneva({
+      const dneva = window.NzvZasedba.razporedDnevaPodrobno({
         nosilci,
         pari: nadomescanja || [],
         kljuc: kljucImenaNzv,
         jeOdsoten: ime => jeOdsotenNa(ime, dn.datum),
         saKoda: saStolpec(dn.datum, saNast),
         veljavne: veljavneKode,
-      }).forEach(({ nosilec, kode }) => {
+      });
+      // Kjer ima več nadomeščevalcev isto prednost, je katera koli od njih
+      // pravilna ("Humar je prva SA, nadomesti jo Trpin ali Bizjak - se
+      // določi sproti"). Razpored izbere prvo, pregled odstopanj pa mora
+      // sprejeti vse, sicer javi napako pri vsaki, ki ni bila izbrana.
+      Object.keys(dneva.enakovredni || {}).forEach(koda => {
+        const kljuc = kljucOdstopanja(koda) + "|" + dn.datum;
+        const ze = dopustno[kljuc] = dopustno[kljuc] || new Set();
+        dneva.enakovredni[koda].forEach(ime => {
+          const profil = profilZaIme(ime);
+          if (profil) ze.add(parafaOd(profil, dn.datum));
+        });
+      });
+      dneva.vrstice.forEach(({ nosilec, kode }) => {
         const profil = profilZaIme(nosilec.full_name);
         if (!profil || !JE_NZV_VLOGA.has(profil.role)) return;
         const parafa = parafaOd(profil, dn.datum);
@@ -1297,7 +1312,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     });
   }
   const preglednica = odstopanjaNzv({
-    podatki, poPravilu, nosilci, startISO, endISO,
+    podatki, poPravilu, dopustno, nosilci, startISO, endISO,
     profilZaIme: ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime)),
   });
   return { podatki, entries: entries || [], izpeljano, saNast,
@@ -1335,6 +1350,7 @@ const ODSTOPANJA_PRESKOCI = new Set(["DEZ", "LD", "IZOB", "BS"]);
 // (uporabnikova odločitev), zato je v pregledu le kot pripis.
 function odstopanjaNzv(opts){
   const podatki = opts.podatki, poPravilu = opts.poPravilu, nosilci = opts.nosilci;
+  const dopustno = opts.dopustno || {};
   const startISO = opts.startISO, endISO = opts.endISO, profilZaIme = opts.profilZaIme;
 
   const parafeNosilcev = new Set();
@@ -1386,7 +1402,12 @@ function odstopanjaNzv(opts){
       const naj = pravilo[par] || new Set();
       // Enote brez nosilca (U2) izpustimo: pravila zanje ni, zato vpis tam
       // ne more biti "napačen".
-      const napacne = [...dejansko[par]].filter(e => !naj.has(e) && !brezNosilcaSet.has(e));
+      const napacne = [...dejansko[par]].filter(e => {
+        if (naj.has(e) || brezNosilcaSet.has(e)) return false;
+        // Enakovreden nadomeščevalec za to enoto ta dan - ni napaka.
+        const dop = dopustno[e + "|" + dn.datum];
+        return !(dop && dop.has(par));
+      });
       if (!napacne.length) return;
       out.push({ vrsta: "napacnaEnota", datum: dn.datum, oseba: par,
                  poPravilu: [...naj].sort(), vRazporedu: [...dejansko[par]].sort(),
