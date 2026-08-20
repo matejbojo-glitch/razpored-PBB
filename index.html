@@ -1601,6 +1601,170 @@ function OdstopanjaNzv({ odstopanja, brezNosilca }){
   );
 }
 
+// Urejanje NZV mreže v aplikaciji.
+//
+// Zakaj: doslej NZV razporeda v aplikaciji ni bilo mogoče vnesti - mreža je
+// bila samo za gledanje, zato je razpored nastajal v Excelu in se uvažal.
+// Vse napake, ki smo jih lovili (izpadla oseba, dopust in razpored hkrati,
+// napačno zapisana glava, ista oseba na dveh enotah), izvirajo iz tega, da
+// Excel ne pozna pravil in ne ve, kdo manjka.
+//
+// Odslej: aplikacija predlaga mesec iz pravil, človek popravi izjeme,
+// Excel pa nastane šele na koncu kot podpisan dokument (izvoz že obstaja).
+//
+// Uporabnikova odločitev (avgust 2026): opozori, a DOVOLI. Marsikaj se
+// določi sproti in izjeme so normalne, zato vpis nikoli ni onemogočen -
+// celica le pove, kaj ni v skladu s pravili.
+// Kaj je s to celico narobe - preverbe, ki jih je mogoče narediti SPROTI,
+// medtem ko človek tipka (polni pregled odstopanj se osveži po objavi).
+//
+// Namenoma ne prepreči vpisa: uporabnikova odločitev je "opozori, a dovoli".
+function opozoriloCelice(besedilo, datum, poParafi, odsotni){
+  if (!poParafi) return null;
+  const parafe = String(besedilo || "").split(",").map(x => x.trim()).filter(Boolean);
+  const neznane = parafe.filter(p => !poParafi[p.toUpperCase()]);
+  if (neznane.length) return "Ne poznam parafe: " + neznane.join(", ");
+  const naDopustu = parafe.filter(p => (odsotni[datum] || new Set()).has(p.toUpperCase()));
+  if (naDopustu.length) {
+    return naDopustu.join(", ") + " je ta dan na dopustu oz. bolniški – preveri, ali je vpis pravilen.";
+  }
+  return null;
+}
+
+// Vrstica z gumbi nad mrežo: preklop urejanja, predlog meseca, objava.
+function NzvUrejevalnik({ ur, urejam, setUrejam }){
+  return (
+    <div style={{display:"flex", flexWrap:"wrap", gap:8, alignItems:"center", margin:"8px 0 12px"}}>
+      <button className={"btn btn-sm " + (urejam ? "btn-primary" : "btn-ghost")}
+        onClick={() => setUrejam(v => !v)}>
+        {urejam ? "Končaj urejanje" : "✎ Uredi razpored"}
+      </button>
+      {urejam && (
+        <React.Fragment>
+          <button className="btn btn-ghost btn-sm" disabled={ur.busy || !ur.pripravljen}
+            onClick={ur.predlagajMesec} title="Izpolni prazne celice po pravilih nadomeščanja">
+            ✨ Predlagaj mesec
+          </button>
+          <button className="btn btn-primary btn-sm"
+            disabled={ur.busy || !ur.pripravljen || !ur.spremenjenih}
+            onClick={ur.objavi}>
+            {ur.busy ? "Objavljam …" : "Objavi razpored"}
+          </button>
+          <span className="sub">
+            {ur.spremenjenih ? `${ur.spremenjenih} spremenjenih celic` : "ni sprememb"}
+          </span>
+        </React.Fragment>
+      )}
+      {ur.sporocilo && <span className="sub" style={{color:"var(--ok)"}}>{ur.sporocilo}</span>}
+      {ur.napaka && <span className="napaka">{ur.napaka}</span>}
+    </div>
+  );
+}
+
+function nzvUrejanjeStanje({ month, podatki, izpeljano, days, naObjavljeno }){
+  const [urejeno, setUrejeno] = useState({});   // "koda|datum" -> besedilo celice
+  const [busy, setBusy] = useState(false);
+  const [sporocilo, setSporocilo] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [poParafi, setPoParafi] = useState(null);
+  const [nzvIdji, setNzvIdji] = useState([]);   // brisanje se sme dotakniti SAMO teh
+  const [odsotni, setOdsotni] = useState({});   // datum -> Set(parafa)
+
+  const { startISO, endISO } = monthRange(month);
+  const KODE = useMemo(() => NZV_STOLPCI.map(([k]) => k), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUrejeno({}); setSporocilo(null); setNapaka(null);
+    Promise.all([
+      client.from("profiles").select("id, full_name, role, parafa, parafa_pred_oktobrom_2026"),
+      client.from("leave_entries").select("full_name, work_date, kind")
+        .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
+    ]).then(([{ data: profili }, { data: dopusti }]) => {
+      if (cancelled) return;
+      // Samo NZV kader: parafa oddelčne sestre v tej mreži nima kaj iskati.
+      const nzv = (profili || []).filter(p => JE_NZV_VLOGA.has(p.role));
+      setPoParafi(parafaMapa(nzv, month).poParafi);
+      setNzvIdji(nzv.map(p => p.id));
+      const m = {};
+      (dopusti || []).forEach(d => {
+        const ujem = nzv.find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
+        if (!ujem) return;
+        (m[d.work_date] = m[d.work_date] || new Set()).add(parafaOd(ujem, d.work_date));
+      });
+      setOdsotni(m);
+    });
+    return () => { cancelled = true; };
+  }, [month, startISO, endISO]);
+
+  const vrednost = (koda, datum) => {
+    const k = koda + "|" + datum;
+    return k in urejeno ? urejeno[k] : (podatki[k] || "");
+  };
+  const nastavi = (koda, datum, besedilo) => {
+    setUrejeno(prej => Object.assign({}, prej, { [koda + "|" + datum]: besedilo }));
+    setSporocilo(null); setNapaka(null);
+  };
+
+  // Predlog: izpeljane celice (aplikacija jih že računa iz pravil) postanejo
+  // pravi vnos. Objavljenih celic ne dotakne - te je nekdo že potrdil.
+  const predlagajMesec = () => {
+    const m = {};
+    Object.keys(izpeljano || {}).forEach(k => { if (podatki[k]) m[k] = podatki[k]; });
+    setUrejeno(prej => Object.assign({}, m, prej));
+    setSporocilo(`Predlaganih ${Object.keys(m).length} celic iz pravil. Preglej, popravi in objavi.`);
+  };
+
+  const spremenjenih = Object.keys(urejeno).filter(k => (urejeno[k] || "") !== (podatki[k] || "")).length;
+  const predlaganih = Object.keys(urejeno).filter(k => izpeljano && izpeljano[k]).length;
+
+  async function objavi(){
+    if (!poParafi) return;
+    setBusy(true); setNapaka(null); setSporocilo(null);
+    try {
+      const { zapisi, neznane } = nzvVnosiIzMreze({
+        vrednost, datumi: days.map(d => d.datum), poParafi,
+        kode: KODE.concat(["DEZ"]),   // dežurstvo se ohrani, sicer bi se ob objavi izgubilo
+      });
+      if (neznane.length) throw new Error("Teh paraf ne poznam: " + neznane.join(", ")
+        + ". Popravi zapis ali nastavi parafo v Imeniku.");
+      await shraniZapiseRazporeda(zapisi);
+      // Kdor je bil prej v razporedu tega meseca, zdaj pa ga v mreži ni več,
+      // mora iz razporeda izginiti - sicer bi ostal "duh" prejšnje objave.
+      //
+      // POZOR: omejitev na NZV kader je nujna, ne kozmetična. Kode stolpcev
+      // NZV mreže (B, C, C1, D, E1, E2) so ISTE kot kode oddelkov SMS/TZN
+      // kadra. Brisanje po samem department_code bi zato pobrisalo razpored
+      // CELIH oddelkov za ta mesec, ne le vodij.
+      const ostajajo = new Set(zapisi.map(z => z.employee_id + "|" + z.work_date));
+      if (!nzvIdji.length) throw new Error("Ne najdem NZV kadra – objava prekinjena, da ne bi pobrisala razporeda oddelkov.");
+      const { data: obstojeci, error: napakaBranja } = await client.from("schedule_entries")
+        .select("id, employee_id, work_date")
+        .in("employee_id", nzvIdji)
+        .gte("work_date", startISO).lte("work_date", endISO);
+      if (napakaBranja) throw napakaBranja;
+      const zaBrisanje = (obstojeci || [])
+        .filter(r => !ostajajo.has(r.employee_id + "|" + r.work_date)).map(r => r.id);
+      if (zaBrisanje.length) {
+        const { error } = await client.from("schedule_entries").delete().in("id", zaBrisanje);
+        if (error) throw error;
+      }
+      setUrejeno({});
+      setSporocilo(`Objavljeno: ${zapisi.length} vpisov`
+        + (zaBrisanje.length ? `, odstranjenih ${zaBrisanje.length}` : "") + ".");
+      naObjavljeno();
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { vrednost, nastavi, predlagajMesec, objavi, busy, sporocilo, napaka,
+           spremenjenih, predlaganih, poParafi, odsotni,
+           pripravljen: !!poParafi };
+}
+
 function NzvView({ month, profile }){
   const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "parafa, parafa2" }
   const [izpeljano, setIzpeljano] = useState({}); // iste ključe, a le za izpeljane celice (glej nalozizPodatkeNzv)
@@ -1641,13 +1805,32 @@ function NzvView({ month, profile }){
     return m;
   }, [odstopanja]);
 
+  // Klic je BREZ pogoja in pred vsakim zgodnjim izhodom - React zahteva,
+  // da se stanja kličejo vedno v istem vrstnem redu.
+  const ur = nzvUrejanjeStanje({
+    month, podatki: podatki || {}, izpeljano, days,
+    naObjavljeno: () => setOsvezi(k => k + 1),
+  });
+  const jeAdmin = !!(profile && profile.role === "admin");
+  const [urejam, setUrejam] = useState(false);
+
   if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
     <div className="wardPrintArea">
+      {jeAdmin && (
+        <NzvUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />
+      )}
       <OdstopanjaNzv odstopanja={odstopanja} brezNosilca={brezNosilca} />
       {profile && profile.role === "admin" && saNast && (
         <SaNastavitveUrejanje saNast={saNast} naShranjeno={() => setOsvezi(k => k + 1)} />
+      )}
+      {urejam && jeAdmin && ur.poParafi && (
+        <datalist id="nzvParafe">
+          {Object.keys(ur.poParafi).sort().map(par => (
+            <option key={par} value={par}>{ur.poParafi[par].full_name}</option>
+          ))}
+        </datalist>
       )}
       <div className="wardScroller">
         <table className="wardTable wardTableNzv">
@@ -1669,12 +1852,28 @@ function NzvView({ month, profile }){
                   <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
                   {NZV_STOLPCI.map(([koda]) => {
                     const o = odstopanjaPoCelici[kljucOdstopanja(koda) + "|" + dn.datum];
+                    const kljuc = koda + "|" + dn.datum;
+                    if (urejam && jeAdmin && !isWeekend && !window.Prazniki.jeDelaProstDan(dn.datum)) {
+                      const besedilo = ur.vrednost(koda, dn.datum);
+                      const opomba = opozoriloCelice(besedilo, dn.datum, ur.poParafi, ur.odsotni);
+                      return (
+                        <td key={koda} className={"enotaCell" + (opomba ? " odstopanje" : "")}
+                            title={opomba || undefined}>
+                          <input type="text" value={besedilo} list="nzvParafe"
+                            onChange={e => ur.nastavi(koda, dn.datum, e.target.value)}
+                            aria-label={koda + " " + datumSlo(dn.datum)}
+                            style={{width:"100%", minWidth:56, textAlign:"center", fontSize:12,
+                                    padding:"3px 2px", border:"1px solid var(--line)",
+                                    borderRadius:6, background:"var(--surface)", color:"var(--text)"}} />
+                        </td>
+                      );
+                    }
                     return (
                     <td key={koda} title={o ? opisOdstopanja(o) : undefined}
                         className={"enotaCell"
-                          + (izpeljano[koda + "|" + dn.datum] ? " izpeljano" : "")
+                          + (izpeljano[kljuc] ? " izpeljano" : "")
                           + (o ? " odstopanje" : "")}>
-                      {podatki[koda + "|" + dn.datum] || ""}
+                      {podatki[kljuc] || ""}
                     </td>
                     );
                   })}
@@ -2433,10 +2632,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
           });
           return;
         }
-        // SA DOP/SA POP pišeta isto department_code "SA", ločeno samo prek
-        // shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda.
-        const koda = virKoda === "SADOP" || virKoda === "SAPOP" ? "SA" : virKoda;
-        const sifra = virKoda === "SADOP" ? "Dopoldne" : virKoda === "SAPOP" ? "Popoldne" : "PRISOTEN";
+        const { department_code: koda, shift_code: sifra } = nzvZapisZaStolpec(virKoda);
         vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
           const oseba = poParafi[parafa.toUpperCase()];
           if (!oseba) { neujemanja.add(parafa); return; }
@@ -2448,6 +2644,52 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
   }
   return { zapisi: zdruziNzvZapise(zapisi), dopusti, neujemanja,
            najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
+}
+
+// Kaj se za dani stolpec NZV mreže zapiše v schedule_entries.
+//
+// SA DOP in SA POP pišeta isto department_code "SA", ločeno samo prek
+// shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda oddelka.
+// Dežurstvo ni enota, ampak stanje, zato ima svojo šifro izmene.
+//
+// Ena sama funkcija za uvoz IN za urejanje mreže v aplikaciji: če bi bili
+// dve kopiji, bi se isti stolpec nekoč zapisal drugače, odvisno od tega,
+// po kateri poti je prišel.
+function nzvZapisZaStolpec(koda){
+  if (koda === "SADOP") return { department_code: "SA", shift_code: "Dopoldne" };
+  if (koda === "SAPOP") return { department_code: "SA", shift_code: "Popoldne" };
+  if (koda === "DEZ") return { department_code: "DEZ", shift_code: "DEŽURSTVO" };
+  return { department_code: koda, shift_code: window.NzvZasedba.IZMENA_PRISOTEN };
+}
+
+// Vpisi za schedule_entries iz CELE mreže enega meseca - obratna smer od
+// nalozizPodatkeNzv. Uporablja jo urejanje NZV mreže v aplikaciji.
+//
+// "vrednost(koda, datum)" vrne to, kar v celici piše ("DŽA, ALU").
+// Zapisi gredo skozi isti zdruziNzvZapise kot uvoz, zato ista oseba na
+// več enotah istega dne pristane v ENEM zapisu (pokriva_oddelek).
+function nzvVnosiIzMreze(opts){
+  const vrednost = opts.vrednost, datumi = opts.datumi || [], poParafi = opts.poParafi || {};
+  const kode = opts.kode || [];
+  const surovi = [];
+  const neznane = new Set();
+  datumi.forEach(datum => {
+    if (window.Prazniki.jeDelaProstDan(datum)) return;
+    kode.forEach(koda => {
+      String(vrednost(koda, datum) || "").split(",").map(x => x.trim()).filter(Boolean)
+        .forEach(parafa => {
+          const oseba = poParafi[parafa.toUpperCase()];
+          if (!oseba) { neznane.add(parafa); return; }
+          const { department_code, shift_code } = nzvZapisZaStolpec(koda);
+          surovi.push({
+            employee_id: oseba.id, department_code, work_date: datum, shift_code,
+            // Dežurstvo nima svojega stolpca enote - glej zdruziNzvZapise.
+            stolpec: koda === "DEZ" ? undefined : koda,
+          });
+        });
+    });
+  });
+  return { zapisi: zdruziNzvZapise(surovi), neznane: [...neznane] };
 }
 
 // Ista oseba je isti dan pogosto na VEČ enotah - v uporabnikovi datoteki

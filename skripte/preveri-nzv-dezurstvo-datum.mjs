@@ -104,6 +104,7 @@ const indexKoda = [
   "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
   izvleciFn(htmlSrc, "ocistiNazivOsebe"),
+  izvleciFn(htmlSrc, "nzvZapisZaStolpec"),
   izvleciFn(htmlSrc, "zdruziNzvZapise"),
   izvleciFn(htmlSrc, "obdelajNzvVrstice"),
 ].join("\n\n");

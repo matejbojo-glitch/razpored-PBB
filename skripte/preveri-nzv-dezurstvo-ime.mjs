@@ -106,7 +106,9 @@ const koda = [
   "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),
   izvleci("ocistiNazivOsebe"),
+  izvleci("nzvZapisZaStolpec"),
   izvleci("zdruziNzvZapise"),
+  izvleci("nzvVnosiIzMreze"),
   izvleci("obdelajNzvVrstice"),
 ].join("\n\n");
 
