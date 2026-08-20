@@ -124,9 +124,10 @@ dotakne.
 | `preveri-nzv-delovnik.mjs` | `nzvPrikaz` (index.html) — delovnik NZV v "Moj razpored": PON-PET redno, sobota/nedelja prosti razen ob dežurstvu, letni dopust samo za delovne dni, dežurstvo med tednom pomeni "PRISOTEN + DEŽURSTVO" (dežurstvo je po redni prisotnosti), vikend dežurstvo samo "DEŽURSTVO"; oddelčni kader (vikende dela normalno) se pravila NE dotakne | nič |
 | `preveri-stanje-razpredelnica.mjs` | `stanjeIzKode`/`KIND_STANJE`/`STANJE_BARVA` (imenik.html) — razvrščanje v pet stanj razpredelnice (na delu, dežurstvo, dopust, bolniška, prosto): prave kode izmen iz uradnih predlog, KPU je PROSTO in ne delo, dežurstvo ostane svoje stanje, `omejitev` ni odsotnost, neznana koda šteje kot delo (lažno prost dan bi lahko pomenil dvojno razporeditev) | nič |
 | `preveri-flexi-uvoz.mjs` | `obdelajFlexiVrstice`/`najdiVrsticoImenFlexi` (index.html) - nov zavihek FLEXI ("2026 SMS RAZPORED") ima drugačno obliko kot ostalih 6 oddelkov: vsaka oseba zaseda PAR stolpcev (oddelek te izmene + koda izmene), department_code se bere iz podatkov (ne fiksen za ves list), ime osebe je v glavi nad DRUGIM stolpcem para. Ponovljen blok stolpcev v isti vrstici (opažen na pravi datoteki) se prezre - uporabi se samo prva (leva) pojavitev. Neznana/kombinirana oznaka oddelka (npr. "C/E2") se NE zapiše (tuji ključ na `departments` bi zavrnil cel upsert), ampak konča v poročilu neujemanj | nič |
+| `preveri-zelje-postavitev.mjs` | združena stran **Želje** na PRAVEM izrisu (cela `zelje.html`, podtaknjena sta samo prijava in Supabase odjemalec): en sam izbirnik skupine (»Vse« + 6 oddelkov + FLEXI + NZV) namesto dveh ločenih zavihkov z dvema izbirnikoma, izbira skupine hkrati filtrira razpredelnico IN seznam zapisanih želja, privzeto je izbrana svoja skupina, vodja/administrator pade v NZV po VLOGI (ne po stari kodi enote), navodilo in zgodovina sprememb sta zložena, nobena kartica ni prazna in nič ne sili v vodoravno drsenje na telefonu | `playwright` + brskalnik (glej opombo pod tabelo) |
 
-> **Brskalniški preizkusi.** `preveri-oseba-vrstica.mjs` in `preveri-legenda-kratic.mjs`
-> potrebujeta `playwright` (`npm install` v mapi `skripte/`) in nameščen Chromium.
+> **Brskalniški preizkusi.** `preveri-oseba-vrstica.mjs`, `preveri-legenda-kratic.mjs` in
+> `preveri-zelje-postavitev.mjs` potrebujejo `playwright` (`npm install` v mapi `skripte/`) in nameščen Chromium.
 > Če brskalnik ni na Playwrightovi privzeti poti, jo podaj prek `CHROMIUM_PATH`:
 >
 > ```

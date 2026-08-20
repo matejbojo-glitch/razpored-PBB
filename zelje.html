@@ -898,7 +898,7 @@ function DnevniPogled({ view, vsiLjudje, trenutnaVrednost, smemUrejati, nastaviC
   );
 }
 
-function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
+function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine }){
   const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
   const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
   const [view, setView] = useState(() => {
@@ -1232,16 +1232,21 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
 
   return (
     <div>
-      <p className="hint">
-        Klikni barvo spodaj, nato klikni ali povleci čez dneve. Generator dežurstev (admin.html) te vnose prebere
-        samodejno ob izbiri meseca ali s klikom "🔄 Osveži iz Želje" – LD (dopust) samodejno blokira tudi dan pred
-        začetkom strnjenega bloka, ostale tri (Omejitev, BS, STI) blokirajo samo označen dan. Mreža je razdeljena po
-        primarnem oddelku vsake osebe (isti oddelek, ki šteje za generator razporeda) – če za osebo v tem mesecu ni
-        nobenega vnosa, se šteje, da je na voljo cel mesec.
-        {jeAdmin
-          ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
-          : " Vidiš celotno razpredelnico vseh, urejaš pa lahko samo svojo vrstico – in to do 10. v mesecu pred prikazanim mesecem (po tem roku je zaklenjena tudi zate)."}
-      </p>
+      {/* Navodilo je zloženo: na telefonu je zavzelo pol zaslona, preden
+          se je pokazala prva vrstica podatkov. */}
+      {naslovSkupine && <h2 className="section skupinaNaslov">{naslovSkupine}</h2>}
+      <details className="navodilo no-print">
+        <summary>Kako to deluje</summary>
+        <p className="hint" style={{marginTop:8}}>
+          Klikni barvo, nato klikni ali povleci čez dneve. Generatorji razporedov te vnose preberejo
+          samodejno – <b>dopust</b> blokira tudi dan pred začetkom strnjenega bloka, <b>omejitev</b>,{" "}
+          <b>bolniška</b> in <b>izobraževanje</b> pa samo označen dan. Če za osebo v tem mesecu ni
+          nobenega vnosa, se šteje, da je na voljo cel mesec.
+          {jeAdmin
+            ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
+            : " Urejaš lahko samo svojo vrstico, in to do 10. v mesecu pred prikazanim mesecem."}
+        </p>
+      </details>
       {jeAdmin && (
         <React.Fragment>
           <RazporedUvozVir ikona="📗" naziv="Želje iz Google Sheets"
@@ -1259,12 +1264,15 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
             onClick={() => barvniRef.current && barvniRef.current.click()} />
         </React.Fragment>
       )}
+      {/* Sprozilec je v meniju ikone 📥 zgoraj desno; tu ostane samo
+          skrito polje za datoteko. Kartica s sporocilom se izrise sele, ko
+          uvoz tece - prej je bila prazna bela skatla sredi zaslona. */}
       {jeAdmin && (
+        <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+      )}
+      {jeAdmin && (uvozBusy || uvozMsg) && (
         <div className="card no-print" style={{marginBottom:10}}>
-          <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
-            onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
-          {/* Sprozilec je v meniju ikone 📥 zgoraj desno; tu ostaneta samo
-              skrito polje za datoteko in izpis rezultata. */}
           {uvozBusy && <p className="hint" style={{margin:0}}>Nalagam …</p>}
           {uvozMsg && <p className="hint" style={{margin:0}}>{uvozMsg}</p>}
         </div>
@@ -1279,9 +1287,11 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
         naVrstice={vrsticeIzFoto}
       />
       {jeAdmin && (
+        <input ref={barvniRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+          onChange={e => { uvoziBarvniExcel(e.target.files[0]); e.target.value = ""; }} />
+      )}
+      {jeAdmin && (barvniBusy || barvniMsg || barvniPredogled) && (
         <div className="card no-print" style={{marginBottom:10}}>
-          <input ref={barvniRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
-            onChange={e => { uvoziBarvniExcel(e.target.files[0]); e.target.value = ""; }} />
           {/* Sprozilec je v meniju ikone 📥 zgoraj desno. */}
           {barvniBusy && <p className="hint" style={{margin:0}}>Nalagam …</p>}
           {barvniMsg && <p className="hint" style={{margin:0}}>{barvniMsg}</p>}
@@ -1436,10 +1446,12 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
       </div>
       )}
 
+      {/* Zlozena: na telefonu je prazna zgodovina zavzela tretjino zaslona
+          pod mrezo, cetudi je skoraj vedno ne rabis. */}
       {role === "admin" && (
-        <React.Fragment>
-          <h2 className="section no-print">Zgodovina sprememb</h2>
-          <p className="hint no-print">Vidno samo administratorjem – vsak vnos/sprememba se beleži ne glede na to, kdo jo naredi.</p>
+        <details className="navodilo no-print" style={{marginTop:14}}>
+          <summary>Zgodovina sprememb{log.length ? ` (${log.length})` : ""}</summary>
+          <p className="hint" style={{marginTop:8}}>Vidno samo administratorjem – vsak vnos/sprememba se beleži ne glede na to, kdo jo naredi.</p>
           <ul className="logList no-print">
             {log.length === 0 && <li className="log-empty">Ni še zabeleženih sprememb.</li>}
             {log.map(entry => {
@@ -1453,7 +1465,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje }){
               );
             })}
           </ul>
-        </React.Fragment>
+        </details>
       )}
     </div>
   );
@@ -1555,13 +1567,11 @@ function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded 
   );
 }
 
-const ZELJE_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
-
-function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
+// "oddelek" pride od zunaj (skupen izbirnik nad razpredelnico) - prej je
+// imela ta komponenta SVOJ izbirnik in koordinator je isti oddelek izbiral
+// dvakrat, enkrat tu in enkrat v razpredelnici.
+function SeznamZeljTab({ role, myId, myFullName, oddelek, skupine }){
   const jeKoordinator = role === "admin" || role === "vodja";
-  const [oddelek, setOddelek] = useState(() => (
-    jeKoordinator ? ZELJE_ODDELKI[0] : (ZELJE_ODDELKI.includes(myDept) ? myDept : null)
-  ));
   const [zapisi, setZapisi] = useState([]);
   const [nalagam, setNalagam] = useState(true);
   const [filter, setFilter] = useState("");
@@ -1600,14 +1610,6 @@ function SeznamZeljTab({ role, myId, myFullName, myDept, skupine }){
 
   return (
     <div>
-      {jeKoordinator && (
-        <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
-          {ZELJE_ODDELKI.map(k => (
-            <button key={k} role="tab" aria-selected={oddelek===k} onClick={() => setOddelek(k)}>{k}</button>
-          ))}
-        </div>
-      )}
-
       <div className="no-print">
         <h2 className="section">Nov vnos – {oddelek === "NZV" ? "NZV" : "oddelek " + oddelek}</h2>
         <VnosForma oddelek={oddelek} skupine={skupine} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
@@ -1664,10 +1666,25 @@ function Lightbox({ src, onClose }){
   );
 }
 
+// Ena skupina naenkrat + "Vse". Prej sta bila dva ločena zavihka, vsak s
+// svojim izbirnikom oddelka - koordinator je moral isti oddelek izbrati
+// dvakrat, mreža pa je hkrati risala vseh osem skupin pod sabo, tako da je
+// bilo na telefonu treba dolgo drseti do svojega oddelka.
+// Uporabnikova zahteva (avgust 2026): združi oboje in loči po skupinah.
+const VSE_SKUPINE = "__vse__";
+
 function App({ role, myId, myFullName, myDept, ogled, profil }){
-  const [tab, setTab] = useState("razpredelnica");
   const [roster, setRoster] = useState(null); // { skupine, vsiLjudje } – glej nalozizRoster
+  // Privzeto svoja skupina - koordinator najprej gleda svoj oddelek.
+  const [skupina, setSkupina] = useState(() =>
+    RAZPOREDNICA_ODDELKI.some(([k]) => k === myDept) ? myDept : VSE_SKUPINE);
+  const [zeljeOdprte, setZeljeOdprte] = useState(false);
   useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
+
+  const nazivSkupine = Object.fromEntries(RAZPOREDNICA_ODDELKI);
+  const ljudjeSkupine = roster
+    ? (skupina === VSE_SKUPINE ? roster.vsiLjudje : roster.vsiLjudje.filter(o => o.skupina === nazivSkupine[skupina]))
+    : [];
 
   return (
     <div className="wrap wide polna">
@@ -1678,24 +1695,50 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
       </header>
 
-      <div className="tabs no-print" role="tablist">
-        <button role="tab" aria-selected={tab==="razpredelnica"} onClick={() => setTab("razpredelnica")}>Razpredelnica dopusti/omejitve</button>
-        <button role="tab" aria-selected={tab==="zelje"} onClick={() => setTab("zelje")}>Seznam želja</button>
+      {/* En sam izbirnik skupine za OBOJE - razpredelnico in želje. */}
+      <div className="skupinaRow no-print" role="tablist" aria-label="Skupina">
+        <button role="tab" aria-selected={skupina===VSE_SKUPINE} className="skupinaBtn"
+          onClick={() => setSkupina(VSE_SKUPINE)}>Vse</button>
+        {RAZPOREDNICA_ODDELKI.map(([k, naziv]) => (
+          <button key={k} role="tab" aria-selected={skupina===k} className="skupinaBtn"
+            title={naziv} onClick={() => setSkupina(k)}>{k}</button>
+        ))}
       </div>
 
       {!roster && <p className="hint">Nalagam seznam osebja …</p>}
 
-      {roster && tab === "razpredelnica" && (
-        <Razpredelnica role={role} myId={myId} myFullName={myFullName} vsiLjudje={roster.vsiLjudje} />
-      )}
+      {roster && (
+        <React.Fragment>
+          <Razpredelnica role={role} myId={myId} myFullName={myFullName}
+            vsiLjudje={ljudjeSkupine}
+            naslovSkupine={skupina === VSE_SKUPINE ? "Vse skupine" : nazivSkupine[skupina]} />
 
-      {roster && tab === "zelje" && (
-        <SeznamZeljTab role={role} myId={myId} myFullName={myFullName} myDept={myDept} skupine={roster.skupine} />
+          {/* Želje iste skupine so tik pod razpredelnico, ne v drugem
+              zavihku: gre za isto osebo in isti mesec, le da je eno barva
+              in drugo besedilo. Zaprte, da ne tekmujejo z mrežo. */}
+          {skupina !== VSE_SKUPINE && (
+            <div className="zeljeSekcija no-print">
+              <button className="zeljeToggle" aria-expanded={zeljeOdprte}
+                onClick={() => setZeljeOdprte(v => !v)}>
+                📝 Zapisane želje – {nazivSkupine[skupina]} {zeljeOdprte ? "▲" : "▼"}
+              </button>
+              {zeljeOdprte && (
+                <SeznamZeljTab role={role} myId={myId} myFullName={myFullName}
+                  oddelek={skupina} skupine={roster.skupine} />
+              )}
+            </div>
+          )}
+          {skupina === VSE_SKUPINE && (
+            <p className="hint no-print" style={{marginTop:14}}>
+              Za vnos in pregled zapisanih želja izberi posamezno skupino zgoraj.
+            </p>
+          )}
+        </React.Fragment>
       )}
 
       <footer className="foot no-print">
-        <p><b>Razpredelnica dopusti/omejitve</b> je shranjena v Supabase (leave_entries) in jo generator dežurstev (admin.html) prebere samodejno.</p>
-        <p><b>Seznam želja</b> je razdeljen po oddelkih (B, C, C1, D, E1, E2, Vodje) – zaposleni vidi in vnaša samo v svoj oddelek, administrator in vodja pa vse.</p>
+        <p><b>Barve</b> (dopust, omejitev, bolniška, izobraževanje) so shranjene v Supabase in jih generatorji razporedov preberejo samodejno.</p>
+        <p><b>Zapisane želje</b> so prosto besedilo ali fotografija za isto skupino in isti mesec – vse na enem mestu, brez preklapljanja.</p>
       </footer>
 
       <RazporedNav active="zelje" role={role} unread={0} />
