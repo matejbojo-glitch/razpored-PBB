@@ -231,6 +231,32 @@ console.log("4c) V celici piše ENOTA, ne \"DOP\" - vodje delajo vedno dopoldne"
   trdi(!m3["a|2026-09-02"].enota, "in ob njej ni enote");
 }
 
+console.log("4d) Pod imenom je SAMO enota - nadomeščanja so spodaj v svojem pregledu");
+{
+  // Uporabnikova zahteva: dve dodatni vrstici pri vsakem imenu ("↩ kdo me
+  // nadomešča", "↪ koga pokrivam") sta mrežo delali natrpano. Celoten
+  // seznam je itak spodaj v "Pregledu nadomeščanj".
+  const src = readFileSync(join(koren, "imenik.html"), "utf8");
+  // Sidro mora biti ENOLIČNO. '<td className="name">' se pojavi tudi v
+  // tabeli "Pregled nadomeščanj", '{o.full_name}' že v seznamu Imenika,
+  // '{dnevi.map(' pa v glavi tabele - vsa tri režejo napačen kos. Zato
+  // režemo od komentarja, ki stoji samo pri vrstici Razpredelnice.
+  const SIDRO = "nosilec = vrstica iz lead_departments";
+  trdi(src.split(SIDRO).length - 1 === 1, "(sidro je v imenik.html enolično)");
+  const zacetek = src.indexOf(SIDRO);
+  const glavaVrstice = src.slice(zacetek, src.indexOf("{dnevi.map(d => {", zacetek));
+  trdi(!/↩/.test(glavaVrstice), "pod imenom ni več vrstice \"kdo me nadomešča\"");
+  trdi(!/↪ pokriva/.test(glavaVrstice), "in ne vrstice \"koga pokrivam\"");
+  trdi(/nosilec\.enote/.test(glavaVrstice), "enota nosilca pa ostane");
+
+  // Podatek se ne sme izgubiti - samo premakne se tja, kjer koristi.
+  trdi(/nadomescajoMene/.test(src), "podatek o nadomeščanju se še vedno izračuna");
+  trdi(/nadomešča: " \+ nosilec\.nadomescajoMene/.test(src),
+    "in se ob dotiku celice z dopustom pokaže, kdo tisti dan pokriva");
+  trdi(/Pregled nadomeščanj|pokrivam\.join/.test(src),
+    "celoten pregled nadomeščanj ostaja pod razpredelnico");
+}
+
 console.log("5) Oddelčni kader se NE izpeljuje – nima zapisa nosilca");
 {
   const m = mreza();

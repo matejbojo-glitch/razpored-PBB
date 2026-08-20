@@ -410,10 +410,11 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
 // najbolj neposredno relevantno.
 function zdravnikiZaDan(zapis){
   if (!zapis) return [];
-  const out = [];
-  if (zapis.dezurstvo) out.push({ oznaka: "DEŽ", ime: zapis.dezurstvo });
-  if (zapis.urgenca) out.push({ oznaka: "URG", ime: zapis.urgenca });
-  return out;
+  // SAMO dežurni zdravnik. Urgentni (URG) se tu NE izpisuje: dežurna
+  // medicinska sestra ga ne potrebuje, dve vrstici pod izmeno pa sta na
+  // telefonu odveč (uporabnikova zahteva). Podatek se še naprej uvaža iz
+  // uradnega PDF-ja in je viden v Razpored -> "Dežurstva - urgenca in NZV".
+  return zapis.dezurstvo ? [{ oznaka: "DEŽ", ime: zapis.dezurstvo }] : [];
 }
 
 // Zakaj imena dežurnega zdravnika ni - kot besedilo, ki ga vidi uporabnik.
