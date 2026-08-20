@@ -59,7 +59,6 @@ const LEAVE = [
   { full_name: "Nekdo Tuj",   work_date: "2026-10-09", kind: "ld" },        // ni med osebjem
 ];
 
-let kind = null;
 const sb = { console };
 sb.window = sb;
 vm.createContext(sb);
@@ -67,15 +66,24 @@ vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sb);
 sb.client = {
   from() {
     const q = {};
-    ["select", "eq", "gte", "lte", "in"].forEach(m => { q[m] = (a, b) => { if (m === "eq" && a === "kind") kind = b; return q; }; });
+    let vrste = null;
+    ["select", "eq", "gte", "lte", "in"].forEach(m => {
+      q[m] = (a, b) => {
+        if (m === "eq" && a === "kind") vrste = [b];
+        if (m === "in" && a === "kind") vrste = b;
+        return q;
+      };
+    });
     q.then = (res, rej) => Promise.resolve({
-      data: LEAVE.filter(x => (kind ? x.kind === kind : true)), error: null,
+      data: LEAVE.filter(x => (vrste ? vrste.includes(x.kind) : true)), error: null,
     }).then(res, rej);
     return q;
   },
 };
 vm.runInContext([
   izvleci(admin, "kljucImena"),
+  // Nabor vrst odsotnosti, ki za kalup pomenijo "ta dan ne dela".
+  admin.match(/^const KALUP_ODSOTNOST_KIND = .*$/m)[0].replace(/^const /, "var "),
   izvleci(admin, "nalozizOmejitve", "async function "),
   izvleci(admin, "nalozizLdTedne", "async function "),
 ].join("\n\n"), sb);
@@ -92,7 +100,6 @@ console.log("1) kljucImena uporablja SKUPNI modul (imena.js), ne svoje različic
 
 console.log("2) KALUP – omejitve (rumeno) pridejo do generatorja");
 {
-  kind = null;
   const m = await sb.nalozizOmejitve("2026-10-01", "2026-10-31", OSEBJE);
   jseq(m["Arnež Grega"], ["2026-10-07"], "omejitev, uvožena z VELIKIMI črkami, se najde");
   jseq(m["Bojić Matej"], ["2026-10-08"], "omejitev brez strešice se najde");
@@ -112,7 +119,6 @@ console.log("3) KALUP – letni dopust se pretvori v cele tedne pod imenom osebj
     { full_name: "HROVAT NINA", work_date: "2026-10-07", kind: "ld" },
   ];
   const prejsnji = LEAVE.splice(0, LEAVE.length, ...trije);
-  kind = null;
   const ld = await sb.nalozizLdTedne("2026-10-01", "2026-10-31", ["2026-10-05"], OSEBJE);
   jseq(Object.keys(ld), ["Hrovat Nina|2026-10-05"],
     "ključ je IME OSEBJA + ponedeljek, čeprav je v bazi zapisan z velikimi črkami");
@@ -124,7 +130,6 @@ console.log("4) KALUP – en sam dan LD NE izprazni celega tedna");
 {
   const en = [{ full_name: "HROVAT NINA", work_date: "2026-10-06", kind: "ld" }];
   const prejsnji = LEAVE.splice(0, LEAVE.length, ...en);
-  kind = null;
   const ld = await sb.nalozizLdTedne("2026-10-01", "2026-10-31", ["2026-10-05"], OSEBJE);
   jseq(Object.keys(ld), [], "en dan LD sredi tedna ni 'prosti teden'");
   LEAVE.splice(0, LEAVE.length, ...prejsnji);
@@ -168,6 +173,41 @@ console.log("7) Nikjer v adminu ni več dobesedne primerjave imen iz leave_entri
     "omejitve niso več pod surovim imenom iz baze");
   trdi(!/const k = r\.full_name \+ "\|" \+ mo;/.test(admin),
     "LD tedni niso več pod surovim imenom iz baze");
+}
+
+console.log("8) KATERA vrsta odsotnosti gre v kateri razpored");
+{
+  // Štiri barve iz Razpredelnice pomenijo različne stvari in ne sodijo
+  // povsod enako:
+  //   ld       letni dopust     – nikjer ne dela
+  //   bs       bolniška         – nikjer ne dela
+  //   sti      izobraževanje    – ni na oddelku
+  //   omejitev rumena           – JE na delu, le omejeno
+  //
+  // Kalup prej bolniške in izobraževanja SPLOH NI bral: oseba na bolniški
+  // je vseeno pristala na izmeni in zanjo se ni iskalo nadomestila.
+  jseq(sb.KALUP_ODSOTNOST_KIND.slice().sort(), ["bs", "omejitev", "sti"],
+    "kalup bere rumeno omejitev, bolniško IN izobraževanje");
+  trdi(!sb.KALUP_ODSOTNOST_KIND.includes("ld"),
+    "letni dopust ima svojo pot (cel teden), zato tu ne sme biti");
+
+  const bolniska = [{ full_name: "HROVAT NINA", work_date: "2026-10-06", kind: "bs" }];
+  const prejsnji = LEAVE.splice(0, LEAVE.length, ...bolniska);
+  const m = await sb.nalozizOmejitve("2026-10-01", "2026-10-31", OSEBJE);
+  jseq(m["Hrovat Nina"], ["2026-10-06"], "bolniška blokira dan na oddelku");
+  LEAVE.splice(0, LEAVE.length, ...prejsnji);
+
+  // NZV namenoma NE upošteva rumene omejitve: oseba tisti dan dela, le z
+  // omejitvijo - nadomeščanja zato ni treba sprožiti.
+  trdi(/\.in\("kind", \["ld", "sti", "bs"\]\)/.test(index),
+    "NZV bere ld/sti/bs, rumene omejitve pa namenoma ne");
+  trdi(!/\.in\("kind", \["ld", "sti", "bs", "omejitev"\]\)/.test(index),
+    "in se to ni po nesreči spremenilo");
+
+  // Dežurstva vzamejo VSE: kar ni letni dopust, je omejitev za tisti dan.
+  trdi(/if \(row\.kind === "ld"\) grouped\[key\]\.dopust\.push/.test(admin)
+    && /else grouped\[key\]\.omejitve\.push/.test(admin),
+    "dežurstva: ld -> dopust, vse ostalo (omejitev/bs/sti) -> omejitev za ta dan");
 }
 
 console.log("");

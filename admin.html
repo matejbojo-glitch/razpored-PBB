@@ -291,9 +291,16 @@ async function nalozizOddelek(koda){
 // ročni vnos v Razpredelnici tako kot v Imeniku, uvoz iz CSV pa z velikimi
 // črkami. Z dobesedno primerjavo se je prenesel le tisti del, ki se je
 // slučajno ujemal črko v črko.
+// Katere vrste odsotnosti pomenijo "ta dan ne more delati na oddelku".
+// Poleg rumene omejitve tudi BOLNIŠKA in STROKOVNO IZOBRAŽEVANJE: prej ju
+// kalup sploh ni bral, zato je osebo na bolniški vseeno razporedil na
+// izmeno in zanjo ni iskal nadomestila. Letni dopust ima svojo pot
+// (nalozizLdTedne), ker se šteje v CELIH tednih.
+const KALUP_ODSOTNOST_KIND = ["omejitev", "bs", "sti"];
+
 async function nalozizOmejitve(startISO, endISO, imena){
   const { data } = await client.from("leave_entries").select("full_name, work_date")
-    .eq("kind", "omejitev").gte("work_date", startISO).lte("work_date", endISO);
+    .in("kind", KALUP_ODSOTNOST_KIND).gte("work_date", startISO).lte("work_date", endISO);
   const poKljucu = {};
   (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
   const map = {};
