@@ -88,6 +88,10 @@ const indexKoda = [
   readFileSync(join(koren, "nzv-zasedba.js"), "utf8"),
   constVKotVar(izvleciConst(htmlSrc, "NZV_ENOTE")),
   izvleciFn(htmlSrc, "nzvNazivVKodo"),
+  izvleciFn(htmlSrc, "nzvKljucGlave"),
+  izvleciFn(htmlSrc, "nzvNazivVKodoNorm"),
+  constVKotVar(izvleciVrstico(htmlSrc, "const NZV_GLAVA_NAJVEC_NAZAJ")),
+  constVKotVar(izvleciVrstico(htmlSrc, "const NZV_GLAVA_NAJMANJ_ZADETKOV")),
   izvleciFn(htmlSrc, "poisciEnoteNzv"),
   izvleciFn(htmlSrc, "vrsticaJePrazna"),
   izvleciFn(htmlSrc, "obdelajBlok"),
@@ -100,6 +104,7 @@ const indexKoda = [
   "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
   izvleciFn(htmlSrc, "ocistiNazivOsebe"),
+  izvleciFn(htmlSrc, "zdruziNzvZapise"),
   izvleciFn(htmlSrc, "obdelajNzvVrstice"),
 ].join("\n\n");
 // ImportUtils.normalizirajDatum: v pravi aplikaciji je to LOČENA funkcija v

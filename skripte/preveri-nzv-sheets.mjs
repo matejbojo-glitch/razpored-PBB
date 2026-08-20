@@ -104,11 +104,20 @@ const koda = [
   constVKotVar(izvleciConst("NZV_STOLPCI")),
   constVKotVar(izvleciConst("NZV_KIND_KODA")),
   izvleci("nzvNazivVKodo"),
-  izvleci("poisciEnoteNzv"),
   izvleci("vrsticaJePrazna"),
   izvleci("obdelajBlok"),
   izvleci("pripraviPosodobitveNzv"),
   constVKotVar(izvleciConst("NZV_ODSOTNOST_KIND")),
+  izvleci("nzvKljucGlave"),
+  izvleci("nzvNazivVKodoNorm"),
+  izvleciVrstico("const NZV_GLAVA_NAJVEC_NAZAJ"),
+  izvleciVrstico("const NZV_GLAVA_NAJMANJ_ZADETKOV"),
+  izvleci("poisciEnoteNzv"),
+  izvleciVrstico("const NAZIV_OSEBE_RX"),
+  izvleci("ocistiNazivOsebe"),
+  "var imenaSeUjemataNzv = window.Imena.seUjemata;",
+  izvleci("zdruziNzvZapise"),
+  izvleci("obdelajNzvVrstice"),
 ].join("\n\n");
 
 // "window" mora kazati na sam sandbox, ker skupni moduli (imena.js,
@@ -199,6 +208,129 @@ console.log("3) uvoziNzv loči enote (schedule_entries) od LD/IZOB/BS (leave_ent
   jseq(nazivVKodo["LD"], "LD", "LD se prevede v svojo kodo (ne v enoto)");
   trdi(sandbox.NZV_ODSOTNOST_KIND["LD"] === "ld" && sandbox.NZV_ODSOTNOST_KIND["IZOB"] === "sti" && sandbox.NZV_ODSOTNOST_KIND["BS"] === "bs",
     "NZV_ODSOTNOST_KIND preslika LD/IZOB/BS v leave_entries.kind ld/sti/bs");
+}
+
+console.log("4) PRAVA oblika datoteke: prazna vrstica med glavo in prvim datumom");
+{
+  // Uporabnikova datoteka "Letni dopusti in omejitve za NZV" ima na VSEH 20
+  // mesečnih listih: naslov (vrstica 1), glava (vrstica 2), PRAZNA vrstica
+  // (3), prvi datum (4). Prejšnji poisciEnoteNzv je pogledal natanko eno
+  // vrstico višje, tam našel prazno in vrnil null - zato se glava ni našla
+  // NIKOLI in uvoz je tiho prinesel NIČ. Fixture zgoraj tega ni ujel, ker
+  // ima glavo neposredno nad datumom.
+  //
+  // Glava je tu zapisana tako, kot je v resnični datoteki: "B1, B2" s
+  // presledkom (aplikacija sama piše "B1,B2").
+  const G = ["PDZN", "SOBO", "ŽO", "E1", "E2", "D", "MO", "B", "C", "C1", "PO", "A",
+             "B1, B2", "DB", "SA DOP", "SA POP", "URGENCA", "U2", "DEŽURSTVO", "LD", "IZOB", "BS"];
+  const prazna = G.map(() => "");
+  const vrsticaZa = (datum, v) => [datum, ...G.map((_, i) => v[i] || "")];
+  const list = [
+    ["SEPTEMBER 2026"],
+    ["DATUM", ...G],
+    [],                                   // <- prav ta vrstica je vse podrla
+    vrsticaZa("2026-09-01", ["DŽA", "DŽA", "ALU", "LEL", "LEL, SOF", "PER", "ALU", "ARN", "ARN", "SAL",
+                             "TOM", "TOM", "TRA", "TOR", "HUM", "", "TRP", "DŽA",
+                             "Denis Džamastagić", "BOJ,VEL, MIS", "", "MUŠ"]),
+    vrsticaZa("2026-09-09", prazna.map((_, i) => G[i] === "SA POP" ? "TRP" : "")).map((c, i) =>
+      i === 1 + G.indexOf("DEŽURSTVO") ? "Saša Trpin" : c),
+  ];
+  const parafe = ["DŽA", "ALU", "LEL", "SOF", "PER", "ARN", "SAL", "TOM", "TRA", "TOR", "HUM", "TRP",
+                  "BOJ", "VEL", "MIS", "MUŠ"];
+  const poParafi = {};
+  parafe.forEach(p => { poParafi[p] = { id: p, full_name: p }; });
+  const profili = [{ id: "DŽA", full_name: "Denis Džamastagić" }, { id: "TRP", full_name: "Saša Trpin" }];
+  const r = sandbox.obdelajNzvVrstice(list, "2026-09", poParafi, "me", profili);
+
+  trdi(r.najdenaGlava, "glava se najde TUDI čez prazno vrstico (prej se ni nikoli)");
+  trdi(r.zapisi.length > 0, "uvoz sploh kaj prinese");
+  jseq([...r.neujemanja], [], "vse parafe in imena se ujamejo");
+
+  const najdi = (id, datum) => r.zapisi.find(z => z.employee_id === id && z.work_date === datum);
+  // Isto pravilo kot nalozizPodatkeNzv: če je pokriva_oddelek izpolnjen, je
+  // v njem CEL seznam stolpcev in je merodajen; sicer velja department_code
+  // (pri SA se dopoldan/popoldan razbere iz izmene).
+  const enoteZa = (z) => {
+    const izPokrivanja = String(z.pokriva_oddelek || "").split("/").map(x => x.trim()).filter(Boolean);
+    const kode = izPokrivanja.length
+      ? izPokrivanja.slice()
+      : [z.department_code === "SA" ? sandbox.razvrstiSA(z.shift_code) : z.department_code];
+    if (/^DEŽURSTVO$/i.test(z.shift_code) && !kode.includes("DEZ")) kode.push("DEZ");
+    return kode;
+  };
+
+  // Glava s presledkom.
+  const tra = najdi("TRA", "2026-09-01");
+  trdi(!!tra && enoteZa(tra).includes("B1B2"), '"B1, B2" s presledkom se ujame z B1B2 (prej je cel stolpec odpadel)');
+
+  // Ena oseba, več enot.
+  const dza = najdi("DŽA", "2026-09-01");
+  jseq(dza ? enoteZa(dza).sort() : [], ["DEZ", "PDZN", "SOBO", "U2"],
+    "Džamastagić je 1.9. na PDZN, SOBO IN U2 - in hkrati dežuren");
+  trdi(dza && dza.shift_code === "DEŽURSTVO", "dežurstvo obvelja kot izmena, enote pa se ohranijo");
+  const lel = najdi("LEL", "2026-09-01");
+  jseq(lel ? enoteZa(lel).sort() : [], ["E1", "E2"], "Lelič je na E1 in E2");
+  const arn = najdi("ARN", "2026-09-01");
+  jseq(arn ? enoteZa(arn).sort() : [], ["B", "C"], "Arnež je na B in C");
+
+  // Baza dovoli EN zapis na osebo in dan - to je bil vir izgube.
+  const kljuci = r.zapisi.map(z => z.employee_id + "|" + z.work_date);
+  jseq(kljuci.length, new Set(kljuci).size, "noben par oseba+dan se ne ponovi (unique v schedule_entries)");
+
+  // SA POP + dežurstvo hkrati: pol dneva se ne sme izgubiti.
+  const trp = najdi("TRP", "2026-09-09");
+  trdi(!!trp && enoteZa(trp).includes("SAPOP"),
+    "Trpin je 9.9. na SA POP in hkrati dežurna - stolpec ostane SA POP, ne SA DOP");
+  trdi(!!trp && !enoteZa(trp).includes("SADOP"), "in NE pristane hkrati v SA DOP");
+}
+
+console.log("5) nič se ne izgubi: vsaka celica lista je najdena v uvoženih zapisih");
+{
+  // Isti krog kot pri preverjanju prave datoteke: vsak trojček
+  // (datum, stolpec, oseba) iz lista se mora dati prebrati nazaj iz
+  // uvoženih zapisov - ne več, ne manj.
+  const G = ["PDZN", "SOBO", "ŽO", "E1", "E2", "SA DOP", "SA POP", "DEŽURSTVO", "LD", "BS"];
+  const list = [
+    ["AVGUST 2026"], ["DATUM", ...G], [],
+    ["2026-08-03", "DŽA", "DŽA", "ALU", "LEL", "LEL, SOF", "HUM", "", "Dino Alukić", "BOJ, VEL", "MUŠ"],
+    ["2026-08-04", "DŽA", "", "ALU", "MAG", "LEL", "", "TRP", "Saša Trpin", "VEL", ""],
+  ];
+  const parafe = ["DŽA", "ALU", "LEL", "SOF", "HUM", "TRP", "BOJ", "VEL", "MUŠ", "MAG"];
+  const poParafi = {}; parafe.forEach(p => { poParafi[p] = { id: p, full_name: p }; });
+  const profili = [{ id: "ALU", full_name: "Dino Alukić" }, { id: "TRP", full_name: "Saša Trpin" }];
+  const r = sandbox.obdelajNzvVrstice(list, "2026-08", poParafi, "me", profili);
+
+  const KODA = { "PDZN": "PDZN", "SOBO": "SOBO", "ŽO": "ZO", "E1": "E1", "E2": "E2",
+                 "SA DOP": "SADOP", "SA POP": "SAPOP", "DEŽURSTVO": "DEZ" };
+  const IME = { "Dino Alukić": "ALU", "Saša Trpin": "TRP" };
+  const pricakovano = new Set(), pricakovaneOds = new Set();
+  list.slice(3).forEach(v => G.forEach((n, i) => {
+    const c = (v[1 + i] || "").trim(); if (!c) return;
+    if (n === "DEŽURSTVO") { pricakovano.add(`${v[0]}|DEZ|${IME[c]}`); return; }
+    if (n === "LD" || n === "BS") {
+      c.split(",").map(x => x.trim()).filter(Boolean)
+        .forEach(p => pricakovaneOds.add(`${v[0]}|${n}|${p}`));
+      return;
+    }
+    c.split(",").map(x => x.trim()).filter(Boolean)
+      .forEach(p => pricakovano.add(`${v[0]}|${KODA[n]}|${p}`));
+  }));
+
+  const dobljeno = new Set();
+  r.zapisi.forEach(z => {
+    const prim = z.department_code === "SA" ? sandbox.razvrstiSA(z.shift_code) : z.department_code;
+    const izPokrivanja = String(z.pokriva_oddelek || "").split("/").map(x => x.trim()).filter(Boolean);
+    const kode = izPokrivanja.length ? izPokrivanja : [prim];
+    if (/^DEŽURSTVO$/i.test(z.shift_code) && !kode.includes("DEZ")) kode.push("DEZ");
+    kode.forEach(k => dobljeno.add(`${z.work_date}|${k}|${z.employee_id}`));
+  });
+  const dobljeneOds = new Set(r.dopusti.map(d => `${d.work_date}|${{ ld: "LD", bs: "BS" }[d.kind]}|${d.full_name}`));
+
+  const izgubljeno = [...pricakovano].filter(x => !dobljeno.has(x))
+    .concat([...pricakovaneOds].filter(x => !dobljeneOds.has(x)));
+  const odvec = [...dobljeno].filter(x => !pricakovano.has(x));
+  jseq(izgubljeno, [], `nobena od ${pricakovano.size + pricakovaneOds.size} celic se ne izgubi`);
+  jseq(odvec, [], "in nič se ne pojavi na mestu, kjer tega v listu ni");
 }
 
 console.log("");
