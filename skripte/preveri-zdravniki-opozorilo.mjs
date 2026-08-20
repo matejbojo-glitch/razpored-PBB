@@ -108,15 +108,19 @@ console.log("7) 'imam dežurstvo' se ugotavlja iz razvrstitve kode, ne iz besedi
 
 console.log("8) izpišeta se OBA zdravnika dneva (Dežurstvo ZDR in Urgenca ZDR)");
 {
-  // Uradni dokument ima dva ločena stolpca; prej se je izpisal samo eden,
-  // kar je za dežurno sestro premalo - sodeluje z obema.
+  // Uradni dokument ima dva ločena stolpca, v "Moj razpored" pa gre SAMO
+  // dežurni zdravnik: urgentnega dežurna medicinska sestra ne potrebuje,
+  // dve vrstici pod izmeno pa sta na telefonu odveč (uporabnikova
+  // zahteva, avgust 2026). Urgentni ostane viden v Razporedu, v tabeli
+  // "Dežurstva - urgenca in NZV", in se še naprej uvaža iz PDF-ja.
   const oba = zdravnikiZaDan({ dezurstvo: "Ana Novak", urgenca: "Bojan Kos" });
-  trdi(oba.length === 2, "dva zapisa -> dve vrstici");
-  trdi(oba[0].ime === "Ana Novak", "dežurstvo je prvo (za dežurstvo nege najbolj relevantno)");
-  trdi(oba[0].oznaka === "DEŽ" && oba[1].oznaka === "URG", "vsak s svojo kratico");
+  trdi(oba.length === 1, "izpiše se ena sama vrstica");
+  trdi(oba[0].ime === "Ana Novak", "in to dežurni zdravnik");
+  trdi(oba[0].oznaka === "DEŽ", "s kratico DEŽ");
 
   trdi(zdravnikiZaDan({ dezurstvo: "Ana Novak" }).length === 1, "samo dežurstvo -> ena vrstica");
-  trdi(zdravnikiZaDan({ urgenca: "Bojan Kos" })[0].oznaka === "URG", "samo urgenca -> vseeno izpisana");
+  trdi(zdravnikiZaDan({ urgenca: "Bojan Kos" }).length === 0,
+    "samo urgenca -> v Mojem razporedu se NE izpiše");
   trdi(zdravnikiZaDan(undefined).length === 0, "za dan brez podatka nič (brez sesutja)");
   trdi(zdravnikiZaDan({}).length === 0, "prazen zapis -> nič");
 }

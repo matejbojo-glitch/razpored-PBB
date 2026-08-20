@@ -456,7 +456,12 @@
 // ("dopoldan", "NOČNA"). Šifra v bazi in v Google Sheetu ostane
 // nespremenjena. Spremenjeni izmene.js, index.html, obrazec.html.
 
-const CACHE = 'razpored-pbb-v90';
+// v91: v "Moj razpored" se pod dežurstvom izpiše SAMO dežurni zdravnik
+// (urgentnega dežurna sestra ne potrebuje), v Imenik -> Razpredelnica pa
+// pod imenom ostane samo enota - kdo koga nadomešča, je v celoti spodaj v
+// "Pregledu nadomeščanj". Spremenjena index.html in imenik.html.
+
+const CACHE = 'razpored-pbb-v91';
 const ASSETS = [
   './',
   './index.html',

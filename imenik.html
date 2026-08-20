@@ -1973,28 +1973,16 @@ function StanjeRazpredelnica({ oddelki }){
                 <tr key={o.id}>{/* nosilec = vrstica iz lead_departments, če oseba to je */}
                   <td className="name">
                     {o.full_name}
-                    {/* Nosilci oddelkov: katere enote pokrivajo in kdo jih
-                        nadomešča ob odsotnosti (LD/BS). Pri ostalih se ta
-                        vrstica sploh ne izriše, da seznam ostane čist. */}
-                    {nosilec && (
+                    {/* Pod imenom stoji SAMO stalna enota nosilca. Kdo koga
+                        nadomešča, je v celoti spodaj v "Pregledu nadomeščanj"
+                        pod razpredelnico - dve dodatni vrstici pri vsakem
+                        imenu sta mrežo delali natrpano in nepregledno
+                        (uporabnikova zahteva). Podatek se še vedno izračuna
+                        in se ob dotiku celice pokaže tam, kjer je koristen:
+                        pri dnevu z dopustom pove, kdo tisti dan pokriva. */}
+                    {nosilec && nosilec.enote && (
                       <span style={{display:"block", fontSize:10, fontWeight:400, color:"var(--muted)", lineHeight:1.35}}>
-                        {nosilec.enote || ""}
-                        {(nosilec.nadomescajoMene || []).length > 0 && (
-                          <React.Fragment>
-                            {nosilec.enote ? " · " : ""}
-                            <span title={"Ob moji odsotnosti (LD, BS) me nadomešča: "
-                              + nosilec.nadomescajoMene.join(", ") + " (po tem vrstnem redu)"}>
-                              ↩ {nosilec.nadomescajoMene.map(kratkoIme).join(", ")}
-                            </span>
-                          </React.Fragment>
-                        )}
-                        {(nosilec.pokrivam || []).length > 0 && (
-                          <span style={{display:"block"}}
-                            title={"Ob odsotnosti drugih pokrivam: "
-                              + nosilec.pokrivam.map(x => x.koga + (x.enota ? " (" + x.enota + ")" : "")).join(", ")}>
-                            ↪ pokriva {nosilec.pokrivam.map(x => x.enota || kratkoIme(x.koga)).join(", ")}
-                          </span>
-                        )}
+                        {nosilec.enote}
                       </span>
                     )}
                   </td>
