@@ -198,6 +198,12 @@ const NADOMESCANJA = [
   { nosilec: "MAVRI TRATNIK MAGDALENA", nadomesca: "ŠUBIC PETRA", enota: "B1", prednost: 1 },
   { nosilec: "LELIČ DIJANA", nadomesca: "MAGLIĆ ALEKSANDER", enota: "E2", prednost: 1 },
   { nosilec: "MAGLIĆ ALEKSANDER", nadomesca: "LELIČ DIJANA", enota: "E1", prednost: 1 },
+  // SOBO in A/PO: isti vzorec kot pri trojici zgoraj - nadomeščevalec svoje
+  // enote NE zapusti. Uporabnikova potrditev, avgust 2026, dobesedno:
+  // "ne, ostane na PDZN in pokriva tudi SOBO ... tako je pri njemu."
+  { nosilec: "VELUŠČEK METKA", nadomesca: "DŽAMASTAGIĆ DENIS", enota: "SOBO", prednost: 1, poleg_svoje: true },
+  { nosilec: "VELUŠČEK METKA", nadomesca: "ALUKIĆ DINO", enota: "SOBO", prednost: 2, poleg_svoje: true },
+  { nosilec: "VELUŠČEK METKA", nadomesca: "BOJIĆ MATEJ", enota: "SOBO", prednost: 3, poleg_svoje: true },
 ];
 
 // September 2026: 1.9. je torek. 5./6.9. je vikend. 12./13.9. vikend.
@@ -631,6 +637,31 @@ console.log("9) Pregled odstopanj: kje se objavljen razpored ne drži pravil");
     jseq(odstopanja.filter(o => o.enota === "U2" || (o.napacne || []).includes("U2")), [],
       "in vpisi na U2 ne sprožijo odstopanja");
   }
+}
+
+
+console.log("10) SOBO: Džamastagić obdrži PDZN in pokrije še SOBO");
+{
+  // Uporabnikova potrditev, avgust 2026: "ne, ostane na PDZN in pokriva
+  // tudi SOBO ... tako je pri njemu." Prej ga je pravilo PRESELILO na SOBO
+  // in njegov PDZN je pobral Alukić - na razporedu za september 2026 je to
+  // pomenilo 22 lažnih odstopanj, torej vsak delovni dan v mesecu.
+  const brezVeluscek = enoteZa(["VELUŠČEK"]);
+  eq(brezVeluscek["DŽAMASTAGIĆ DENIS"], "PDZN, SOBO",
+    "Velušček odsotna -> Džamastagić ima PDZN IN SOBO");
+  eq(brezVeluscek["ALUKIĆ DINO"], "ŽO", "Alukić ostane na svojem ŽO - PDZN ni zapuščen");
+  eq(brezVeluscek["BOJIĆ MATEJ"], "MO", "in Bojić na svojem MO");
+
+  // Če Džamastagića ni, pride na vrsto naslednji - prav tako poleg svoje.
+  const brezObeh = enoteZa(["VELUŠČEK", "DŽAMASTAGIĆ"]);
+  eq(brezObeh["ALUKIĆ DINO"], "ŽO, PDZN, SOBO",
+    "ni Veluščkove ne Džamastagića -> Alukić pokrije svoj ŽO, PDZN in SOBO");
+
+  // Nobena od treh enot ne sme izginiti.
+  [["brez Veluščkove", brezVeluscek], ["brez obeh", brezObeh]].forEach(([opis, m]) => {
+    const vse = Object.values(m).join(", ").split(", ").map(x => x.trim());
+    ["PDZN", "SOBO", "ŽO", "MO"].forEach(e => trdi(vse.includes(e), `${opis}: enota ${e} ni izginila`));
+  });
 }
 
 };
