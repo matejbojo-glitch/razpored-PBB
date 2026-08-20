@@ -333,7 +333,10 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
                 {kandidati.map(k => (
                   <div className="candidate" key={k.profile_id + k.njihov_datum}>
                     <div>
-                      <div className="who">{k.full_name}</div>
+                      <div className="who">
+                        <a href={"imenik.html?id=" + k.profile_id} style={{color:"inherit"}}
+                           title="Odpri profil">{k.full_name}</a>
+                      </div>
                       <div className="meta">{fmtDatum(k.njihov_datum)} · {oznakaIzmene(k.njihova_izmena)} · {k.jaz_pridem_prej ? "ti prideš prej" : "on/ona pride prej"}</div>
                     </div>
                     <button type="button" className="candBtn" aria-pressed={izbranSodelavec && izbranSodelavec.profile_id === k.profile_id && izbranSodelavec.njihov_datum === k.njihov_datum}

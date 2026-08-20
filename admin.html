@@ -275,9 +275,11 @@ const WARDS_META = {
 // PrednostniPanel) nespremenjena. Manjkajoč rotation_slot (nova oseba, še
 // ne nastavljena v Imeniku) privzeto pade na "A", vidno označeno spodaj.
 async function nalozizOddelek(koda){
-  const { data } = await client.from("profiles").select("full_name, rotation_slot")
+  // "id" je tu zato, da je ime v mreži lahko povezava na profil osebe
+  // (imenik.html?id=...). Generator sam ga ne potrebuje.
+  const { data } = await client.from("profiles").select("id, full_name, rotation_slot")
     .eq("department_code", koda).order("full_name");
-  return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot]);
+  return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot, p.id]);
 }
 
 // Dnevne "rumene" omejitve (Razpredelnica Želje, leave_entries.kind="omejitev")
@@ -381,7 +383,7 @@ async function nalozizDezurniKader(startISO){
     const osnova = DEZURNI_OSNOVA_PO_KLJUCU[kljucImena(p.full_name)] || { stevilo:0, zadnje:null };
     const ziv = odZivih[p.id] || { stevilo:0, zadnje:null };
     return {
-      ime: p.full_name, enota: p.department_code || "?",
+      id: p.id, ime: p.full_name, enota: p.department_code || "?",
       stevilo: osnova.stevilo + ziv.stevilo,
       zadnje: (ziv.zadnje && (!osnova.zadnje || ziv.zadnje > osnova.zadnje)) ? ziv.zadnje : (osnova.zadnje || ""),
       odsotnosti:"", dopust:"", omejitve:"",
@@ -405,6 +407,15 @@ const BARVE = window.Izmene.SKUPINA_BARVA;
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" – tu ju
 // razdelimo, ker dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
 // 07:00-19:00) pokrivata dan in štejeta k DOPOLDNE, nočna12 pa k PONOCI.
+// Ime zaposlenega je povsod povezava na njegov profil (uporabnikova
+// zahteva). Kjer identifikatorja ni - npr. vrstica, ki pride iz uvožene
+// preglednice in ne iz Imenika - ostane navadno besedilo, da povezava ne
+// pelje nikamor.
+function ImeOsebe({ id, children }){
+  if (!id) return <React.Fragment>{children}</React.Fragment>;
+  return <a href={"imenik.html?id=" + id} style={{color:"inherit"}} title="Odpri profil">{children}</a>;
+}
+
 function shiftBucket(sifra){
   const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomočdrugje" || !t) return null;
@@ -934,7 +945,15 @@ function KalupTab(){
   // število po dnevu (iz kalupa) je le izhodišče – admin ga lahko tu
   // ročno popravi, če se za posamezen dan ne zdi pravilno.
   const [pragPopravki, setPragPopravki] = useState({});
-  const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev], ...]
+  const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev, id], ...]
+  // Generator kalupa ID-ja ne prenaša skozi (dela samo z imeni in vzorci),
+  // zato ga za povezavo na profil poiščemo nazaj po imenu. Imena v tem
+  // seznamu prihajajo iz istega vira kot mreža, zato je ujemanje točno.
+  const idPoImenu = useMemo(() => {
+    const m = {};
+    (staffList || []).forEach(([ime, , , id]) => { if (id) m[ime] = id; });
+    return m;
+  }, [staffList]);
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
   const [genBusy, setGenBusy] = useState(false);
   // Minimumi po izmeni (department_shift_minimums) – natančnejša osnova za
@@ -1259,7 +1278,7 @@ function KalupTab(){
               <tbody>
                 {rezultat.staff.map(z => (
                   <tr key={z.ime}>
-                    <td className="name">{z.ime}</td>
+                    <td className="name"><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
                     {rezultat.dnevi.map(dn => {
                       const sifra = celica(z, dn); const cls = classify(sifra);
                       const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
@@ -1378,7 +1397,7 @@ function PravicnostPregled({ roster }){
             const odstopanje = st - povprecje;
             return (
               <tr key={z.ime}>
-                <td>{z.ime}</td>
+                <td><ImeOsebe id={z.id}>{z.ime}</ImeOsebe></td>
                 <td><b>{st}</b><div className="bar"><i style={{width:(100*st/maxStevilo)+"%"}}></i></div></td>
                 <td style={{color: odstopanje > 0.5 ? "var(--danger)" : odstopanje < -0.5 ? "var(--ok)" : "var(--muted)"}}>
                   {odstopanje > 0 ? "+" : ""}{odstopanje.toFixed(1)}
@@ -1593,7 +1612,7 @@ function DezurstvaTab(){
           <tbody>
             {roster.map(z => (
               <tr key={z.ime}>
-                <td>{z.ime}</td>
+                <td><ImeOsebe id={z.id}>{z.ime}</ImeOsebe></td>
                 <td>{z.enota}</td>
                 <td><input type="number" style={{width:56}} value={z.stevilo} onChange={e => updateField(z.ime,"stevilo",e.target.value)} /></td>
                 <td><input type="text" style={{width:110}} value={z.zadnje} onChange={e => updateField(z.ime,"zadnje",e.target.value)} placeholder="LLLL-MM-DD" /></td>

@@ -151,15 +151,15 @@ console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila
 console.log("9) Delovišče se pripiše izmeni (uporabnikova zahteva)");
 {
   // "Moj razpored" mora povedati ne le KDAJ, ampak tudi KJE.
-  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "C1"), "Dopoldne C1",
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "C1"), "Dopoldne (C1)",
     "vodja: dopoldan + enota");
-  eq(nzvPrikaz("Dopoldne", "SR", ODDELEK, "2026-09-02", "D"), "Dopoldne D",
+  eq(nzvPrikaz("Dopoldne", "SR", ODDELEK, "2026-09-02", "D"), "Dopoldne (D)",
     "oddelčni kader: izmena + oddelek");
-  eq(nzvPrikaz("popoldan", "SR", ODDELEK, "2026-09-02", "E2"), "Popoldne E2",
+  eq(nzvPrikaz("popoldan", "SR", ODDELEK, "2026-09-02", "E2"), "Popoldne (E2)",
     "velja za vse izmene, ne le dopoldan");
 
   // Ob nadomeščanju je enot lahko več - izpišeta se obe.
-  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "E2, E1"), "Dopoldne E2, E1",
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "E2, E1"), "Dopoldne (E2, E1)",
     "nadomeščanje: obe enoti");
 
   // Brez znane enote ostane zapis kot prej - nič se ne izmisli.
@@ -169,7 +169,7 @@ console.log("9) Delovišče se pripiše izmeni (uporabnikova zahteva)");
     "enota je neobvezen podatek");
 
   // Dežurstvo: velika začetnica, ne verzalke, in enota se pripiše dnevnemu delu.
-  eq(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO"), "Dopoldne MO + Dežurstvo",
+  eq(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO"), "Dopoldne (MO) + Dežurstvo",
     "dežurstvo med tednom: enota pri dnevnem delu");
   eq(nzvPrikaz("DEŽURSTVO", "SO", NZV, "2026-09-05", "MO"), "Dežurstvo",
     "vikendno dežurstvo je samo dežurstvo (dnevnega dela ni)");

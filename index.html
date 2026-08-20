@@ -387,7 +387,10 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   // Delovišče se pripiše izmeni ("dopoldan C1"), da "Moj razpored" pove ne
   // le KDAJ, ampak tudi KJE. Ob nadomeščanju je to lahko tudi več enot
   // ("E2, E1") - takrat se izpišeta obe, ker oseba tisti dan pokriva obe.
-  const zEnoto = (besedilo) => (enota ? besedilo + " " + enota : besedilo);
+  // Delovišče v oklepaju, na ISTI vrstici kot izmena: "Dopoldne (MO)".
+  // Zaposleni mora na prvi pogled vedeti ne le KDAJ, ampak tudi KJE je
+  // tisti dan razpisan (uporabnikova zahteva).
+  const zEnoto = (besedilo) => (enota ? besedilo + " (" + enota + ")" : besedilo);
   // "Dežurstvo" z veliko začetnico kot lastno ime izmene, ne z verzalkami:
   // v uradni legendi je zapisano tako, verzalke pa na zaslonu delujejo kot
   // vpitje (uporabnikova pripomba).
