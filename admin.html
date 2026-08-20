@@ -1909,8 +1909,18 @@ function VodjeTab(){
       client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
     ]);
+    // Ključ prek imena.js in NE surovega imena: lead_departments ima imena
+    // z VELIKIMI črkami ("ALUKIĆ DINO"), leave_entries pa tako, kot so v
+    // Imeniku ("Alukić Dino"). Iskalo se je z leaveMap[v.full_name + "|" +
+    // iso], torej ime iz ene tabele proti ključu iz druge - zadetka ni bilo
+    // NIKOLI in generator NZV je osebo na dopustu vseeno razporedil na
+    // enoto. Uporabnik je to opazil na oktobru 2026: Alukić, Arnež in
+    // Džamastagić so bili 1. in 2. 10. rdeči (LD), v razporedu pa na
+    // svojih enotah.
     const leaveMap = {};
-    (leaveRows || []).forEach(r => { leaveMap[r.full_name + "|" + r.work_date] = r.kind; });
+    (leaveRows || []).forEach(r => {
+      leaveMap[window.Imena.kljuc(r.full_name) + "|" + r.work_date] = r.kind;
+    });
     const dezMap = {};
     (dezRows || []).forEach(r => { if (r.profiles) dezMap[r.work_date] = r.profiles.full_name; });
     const saNast = window.NzvZasedba.saNastavitveIz(nastRows || []);
@@ -1927,7 +1937,7 @@ function VodjeTab(){
     const jeOdsotenNa = (ime, iso) => {
       const v = poImenu[kljucIme(ime)];
       if (v && NZ.trajnoOdsoten(v, iso)) return true;
-      const kind = leaveMap[(v ? v.full_name : ime) + "|" + iso];
+      const kind = leaveMap[kljucIme(ime) + "|" + iso];
       return !!(kind && LEAVE_KOLONA[kind]);
     };
 
@@ -1958,7 +1968,7 @@ function VodjeTab(){
           return;
         }
         if (isVikend || isPraznik) return;
-        const kind = leaveMap[v.full_name + "|" + iso];
+        const kind = leaveMap[window.Imena.kljuc(v.full_name) + "|" + iso];
         if (kind && LEAVE_KOLONA[kind]) {
           const kol = LEAVE_KOLONA[kind];
           dodaj(kol, kratica(v.full_name));

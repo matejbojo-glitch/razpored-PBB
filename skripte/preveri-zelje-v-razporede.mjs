@@ -26,6 +26,7 @@ import vm from "node:vm";
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
 const admin = readFileSync(join(koren, "admin.html"), "utf8");
 const index = readFileSync(join(koren, "index.html"), "utf8");
+const zelje = readFileSync(join(koren, "zelje.html"), "utf8");
 
 function izvleci(src, ime, kw = "function ") {
   const z = src.indexOf(kw + ime + "(");
@@ -208,6 +209,54 @@ console.log("8) KATERA vrsta odsotnosti gre v kateri razpored");
   trdi(/if \(row\.kind === "ld"\) grouped\[key\]\.dopust\.push/.test(admin)
     && /else grouped\[key\]\.omejitve\.push/.test(admin),
     "dežurstva: ld -> dopust, vse ostalo (omejitev/bs/sti) -> omejitev za ta dan");
+}
+
+console.log("9) NZV GENERATOR (Admin → NZV) upošteva dopuste");
+{
+  // To je DRUGA koda kot prikaz NZV v index.html. Uporabnik je javil, da so
+  // Alukić, Arnež in Džamastagić 1. in 2. 10. 2026 v Željah rdeči (LD),
+  // generator pa jih vseeno postavi na PDZN/ŽO/E1.
+  //
+  // Vzrok: leaveMap je bil ključen s SUROVIM imenom iz leave_entries
+  // ("Alukić Dino"), iskalo pa se je z imenom iz lead_departments
+  // ("ALUKIĆ DINO"). Dve tabeli, dve pisavi, dobesedna primerjava.
+  trdi(/leaveMap\[window\.Imena\.kljuc\(r\.full_name\) \+ "\|" \+ r\.work_date\]/.test(admin),
+    "leaveMap je ključen prek imena.js");
+  trdi(/const kind = leaveMap\[kljucIme\(ime\) \+ "\|" \+ iso\];/.test(admin),
+    "jeOdsotenNa išče po istem ključu");
+  trdi(!/leaveMap\[\(v \? v\.full_name : ime\) \+ "\|" \+ iso\]/.test(admin),
+    "stara dobesedna primerjava je odstranjena");
+  trdi(!/const kind = leaveMap\[v\.full_name \+ "\|" \+ iso\];/.test(admin),
+    "in tudi druga pojavitev iste primerjave");
+
+  // Konkretno: imeni iz obeh tabel se morata zvesti na isti ključ.
+  jseq(sb.window.Imena.kljuc("ALUKIĆ DINO"), sb.window.Imena.kljuc("Alukić Dino"),
+    "'ALUKIĆ DINO' (lead_departments) in 'Alukić Dino' (leave_entries) sta ista oseba");
+
+  // Rumena omejitev za NZV NI odsotnost - to ostane.
+  const kolona = admin.match(/const LEAVE_KOLONA = \{[^}]*\}/)[0];
+  trdi(/ld:/.test(kolona) && /bs:/.test(kolona) && /sti:/.test(kolona),
+    "NZV generator šteje ld, bs in sti kot odsotnost");
+  trdi(!/omejitev:/.test(kolona),
+    "rumene omejitve NE - oseba tisti dan dela");
+}
+
+console.log("10) RAZPREDELNICA pokaže tudi drugače zapisano ime");
+{
+  // Uvoz iz CSV shrani imena z VELIKIMI črkami. Ob dobesedni primerjavi
+  // taka vrstica v razpredelnici sploh NI bila vidna, čeprav je v bazi
+  // bila - razporedi (ki berejo po ključu) pa so jo upoštevali. Zaslon in
+  // razpored sta si tako nasprotovala.
+  trdi(/poKljucu\[window\.Imena\.kljuc\(r\.full_name\)\] \|\| r\.full_name/.test(zelje),
+    "vrstice se preslikajo na ime osebe iz seznama");
+  trdi(!/\(data \|\| \[\]\)\.forEach\(r => \{ m\[r\.full_name \+ "\|" \+ r\.work_date\] = r\.kind; \}\);/.test(zelje),
+    "stara dobesedna primerjava je odstranjena");
+  // Popravek take celice ne sme ustvariti DRUGE vrstice za isto osebo/dan.
+  trdi(/const staroIme = zapisanoIme\[ime \+ "\|" \+ iso\];/.test(zelje)
+    && /if \(staroIme && staroIme !== ime\)/.test(zelje),
+    "ob popravku se vrstica s staro pisavo imena pobriše");
+  trdi(/\.delete\(\)\.eq\("full_name", staroIme\)\.eq\("work_date", iso\)/.test(zelje),
+    "in to natanko tista vrstica, ne katera koli");
 }
 
 console.log("");
