@@ -441,7 +441,12 @@
 // nadomeščanja so označena kot PREDLOGI in se objavijo šele po potrditvi.
 // Spremenjeni so nzv-zasedba.js, theme.css, index.html in admin.html.
 
-const CACHE = 'razpored-pbb-v87';
+// v88: po dežurstvu sledi normalen delovnik in to ni več javljeno kot
+// kršitev počitka - tako se zagotavlja neprekinjeno zdravstveno varstvo
+// (odločitev vodstva ZN). Spremenjen delovni-cas.js, ki se streže iz
+// predpomnilnika, zato dvig različice.
+
+const CACHE = 'razpored-pbb-v88';
 const ASSETS = [
   './',
   './index.html',

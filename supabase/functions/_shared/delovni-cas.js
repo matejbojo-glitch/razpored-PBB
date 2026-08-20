@@ -86,6 +86,12 @@
   var NI_DELO_INDEKS = {};
   NI_DELO.forEach(function (k) { NI_DELO_INDEKS[kljuc(k)] = true; });
 
+  // Dežurstvo (NZV, 15:30-07:00) se obravnava posebej pri počitku - glej
+  // preveriPravila spodaj.
+  function jeDezurstvo(sifra) {
+    return kljuc(sifra) === kljuc("DEŽURSTVO");
+  }
+
   function jeDelo(sifra) {
     var k = kljuc(sifra);
     if (NI_DELO_INDEKS[k]) return false;
@@ -157,6 +163,19 @@
         var prej = casovniOkvir(delovni[i - 1].datum, delovni[i - 1].sifra);
         var zdaj = casovniOkvir(delovni[i].datum, delovni[i].sifra);
         if (!prej || !zdaj) continue;
+        // PO DEŽURSTVU sledi normalen delovnik in to je PRIČAKOVANO
+        // stanje, ne kršitev: tako se zagotavlja neprekinjeno zdravstveno
+        // varstvo (odločitev vodstva ZN, avgust 2026).
+        //
+        // Brez te izjeme bi vsako dežurstvo med tednom javilo "0 h
+        // počitka": dežurstvo se konča ob 07:00, dopoldanska izmena se ob
+        // 07:00 začne. Opozorilo bi bilo torej stalno in bi prav zato
+        // izgubilo pomen - med množico pričakovanih se prave kršitve ne
+        // bi več videlo.
+        //
+        // Izjema velja SAMO za prehod IZ dežurstva. Prehod V dežurstvo in
+        // vsi ostali prehodi se preverjajo naprej.
+        if (jeDezurstvo(delovni[i - 1].sifra)) continue;
         var pocitek = razlikaUr(prej.konec, zdaj.zacetek);
         if (pocitek < p.minPocitekUr) {
           var jeIzjema = !!(delovni[i].izjema || delovni[i - 1].izjema);
@@ -245,6 +264,7 @@
   root.DelovniCas = {
     IZMENE: IZMENE,
     NI_DELO: NI_DELO,
+    jeDezurstvo: jeDezurstvo,
     kljuc: kljuc,
     PRIVZETA_PRAVILA: PRIVZETA_PRAVILA,
     RAZLOGI_IZJEME: RAZLOGI_IZJEME,
