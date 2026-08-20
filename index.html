@@ -143,6 +143,9 @@
      nadomeščevalec. Bledeje, da se na prvi pogled loči od objavljenega
      razporeda; glej nalozizPodatkeNzv. */
   table.wardTableNzv td.enotaCell.izpeljano{ opacity:.62; font-style:italic; }
+  /* Celica, kjer se objava ne ujema s pravilom nadomeščanja - opozorilo,
+     ne napaka: razpored ostane, kot je objavljen. */
+  table.wardTableNzv td.enotaCell.odstopanje{ box-shadow: inset 3px 0 0 var(--pop); }
   /* Vrstica z nastavitvijo izmenične zasedbe SA (samo administrator).
      Nad mrežo, ker je učinek takoj viden v stolpcih SA DOP/SA POP. */
   .saNastavitve{
@@ -1231,6 +1234,10 @@ async function nalozizPodatkeNzv(startISO, endISO){
   //
   // Izrecno objavljen vnos ima VEDNO prednost - izpeljava zapolni samo
   // prazne celice in nikoli ne podvoji osebe, ki je tisti dan že v mreži.
+  // Kaj bi po PRAVILIH nadomeščanja moralo biti na posamezni enoti - ne
+  // glede na to, ali je za tisti dan objavljen razpored ali ne. Iz tega se
+  // spodaj izračunajo odstopanja (glej odstopanjaNzv).
+  const poPravilu = {};
   const nosilci = (vodje || []).filter(v => v.enote);
   if (nosilci.length) {
     const profilZaIme = ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime));
@@ -1273,17 +1280,127 @@ async function nalozizPodatkeNzv(startISO, endISO){
         saKoda: saStolpec(dn.datum, saNast),
         veljavne: veljavneKode,
       }).forEach(({ nosilec, kode }) => {
-        // Kdor je tisti dan že v mreži iz objavljenega razporeda, se ne
-        // podvoji - objava je merodajna.
-        if (zeVpisan.has(kljucImenaNzv(nosilec.full_name) + "|" + dn.datum)) return;
         const profil = profilZaIme(nosilec.full_name);
         if (!profil || !JE_NZV_VLOGA.has(profil.role)) return;
         const parafa = parafaOd(profil, dn.datum);
+        // Pričakovanje po pravilu se zabeleži VEDNO, tudi kadar je oseba
+        // tisti dan že objavljena drugje - prav ta primer je odstopanje
+        // ("po pravilu bi moral biti na E1, v razporedu je na D").
+        const zaDan = poPravilu[dn.datum] = poPravilu[dn.datum] || {};
+        const zaOsebo = zaDan[parafa] = zaDan[parafa] || new Set();
+        kode.forEach(koda => zaOsebo.add(kljucOdstopanja(koda)));
+        // Kdor je tisti dan že v mreži iz objavljenega razporeda, se ne
+        // podvoji - objava je merodajna.
+        if (zeVpisan.has(kljucImenaNzv(nosilec.full_name) + "|" + dn.datum)) return;
         kode.forEach(koda => vpisiIzpeljano(koda, dn.datum, parafa));
       });
     });
   }
-  return { podatki, entries: entries || [], izpeljano, saNast };
+  const preglednica = odstopanjaNzv({
+    podatki, poPravilu, nosilci, startISO, endISO,
+    profilZaIme: ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime)),
+  });
+  return { podatki, entries: entries || [], izpeljano, saNast,
+           odstopanja: preglednica.odstopanja, enoteBrezNosilca: preglednica.brezNosilca };
+}
+
+// SA DOP in SA POP štejeta pri primerjavi kot ENA enota. Kateri teden je
+// dopoldanski, je nastavitev (nzv_nastavitve.sa_liho_teden) in ne trdo
+// dejstvo; če bi ju ločevali, bi vsak teden javljalo lažno odstopanje.
+function kljucOdstopanja(koda){
+  return koda === "SADOP" || koda === "SAPOP" ? "SA" : koda;
+}
+
+// Enote, ki jih pravilo nadomeščanja NE pokriva in jih zato ne primerjamo:
+// dežurstvo ima svoj generator, LD/IZOB/BS pa so odsotnosti, ne enote.
+const ODSTOPANJA_PRESKOCI = new Set(["DEZ", "LD", "IZOB", "BS"]);
+
+// Kje se objavljen razpored razhaja s pravili nadomeščanja.
+//
+// Uporabnikova odločitev (avgust 2026): merodajna so PRAVILA, objavljen
+// razpored (uvožen iz uradne preglednice) pa se ne popravlja sam od sebe -
+// odstopanja se samo pokažejo, da jih administrator lahko pregleda.
+//
+// Primerjamo PO OSEBI in ne po celici. Razlog: nekateri nosilci imajo
+// sestavljeno enoto ("UA/SA" = URGENCA in SA), kar pomeni "dela na eni od
+// teh", ne "hkrati na obeh". Primerjava po celici je zato vsak dan javila
+// lažno "manjka" na tisti od obeh, kjer osebe tisti dan ni bilo - v
+// septembru 2026 je bilo takih 41 od 102 javljenih odstopanj.
+//
+// Vrste, ker ne pomenijo istega:
+//   napacnaEnota  nosilec je na enoti, ki je pravilo zanj ne predvideva
+//   niVRazporedu  pravilo ga postavi na enoto, v razporedu pa ga ni nikjer
+//   nepokrita     enota z nosilcem, ki tisti dan nima nikogar
+// FLEXI (kdor sploh ni nosilec enote) se NE šteje: vpisuje se ročno
+// (uporabnikova odločitev), zato je v pregledu le kot pripis.
+function odstopanjaNzv(opts){
+  const podatki = opts.podatki, poPravilu = opts.poPravilu, nosilci = opts.nosilci;
+  const startISO = opts.startISO, endISO = opts.endISO, profilZaIme = opts.profilZaIme;
+
+  const parafeNosilcev = new Set();
+  (nosilci || []).forEach(v => {
+    const profil = profilZaIme(v.full_name);
+    if (profil) parafeNosilcev.add(parafaOd(profil, startISO));
+  });
+
+  // Enote, ki jih po lead_departments sploh nima nihče (npr. U2, SA POP).
+  // Zanje pravila NI, zato vpis tam ni odstopanje - to je vrzel v podatkih
+  // o nosilcih in ne napaka v razporedu. Povemo jo posebej, enkrat.
+  const zNosilcem = new Set();
+  (nosilci || []).forEach(v => nzvEnoteVKode(v.enote, "SADOP")
+    .forEach(k => zNosilcem.add(kljucOdstopanja(k))));
+  const brezNosilca = NZV_STOLPCI.map(([k]) => k)
+    .filter(k => !ODSTOPANJA_PRESKOCI.has(k) && !zNosilcem.has(kljucOdstopanja(k)))
+    .map(k => kljucOdstopanja(k));
+  const brezNosilcaSet = new Set(brezNosilca);
+
+  const nazivEnote = {};
+  NZV_STOLPCI.forEach(([k, naziv]) => { nazivEnote[kljucOdstopanja(k)] = kljucOdstopanja(k) === "SA" ? "SA" : naziv; });
+
+  const out = [];
+  daysInRange(startISO, endISO).forEach(dn => {
+    if (window.Prazniki.jeDelaProstDan(dn.datum)) return;
+    // Kje je kdo DEJANSKO (po objavljenem razporedu oz. izpeljavi).
+    const dejansko = {};
+    const vEnoti = {};
+    NZV_STOLPCI.forEach(([k]) => {
+      if (ODSTOPANJA_PRESKOCI.has(k)) return;
+      const enota = kljucOdstopanja(k);
+      const parafe = (podatki[k + "|" + dn.datum] || "").split(",").map(x => x.trim()).filter(Boolean);
+      (vEnoti[enota] = vEnoti[enota] || []).push(...parafe);
+      parafe.forEach(par => { (dejansko[par] = dejansko[par] || new Set()).add(enota); });
+    });
+    // Kje bi kdo moral biti PO PRAVILU.
+    const pravilo = poPravilu[dn.datum] || {};
+
+    Object.keys(pravilo).forEach(par => {
+      const naj = pravilo[par], je = dejansko[par] || new Set();
+      if (!naj.size) return;
+      if (!je.size) {
+        out.push({ vrsta: "niVRazporedu", datum: dn.datum, oseba: par,
+                   poPravilu: [...naj].sort(), vRazporedu: [] });
+      }
+    });
+    Object.keys(dejansko).forEach(par => {
+      if (!parafeNosilcev.has(par)) return;         // FLEXI - ročno, ni odstopanje
+      const naj = pravilo[par] || new Set();
+      // Enote brez nosilca (U2) izpustimo: pravila zanje ni, zato vpis tam
+      // ne more biti "napačen".
+      const napacne = [...dejansko[par]].filter(e => !naj.has(e) && !brezNosilcaSet.has(e));
+      if (!napacne.length) return;
+      out.push({ vrsta: "napacnaEnota", datum: dn.datum, oseba: par,
+                 poPravilu: [...naj].sort(), vRazporedu: [...dejansko[par]].sort(),
+                 napacne: napacne.sort() });
+    });
+    Object.keys(vEnoti).forEach(enota => {
+      if (brezNosilcaSet.has(enota)) return;
+      if (vEnoti[enota].length) return;
+      out.push({ vrsta: "nepokrita", datum: dn.datum, enota: nazivEnote[enota] || enota });
+    });
+  });
+  out.sort((a, b) => a.datum.localeCompare(b.datum)
+    || String(a.oseba || a.enota).localeCompare(String(b.oseba || b.enota)));
+  return { odstopanja: out, brezNosilca: brezNosilca.map(k => nazivEnote[k] || k) };
 }
 
 // Administrator ureja izmenično zasedbo SA kar nad mrežo, kjer je učinek
@@ -1337,10 +1454,86 @@ function SaNastavitveUrejanje({ saNast, naShranjeno }){
   );
 }
 
+// Berljiv opis ene vrstice odstopanja.
+function opisOdstopanja(o){
+  if (o.vrsta === "nepokrita") return "enota " + o.enota + " ta dan nima nikogar";
+  if (o.vrsta === "niVRazporedu") {
+    return o.oseba + ": po pravilu na " + o.poPravilu.join(" / ") + ", v razporedu ga ni nikjer";
+  }
+  return o.oseba + ": v razporedu na " + o.napacne.join(", ")
+    + (o.poPravilu.length ? ", po pravilu na " + o.poPravilu.join(" / ") : ", pravilo zanj tega dne ne predvideva enote");
+}
+
+// Pregled mest, kjer se objavljen razpored ne drži pravil nadomeščanja.
+//
+// Zakaj samo pregled in ne samodejni popravek: objavljen razpored je
+// uradni dokument, ki ga pripravi in podpiše človek. Aplikacija ga zato ne
+// prepisuje sama - pokaže pa, kje se razhaja s pravili, da administrator
+// odloči (uporabnikova odločitev, avgust 2026).
+function OdstopanjaNzv({ odstopanja, brezNosilca }){
+  const [odprto, setOdprto] = useState(false);
+  const opomba = brezNosilca && brezNosilca.length ? (
+    <p className="sub" style={{margin:"6px 0 0"}}>
+      Za {brezNosilca.length === 1 ? "enoto" : "enote"} <b>{brezNosilca.join(", ")}</b> v
+      Imeniku ni nosilca, zato zanje pravila nadomeščanja ni – vpisi tam se ne preverjajo.
+    </p>
+  ) : null;
+  if (!odstopanja || !odstopanja.length) {
+    return (
+      <div style={{margin:"8px 0 12px"}}>
+        <p className="sub" style={{margin:0}}>✓ Razpored se povsod drži pravil nadomeščanja.</p>
+        {opomba}
+      </div>
+    );
+  }
+  const stevec = { napacnaEnota: 0, niVRazporedu: 0, nepokrita: 0 };
+  odstopanja.forEach(o => { stevec[o.vrsta]++; });
+  const povzetek = [
+    stevec.nepokrita ? `${stevec.nepokrita}× enota brez nikogar` : null,
+    stevec.napacnaEnota ? `${stevec.napacnaEnota}× na drugi enoti, kot pravi pravilo` : null,
+    stevec.niVRazporedu ? `${stevec.niVRazporedu}× po pravilu bi moral delati, a ga ni v razporedu` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="opozorilnoPolje" style={{margin:"8px 0 12px"}}>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOdprto(v => !v)}>
+        ⚠ Odstopanj od pravil nadomeščanja: {odstopanja.length} {odprto ? "▲" : "▼"}
+      </button>
+      <div className="sub" style={{marginTop:6}}>{povzetek}</div>
+      {opomba}
+      {odprto && (
+        <div style={{overflowX:"auto", marginTop:10}}>
+          <p className="sub" style={{margin:"0 0 8px"}}>
+            Objavljen razpored ostane nespremenjen – to je samo pregled. FLEXI kader
+            (kdor ni nosilec enote) se ne preverja, ker se vpisuje ročno.
+          </p>
+          <table className="wardTable" style={{minWidth:520}}>
+            <thead>
+              <tr><th className="name">Datum</th><th>Kdo / kaj</th><th>Po pravilu</th><th>V razporedu</th></tr>
+            </thead>
+            <tbody>
+              {odstopanja.map((o, i) => (
+                <tr key={i}>
+                  <td className="name">{datumSlo(o.datum)}</td>
+                  <td>{o.vrsta === "nepokrita" ? <b>{o.enota}</b> : <b>{o.oseba}</b>}</td>
+                  <td>{o.vrsta === "nepokrita" ? "vsaj en nosilec" : (o.poPravilu.join(", ") || "–")}</td>
+                  <td>{o.vrsta === "nepokrita" ? "nihče"
+                        : (o.vRazporedu && o.vRazporedu.length ? o.vRazporedu.join(", ") : "nikjer")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NzvView({ month, profile }){
   const [podatki, setPodatki] = useState(null); // null dokler se ne naloži; { "koda|datum": "parafa, parafa2" }
   const [izpeljano, setIzpeljano] = useState({}); // iste ključe, a le za izpeljane celice (glej nalozizPodatkeNzv)
   const [saNast, setSaNast] = useState(null); // izmenična zasedba SA (glej saStolpec)
+  const [odstopanja, setOdstopanja] = useState([]); // kje se objava razhaja s pravili nadomeščanja
+  const [brezNosilca, setBrezNosilca] = useState([]); // enote, za katere pravila sploh ni
   const [osvezi, setOsvezi] = useState(0);
   const [entries, setEntries] = useState(null);
   const { startISO, endISO } = monthRange(month);
@@ -1349,20 +1542,37 @@ function NzvView({ month, profile }){
   useEffect(() => {
     let cancelled = false;
     setPodatki(null); setEntries(null);
-    nalozizPodatkeNzv(startISO, endISO).then(({ podatki, entries, izpeljano, saNast }) => {
+    nalozizPodatkeNzv(startISO, endISO).then(({ podatki, entries, izpeljano, saNast, odstopanja, enoteBrezNosilca }) => {
       if (cancelled) return;
       setEntries(entries);
       setIzpeljano(izpeljano || {});
       setSaNast(saNast);
+      setOdstopanja(odstopanja || []);
+      setBrezNosilca(enoteBrezNosilca || []);
       setPodatki(podatki);
     });
     return () => { cancelled = true; };
   }, [startISO, endISO, osvezi]);
 
+  // Odstopanja po celici - za oznako v mreži. FLEXI (samo "ročno") celice
+  // NE označi: to ni napaka, ampak način dela (uporabnikova odločitev).
+  // Katere CELICE naj mreža označi: tiste, kjer je nosilec na enoti, ki je
+  // pravilo zanj ne predvideva, in tiste, ki so ostale brez nikogar.
+  const odstopanjaPoCelici = useMemo(() => {
+    const m = {};
+    (odstopanja || []).forEach(o => {
+      if (o.vrsta === "nepokrita") { m[o.enota + "|" + o.datum] = o; return; }
+      if (o.vrsta !== "napacnaEnota") return;
+      (o.napacne || []).forEach(e => { m[e + "|" + o.datum] = o; });
+    });
+    return m;
+  }, [odstopanja]);
+
   if (podatki === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
     <div className="wardPrintArea">
+      <OdstopanjaNzv odstopanja={odstopanja} brezNosilca={brezNosilca} />
       {profile && profile.role === "admin" && saNast && (
         <SaNastavitveUrejanje saNast={saNast} naShranjeno={() => setOsvezi(k => k + 1)} />
       )}
@@ -1384,11 +1594,17 @@ function NzvView({ month, profile }){
               return (
                 <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
                   <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
-                  {NZV_STOLPCI.map(([koda]) => (
-                    <td key={koda} className={"enotaCell" + (izpeljano[koda + "|" + dn.datum] ? " izpeljano" : "")}>
+                  {NZV_STOLPCI.map(([koda]) => {
+                    const o = odstopanjaPoCelici[kljucOdstopanja(koda) + "|" + dn.datum];
+                    return (
+                    <td key={koda} title={o ? opisOdstopanja(o) : undefined}
+                        className={"enotaCell"
+                          + (izpeljano[koda + "|" + dn.datum] ? " izpeljano" : "")
+                          + (o ? " odstopanje" : "")}>
                       {podatki[koda + "|" + dn.datum] || ""}
                     </td>
-                  ))}
+                    );
+                  })}
                   <td className="enotaCell dez">{podatki["DEZ|" + dn.datum] || ""}</td>
                   <td className="enotaCell">{podatki["LD|" + dn.datum] || ""}</td>
                   <td className="enotaCell">{podatki["IZOB|" + dn.datum] || ""}</td>

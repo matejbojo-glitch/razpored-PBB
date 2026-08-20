@@ -782,3 +782,14 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   background:var(--surface); color:var(--text); font:inherit; font-weight:700; cursor:pointer;
 }
 @media print{ .rpNovaRazlicica{ display:none; } }
+
+/* Opozorilno polje: nekaj, kar je vredno pogledati, a ni napaka in nič ne
+   blokira (npr. razpored, ki se ne drži pravil nadomeščanja). Zato topla
+   oranžna --pop in ne rdeča --danger, ki v aplikaciji pomeni napako. */
+.opozorilnoPolje{
+  border: 1px solid var(--pop);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--text-rgb), .03);
+  padding: 10px 12px;
+}
