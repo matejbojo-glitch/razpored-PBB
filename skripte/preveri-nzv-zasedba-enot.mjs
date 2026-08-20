@@ -75,6 +75,12 @@ function trdi(pogoj, opis) {
   console.log((pogoj ? "  ✓ " : "  ✗ ") + opis);
   if (!pogoj) napake.push(opis);
 }
+// Primerjava seznamov/objektov po vsebini - za odstopanja, kjer je izid
+// seznam in ne posamezna vrednost.
+function jseq(a, b, opis) {
+  const enako = JSON.stringify(a) === JSON.stringify(b);
+  trdi(enako, opis + (enako ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
+}
 function eq(a, b, opis) {
   trdi(a === b, opis + (a === b ? "" : ` – dobil ${JSON.stringify(a)}, pričakoval ${JSON.stringify(b)}`));
 }
@@ -116,6 +122,10 @@ vm.runInContext([
   izvleciConst("saNastavitveIz"),
   izvleciConst("saStolpec"),
   izvleciFn("nzvEnoteVKode"),
+  // Pregled odstopanj od pravil nadomeščanja - nalozizPodatkeNzv ga kliče.
+  izvleciFn("kljucOdstopanja"),
+  izvleciConst("ODSTOPANJA_PRESKOCI"),
+  izvleciFn("odstopanjaNzv"),
   izvleciAsyncFn("nalozizPodatkeNzv"),
 ].join("\n\n"), sandbox);
 
@@ -532,6 +542,97 @@ console.log("5k) DEZ / NEDEZ / NZV / FLEXI niso delovišča");
   ["MO", "ŽO", "PDZN", "C1", "B", "SOBO", "mo"]
     .forEach(k => trdi(jeDelovisce(k), `${JSON.stringify(k)} JE delovišče`));
 }
+
+console.log("9) Pregled odstopanj: kje se objavljen razpored ne drži pravil");
+{
+  // Uporabnikova odločitev (avgust 2026): merodajna so PRAVILA, objavljen
+  // razpored pa se ne popravlja sam - odstopanja se samo pokažejo.
+  const vnos = (ime, kratica, koda, datum, sifra) => ({
+    department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: sifra || "PRISOTEN",
+    created_at: null, created_by: null, updated_at: null,
+    profiles: profil(ime, kratica, "vodja"),
+  });
+
+  console.log("   a) razpored po pravilih -> nobenega odstopanja");
+  {
+    // Vsak nosilec na svoji enoti, nihče odsoten.
+    const entries = [
+      vnos("Džamastagić Denis", "DŽA", "PDZN", "2026-09-01"),
+      vnos("Velušček Metka", "VEL", "SOBO", "2026-09-01"),
+      vnos("Alukić Dino", "ALU", "ZO", "2026-09-01"),
+    ];
+    const { odstopanja } = await poglej({ entries });
+    const naDan = odstopanja.filter(o => o.datum === "2026-09-01"
+      && ["DŽA", "VEL", "ALU"].includes(o.oseba));
+    jseq(naDan, [], "nosilci na svojih enotah ne sprožijo odstopanja");
+  }
+
+  console.log("   b) nosilec na enoti, ki je pravilo zanj ne predvideva");
+  {
+    const entries = [vnos("Alukić Dino", "ALU", "MO", "2026-09-01")];
+    const { odstopanja } = await poglej({ entries });
+    const o = odstopanja.find(x => x.oseba === "ALU" && x.datum === "2026-09-01");
+    trdi(!!o && o.vrsta === "napacnaEnota", "Alukić na MO (njegova enota je ŽO) -> napačna enota");
+    jseq(o ? o.napacne : [], ["MO"], "javi natanko MO kot napačno");
+    trdi(!!o && o.poPravilu.includes("ZO"), "in pove, da bi po pravilu moral biti na ŽO");
+  }
+
+  console.log("   c) SESTAVLJENA enota: 'UA/SA' pomeni eno OD dveh, ne obeh hkrati");
+  {
+    // Bizjak ima enote "UA/SA/B2". Če je samo na URGENCI, to NI odstopanje -
+    // prav ta primerjava po celici je prej javljala 41 lažnih odstopanj v
+    // septembru 2026 (vsak dan "manjka BIZ na SA" in "manjka BIZ na B1B2").
+    const entries = [vnos("Bizjak Tea", "BIZ", "URGENCA", "2026-09-01")];
+    const { odstopanja } = await poglej({ entries });
+    const o = odstopanja.filter(x => x.oseba === "BIZ" && x.datum === "2026-09-01");
+    jseq(o, [], "Bizjak samo na URGENCI ni odstopanje (njena enota je UA/SA/B2)");
+  }
+
+  console.log("   d) po pravilu bi moral delati, v razporedu pa ga ni nikjer");
+  {
+    // Objavimo razpored za ta dan (da izpeljava ne zapolni celic), a brez
+    // Veluščkove - čeprav ni odsotna.
+    const entries = [
+      vnos("Džamastagić Denis", "DŽA", "PDZN", "2026-09-01"),
+      vnos("Velušček Metka", "VEL", "PDZN", "2026-09-01"),
+    ];
+    const { odstopanja } = await poglej({ entries });
+    const o = odstopanja.find(x => x.oseba === "VEL" && x.datum === "2026-09-01");
+    trdi(!!o && o.vrsta === "napacnaEnota", "Velušček na PDZN namesto na SOBO -> odstopanje");
+  }
+
+  console.log("   e) FLEXI (kdor ni nosilec enote) se NE šteje kot odstopanje");
+  {
+    // Uporabnikova odločitev: FLEXI kader se vpisuje ročno.
+    const entries = [vnos("Novak Ana", "NOV", "C", "2026-09-01")];
+    const { odstopanja } = await poglej({ entries });
+    jseq(odstopanja.filter(o => o.oseba === "NOV"), [],
+      "oseba, ki ni med nosilci enot, ni odstopanje");
+  }
+
+  console.log("   g) SA DOP in SA POP štejeta kot ENA enota");
+  {
+    // Kateri teden je dopoldanski, je NASTAVITEV (nzv_nastavitve), ne trdo
+    // dejstvo. Če bi stolpca ločevali, bi vsak drug teden javilo lažno
+    // odstopanje pri vseh, ki imajo SA v svojih enotah.
+    for (const [sifra, opis] of [["Dopoldne", "SA DOP"], ["Popoldne", "SA POP"]]) {
+      const entries = [vnos("Bizjak Tea", "BIZ", "SA", "2026-09-01", sifra)];
+      const { odstopanja } = await poglej({ entries });
+      jseq(odstopanja.filter(o => o.oseba === "BIZ"), [],
+        `Bizjak v stolpcu ${opis} ni odstopanje (njena enota je UA/SA/B2)`);
+    }
+  }
+
+  console.log("   f) enota brez nosilca se ne preverja, a se pove");
+  {
+    const { odstopanja, enoteBrezNosilca } = await poglej({});
+    trdi((enoteBrezNosilca || []).includes("U2"),
+      "U2 nima nosilca -> pove se posebej, namesto da bi vsak vpis tam javljal napako");
+    jseq(odstopanja.filter(o => o.enota === "U2" || (o.napacne || []).includes("U2")), [],
+      "in vpisi na U2 ne sprožijo odstopanja");
+  }
+}
+
 };
 
 test().then(() => {
