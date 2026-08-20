@@ -1573,7 +1573,7 @@ function NadomescanjaPregled(){
     let cancelled = false;
     Promise.all([
       client.from("lead_departments").select("full_name, enote").order("full_name"),
-      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
+      client.from("nadomescanja").select("*"),
       client.from("profiles").select("full_name"),
     ]).then(([{ data: nosilci }, { data: pary }, { data: osebe }]) => {
       if (cancelled) return;
@@ -1689,7 +1689,7 @@ function StanjeRazpredelnica({ oddelki }){
       // Pokrivanja so VZAJEMNA in VEČKRATNA (npr. Alukića nadomeščata
       // Bojić IN Džamastagić), zato svoja tabela parov, ne en stolpec -
       // glej supabase/nzv-nadomescanja.sql.
-      client.from("nadomescanja").select("nosilec, nadomesca, enota, prednost"),
+      client.from("nadomescanja").select("*"),
       // "profiles!employee_id" je nujno: schedule_entries ima več tujih
       // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
       // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).

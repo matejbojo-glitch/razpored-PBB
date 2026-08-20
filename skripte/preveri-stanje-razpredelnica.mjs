@@ -360,7 +360,12 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
     "razpredelnica bere nosilce oddelkov");
   // Pokrivanje je VZAJEMNO in VEČKRATNO (Alukića nadomeščata Bojić IN
   // Džamastagić), zato tabela parov in ne en sam stolpec.
-  trdi(/from\("nadomescanja"\)\.select\("nosilec, nadomesca, enota, prednost"\)/.test(html3),
+  //
+  // select("*") in NE naštetih stolpcev: tabela dobiva nove stolpce
+  // (poleg_svoje), SQL pa požene uporabnik sam. Če bi bili stolpci
+  // našteti, bi poizvedba do takrat vrnila napako in VSA nadomeščanja bi
+  // izginila - stran bi se pokvarila bolj, kot bi jo nov stolpec izboljšal.
+  trdi(/from\("nadomescanja"\)\.select\("\*"\)/.test(html3),
     "pokrivanja se berejo iz tabele parov");
   trdi(/nadomescajoMene/.test(html3) && /pokrivam/.test(html3),
     "izračunata se OBE smeri: kdo nadomešča mene in koga pokrivam jaz");

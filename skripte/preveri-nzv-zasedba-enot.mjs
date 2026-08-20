@@ -168,9 +168,17 @@ const VODJE = [
   { full_name: "LELIČ DIJANA", enote: "E2", odsotnost_tip: null, odsotnost_do: null },
   { full_name: "MAGLIĆ ALEKSANDER", enote: "E1", odsotnost_tip: null, odsotnost_do: null },
 ];
+// "poleg_svoje" pove, da nadomeščevalec svoje enote NE zapusti, ampak
+// pokriva obe (supabase/nzv-nadomescanja-poleg-svoje.sql). Uporabnikovo
+// pravilo, avgust 2026: "Ko Alukić ni, je Bojić na MO + ŽO; če Bojić ni,
+// je Alukić ŽO + MO; če ni obeh, je Džamastagić."
 const NADOMESCANJA = [
-  { nosilec: "ALUKIĆ DINO", nadomesca: "BOJIĆ MATEJ", enota: "ŽO", prednost: 1 },
-  { nosilec: "ALUKIĆ DINO", nadomesca: "DŽAMASTAGIĆ DENIS", enota: "ŽO", prednost: 2 },
+  { nosilec: "ALUKIĆ DINO", nadomesca: "BOJIĆ MATEJ", enota: "ŽO", prednost: 1, poleg_svoje: true },
+  { nosilec: "ALUKIĆ DINO", nadomesca: "DŽAMASTAGIĆ DENIS", enota: "ŽO", prednost: 2, poleg_svoje: true },
+  { nosilec: "BOJIĆ MATEJ", nadomesca: "ALUKIĆ DINO", enota: "MO", prednost: 1, poleg_svoje: true },
+  { nosilec: "BOJIĆ MATEJ", nadomesca: "DŽAMASTAGIĆ DENIS", enota: "MO", prednost: 2, poleg_svoje: true },
+  { nosilec: "DŽAMASTAGIĆ DENIS", nadomesca: "ALUKIĆ DINO", enota: "PDZN", prednost: 1, poleg_svoje: true },
+  { nosilec: "DŽAMASTAGIĆ DENIS", nadomesca: "BOJIĆ MATEJ", enota: "PDZN", prednost: 2, poleg_svoje: true },
   { nosilec: "ARNEŽ GREGA", nadomesca: "LUNAR MATEJA", enota: "C", prednost: 1 },
   { nosilec: "LUNAR MATEJA", nadomesca: "ARNEŽ GREGA", enota: "B", prednost: 1 },
   { nosilec: "SALKIĆ MARUŠA", nadomesca: "ARNEŽ GREGA", enota: "C1", prednost: 1 },
@@ -403,10 +411,9 @@ console.log("5f) Če je prvi nadomeščevalec tudi odsoten, vskoči drugi");
     ],
   });
   eq(podatki["ZO|2026-09-02"], "DŽA", "ŽO prevzame drugi po prednosti");
-  // Isto pravilo kot pri Lelič/Maglić (5c): Džamastagić v tem naboru nima
-  // nikogar, ki bi prevzel njegov PDZN, zato ga obdrži POLEG prevzetega
-  // ŽO. Prej je PDZN tisti dan iz mreže izginil, čeprav delo na njem ostane.
-  eq(podatki["PDZN|2026-09-02"], "DŽA", "PDZN obdrži sam – prevzeti ga nima kdo");
+  // Džamastagić svojega PDZN ne zapusti - to je bistvo pravila
+  // "poleg svoje". Pokriva torej PDZN in ŽO hkrati.
+  eq(podatki["PDZN|2026-09-02"], "DŽA", "PDZN obdrži - svoje enote ne zapusti");
 }
 
 console.log("5g) Nihče ne more biti hkrati preseljen in prevzemnik");
@@ -448,6 +455,80 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     eq(Object.keys(izpeljano).length, 0, "nič izpeljanega");
     eq(Object.keys(podatki).length, 0, "mreža je prazna, a brez napake");
   }
+
+// Skupna pomagala za pravila nadomeščanja: enote po osebi za dani nabor
+// odsotnih. Beremo razporedDneva neposredno, ker nas zanima BERLJIV zapis
+// enot ("MO, ŽO") - natanko to, kar piše v celici in v "Moj razpored".
+const enoteZa = (odsotni, pari = NADOMESCANJA) => {
+  const vrstice = sandbox.window.NzvZasedba.razporedDneva({
+    nosilci: VODJE, pari, kljuc: sandbox.window.Imena.kljuc,
+    jeOdsoten: (ime) => odsotni.some(o => new RegExp(o, "i").test(ime)),
+    veljavne: null,
+  });
+  const m = {};
+  vrstice.forEach(v => { m[v.nosilec.full_name] = v.enote; });
+  return m;
+};
+
+console.log("5h) Trojica vodstvenih enot: nadomeščevalec pokriva OBE, tretji ostane prost");
+{
+  // Uporabnikovo pravilo, avgust 2026, dobesedno: "Ko Alukić ni, je Bojić
+  // na MO + ŽO; če Bojić ni, je Alukić ŽO + MO; če ni obeh, je
+  // Džamastagić." Prej je Bojić svoj MO ODDAL in šel na ŽO, MO pa je
+  // pobral Džamastagić - v igri sta bila dva človeka namesto enega.
+  const brezAlukica = enoteZa(["ALUKI"]);
+  eq(brezAlukica["BOJIĆ MATEJ"], "MO, ŽO", "Alukić odsoten -> Bojić ima MO in ŽO");
+  eq(brezAlukica["DŽAMASTAGIĆ DENIS"], "PDZN", "Džamastagić ostane samo na svojem PDZN");
+  trdi(!brezAlukica["ALUKIĆ DINO"], "odsotnega Alukića ni nikjer");
+
+  const brezBojica = enoteZa(["BOJI"]);
+  eq(brezBojica["ALUKIĆ DINO"], "ŽO, MO", "Bojić odsoten -> Alukić ima ŽO in MO");
+  eq(brezBojica["DŽAMASTAGIĆ DENIS"], "PDZN", "Džamastagić spet ostane na svojem");
+
+  const brezObeh = enoteZa(["ALUKI", "BOJI"]);
+  eq(brezObeh["DŽAMASTAGIĆ DENIS"], "PDZN, ŽO, MO",
+    "ni obeh -> Džamastagić pokrije svoj PDZN in obe zapuščeni enoti");
+
+  // Nobena enota ne sme izginiti, v nobenem od treh primerov.
+  [["brez Alukića", brezAlukica], ["brez Bojića", brezBojica], ["brez obeh", brezObeh]]
+    .forEach(([opis, m]) => {
+      const vse = Object.values(m).join(", ").split(", ").map(x => x.trim());
+      ["ŽO", "MO", "PDZN"].forEach(e => trdi(vse.includes(e), `${opis}: enota ${e} ni izginila`));
+    });
+}
+
+console.log("5i) Brez stolpca poleg_svoje se NIČ ne spremeni (dokler SQL ni pognan)");
+{
+  // Pomembno: uporabnik SQL požene sam. Do takrat vrstice tega stolpca
+  // nimajo in aplikacija se mora obnašati natanko kot prej - preselitev.
+  const brezStolpca = NADOMESCANJA.map(({ poleg_svoje, ...r }) => r);
+  const m = enoteZa(["ALUKI"], brezStolpca);
+  eq(m["BOJIĆ MATEJ"], "ŽO", "brez stolpca se Bojić PRESELI na ŽO, kot doslej");
+  eq(m["DŽAMASTAGIĆ DENIS"], "PDZN, MO", "in Džamastagić prevzame zapuščeni MO, kot doslej");
+}
+
+console.log("5j) Preselitvena veriga ostane nedotaknjena");
+{
+  // Nadzorna točka: novo pravilo velja SAMO za vrstice s poleg_svoje.
+  // Salkić/Arnež/Lunar in Lelič/Maglić se ne smeta spremeniti.
+  const brezSalkic = enoteZa(["SALKI"]);
+  eq(brezSalkic["ARNEŽ GREGA"], "C1", "Arnež se še vedno PRESELI na C1 (svojega C nima)");
+  eq(brezSalkic["LUNAR MATEJA"], "B, C", "Lunar še vedno pokrije C poleg svojega B");
+  const brezLelic = enoteZa(["LELI"]);
+  eq(brezLelic["MAGLIĆ ALEKSANDER"], "E2, E1", "vzajemni par brez tretjega: Maglić ima E2 in E1");
+}
+
+console.log("5k) DEZ / NEDEZ / NZV / FLEXI niso delovišča");
+{
+  // Vodja je na dežurni dan v "Moj razpored" videl "Dopoldne (DEZ)".
+  // DEZ je pripadnost obtoku dežurstev, ne kraj dela - dopoldne dela na
+  // svoji enoti, dežurstvo je šele zvečer. Uporabnikova pripomba.
+  const jeDelovisce = sandbox.window.NzvZasedba.jeDelovisce;
+  ["DEZ", "NEDEZ", "NZV", "FLEXI", "dez", " flexi ", "", null, undefined]
+    .forEach(k => trdi(!jeDelovisce(k), `${JSON.stringify(k)} ni delovišče`));
+  ["MO", "ŽO", "PDZN", "C1", "B", "SOBO", "mo"]
+    .forEach(k => trdi(jeDelovisce(k), `${JSON.stringify(k)} JE delovišče`));
+}
 };
 
 test().then(() => {
