@@ -546,6 +546,53 @@ window.NzvZasedba = (function () {
     });
   }
 
+  // -------------------------------------------------------------------
+  // Obratna smer od razporedDneva: kdo pokriva POSAMEZNO ENOTO na
+  // posamezen dan.
+  //
+  // razporedDneva pove, katere enote pokriva posamezna oseba - to je
+  // pravi pogled, kadar gledaš človeka. Na oddelčnem razporedu pa je
+  // vprašanje obrnjeno: "kdo je iz NZV danes zadolžen za C1?" Odgovor
+  // mora biti ISTI in mora upoštevati nadomeščanja: če je Salkić (C1) na
+  // dopustu, C1 tisti dan pokriva Arnež (C), njegov C pa Lunar (B) - ki
+  // je tako hkrati na B in na C. Tudi če gre za en sam dan.
+  //
+  // opts:
+  //   nosilci     vrstice lead_departments
+  //   pari        vrstice nadomescanja
+  //   kljuc       window.Imena.kljuc
+  //   datumi      [ISO, ...]
+  //   jeOdsoten   (ime, datum) -> bool (dopust/bolniška/študijski)
+  //   saKodaZa    (datum) -> "SADOP"|"SAPOP"|null (neobvezno)
+  //   jeProstDan  (datum) -> bool; NZV ob vikendih in praznikih po enotah
+  //               ne dela, zato tak dan ostane prazen
+  //   veljavne    dovoljene kode stolpcev (neobvezno)
+  //
+  // Vrne { "ENOTA|DATUM": [ime, ...] }.
+  function zasedbaEnot(opts) {
+    var datumi = opts.datumi || [];
+    var jeProstDan = opts.jeProstDan || function () { return false; };
+    var saKodaZa = opts.saKodaZa || function () { return null; };
+    var out = {};
+    datumi.forEach(function (datum) {
+      if (jeProstDan(datum)) return;
+      razporedDneva({
+        nosilci: opts.nosilci,
+        pari: opts.pari,
+        kljuc: opts.kljuc,
+        jeOdsoten: function (ime) { return opts.jeOdsoten(ime, datum); },
+        saKoda: saKodaZa(datum),
+        veljavne: opts.veljavne,
+      }).forEach(function (vrstica) {
+        vrstica.kode.forEach(function (koda) {
+          var k = koda + "|" + datum;
+          (out[k] = out[k] || []).push(vrstica.nosilec.full_name);
+        });
+      });
+    });
+    return out;
+  }
+
   // Ovoj za klicatelje, ki potrebujejo samo razpored (mreža, Razpredelnica,
   // generator) - podrobnosti o enakovrednih uporablja le pregled odstopanj.
   function razporedDneva(opts) {
@@ -575,5 +622,6 @@ window.NzvZasedba = (function () {
     razberiCelico: razberiCelico,
     predlagajZapolnitev: predlagajZapolnitev,
     zdruziNzvZapise: zdruziNzvZapise,
+    zasedbaEnot: zasedbaEnot,
   };
 })();

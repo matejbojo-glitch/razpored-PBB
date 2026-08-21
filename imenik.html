@@ -1694,6 +1694,10 @@ function StanjeRazpredelnica({ oddelki }){
   const [legendaOdprta, setLegendaOdprta] = useState(false);
   // "id osebe" -> vrstica iz lead_departments (enote, nadomešča …)
   const [nosilci, setNosilci] = useState({});
+  // "ENOTA|datum" -> [id osebe]: kdo iz NZV tisti dan pokriva to enoto.
+  // Obratna smer od enotaNaDan (ta pove, kje je posamezna oseba) - rabimo
+  // jo, ker se razpredelnica gleda tudi PO ODDELKU: "kdo je danes za C1?"
+  const [nosilciEnote, setNosilciEnote] = useState({});
 
   // Koledarski izračuni so v datum.js, vikend pa v prazniki.js - en sam
   // vir za vse strani.
@@ -1837,6 +1841,7 @@ function StanjeRazpredelnica({ oddelki }){
         idPoKljucu[window.Imena.kljuc(zapisNosilca[id].full_name)] = id;
       });
       const enotaNaDan = {}; // "id|datum" -> "C1" oz. "B, C"
+      const poEnotiId = {};  // "ENOTA|datum" -> [id osebe]
       if (nosilciSeznam.length) {
         const odsotenDan = new Set();
         (odsotnosti || []).forEach(o => {
@@ -1854,9 +1859,18 @@ function StanjeRazpredelnica({ oddelki }){
               || window.NzvZasedba.trajnoOdsoten(
                    nosilciSeznam.find(v => window.Imena.kljuc(v.full_name) === window.Imena.kljuc(ime)), d.iso),
             saKoda: "SA",
-          }).forEach(({ nosilec, enote }) => {
+          }).forEach(({ nosilec, enote, kode }) => {
             const id = idPoKljucu[window.Imena.kljuc(nosilec.full_name)];
-            if (id && enote) enotaNaDan[id + "|" + d.iso] = enote;
+            if (!id) return;
+            if (enote) enotaNaDan[id + "|" + d.iso] = enote;
+            // Ista vrstica, obrnjena: pod vsako enoto zapiši, kdo jo ta
+            // dan pokriva. Ob nadomeščanju je to nekdo drug kot običajno
+            // (Salkić na dopustu -> C1 pokriva Arnež), tudi če gre za en
+            // sam dan.
+            (kode || []).forEach(koda => {
+              const k = koda + "|" + d.iso;
+              (poEnotiId[k] = poEnotiId[k] || []).push(id);
+            });
           });
         });
       }
@@ -1890,6 +1904,7 @@ function StanjeRazpredelnica({ oddelki }){
         }
       });
       setPoDnevih(m2);
+      setNosilciEnote(poEnotiId);
 
       const mm = {};
       (menjave || []).forEach(o => {
@@ -1905,6 +1920,24 @@ function StanjeRazpredelnica({ oddelki }){
     if (!osebe) return [];
     return oddelek ? osebe.filter(o => o.department_code === oddelek) : osebe;
   }, [osebe, oddelek]);
+
+  // Nosilci NZV za izbrani oddelek: v seznam sodijo vsi, ki ta oddelek
+  // pokrivajo vsaj en dan v mesecu - torej tudi tisti, ki je vskočil samo
+  // za en dan namesto odsotnega. Izpišejo se pod oddelčnim kadrom, ker
+  // niso člani oddelka, ampak so zanj tisti dan odgovorni.
+  const nzvVrstice = useMemo(() => {
+    if (!oddelek || !osebe || !window.NzvZasedba.jeDelovisce(oddelek)) return [];
+    const dnevPoId = {};
+    dnevi.forEach(d => {
+      (nosilciEnote[oddelek + "|" + d.iso] || []).forEach(id => {
+        (dnevPoId[id] = dnevPoId[id] || new Set()).add(d.iso);
+      });
+    });
+    return Object.keys(dnevPoId)
+      .map(id => ({ oseba: osebe.find(o => o.id === id), dnevi: dnevPoId[id] }))
+      .filter(v => v.oseba)
+      .sort((a, b) => a.oseba.full_name.localeCompare(b.oseba.full_name, "sl"));
+  }, [oddelek, osebe, dnevi, nosilciEnote]);
 
   return (
     <React.Fragment>
@@ -2079,6 +2112,45 @@ function StanjeRazpredelnica({ oddelki }){
                 </tr>
                 );
               })}
+
+              {/* Nosilci NZV za ta oddelek - v vrstici POD oddelčnim
+                  kadrom. Niso člani oddelka, so pa zanj tisti dan
+                  odgovorni. Celica se izpiše samo tam, kjer oseba res
+                  pokriva TA oddelek: ob dopustu Salkićeve njena vrstica
+                  tisti dan ostane prazna, Arneževa pa se pojavi - tudi
+                  kadar gre za en sam dan. Vir je razpored NZV z
+                  nadomeščanji (nzv-zasedba.js), ne oddelčni razpored. */}
+              {nzvVrstice.length > 0 && (
+                <tr className="nzvLocnica">
+                  <td className="name">NZV – nosilec oddelka</td>
+                  <td colSpan={dnevi.length}></td>
+                </tr>
+              )}
+              {nzvVrstice.map(({ oseba, dnevi: pokriva }) => (
+                <tr key={"nzv-" + oseba.id}>
+                  <td className="name">
+                    <a href={"imenik.html?id=" + oseba.id} style={{color:"inherit"}} title="Odpri profil">{oseba.full_name}</a>
+                    <span style={{display:"block", fontSize:10, fontWeight:400, color:"var(--muted)", lineHeight:1.35}}>
+                      NZV · {(nosilci[oseba.id] && nosilci[oseba.id].enote) || "—"}
+                    </span>
+                  </td>
+                  {dnevi.map(d => {
+                    const jeTu = pokriva.has(d.iso);
+                    const zapis = poDnevih[oseba.id + "|" + d.iso];
+                    const dezuren = zapis && zapis.stanje === "dezurstvo";
+                    return (
+                      <td key={d.iso}
+                        title={jeTu ? `${oseba.full_name} · ${d.dan}. – pokriva ${oddelek}` + (dezuren ? " (in dežura)" : "")
+                                    : `${oseba.full_name} · ${d.dan}. – ta dan ne pokriva oddelka ${oddelek}`}
+                        style={{textAlign:"center", fontSize:10, fontWeight:700,
+                          background: jeTu ? "var(--surface-2)" : "transparent",
+                          color:"var(--text)"}}>
+                        {jeTu ? (dezuren ? "DEŽ" : oddelek) : ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

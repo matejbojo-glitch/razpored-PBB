@@ -873,3 +873,32 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   text-decoration: none;
 }
 .vGeneratorBtn:hover{ background: var(--accent-2); color: var(--bg-grad); }
+
+/* Stolpec "NZV" na oddelčnem razporedu: kdo iz NZV je tisti dan zadolžen
+   za ta oddelek. Ni izmena, ampak odgovornost, zato je ločen od barvne
+   legende izmen in poudarjen z robom, ne z ozadjem cele celice. */
+.wardTable th.nzvStolpec,
+.wardTable td.nzvStolpec{
+  border-left: 2px solid var(--accent);
+  white-space: nowrap;
+}
+.nzvNosilec{
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.nzvNosilec + .nzvNosilec{ margin-left: 4px; }
+
+/* Ločnica med oddelčnim kadrom in nosilci NZV v Imenik → Razpredelnica. */
+.wardTable tr.nzvLocnica td{
+  border-top: 2px solid var(--accent);
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
