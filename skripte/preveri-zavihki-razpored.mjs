@@ -155,7 +155,7 @@ try {
   await web.close();
 
   console.log("4) zavihek Dežurstvo: trije krogi uradnega dokumenta");
-  const { stran, konzola } = await odpri(1400, 950);
+  const { stran, konzola } = await odpri(1600, 950);
   await stran.click('.segIkone button:has-text("Dežurstvo")');
   await stran.waitForSelector(".dezTabela", { timeout: 15000 });
   eq(await stran.$$eval(".dezTabela thead th .dezDatumPoln, .dezTabela thead th.name",
@@ -189,6 +189,32 @@ try {
   trdi(/Razpredelnica stanja/.test(await stran.innerText("body")), "naslov je na strani");
   trdi((await stran.$$("#stanjeMesec")).length === 1, "s svojim izbirnikom meseca");
   trdi((await stran.$$("#mmSel")).length === 0, "zgornji izbirnik meseca je takrat skrit (ne bi si nasprotovala)");
+
+  console.log("7) Razpredelnica: cel mesec na en zaslon, brez vodoravnega vlečenja");
+  // Uporabnikova zahteva: "razpredelnica naj bo čez celoten zaslon, da
+  // lahko vidiš cel mesec". Zato ta pogled NI omejen na 1400 px kot
+  // oddelčni razpored - 31 dni je tu v stolpcih, ne v vrsticah.
+  await stran.fill("#stanjeMesec", "2026-08");
+  await stran.waitForTimeout(1000);
+  const mere = await stran.evaluate(() => {
+    const t = document.querySelector(".razpPolna");
+    const okvir = t.closest(".tableScroller");
+    return {
+      stolpcev: t.querySelectorAll("thead th").length,
+      zadnjiDan: (t.querySelector("thead th:last-child") || {}).textContent,
+      tabela: Math.round(t.getBoundingClientRect().width),
+      okvir: Math.round(okvir.getBoundingClientRect().width),
+      drsi: okvir.scrollWidth > okvir.clientWidth + 1,
+      stranDrsi: document.documentElement.scrollWidth > window.innerWidth + 1,
+    };
+  });
+  eq(mere.stolpcev, 32, "ime + 31 dni avgusta");
+  eq((mere.zadnjiDan || "").trim(), "31", "zadnji stolpec je 31.");
+  trdi(!mere.drsi, `tabela se vidi cela, brez vodoravnega vlečenja (${mere.tabela} px v ${mere.okvir} px)`);
+  trdi(!mere.stranDrsi, "in stran ne sili v vodoravno drsenje");
+  // Kontrolna točka: brez razširitve bi bila tabela ožja od 1400 px (stara
+  // omejitev .wrap.polna) - če bi kdo razred odstranil, to tu pade.
+  trdi(mere.okvir > 1400, "pogled res uporabi ves zaslon (" + mere.okvir + " px), ne le 1400 px");
 
   const prave = [...konzola, ...konzolaTel]
     .filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));

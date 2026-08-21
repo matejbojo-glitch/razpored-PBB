@@ -483,7 +483,7 @@
 // zdaj prinese, dežurni kader prav tako, Kalup pa ga poišče nazaj po
 // imenu (generator ID-ja ne prenaša skozi).
 
-const CACHE = 'razpored-pbb-v114';
+const CACHE = 'razpored-pbb-v115';
 const ASSETS = [
   './',
   './index.html',

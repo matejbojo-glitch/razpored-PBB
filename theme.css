@@ -968,3 +968,27 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   .dezDatumKratek{ display: inline; }
   .dezDatumPoln{ display: none; }
 }
+
+/* Razpredelnica stanja: cel mesec na en zaslon.
+   Oddelčni razpored ima 1400 px dovolj (dnevi so v vrsticah), tu pa je 31
+   dni v STOLPCIH, zato omejitve širine ni - stran uporabi ves monitor. */
+@media (min-width: 900px){
+  .wrap.cezZaslon{ max-width: none; }
+}
+/* Ozki dnevni stolpci, da jih gre 31 v vrsto. Stolpec z imenom ostane
+   berljiv; drobna pisava velja samo za dneve. */
+@media (min-width: 900px){
+  .razpPolna th, .razpPolna td{
+    padding: 3px 2px;
+    font-size: 10px;
+  }
+  .razpPolna td.name, .razpPolna th.name{
+    font-size: 12px;
+    padding: 4px 8px;
+    min-width: 132px;
+  }
+  .razpPolna td:not(.name), .razpPolna th:not(.name){
+    min-width: 0;
+    width: 2.6%;
+  }
+}

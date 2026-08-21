@@ -1564,7 +1564,11 @@ function StanjeRazpredelnica({ oddelki }){
       {osebe !== null && prikazane.length === 0 && <p className="hint">Za izbrani oddelek ni oseb.</p>}
       {osebe !== null && prikazane.length > 0 && (
         <div className="tableScroller">
-          <table className="wardTable">
+          {/* "razpPolna": cel mesec naj gre na en zaslon, brez vodoravnega
+              vlečenja (uporabnikova zahteva). Stolpci dni so zato ozki in
+              drobni, stolpec z imenom pa ohrani berljivo širino. Na telefonu
+              31 stolpcev seveda ne gre - tam ostane drsenje kot doslej. */}
+          <table className="wardTable razpPolna">
             <thead>
               <tr>
                 <th className="name">Zaposleni</th>
@@ -4317,7 +4321,10 @@ function App(){
   );
 
   return (
-    <div className={"wrap" + (view === "ward" ? " wide polna" : "")}>
+    <div className={"wrap" + (view === "ward" ? " wide polna" : "")
+      // Razpredelnica dobi VSO širino zaslona (ne le 1400 px kot oddelčni
+      // razpored): 31 dni × osebe se drugače ne izriše na en zaslon.
+      + (view === "stanje" ? " wide polna cezZaslon" : "")}>
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout pred={
         <React.Fragment>
