@@ -119,7 +119,9 @@ console.log("5) Klik na ime odpre profil");
   const strani = readdirSync(koren).filter(f => f.endsWith(".html"));
   const zPovezavo = strani.filter(f => /imenik\.html\?id=/.test(readFileSync(join(koren, f), "utf8")));
   trdi(zPovezavo.length >= 4, `povezave na profil so na ${zPovezavo.length} straneh (${zPovezavo.join(", ")})`);
-  trdi(/href=\{"imenik\.html\?id=" \+ o\.id\}/.test(imenik),
+  // Razpredelnica je od avgusta 2026 v Razporedu, ne v Imeniku - povezava
+  // na profil se zato preverja tam.
+  trdi(/href=\{"imenik\.html\?id=" \+ o\.id\}/.test(readFileSync(join(koren, "index.html"), "utf8")),
     "tudi ime v Razpredelnici je povezava na profil");
 
   // Kalup in Menjava: tam v podatkih ni bilo identifikatorja, zato sta

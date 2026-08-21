@@ -19,7 +19,7 @@
  *     razpored in vikende delajo normalno;
  *   - izpeljane celice so označene, da jih izris loči od objavljenih.
  *
- * Preizkus poganja RESNIČNO kodo iz imenik.html (izsek useEffect-a, ki
+ * Preizkus poganja RESNIČNO kodo iz index.html (izsek useEffect-a, ki
  * gradi mrežo), ne svoje kopije pravila.
  *
  * Zagon: node skripte/preveri-razpredelnica-zasedba.mjs
@@ -30,11 +30,13 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(join(koren, "imenik.html"), "utf8");
+// Razpredelnica stanja je bila avgusta 2026 PRENESENA iz Imenika v
+// Razpored, zato se njena koda bere iz index.html.
+const html = readFileSync(join(koren, "index.html"), "utf8");
 
 function izvleciFn(ime) {
   const zac = html.indexOf("function " + ime + "(");
-  if (zac === -1) throw new Error("Funkcije " + ime + " ni v imenik.html.");
+  if (zac === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
   let globina = 0;
   for (let i = html.indexOf("{", zac); i < html.length; i++) {
     if (html[i] === "{") globina++;
@@ -44,9 +46,9 @@ function izvleciFn(ime) {
 }
 function izvleciBlok(zacetek, konec) {
   const z = html.indexOf(zacetek);
-  if (z === -1) throw new Error("Bloka " + zacetek + " ni v imenik.html.");
+  if (z === -1) throw new Error("Bloka " + zacetek + " ni v index.html.");
   const k = html.indexOf(konec, z);
-  if (k === -1) throw new Error("Konca bloka " + zacetek + " ni v imenik.html.");
+  if (k === -1) throw new Error("Konca bloka " + zacetek + " ni v index.html.");
   return html.slice(z, k + konec.length).replace(/^const\s+/, "var ");
 }
 
@@ -73,7 +75,7 @@ vm.runInContext(readFileSync(join(koren, "imena.js"), "utf8"), sandbox);
 vm.runInContext("var imenaSeUjemataBrezStresic = window.Imena.seUjemata;", sandbox);
 // Uradna legenda in razvrstitev izmen živijo v izmene.js (skupni modul
 // za vse zaslone) - tu jih naložimo in preimenujemo v imena, ki jih
-// uporablja izluščena koda iz imenik.html.
+// uporablja izluščena koda iz index.html.
 vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
 vm.runInContext([
   "var vnosPoKratici = window.Izmene.poKratici;",
@@ -89,7 +91,7 @@ vm.runInContext([
 const zacetekIzseka = html.indexOf("      const m2 = {};");
 const konecIzseka = html.indexOf("      setPoDnevih(m2);");
 if (zacetekIzseka === -1 || konecIzseka === -1) {
-  throw new Error("Izseka gradnje mreže (m2 … setPoDnevih) ni najti v imenik.html.");
+  throw new Error("Izseka gradnje mreže (m2 … setPoDnevih) ni najti v index.html.");
 }
 const izsek = html.slice(zacetekIzseka, konecIzseka);
 // V izseku sta dve stvari, ki ju tu ni: JE_NZV_VLOGA in KIND_KRATICA.
@@ -217,7 +219,7 @@ console.log("4c) V celici piše ENOTA, ne \"DOP\" - vodje delajo vedno dopoldne"
   // delajo vedno PON-PET 07:00-15:00; enota pa je edino, kar se med
   // dnevi res spreminja. Druge kratice (DEŽ, LD, BS, POR) ostanejo,
   // ker povedo nekaj, česar enota ne.
-  const src = readFileSync(join(koren, "imenik.html"), "utf8");
+  const src = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/const samoEnota = !!\(zapis && zapis\.enota && kratica === "DOP"\);/.test(src),
     "pravilo je zapisano: samo enota, kadar je kratica DOP in je enota znana");
   trdi(/\{samoEnota \? zapis\.enota : \(/.test(src),
@@ -236,13 +238,13 @@ console.log("4d) Pod imenom je SAMO enota - nadomeščanja so spodaj v svojem pr
   // Uporabnikova zahteva: dve dodatni vrstici pri vsakem imenu ("↩ kdo me
   // nadomešča", "↪ koga pokrivam") sta mrežo delali natrpano. Celoten
   // seznam je itak spodaj v "Pregledu nadomeščanj".
-  const src = readFileSync(join(koren, "imenik.html"), "utf8");
+  const src = readFileSync(join(koren, "index.html"), "utf8");
   // Sidro mora biti ENOLIČNO. '<td className="name">' se pojavi tudi v
   // tabeli "Pregled nadomeščanj", '{o.full_name}' že v seznamu Imenika,
   // '{dnevi.map(' pa v glavi tabele - vsa tri režejo napačen kos. Zato
   // režemo od komentarja, ki stoji samo pri vrstici Razpredelnice.
   const SIDRO = "nosilec = vrstica iz lead_departments";
-  trdi(src.split(SIDRO).length - 1 === 1, "(sidro je v imenik.html enolično)");
+  trdi(src.split(SIDRO).length - 1 === 1, "(sidro je v index.html enolično)");
   const zacetek = src.indexOf(SIDRO);
   const glavaVrstice = src.slice(zacetek, src.indexOf("{dnevi.map(d => {", zacetek));
   trdi(!/↩/.test(glavaVrstice), "pod imenom ni več vrstice \"kdo me nadomešča\"");

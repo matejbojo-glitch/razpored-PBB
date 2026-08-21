@@ -10,7 +10,7 @@
  * Oboje bi ob branju kode zlahka spregledal - meri se le z izmerjenimi
  * koordinatami elementov.
  *
- * Kartica legende se izreže DOBESEDNO iz imenik.html (skupaj z gumbom),
+ * Kartica legende se izreže DOBESEDNO iz index.html (skupaj z gumbom),
  * zato preizkus ne more zaostati za resnično stranjo.
  *
  * Zagon:  node skripte/preveri-legenda-kratic.mjs
@@ -23,7 +23,9 @@ import { dirname, join } from "node:path";
 import { chromium } from "playwright";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(join(koren, "imenik.html"), "utf8");
+// Razpredelnica (in z njo legenda kratic) je bila avgusta 2026 prenesena
+// iz Imenika v Razpored - kartica se zato izreže iz index.html.
+const html = readFileSync(join(koren, "index.html"), "utf8");
 const theme = readFileSync(join(koren, "theme.css"), "utf8");
 
 const napake = [];
@@ -34,12 +36,12 @@ function trdi(pogoj, opis) {
 
 function izvleciConst(ime) {
   const z = html.indexOf("const " + ime + " ");
-  if (z === -1) throw new Error("const " + ime + " ni v imenik.html.");
+  if (z === -1) throw new Error("const " + ime + " ni v index.html.");
   return html.slice(z, html.indexOf(";\n", z) + 1);
 }
 function izvleci(ime) {
   const z = html.indexOf("function " + ime + "(");
-  if (z === -1) throw new Error("Funkcije " + ime + " ni v imenik.html.");
+  if (z === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
   let g = 0;
   const t = html.indexOf("{", z);
   for (let k = t; k < html.length; k++) {
@@ -51,7 +53,7 @@ function izvleci(ime) {
 
 const zac = html.indexOf('      <div className="card" style={{marginBottom:10, padding:"10px 12px"}}>');
 const kon = html.indexOf("      {osebe === null");
-if (zac === -1 || kon === -1 || zac > kon) throw new Error("Kartice legende v imenik.html ni bilo mogoče najti.");
+if (zac === -1 || kon === -1 || zac > kon) throw new Error("Kartice legende v index.html ni bilo mogoče najti.");
 const kartica = html.slice(zac, kon).trimEnd();
 
 const stran = `<!doctype html><html><head><meta charset="utf-8">

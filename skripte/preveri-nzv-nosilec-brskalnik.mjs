@@ -123,7 +123,7 @@ try {
   console.log("1) Razpored → Po oddelkih: stolpec NZV");
   const { stran, konzola } = await odpri("/index.html");
   await stran.waitForTimeout(1200);
-  await stran.click("text=Po oddelkih");
+  await stran.click('.segIkone button:has-text("Oddelki")');
   await stran.waitForSelector(".wardTable", { timeout: 15000 });
   // Mesec prestavi na oktober 2026. Izbirnik sta DVA spustna seznama
   // (mesec + leto), ne polje type="month" - brez tega je preizkus gledal
@@ -161,10 +161,10 @@ try {
 
   console.log("2) Imenik → Razpredelnica: nosilci pod oddelčnim kadrom");
   const preveriOddelek = async (koda, pricakovanNaDopust) => {
-    const { stran: i, konzola: k } = await odpri("/imenik.html");
-    // Razpredelnica je zavihek - najprej ga je treba odpreti.
-    await i.waitForSelector('button:has-text("Razpredelnica")', { timeout: 15000 });
-    await i.click('button:has-text("Razpredelnica")');
+    // Razpredelnica je od avgusta 2026 zavihek v RAZPOREDU, ne več v Imeniku.
+    const { stran: i, konzola: k } = await odpri("/index.html");
+    await i.waitForSelector('.segIkone button', { timeout: 15000 });
+    await i.click('.segIkone button:has-text("Razpredelnica")');
     await i.waitForSelector("#stanjeOddelek", { timeout: 15000 });
     await i.selectOption("#stanjeOddelek", koda);
     await i.fill("#stanjeMesec", "2026-10");
