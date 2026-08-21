@@ -573,9 +573,28 @@ window.NzvZasedba = (function () {
     var datumi = opts.datumi || [];
     var jeProstDan = opts.jeProstDan || function () { return false; };
     var saKodaZa = opts.saKodaZa || function () { return null; };
+    var objavljeno = opts.objavljeno || {};
     var out = {};
     datumi.forEach(function (datum) {
       if (jeProstDan(datum)) return;
+      // OBJAVLJEN razpored NZV ima prednost pred izpeljavo po pravilih.
+      // Koordinator v mreži NZV marsikaj določi ročno (vskoči nekdo tretji,
+      // dogovor se sklene sproti) - kar objavi, je odslej resnica tudi za
+      // oddelek. Pravilo nadomeščanja se uporabi samo za dneve, za katere
+      // objavljenega razporeda še ni.
+      //
+      // Prevzame se CEL DAN, ne posamezna enota: mešanje objavljenega in
+      // izpeljanega znotraj istega dne bi dalo protislovje (na C1 bi bila
+      // hkrati Salkić iz pravila in nekdo drug iz objave).
+      if (objavljeno[datum] && objavljeno[datum].length) {
+        objavljeno[datum].forEach(function (vrstica) {
+          (vrstica.kode || []).forEach(function (koda) {
+            var k = koda + "|" + datum;
+            (out[k] = out[k] || []).push(vrstica.ime);
+          });
+        });
+        return;
+      }
       razporedDneva({
         nosilci: opts.nosilci,
         pari: opts.pari,
@@ -591,6 +610,27 @@ window.NzvZasedba = (function () {
       });
     });
     return out;
+  }
+
+  // Katere enote nosi EN objavljen zapis razporeda.
+  //
+  // schedule_entries ima en zapis na osebo in dan, oseba pa je pogosto na
+  // več enotah - dodatne so v pokriva_oddelek (glej zdruziNzvZapise). Če
+  // je pokriva_oddelek izpolnjen, je v njem CEL seznam enot tega dne in je
+  // merodajen; sicer velja department_code. Kode, ki niso delovišče
+  // (DEZ/NEDEZ/NZV/FLEXI), niso enota in se izpustijo.
+  function enoteIzZapisa(zapis, veljavne) {
+    if (!zapis) return [];
+    var dovoljena = function (koda) {
+      if (!jeDelovisce(koda)) return false;
+      return veljavne ? veljavne.indexOf(koda) >= 0 : KODE_STOLPCEV.indexOf(koda) >= 0;
+    };
+    var izPokrivanja = String(zapis.pokriva_oddelek || "").split(/[\/,+]/)
+      .map(function (x) { return x.trim().toUpperCase(); })
+      .filter(dovoljena);
+    if (izPokrivanja.length) return izPokrivanja;
+    var primarna = String(zapis.department_code || "").trim().toUpperCase();
+    return dovoljena(primarna) ? [primarna] : [];
   }
 
   // Ovoj za klicatelje, ki potrebujejo samo razpored (mreža, Razpredelnica,
@@ -623,5 +663,6 @@ window.NzvZasedba = (function () {
     predlagajZapolnitev: predlagajZapolnitev,
     zdruziNzvZapise: zdruziNzvZapise,
     zasedbaEnot: zasedbaEnot,
+    enoteIzZapisa: enoteIzZapisa,
   };
 })();

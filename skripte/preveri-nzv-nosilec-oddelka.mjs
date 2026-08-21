@@ -140,14 +140,64 @@ console.log("6) ista pot kot mreža NZV (brez druge kopije pravila)");
   });
 }
 
-console.log("7) obe strani res kličeta skupno logiko");
+console.log("7) ročni vpis v razporedu NZV prevlada nad pravilom");
+{
+  // Uporabnik: "v razporedu NZV bo nekdo označen najbrž ročno, takrat se
+  // prenese v ta razpored." Pravilo nadomeščanja je torej samo izhodišče -
+  // ko koordinator mesec objavi, velja objavljeno. Sicer bi oddelek kazal
+  // pravilo, mreža NZV pa dejansko stanje.
+  const objavljeno = { "2026-10-05": [
+    { ime: "Perviz Amela", kode: ["C1"] },      // vskočil je nekdo tretji
+    { ime: "Lunar Petra", kode: ["B"] },
+  ]};
+  const z = NZ.zasedbaEnot({
+    nosilci: NOSILCI, pari: PARI, kljuc, datumi: DNEVI,
+    jeOdsoten: () => false, objavljeno,
+  });
+  eq(kdoJeNa(z, "C1", "2026-10-05"), ["Perviz Amela"], "objavljeni vnos prevlada nad pravilom");
+  eq(kdoJeNa(z, "B", "2026-10-05"), ["Lunar Petra"], "in velja za vse enote tistega dne");
+  // Cel dan se prevzame iz objave: enota, ki je objava ne omenja, tisti dan
+  // OSTANE PRAZNA. Mešanje objavljenega in izpeljanega bi dalo protislovje
+  // (na C1 hkrati Perviz iz objave in Salkić iz pravila).
+  eq(kdoJeNa(z, "C", "2026-10-05"), [], "enota, ki je objava ne omenja, ostane prazna");
+  // Dnevi brez objave se še naprej izpeljejo po pravilu.
+  eq(kdoJeNa(z, "C1", "2026-10-06"), ["Salkić Maruša"], "dan brez objave se izpelje po pravilu");
+  eq(kdoJeNa(z, "C", "2026-10-06"), ["Arnež Grega"], "in tam veriga deluje kot prej");
+}
+
+console.log("8) enote iz objavljenega zapisa");
+{
+  // Baza dovoli EN zapis na osebo in dan, oseba pa je pogosto na več
+  // enotah - dodatne so v pokriva_oddelek. Brez branja tega stolpca bi
+  // oddelek videl samo prvo enoto.
+  eq(NZ.enoteIzZapisa({ department_code: "PDZN", pokriva_oddelek: "PDZN/SOBO/U2" }),
+    ["PDZN", "SOBO", "U2"], "pokriva_oddelek nosi cel seznam enot");
+  eq(NZ.enoteIzZapisa({ department_code: "C1", pokriva_oddelek: "" }), ["C1"],
+    "brez pokriva_oddelek velja department_code");
+  eq(NZ.enoteIzZapisa({ department_code: "C1", pokriva_oddelek: "C1, C" }), ["C1", "C"],
+    "ločilo je lahko tudi vejica");
+  // DEZ/NEDEZ/NZV/FLEXI so pripadnost skupini, ne delovišče - kot enota se
+  // ne smejo prikazati, sicer bi se pod oddelkom pojavil "DEZ".
+  eq(NZ.enoteIzZapisa({ department_code: "DEZ" }), [], "dežurstvo ni enota");
+  eq(NZ.enoteIzZapisa({ department_code: "NZV" }), [], "NZV ni enota");
+  eq(NZ.enoteIzZapisa({ department_code: "XYZ" }), [], "neznana koda se zavrže");
+  eq(NZ.enoteIzZapisa(null), [], "manjkajoč zapis ne vrže napake");
+}
+
+console.log("9) obe strani res kličeta skupno logiko");
 {
   const brezKomentarjev = (pot) => readFileSync(join(koren, pot), "utf8")
     .split("\n").filter(v => !/^\s*\/\//.test(v)).join("\n");
   trdi(/window\.NzvZasedba\.zasedbaEnot\(/.test(brezKomentarjev("index.html")),
     "oddelčni razpored (index.html) kliče zasedbaEnot");
-  trdi(/poEnotiId\[/.test(brezKomentarjev("imenik.html")),
-    "Imenik → Razpredelnica gradi isti obrnjeni pogled iz razporedDneva");
+  trdi(/window\.NzvZasedba\.zasedbaEnot\(/.test(brezKomentarjev("imenik.html")),
+    "Imenik → Razpredelnica kliče isto zasedbaEnot");
+  // Objava mora priti do OBEH zaslonov, sicer bi eden kazal pravilo, drugi
+  // pa dejansko stanje.
+  ["index.html", "imenik.html"].forEach(pot => {
+    trdi(/objavljeno,/.test(brezKomentarjev(pot)),
+      pot + " preda objavljen razpored NZV v izračun");
+  });
 }
 
 console.log("");

@@ -47,6 +47,7 @@ const PROFILI = [
   { id: "v1", full_name: "Salkić Maruša", role: "vodja", department_code: "NZV" },
   { id: "v2", full_name: "Arnež Grega", role: "vodja", department_code: "NZV" },
   { id: "v3", full_name: "Lunar Petra", role: "vodja", department_code: "NZV" },
+  { id: "v4", full_name: "Perviz Amal", role: "vodja", department_code: "NZV" },
 ];
 const VODJE = [
   { full_name: "Salkić Maruša", inicialke: "SAL", enote: "C1" },
@@ -58,6 +59,14 @@ const PARI = [
   { nosilec: "Arnež Grega", nadomesca: "Lunar Petra", enota: "C", prednost: 1 },
 ];
 const DOPUST = [{ full_name: "Salkić Maruša", work_date: DAN_DOPUSTA, kind: "ld" }];
+// 7. 10. je v razporedu NZV OBJAVLJEN ročen vpis: na C1 tisti dan vskoči
+// Perviz - nekdo, ki ga pravilo nadomeščanja sploh ne bi predlagal. Prav
+// to je uporabnikova zahteva: "v razporedu NZV bo nekdo označen najbrž
+// ročno, takrat se prenese v ta razpored."
+const DAN_ROCNO = "2026-10-07";
+const OBJAVLJENO = [
+  { employee_id: "v4", work_date: DAN_ROCNO, shift_code: "Dopoldne", department_code: "C1", pokriva_oddelek: "" },
+];
 
 const brskalnik = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 try {
@@ -66,16 +75,22 @@ try {
     const konzola = [];
     stran.on("pageerror", e => konzola.push(String(e)));
     stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
-    await stran.addInitScript(({ profili, vodje, pari, dopust }) => {
+    await stran.addInitScript(({ profili, vodje, pari, dopust, objavljeno }) => {
       const tabele = { profiles: profili, lead_departments: vodje, nadomescanja: pari,
-        leave_entries: dopust, schedule_entries: [], menjave_javno: [],
+        leave_entries: dopust, schedule_entries: objavljeno, menjave_javno: [],
         departments: [{ code: "C1", name: "C1" }, { code: "C", name: "C" }, { code: "B", name: "B" }] };
       const poizvedba = (v) => {
         const filtri = [];
         const b = new Proxy({}, { get(_, n) {
           if (n === "eq") return (k, x) => { filtri.push([k, x]); return b; };
           if (n === "then") return (nx) => Promise.resolve({
-            data: v.filter(r => filtri.every(([k, x]) => r[k] === x)), error: null }).then(nx);
+            data: v.filter(r => filtri.every(([k, x]) => r[k] === x))
+              // index.html bere osebo vgnezdeno ("profiles!employee_id(...)"),
+              // zato jo lažni odjemalec pripne enako, kot bi jo PostgREST.
+              .map(r => (r.employee_id && !r.profiles
+                ? Object.assign({}, r, { profiles: profili.find(p => p.id === r.employee_id) || null })
+                : r)),
+            error: null }).then(nx);
           if (n === "insert" || n === "upsert" || n === "update") return () => Promise.resolve({ data: [], error: null });
           if (typeof n !== "string") return undefined;
           return () => b;
@@ -100,7 +115,7 @@ try {
           }
         },
       });
-    }, { profili: PROFILI, vodje: VODJE, pari: PARI, dopust: DOPUST });
+    }, { profili: PROFILI, vodje: VODJE, pari: PARI, dopust: DOPUST, objavljeno: OBJAVLJENO });
     await stran.goto(`http://127.0.0.1:${VRATA}${naslov}`, { waitUntil: "load" });
     return { stran, konzola };
   };
@@ -137,6 +152,10 @@ try {
     "5. 10. (dopust) je za C1 zadolžen Arnež: " + await nosilecNa(DAN_DOPUSTA));
   trdi(!/Salkić/.test(await nosilecNa(DAN_DOPUSTA) || ""),
     "in odsotne Salkić tisti dan tam ni");
+  trdi(/Perviz/.test(await nosilecNa(DAN_ROCNO) || ""),
+    "7. 10. je iz objavljenega razporeda NZV vpisan Perviz: " + await nosilecNa(DAN_ROCNO));
+  trdi(!/Salkić/.test(await nosilecNa(DAN_ROCNO) || ""),
+    "in pravilo ga ne prepiše nazaj na Salkić");
   if (process.env.POSNETEK) await stran.screenshot({ path: process.env.POSNETEK });
   await stran.close();
 
@@ -162,6 +181,8 @@ try {
   };
   // C1: na dan dopusta ga pokriva Arnež, zato mora biti na seznamu.
   const c1 = await preveriOddelek("C1", "Arnež Grega");
+  trdi(c1.includes("Perviz Amal"),
+    "C1: tudi ročno objavljeni Perviz je med nosilci (" + JSON.stringify(c1) + ")");
   trdi(c1.includes("Salkić Maruša"), "C1: Salkić je na seznamu za ostale dni");
   // C: tisti dan ga prevzame Lunar - ista oseba je hkrati pod B in pod C.
   const c = await preveriOddelek("C", "Lunar Petra");
