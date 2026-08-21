@@ -102,7 +102,9 @@ const koda = [
   constVKotVar(izvleciVrstico("const NAZIV_OSEBE_RX")),
   izvleci("ocistiNazivOsebe"),
   izvleci("nzvZapisZaStolpec"),
-  izvleci("zdruziNzvZapise"),
+  // zdruziNzvZapise je zdaj v skupnem nzv-zasedba.js (uporablja ga tudi
+  // objava razporeda NZV iz Generatorja), zato se vzame od tam.
+  "var zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;",
   izvleci("nzvVnosiIzMreze"),
   izvleci("obdelajNzvVrstice"),
   izvleci("razvrstiListe"),

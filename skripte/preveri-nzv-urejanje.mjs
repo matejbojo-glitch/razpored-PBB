@@ -68,7 +68,9 @@ vm.runInContext([
   izvleci("razvrstiSA"),
   izvleciConst("NZV_STOLPCI"),
   izvleci("nzvZapisZaStolpec"),
-  izvleci("zdruziNzvZapise"),
+  // zdruziNzvZapise je zdaj v skupnem nzv-zasedba.js (uporablja ga tudi
+  // objava razporeda NZV iz Generatorja), zato se vzame od tam.
+  "var zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;",
   izvleci("nzvVnosiIzMreze"),
   izvleci("opozoriloCelice"),
 ].join("\n\n"), sandbox);

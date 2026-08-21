@@ -142,8 +142,13 @@ console.log("5) generator res kliče skupni modul (ne svoje kopije)");
 console.log("6) nepotrjeni predlogi se NE objavijo");
 {
   const src = readFileSync(join(koren, "admin.html"), "utf8");
-  trdi(/const zaObjavo = rezultat\.objavaVrstice\.filter\(v => !v\.predlog \|\| potrjeni\[v\.kljuc\]\);/.test(src),
+  // Objava od tega mesta naprej sestavi zapise iz DVEH virov (izračunanih
+  // in ročno prepisanih celic), zato se ne preverja več ena sama vrstica,
+  // ampak da je pogoj potrditve na poti izračunanih zapisov ohranjen.
+  trdi(/\.filter\(v => !v\.predlog \|\| potrjeni\[v\.kljuc\]\)/.test(src),
     "objava vzame samo nepredloge in POTRJENE predloge");
+  trdi(/const zaObjavo = \[\.\.\.izracunane, \.\.\.rocne\]/.test(src),
+    "in poleg izračunanih objavi tudi ročne popravke");
   trdi(/predlog: jePredlog/.test(src), "vsaka vrstica ve, ali je predlog");
 }
 

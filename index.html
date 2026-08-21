@@ -2692,63 +2692,12 @@ function nzvVnosiIzMreze(opts){
   return { zapisi: zdruziNzvZapise(surovi), neznane: [...neznane] };
 }
 
-// Ista oseba je isti dan pogosto na VEČ enotah - v uporabnikovi datoteki
-// "Letni dopusti in omejitve za NZV" je takih primerov 98 v septembru in 79
-// v avgustu 2026 (npr. 1. 9. je Džamastagić na PDZN, SOBO IN U2, Lelič na
-// E1 in E2, Arnež na B in C). To je normalno stanje, ne napaka v predlogi.
-//
-// schedule_entries pa ima unique (employee_id, work_date): en zapis na
-// osebo in dan. Vsaka nadaljnja enota iste osebe je bila zato ob shranjevanju
-// ali zavrnjena ("ON CONFLICT DO UPDATE command cannot affect row a second
-// time") ali tiho prepisana - natanko to so "pomanjkljive celice".
-//
-// Rešitev je stolpec, ki v aplikaciji za to že obstaja: pokriva_oddelek
-// (FLEXI ga uporablja za "C/E2"). Prva enota po vrstnem redu stolpcev v
-// predlogi gre v department_code, vse nadaljnje pa v pokriva_oddelek,
-// ločene s poševnico - enak zapis, kot ga pozna enoteVKode.
-//
-// Dežurstvo ni enota, ampak stanje: če je oseba tisti dan dežurna IN na
-// enoti (med tednom je to pravilo, ne izjema), obvelja shift_code
-// "DEŽURSTVO", enote pa se ohranijo v department_code/pokriva_oddelek.
-function zdruziNzvZapise(zapisi){
-  const poOsebiInDnevu = new Map();
-  (zapisi || []).forEach(z => {
-    const kljuc = z.employee_id + "|" + z.work_date;
-    const prej = poOsebiInDnevu.get(kljuc);
-    if (!prej) {
-      poOsebiInDnevu.set(kljuc, { employee_id: z.employee_id, work_date: z.work_date,
-        department_code: z.department_code, shift_code: z.shift_code,
-        stolpci: z.stolpec ? [z.stolpec] : [] });
-      return;
-    }
-    // Dežurstvo nima svojega stolpca enote (stolpec je undefined) in ne sme
-    // prevzeti department_code, če je oseba tisti dan tudi na enoti.
-    if (!z.stolpec) { prej.shift_code = z.shift_code; return; }
-    if (!prej.stolpci.length) {
-      // Doslej samo dežurstvo - enota postane primarna, dežurstvo ostane
-      // v shift_code.
-      prej.department_code = z.department_code;
-      prej.stolpci = [z.stolpec];
-      return;
-    }
-    if (prej.stolpci.indexOf(z.stolpec) < 0) prej.stolpci.push(z.stolpec);
-  });
-  return [...poOsebiInDnevu.values()].map(v => {
-    const zapis = { employee_id: v.employee_id, department_code: v.department_code,
-                    work_date: v.work_date, shift_code: v.shift_code };
-    // Kdaj sam department_code NE zadostuje in je treba izpisati cel seznam
-    // stolpcev:
-    //   - oseba je na več enotah hkrati;
-    //   - oseba je dežurna. Takrat shift_code nosi "DEŽURSTVO" in ne več
-    //     "Dopoldne"/"Popoldne" - pri SA pa je prav izmena edino, kar loči
-    //     stolpec SA DOP od SA POP. Brez tega je Trpin 9. 9. 2026 (SA POP
-    //     in hkrati dežurna) pristala v stolpcu SA DOP.
-    const potrebenSeznam = v.stolpci.length > 1
-      || (v.stolpci.length === 1 && String(v.shift_code || "").toUpperCase() === "DEŽURSTVO");
-    if (potrebenSeznam) zapis.pokriva_oddelek = v.stolpci.join("/");
-    return zapis;
-  });
-}
+// Združevanje zapisov iste osebe in dneva (schedule_entries ima unique
+// (employee_id, work_date), oseba pa je pogosto na več enotah) je zdaj v
+// skupnem nzv-zasedba.js, ker isto pravilo potrebuje tudi objava razporeda
+// NZV iz Generatorja. Dve izvedbi istega pravila sta pri razporedu
+// nevarni: uvoz bi enoto ohranil, objava pa jo tiho izgubila.
+const zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;
 
 async function uvoziNzv(url, ciljniMesec, myId){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
