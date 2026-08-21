@@ -203,6 +203,7 @@ window.NzvZasedba = (function () {
   // Zadnji trije stolpci uradne predloge niso enote, ampak POVZETEK
   // odsotnosti tega dne (glej leave_entries.kind).
   var KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
+  var KIND_KODA_VREDNOSTI = Object.keys(KIND_KODA).map(function (k) { return KIND_KODA[k]; });
 
   // Kdo je ta dan na kateri enoti - s podrobnostmi.
   //
@@ -359,6 +360,192 @@ window.NzvZasedba = (function () {
     return { vrstice: out, enakovredni: enakovredni };
   }
 
+  // -------------------------------------------------------------------
+  // Ročno prepisana celica -> nazaj v osebe.
+  //
+  // Koordinator v mreži NZV celico prepiše na roko (tako je delal v
+  // Sheets in tako dela naprej). Doslej je tak popravek spremenil samo
+  // prikaz in izvoz, objava v Supabase pa je ostala pri IZRAČUNANI
+  // vrednosti - torej si videl eno, zaposleni pa je dobil drugo. Da se
+  // popravek lahko objavi, ga je treba prebrati nazaj v konkretne osebe.
+  //
+  // Vrne { osebe, neznani, dvoumni }. Kar ni ENOLIČNO prepoznano, se NE
+  // objavi in se pove - v razporedu je tiho ugibanje, kdo je "BOJ",
+  // nevarnejše od jasnega opozorila.
+  //
+  // Prebere: kratico ("BOJ"), celo ime ("Bojić Matej", tudi obrnjeno ali
+  // brez strešic - prek imena.js) in več oseb v isti celici, ločenih s
+  // presledkom, vejico, poševnico ali plusom. Vprašaj (predlog) in
+  // zvezdica (daljša odsotnost) sta oznaki prikaza, ne del imena.
+  function razberiCelico(opts) {
+    var besedilo = String(opts.besedilo == null ? "" : opts.besedilo);
+    var nosilci = opts.nosilci || [];
+    var kljuc = opts.kljuc;
+    var vKratico = opts.kratica;
+
+    var poImenu = {};      // ključ celega imena -> ime
+    var poKratici = {};    // kratica -> [imena]
+    nosilci.forEach(function (v) {
+      var ime = v.full_name || v.ime || v;
+      poImenu[kljuc(ime)] = ime;
+      var kr = kljuc(vKratico(ime));
+      (poKratici[kr] = poKratici[kr] || []).push(ime);
+    });
+
+    var deli = besedilo.split(/[\s,;\/+]+/)
+      .map(function (t) { return t.replace(/[?*]+/g, "").trim(); })
+      .filter(Boolean);
+
+    var osebe = [], neznani = [], dvoumni = [];
+    for (var i = 0; i < deli.length; i++) {
+      // Celo ime sta dve besedi ("Bojić Matej"), zato najprej poskusi par.
+      if (i + 1 < deli.length) {
+        var par = poImenu[kljuc(deli[i] + " " + deli[i + 1])];
+        if (par) { osebe.push(par); i++; continue; }
+      }
+      var celo = poImenu[kljuc(deli[i])];
+      if (celo) { osebe.push(celo); continue; }
+      var zadetki = poKratici[kljuc(deli[i])] || [];
+      if (zadetki.length === 1) osebe.push(zadetki[0]);
+      else if (zadetki.length > 1) dvoumni.push(deli[i]);
+      else neznani.push(deli[i]);
+    }
+    // Ista oseba dvakrat v celici je za razpored en sam zapis.
+    var videni = {}, enkratni = [];
+    osebe.forEach(function (ime) {
+      var k = kljuc(ime);
+      if (!videni[k]) { videni[k] = true; enkratni.push(ime); }
+    });
+    return { osebe: enkratni, neznani: neznani, dvoumni: dvoumni };
+  }
+
+  // -------------------------------------------------------------------
+  // Predlog za zapolnitev vrzeli ("Predlagaj mesec").
+  //
+  // Uporabnik: "načeloma je tako, da se na koncu Denis Džamastagić odloči
+  // in izpolni manjkajoče vrzeli." To tu ostane ČLOVEKOVA odločitev -
+  // aplikacija vrzeli samo najde in za vsako predlaga osebo, predlog pa
+  // se objavi šele po potrditvi (ista pot kot predlogi nadomeščanja).
+  //
+  // Vrzel je enota, ki je ta mesec v uporabi, a je tisti delovni dan
+  // NIHČE ne pokriva. Namenoma se NE zapolnjuje:
+  //   - stolpcev odsotnosti (LD/IZOB/BS) in DEŽURSTVA (to je svoj razpored),
+  //   - tiste od SA DOP/SA POP, ki ta dan ni na vrsti (prazna je pravilno),
+  //   - vikendov in praznikov (NZV takrat po enotah ne dela).
+  //
+  // Kandidat mora biti tisti dan prisoten. Med prisotnimi ima prednost
+  // tisti z najmanj enotami ta dan (kdor še nima nobene, pred tistim, ki
+  // že pokriva dve), nato tisti z najmanj predlogi doslej ta mesec
+  // (obremenitev se ne nabere na eni osebi), nazadnje po abecedi - da je
+  // izid ponovljiv in se med osvežitvami ne premetava.
+  function predlagajZapolnitev(opts) {
+    var dnevi = opts.dnevi || [];
+    var stolpci = opts.stolpci || [];
+    var nosilci = opts.nosilci || [];
+    var kljuc = opts.kljuc;
+    var jeOdsoten = opts.jeOdsoten;
+    var saKodaZa = opts.saKodaZa || function () { return null; };
+    var jeProstDan = opts.jeProstDan || function () { return false; };
+
+    var zaPolnit = stolpci.filter(function (k) {
+      return jeDelovisce(k) && KIND_KODA_VREDNOSTI.indexOf(k) === -1 && k !== "DEZURSTVO";
+    });
+    var stPredlogov = {};
+    nosilci.forEach(function (v) { stPredlogov[kljuc(v.full_name)] = 0; });
+
+    var predlogi = [];
+    dnevi.forEach(function (dn) {
+      if (jeProstDan(dn.datum)) return;
+      var saDanes = saKodaZa(dn.datum);
+      // Ta dan že zasedene enote na osebo - za "kdo je najmanj obremenjen".
+      var zasedenost = {};
+      nosilci.forEach(function (v) { zasedenost[kljuc(v.full_name)] = 0; });
+      zaPolnit.forEach(function (k) {
+        var vsebina = (dn.celice[k] || "").trim();
+        if (!vsebina) return;
+        razberiCelico({ besedilo: vsebina, nosilci: nosilci, kljuc: kljuc, kratica: opts.kratica })
+          .osebe.forEach(function (ime) { zasedenost[kljuc(ime)] = (zasedenost[kljuc(ime)] || 0) + 1; });
+      });
+
+      zaPolnit.forEach(function (k) {
+        if ((dn.celice[k] || "").trim()) return;                       // ni vrzel
+        if ((k === "SADOP" || k === "SAPOP") && saDanes && k !== saDanes) return; // ta dan ni na vrsti
+        var kandidati = nosilci.filter(function (v) { return !jeOdsoten(v.full_name, dn.datum); });
+        if (!kandidati.length) return;
+        kandidati.sort(function (a, b) {
+          var ka = kljuc(a.full_name), kb = kljuc(b.full_name);
+          return (zasedenost[ka] || 0) - (zasedenost[kb] || 0)
+            || (stPredlogov[ka] || 0) - (stPredlogov[kb] || 0)
+            || (a.full_name < b.full_name ? -1 : a.full_name > b.full_name ? 1 : 0);
+        });
+        var izbrani = kandidati[0];
+        var kl = kljuc(izbrani.full_name);
+        zasedenost[kl] = (zasedenost[kl] || 0) + 1;
+        stPredlogov[kl] = (stPredlogov[kl] || 0) + 1;
+        predlogi.push({ datum: dn.datum, stolpec: k, ime: izbrani.full_name });
+      });
+    });
+    return predlogi;
+  }
+
+  // Ista oseba je isti dan pogosto na VEČ enotah - v uporabnikovi datoteki
+  // "Letni dopusti in omejitve za NZV" je takih primerov 98 v septembru in 79
+  // v avgustu 2026 (npr. 1. 9. je Džamastagić na PDZN, SOBO IN U2, Lelič na
+  // E1 in E2, Arnež na B in C). To je normalno stanje, ne napaka v predlogi.
+  //
+  // schedule_entries pa ima unique (employee_id, work_date): en zapis na
+  // osebo in dan. Vsaka nadaljnja enota iste osebe je bila zato ob shranjevanju
+  // ali zavrnjena ("ON CONFLICT DO UPDATE command cannot affect row a second
+  // time") ali tiho prepisana - natanko to so "pomanjkljive celice".
+  //
+  // Rešitev je stolpec, ki v aplikaciji za to že obstaja: pokriva_oddelek
+  // (FLEXI ga uporablja za "C/E2"). Prva enota po vrstnem redu stolpcev v
+  // predlogi gre v department_code, vse nadaljnje pa v pokriva_oddelek,
+  // ločene s poševnico - enak zapis, kot ga pozna enoteVKode.
+  //
+  // Dežurstvo ni enota, ampak stanje: če je oseba tisti dan dežurna IN na
+  // enoti (med tednom je to pravilo, ne izjema), obvelja shift_code
+  // "DEŽURSTVO", enote pa se ohranijo v department_code/pokriva_oddelek.
+  function zdruziNzvZapise(zapisi) {
+    const poOsebiInDnevu = new Map();
+    (zapisi || []).forEach(z => {
+      const kljuc = z.employee_id + "|" + z.work_date;
+      const prej = poOsebiInDnevu.get(kljuc);
+      if (!prej) {
+        poOsebiInDnevu.set(kljuc, { employee_id: z.employee_id, work_date: z.work_date,
+          department_code: z.department_code, shift_code: z.shift_code,
+          stolpci: z.stolpec ? [z.stolpec] : [] });
+        return;
+      }
+      // Dežurstvo nima svojega stolpca enote (stolpec je undefined) in ne sme
+      // prevzeti department_code, če je oseba tisti dan tudi na enoti.
+      if (!z.stolpec) { prej.shift_code = z.shift_code; return; }
+      if (!prej.stolpci.length) {
+        // Doslej samo dežurstvo - enota postane primarna, dežurstvo ostane
+        // v shift_code.
+        prej.department_code = z.department_code;
+        prej.stolpci = [z.stolpec];
+        return;
+      }
+      if (prej.stolpci.indexOf(z.stolpec) < 0) prej.stolpci.push(z.stolpec);
+    });
+    return [...poOsebiInDnevu.values()].map(v => {
+      const zapis = { employee_id: v.employee_id, department_code: v.department_code,
+                      work_date: v.work_date, shift_code: v.shift_code };
+      // Kdaj sam department_code NE zadostuje in je treba izpisati cel seznam
+      // stolpcev:
+      //   - oseba je na več enotah hkrati;
+      //   - oseba je dežurna. Takrat shift_code nosi "DEŽURSTVO" in ne več
+      //     "Dopoldne"/"Popoldne" - pri SA pa je prav izmena edino, kar loči
+      //     stolpec SA DOP od SA POP. Brez tega je Trpin 9. 9. 2026 (SA POP
+      //     in hkrati dežurna) pristala v stolpcu SA DOP.
+      const potrebenSeznam = v.stolpci.length > 1
+        || (v.stolpci.length === 1 && String(v.shift_code || "").toUpperCase() === "DEŽURSTVO");
+      if (potrebenSeznam) zapis.pokriva_oddelek = v.stolpci.join("/");
+      return zapis;
+    });
+  }
+
   // Ovoj za klicatelje, ki potrebujejo samo razpored (mreža, Razpredelnica,
   // generator) - podrobnosti o enakovrednih uporablja le pregled odstopanj.
   function razporedDneva(opts) {
@@ -385,5 +572,8 @@ window.NzvZasedba = (function () {
     stalnaZasedba: stalnaZasedba,
     razporedDneva: razporedDneva,
     razporedDnevaPodrobno: razporedDnevaPodrobno,
+    razberiCelico: razberiCelico,
+    predlagajZapolnitev: predlagajZapolnitev,
+    zdruziNzvZapise: zdruziNzvZapise,
   };
 })();

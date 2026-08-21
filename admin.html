@@ -240,11 +240,30 @@ async function publishLeadScheduleRows(rows){
   const byIme = {};
   profili.forEach(p => { byIme[p.full_name] = p; });
   const manjkajo = imena.filter(i => !byIme[i]);
-  const vrstice = rows.filter(r => byIme[r.ime] && r.department_code).map(r => ({
-    employee_id: byIme[r.ime].id, department_code: r.department_code, work_date: r.datum, shift_code: r.sifra || "",
-  }));
+  // Ista oseba je isti dan pogosto na VEČ enotah (npr. Džamastagić na PDZN,
+  // SOBO in U2), schedule_entries pa ima unique (employee_id, work_date).
+  // Brez združevanja je vsaka nadaljnja enota tiho prepisala prejšnjo -
+  // razpored je pokazal eno enoto, druge pa so izginile. Isto pravilo in
+  // ista koda kot pri uvozu NZV iz Sheets (nzv-zasedba.js): prva enota gre
+  // v department_code, ostale v pokriva_oddelek.
+  const vrstice = window.NzvZasedba.zdruziNzvZapise(
+    rows.filter(r => byIme[r.ime] && r.department_code).map(r => ({
+      employee_id: byIme[r.ime].id, department_code: r.department_code,
+      work_date: r.datum, shift_code: r.sifra || "",
+      // Odsotnost (LD/IZOB/BS) ni enota - brez "stolpec" ostane v shift_code
+      // in ne zasede mesta enote.
+      stolpec: r.jeEnota ? r.stolpec : undefined,
+    })));
   if (vrstice.length > 0){
-    const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    let { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    // Če stolpec pokriva_oddelek v bazi še ne obstaja (supabase/
+    // dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne CEL
+    // upsert. To ne sme pomeniti, da objava sploh ne dela: shrani brez
+    // tega polja (ena enota na osebo/dan, kot je bilo doslej).
+    if (error && /pokriva_oddelek/i.test((error.message || "") + (error.details || ""))) {
+      const brez = vrstice.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
+      ({ error } = await client.from("schedule_entries").upsert(brez, { onConflict: "employee_id,work_date" }));
+    }
     if (error) throw error;
   }
   const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, null) : null;
@@ -1894,6 +1913,62 @@ function kratica(imePolno){
   return prvaBeseda.slice(0, 3).toUpperCase();
 }
 const LEAVE_KOLONA = { ld: "LD", bs: "BS", sti: "IZOB" }; // "omejitev" nima lastnega stolpca (glej opombo v UI)
+// Isti trije stolpci, gledani z druge strani: kateri stolpec v mreži NI
+// enota, ampak odsotnost. Pri ročnem popravku odloči, ali gre oseba na
+// enoto ("PRISOTEN" + oddelek stolpca) ali v odsotnost (šifra = stolpec).
+const ODSOTNOSTNI_STOLPCI = Object.fromEntries(Object.values(LEAVE_KOLONA).map(k => [k, true]));
+
+// Ročno prepisane celice mreže NZV -> zapisi za objavo.
+//
+// Koordinator v mreži celico prepiše na roko (tako je delal v Sheets in tako
+// dela naprej). Doslej je tak popravek spremenil samo prikaz in izvoz, objava
+// pa je šla po IZRAČUNANEM - na zaslonu si torej videl eno, zaposleni pa je
+// dobil drugo. Da se popravek lahko objavi, ga je treba prebrati nazaj v
+// konkretne osebe (skupni NzvZasedba.razberiCelico: kratica "BOJ" ali celo
+// ime "Bojić Matej").
+//
+// Vrne:
+//   spremenjene  ključi "datum|stolpec", ki jih je človek prepisal - za te
+//                se IZRAČUNANI zapisi umaknejo (tudi kadar je celico
+//                izpraznil: prazno pomeni "tu ni nikogar", ne "pusti staro"),
+//   vrstice      zapisi, prebrani iz prepisanega besedila,
+//   tezave       kar ni bilo ENOLIČNO prepoznano; to se NE objavi in se
+//                izrecno pove - tiho ugibanje, kdo je "BOJ", je pri
+//                razporedu nevarnejše od jasnega opozorila.
+function rocniPopravkiVMrezi(opts){
+  const dnevi = opts.dnevi || [], stolpci = opts.stolpci || [];
+  const popravki = opts.popravki || {}, nosilci = opts.nosilci || [];
+  const spremenjene = new Set();
+  const vrstice = [];
+  const tezave = [];
+  const kljuc = window.Imena.kljuc;
+  const lastniOddelek = {};
+  nosilci.forEach(v => { lastniOddelek[kljuc(v.full_name)] = v.department_code; });
+
+  dnevi.forEach(dn => {
+    stolpci.forEach(stolpec => {
+      const key = dn.datum + "|" + stolpec;
+      if (popravki[key] == null) return;
+      const besedilo = String(popravki[key]).trim();
+      if (besedilo === String(dn.celice[stolpec] || "").trim()) return;
+      spremenjene.add(key);
+      if (!besedilo) return;                     // izpraznjena celica: samo umik
+      if (stolpec === "DEZURSTVO") {
+        tezave.push(window.Datum.slo(dn.datum) + " · DEŽURSTVO: dežurstva se objavijo v zavihku »Dežurstva«, tu ne");
+        return;
+      }
+      const razbrano = window.NzvZasedba.razberiCelico({ besedilo, nosilci, kljuc, kratica });
+      razbrano.neznani.forEach(t => tezave.push(window.Datum.slo(dn.datum) + " · " + stolpec + ": »" + t + "« – ni prepoznano ime ali kratica"));
+      razbrano.dvoumni.forEach(t => tezave.push(window.Datum.slo(dn.datum) + " · " + stolpec + ": »" + t + "« – kratica ustreza več osebam"));
+      razbrano.osebe.forEach(ime => {
+        vrstice.push(ODSOTNOSTNI_STOLPCI[stolpec]
+          ? { ime, datum: dn.datum, sifra: stolpec, department_code: lastniOddelek[kljuc(ime)], predlog: false, stolpec }
+          : { ime, datum: dn.datum, sifra: "PRISOTEN", department_code: stolpec, predlog: false, stolpec, jeEnota: true });
+      });
+    });
+  });
+  return { spremenjene, vrstice, tezave };
+}
 
 function VodjeTab({ zacetniMesec }){
   const [month, setMonth] = useState(zacetniMesec || "2026-09");
@@ -1914,6 +1989,7 @@ function VodjeTab({ zacetniMesec }){
   // koordinator potrdi. Tako je razpored povsod izračunan po istih
   // pravilih, v bazo pa nič ne gre mimo človeka.
   const [potrjeni, setPotrjeni] = useState({});
+  const [vrzeliMsg, setVrzeliMsg] = useState(null);
   const wardRef = useRef();
 
   useEffect(() => {
@@ -2005,7 +2081,7 @@ function VodjeTab({ zacetniMesec }){
         if (kind && LEAVE_KOLONA[kind]) {
           const kol = LEAVE_KOLONA[kind];
           dodaj(kol, kratica(v.full_name));
-          objavaVrstice.push({ ime: v.full_name, datum: iso, sifra: kol, department_code: v.department_code, predlog: false });
+          objavaVrstice.push({ ime: v.full_name, datum: iso, sifra: kol, department_code: v.department_code, predlog: false, stolpec: kol });
         }
       });
 
@@ -2032,7 +2108,7 @@ function VodjeTab({ zacetniMesec }){
             }
             objavaVrstice.push({
               ime: nosilec.full_name, datum: iso, sifra: "PRISOTEN",
-              department_code: kol, predlog: jePredlog, kljuc: kljucCelice,
+              department_code: kol, predlog: jePredlog, kljuc: kljucCelice, stolpec: kol, jeEnota: true,
             });
           });
         });
@@ -2047,10 +2123,11 @@ function VodjeTab({ zacetniMesec }){
     dnevi.forEach(dn => Object.keys(dn.celice).forEach(k => uporabljeni.add(k)));
     const stolpciOddelkov = veljavne.filter(k => uporabljeni.has(k));
 
-    setRezultat({ mesec: month, stolpci: stolpciOddelkov, dnevi, objavaVrstice, predlogi });
+    setRezultat({ mesec: month, stolpci: stolpciOddelkov, dnevi, objavaVrstice, predlogi, saNast, jeOdsotenNa });
     setPotrjeni({});
     setPopravki({});
     setIzjeme({});
+    setVrzeliMsg(null);
     setNalagam(false);
   };
 
@@ -2060,6 +2137,58 @@ function VodjeTab({ zacetniMesec }){
   };
   const nastaviPopravek = (dn, k, vrednost) => {
     setPopravki(p => ({ ...p, [dn.datum + "|" + k]: vrednost }));
+  };
+
+  // Ročni popravki: preračun je v rocniPopravkiVMrezi (nad komponento),
+  // da se ga da preizkusiti brez brskalnika.
+  const spremenjeneCelice = () => rezultat
+    ? rocniPopravkiVMrezi({ dnevi: rezultat.dnevi, stolpci: stolpciPrikaz, popravki, nosilci: vodje }).spremenjene
+    : new Set();
+  const vrsticeIzPopravkov = () => rezultat
+    ? rocniPopravkiVMrezi({ dnevi: rezultat.dnevi, stolpci: stolpciPrikaz, popravki, nosilci: vodje })
+    : { vrstice: [], tezave: [], spremenjene: new Set() };
+
+  // "Predlagaj mesec": poišče vrzeli (enota, ki je ta mesec v uporabi, a je
+  // tisti delovni dan nihče ne pokriva) in za vsako predlaga osebo. Uporabnik:
+  // "načeloma je tako, da se na koncu Denis Džamastagić odloči in izpolni
+  // manjkajoče vrzeli" - zato ostane odločitev njegova: predlogi se izpišejo
+  // v mrežo z vprašajem in rumeno ter se objavijo šele po potrditvi.
+  const predlagajVrzeli = () => {
+    if (!rezultat) return;
+    const noviPredlogi = window.NzvZasedba.predlagajZapolnitev({
+      dnevi: rezultat.dnevi,
+      stolpci: stolpciPrikaz,
+      nosilci: vodje,
+      kljuc: window.Imena.kljuc,
+      kratica,
+      jeOdsoten: rezultat.jeOdsotenNa,
+      saKodaZa: (iso) => window.NzvZasedba.saStolpec(iso, rezultat.saNast),
+      jeProstDan: (iso) => window.Prazniki.jeVikend(iso) || window.Prazniki.jePraznik(iso),
+    });
+    if (!noviPredlogi.length) { setVrzeliMsg("Ni vrzeli – vsaka enota ima ta mesec vsak delovni dan pokritje."); return; }
+    // Predlogi gredo po ISTI poti kot predlogi nadomeščanja: v mrežo, v
+    // seznam za potrditev in šele od tam v objavo.
+    setRezultat(r => {
+      const poDatumu = {};
+      r.dnevi.forEach(dn => { poDatumu[dn.datum] = dn; });
+      const dodaniPredlogi = [];
+      const dodaneVrstice = [];
+      noviPredlogi.forEach(pr => {
+        const dn = poDatumu[pr.datum];
+        if (!dn) return;
+        const kljucCelice = pr.datum + "|" + pr.stolpec + "|" + pr.ime;
+        dn.celice[pr.stolpec] = kratica(pr.ime) + "?";
+        dn.predlogCelice[pr.stolpec] = true;
+        dodaniPredlogi.push({ kljuc: kljucCelice, datum: pr.datum, stolpec: pr.stolpec, ime: pr.ime, vrzel: true });
+        dodaneVrstice.push({ ime: pr.ime, datum: pr.datum, sifra: "PRISOTEN", department_code: pr.stolpec,
+                             predlog: true, kljuc: kljucCelice, stolpec: pr.stolpec, jeEnota: true });
+      });
+      return { ...r,
+        dnevi: r.dnevi.map(dn => ({ ...dn })),
+        predlogi: [...r.predlogi, ...dodaniPredlogi],
+        objavaVrstice: [...r.objavaVrstice, ...dodaneVrstice] };
+    });
+    setVrzeliMsg(`Predlaganih zapolnitev: ${noviPredlogi.length}. V mreži so rumene z vprašajem – potrdi tiste, ki jih želiš objaviti.`);
   };
 
   const izvoziCSV = () => {
@@ -2084,13 +2213,24 @@ function VodjeTab({ zacetniMesec }){
     if (!rezultat) return;
     setPublishBusy(true); setPublishMsg(null);
     try {
-      // Nepotrjeni predlogi nadomeščanja se NE objavijo.
-      const zaObjavo = rezultat.objavaVrstice.filter(v => !v.predlog || potrjeni[v.kljuc]);
-      const preskoceniPredlogi = rezultat.objavaVrstice.length - zaObjavo.length;
+      // Kar je človek prepisal na roko, prevlada nad izračunanim za TISTO
+      // celico - izračunani zapisi zanjo se umaknejo, na njihovo mesto
+      // stopi prebrano besedilo. Ostale celice ostanejo izračunane.
+      const spremenjene = spremenjeneCelice();
+      const { vrstice: rocne, tezave } = vrsticeIzPopravkov();
+      const izracunane = rezultat.objavaVrstice
+        .filter(v => !spremenjene.has(v.datum + "|" + v.stolpec))
+        // Nepotrjeni predlogi (nadomeščanja in zapolnitve vrzeli) se NE objavijo.
+        .filter(v => !v.predlog || potrjeni[v.kljuc]);
+      const preskoceniPredlogi = rezultat.objavaVrstice
+        .filter(v => v.predlog && !potrjeni[v.kljuc] && !spremenjene.has(v.datum + "|" + v.stolpec)).length;
+      const zaObjavo = [...izracunane, ...rocne];
       const { objavljeno, manjkajo, obvestilaNapaka } = await publishLeadScheduleRows(zaObjavo);
-      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.`
-        + (preskoceniPredlogi ? ` Nepotrjenih predlogov nadomeščanja (neobjavljenih): ${preskoceniPredlogi}.` : "")
+      setPublishMsg({ ok: tezave.length === 0, text: `Objavljeno ${objavljeno} vnosov v Supabase.`
+        + (rocne.length ? ` Od tega iz ročnih popravkov: ${rocne.length}.` : "")
+        + (preskoceniPredlogi ? ` Nepotrjenih predlogov (neobjavljenih): ${preskoceniPredlogi}.` : "")
         + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "")
+        + (tezave.length ? ` Neobjavljeni ročni popravki – ${tezave.join("; ")}.` : "")
         + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
@@ -2115,9 +2255,9 @@ function VodjeTab({ zacetniMesec }){
         prevzete. Taka celica je označena z vprašajem in rumeno – to je PREDLOG in se objavi šele, ko ga potrdiš
         v seznamu nad mrežo. Zvezdica (*) ob kratici pomeni daljšo odsotnost (npr. porodniška), ne enodnevno LD/BS.
         Stolpec DEŽURSTVO se prekriva z dežurnim generatorjem, če je ta mesec že objavljen. Po izračunu lahko
-        katero koli celico ročno prepišeš (npr. za nadomeščanje) – to spremeni samo prikaz/izvoz (PDF/CSV), ne pa
-        objave v Supabase (ta ostane vezana na izračunano, ne ročno prepisano vrednost, ker prostega besedila ni
-        mogoče zanesljivo preslikati nazaj na eno osebo). Stolpec "Izjeme in opombe" je za splošne dnevne opombe.
+        katero koli celico ročno prepišeš (npr. za nadomeščanje) – <b>tak popravek se tudi objavi</b>. Vpišeš lahko
+        kratico (»BOJ«) ali celo ime (»Bojić Matej«), več oseb v isti celici loči presledek ali vejica; prazna celica
+        pomeni, da tam ni nikogar. Česar ni mogoče enolično prepoznati, se ne objavi in ti to piše po objavi. Stolpec "Izjeme in opombe" je za splošne dnevne opombe.
       </p>
       <div className="card no-print">
         <div className="row">
@@ -2127,6 +2267,18 @@ function VodjeTab({ zacetniMesec }){
         </div>
         <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "Izračunaj zasedenost"}</button>
       </div>
+
+      {rezultat && (
+        <div className="card no-print">
+          <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+          <p className="hint" style={{margin:"8px 0 0"}}>
+            Poišče enote, ki jih ta mesec kak delovni dan nihče ne pokriva, in za vsako predlaga osebo, ki je
+            tisti dan prisotna in ima najmanj enot. Predlogi se izpišejo rumeno z vprašajem in se objavijo
+            <b> šele, ko jih potrdiš</b> – zadnja beseda ostane tvoja.
+          </p>
+          {vrzeliMsg && <p className="hint" style={{marginBottom:0}}>{vrzeliMsg}</p>}
+        </div>
+      )}
 
       {rezultat && rezultat.predlogi.length > 0 && (
         <div className="card no-print" style={{borderColor:"var(--accent)"}}>
@@ -2148,7 +2300,8 @@ function VodjeTab({ zacetniMesec }){
               <label key={pr.kljuc} style={{display:"flex", alignItems:"center", gap:8, fontSize:12, padding:"3px 0"}}>
                 <input type="checkbox" checked={!!potrjeni[pr.kljuc]}
                   onChange={e => setPotrjeni(t => ({ ...t, [pr.kljuc]: e.target.checked }))} />
-                <span><b>{window.Datum.slo(pr.datum)}</b> · {pr.stolpec} · {pr.ime}</span>
+                <span><b>{window.Datum.slo(pr.datum)}</b> · {pr.stolpec} · {pr.ime}
+                  {pr.vrzel && <span className="hint" style={{marginLeft:6}}>(vrzel)</span>}</span>
               </label>
             ))}
           </div>
@@ -2211,7 +2364,7 @@ function VodjeTab({ zacetniMesec }){
             }}
           />
           <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
-            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (izračunano, brez ročnih popravkov)"}
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (z ročnimi popravki)"}
           </button>
           {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
         </React.Fragment>

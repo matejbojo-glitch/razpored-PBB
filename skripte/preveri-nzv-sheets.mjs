@@ -117,7 +117,9 @@ const koda = [
   izvleci("ocistiNazivOsebe"),
   "var imenaSeUjemataNzv = window.Imena.seUjemata;",
   izvleci("nzvZapisZaStolpec"),
-  izvleci("zdruziNzvZapise"),
+  // zdruziNzvZapise je zdaj v skupnem nzv-zasedba.js (uporablja ga tudi
+  // objava razporeda NZV iz Generatorja), zato se vzame od tam.
+  "var zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;",
   izvleci("nzvVnosiIzMreze"),
   izvleci("obdelajNzvVrstice"),
 ].join("\n\n");

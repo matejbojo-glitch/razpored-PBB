@@ -105,7 +105,8 @@ const indexKoda = [
   constVKotVar(izvleciVrstico(htmlSrc, "const NAZIV_OSEBE_RX")),
   izvleciFn(htmlSrc, "ocistiNazivOsebe"),
   izvleciFn(htmlSrc, "nzvZapisZaStolpec"),
-  izvleciFn(htmlSrc, "zdruziNzvZapise"),
+  // zdruziNzvZapise je zdaj v skupnem nzv-zasedba.js.
+  "var zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;",
   izvleciFn(htmlSrc, "obdelajNzvVrstice"),
 ].join("\n\n");
 // ImportUtils.normalizirajDatum: v pravi aplikaciji je to LOČENA funkcija v
