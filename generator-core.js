@@ -448,8 +448,116 @@
     return { razpored: razpored, opozorila: opozorila, stanje: stanjeOb, prostiDnevi: prostiDnevi };
   }
 
+  // -------------------------------------------------------------------
+  // "Predlagaj mesec" za razpored oddelka: kdo naj zapolni vrzel.
+  //
+  // Vrzel je izmena, ki tisti dan ne dosega minimuma (Generator -> Oddelki
+  // -> "Pokritost po dnevih"). Doslej je aplikacija vrzel samo POKAZALA,
+  // zapolniti pa jo je moral koordinator sam, dan za dnem. Tu se za vsako
+  // vrzel predlaga oseba - predlog in nič več: v razpored se vpiše šele,
+  // ko ga človek potrdi (enako kot pri mreži NZV).
+  //
+  // Kdo pride v poštev: kdor tisti dan NE dela (prazna celica po lastnem
+  // vzorcu ali KPU). Dopust (LD) in "POMOČ DRUGJE" NISTA kandidata -
+  // človeka na dopustu ni dovoljeno razporediti, tisti, ki pomaga drugje,
+  // pa tisti dan ni na voljo temu oddelku.
+  //
+  // Vrstni red: najprej prosti dan po vzorcu, šele nato KPU (KPU je že
+  // dogovorjeno koriščenje ur, zato je poseg vanj večji); nato tisti z
+  // najmanj dosedanjimi predlogi ta mesec (obremenitev se ne nabere na
+  // eni osebi), nazadnje po abecedi, da je izid ponovljiv.
+  //
+  // Delovnopravna pravila: predlog, ki bi ustvaril NOVO kritično kršitev
+  // (prekratek počitek, preveč zaporednih nočnih, teden brez prostega
+  // dne), se preskoči. Če drugega ni, se najmanj slab vseeno predlaga, a
+  // označi z "opozorilo" - vrzel v bolnišnici ni brezplačna, zato je
+  // odločitev človekova, ne tiho izpuščena.
+  //
+  // opts:
+  //   vrzeli        [{ datum, bucket, primanjkljaj }]
+  //   staff         [ime, ...]
+  //   sifraZa       (ime, datum) -> trenutna šifra izmene
+  //   vBucket       (sifra) -> "DOPOLDNE"|"POPOLDNE"|"PONOCI"|null
+  //   sifraZaBucket (datum, bucket) -> šifra, ki naj se predlaga
+  //   dnevi         [datum, ...] cel mesec (za preverjanje pravil)
+  //   preveriPravila(vnosi) -> [{ oseba, datum, resnost }]
+  function predlagajZapolnitevOddelka(opts) {
+    var vrzeli = opts.vrzeli || [], staff = opts.staff || [], dnevi = opts.dnevi || [];
+    var sifraZa = opts.sifraZa, vBucket = opts.vBucket, sifraZaBucket = opts.sifraZaBucket;
+    var preveri = opts.preveriPravila || function () { return []; };
+
+    var PROSTO = "";      // prazna celica: prost dan po lastnem vzorcu
+    var KPU = "KPU";
+    function stanjeOsebe(ime, datum) {
+      var s = String(sifraZa(ime, datum) || "").trim();
+      if (vBucket(s)) return null;                       // tisti dan že dela
+      var t = s.toUpperCase();
+      if (!t) return PROSTO;
+      if (t.indexOf("KPU") === 0) return KPU;
+      return null;                                       // LD, POMOČ DRUGJE ...
+    }
+
+    // Že sprejeti predlogi se štejejo naprej: druga vrzel istega dne ne sme
+    // dobiti iste osebe, tretja pa ne tistega, ki je pravkar dobil prvo.
+    var dodeljeno = {};                                  // "ime|datum" -> šifra
+    var stPredlogov = {};
+    staff.forEach(function (ime) { stPredlogov[ime] = 0; });
+    function trenutna(ime, datum) {
+      var k = ime + "|" + datum;
+      return dodeljeno[k] != null ? dodeljeno[k] : sifraZa(ime, datum);
+    }
+    // Kritične kršitve te osebe, če bi dobila to šifro na ta dan.
+    function kriticnihPo(ime, datum, sifra) {
+      var vnosi = dnevi.map(function (d) {
+        return { oseba: ime, datum: d, sifra: d === datum ? sifra : trenutna(ime, d) };
+      });
+      return preveri(vnosi).filter(function (k) { return k.resnost === "kriticno"; }).length;
+    }
+
+    var predlogi = [];
+    vrzeli.forEach(function (vrzel) {
+      var koliko = Math.max(1, Number(vrzel.primanjkljaj) || 1);
+      var sifra = sifraZaBucket(vrzel.datum, vrzel.bucket);
+      if (!sifra) return;
+      for (var n = 0; n < koliko; n++) {
+        var kandidati = [];
+        staff.forEach(function (ime) {
+          if (dodeljeno[ime + "|" + vrzel.datum] != null) return;   // ta dan že dobil vrzel
+          var stanje = stanjeOsebe(ime, vrzel.datum);
+          if (stanje === null) return;
+          kandidati.push({ ime: ime, izKpu: stanje === KPU });
+        });
+        if (!kandidati.length) return;
+
+        kandidati.forEach(function (k) {
+          k.prej = kriticnihPo(k.ime, vrzel.datum, trenutna(k.ime, vrzel.datum));
+          k.potem = kriticnihPo(k.ime, vrzel.datum, sifra);
+          k.noveKrsitve = Math.max(0, k.potem - k.prej);
+        });
+        kandidati.sort(function (a, b) {
+          return a.noveKrsitve - b.noveKrsitve
+            || (a.izKpu ? 1 : 0) - (b.izKpu ? 1 : 0)
+            || (stPredlogov[a.ime] || 0) - (stPredlogov[b.ime] || 0)
+            || (a.ime < b.ime ? -1 : a.ime > b.ime ? 1 : 0);
+        });
+        var izbrani = kandidati[0];
+        dodeljeno[izbrani.ime + "|" + vrzel.datum] = sifra;
+        stPredlogov[izbrani.ime] = (stPredlogov[izbrani.ime] || 0) + 1;
+        predlogi.push({
+          datum: vrzel.datum, bucket: vrzel.bucket, oseba: izbrani.ime, sifra: sifra,
+          izKpu: izbrani.izKpu,
+          opozorilo: izbrani.noveKrsitve > 0
+            ? "Ta predlog krši delovnopravno pravilo (npr. počitek med izmenama) – drugega prostega ni bilo."
+            : (izbrani.izKpu ? "Oseba je ta dan na KPU (koriščenje prostih ur)." : null),
+        });
+      }
+    });
+    return predlogi;
+  }
+
   var Generator = {
     generirajKalup: generirajKalup,
+    predlagajZapolnitevOddelka: predlagajZapolnitevOddelka,
     generirajDezurstva: generirajDezurstva,
     preveriDezurstva: preveriDezurstva,
     KRSITVE_OPIS: KRSITVE_OPIS,
