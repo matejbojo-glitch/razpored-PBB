@@ -784,7 +784,9 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
         const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
         if (!minVsota) return;
         const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
-        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, primanjkljaj: minVsota - dejansko });
+        // "bucket" pove, KATERE izmene zmanjka - brez tega se vrzeli da
+        // samo prešteti, ne pa tudi predlagati, kdo naj jo zapolni.
+        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: minVsota - dejansko });
       });
     });
   } else {
@@ -795,7 +797,10 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
       }).length;
       const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
       const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
-      if (prag - dejansko > 0) vrzeli.push({ datum: dn.datum, primanjkljaj: prag - dejansko });
+      // Brez nastavljenih minimumov se ve le, da tisti dan manjka toliko
+      // ljudi - ne pa, v kateri izmeni. Predlog zato takrat ni mogoč
+      // (bucket ostane null) in gumb to pove.
+      if (prag - dejansko > 0) vrzeli.push({ datum: dn.datum, bucket: null, primanjkljaj: prag - dejansko });
     });
   }
   return { vrzeli, imaMinimume };
@@ -1064,6 +1069,10 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // število po dnevu (iz kalupa) je le izhodišče – admin ga lahko tu
   // ročno popravi, če se za posamezen dan ne zdi pravilno.
   const [pragPopravki, setPragPopravki] = useState({});
+  // "Predlagaj mesec": predlogi za vrzeli. Enako kot pri mreži NZV so to
+  // PREDLOGI - v razpored se vpišejo šele, ko jih koordinator potrdi.
+  const [predlogiVrzeli, setPredlogiVrzeli] = useState(null);
+  const [potrjeneVrzeli, setPotrjeneVrzeli] = useState({});
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev, id], ...]
   // Generator kalupa ID-ja ne prenaša skozi (dela samo z imeni in vzorci),
   // zato ga za povezavo na profil poiščemo nazaj po imenu. Imena v tem
@@ -1149,6 +1158,8 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v).length;
       });
       setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
+      setPredlogiVrzeli(null);
+      setPotrjeneVrzeli({});
       setPopravki({});
       setPragPopravki({});
     } finally {
@@ -1160,6 +1171,72 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
     const key = z.ime + "|" + dn.datum;
     return popravki[key] != null ? popravki[key] : (dn.izmene[z.ime] || "");
   };
+  // Katero oznako izmene predlagati za to izmeno na ta dan. Namenoma se
+  // NE ugane iz seznama kod, ampak se prebere, kaj ta oddelek za to izmeno
+  // TISTI TIP DNEVA (delavnik/vikend) dejansko uporablja - E1 ima "do 19h"
+  // namesto "do 19", vikendi pa 12-urne izmene. Če za tak dan ni primera,
+  // se vzame osnovna oznaka.
+  const OSNOVNA_SIFRA = { DOPOLDNE: "dopoldan", POPOLDNE: "popoldan", PONOCI: "NOČNA" };
+  const sifraZaBucket = (datum, bucket) => {
+    if (!rezultat || !bucket) return null;
+    const vikend = (iso) => { const d = window.Datum.dan3(iso); return d === "SO" || d === "NE"; };
+    const jeVikend = vikend(datum);
+    const stevec = {};
+    rezultat.dnevi.forEach(dn => {
+      if (vikend(dn.datum) !== jeVikend) return;
+      rezultat.staff.forEach(z => {
+        const sifra = celica(z, dn);
+        if (shiftBucket(sifra) !== bucket) return;
+        stevec[sifra] = (stevec[sifra] || 0) + 1;
+      });
+    });
+    const najpogostejsa = Object.keys(stevec).sort((a, b) =>
+      stevec[b] - stevec[a] || (a < b ? -1 : a > b ? 1 : 0))[0];
+    return najpogostejsa || OSNOVNA_SIFRA[bucket] || null;
+  };
+
+  const predlagajVrzeli = () => {
+    if (!rezultat) return;
+    const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+    if (!imaMinimume) {
+      setPredlogiVrzeli({ napaka: "Za ta oddelek minimumi po izmenah niso nastavljeni, zato se ne ve, KATERE izmene zmanjka. Nastavi jih zgoraj (»Minimalna zasedba po izmenah«) in poskusi znova." });
+      return;
+    }
+    if (!vrzeli.length) { setPredlogiVrzeli({ prazno: true }); return; }
+    const predlogi = window.Generator.predlagajZapolnitevOddelka({
+      vrzeli,
+      staff: rezultat.staff.map(z => z.ime),
+      dnevi: rezultat.dnevi.map(dn => dn.datum),
+      sifraZa: (ime, datum) => {
+        const key = ime + "|" + datum;
+        const dn = rezultat.dnevi.find(d => d.datum === datum);
+        return popravki[key] != null ? popravki[key] : ((dn && dn.izmene[ime]) || "");
+      },
+      vBucket: shiftBucket,
+      sifraZaBucket,
+      preveriPravila: (vnosi) => window.DelovniCas.preveriPravila(vnosi),
+    });
+    setPredlogiVrzeli({ seznam: predlogi });
+    setPotrjeneVrzeli({});
+  };
+
+  const kljucPredloga = (pr) => pr.oseba + "|" + pr.datum;
+  const vnesiPotrjeneVrzeli = () => {
+    const seznam = (predlogiVrzeli && predlogiVrzeli.seznam) || [];
+    const izbrani = seznam.filter(pr => potrjeneVrzeli[kljucPredloga(pr)]);
+    if (!izbrani.length) return;
+    setPopravki(p => {
+      const novi = { ...p };
+      izbrani.forEach(pr => { novi[kljucPredloga(pr)] = pr.sifra; });
+      return novi;
+    });
+    // Vpisani predlogi so od tu naprej navadni ročni popravki (vidni v
+    // mreži, gredo v izvoz in objavo), zato se seznam počisti - sicer bi
+    // isti predlog ostal ponujen, čeprav je že v razporedu.
+    setPredlogiVrzeli({ seznam: seznam.filter(pr => !potrjeneVrzeli[kljucPredloga(pr)]), vneseno: izbrani.length });
+    setPotrjeneVrzeli({});
+  };
+
   const nastaviPopravek = (z, dn, vrednost) => {
     setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
   };
@@ -1381,6 +1458,57 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           <p className="hint no-print">Minimum po izmeni (spodaj) je osnutek, ročno urejaj po potrebi – ko je nastavljen za ta oddelek, se uporabi za natančno zaznavo primanjkljaja po izmeni namesto grobe primerjave z osnovnim kalupom.</p>
           <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
           <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} />
+
+          {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
+              vrzel najde in za vsako predlaga osebo, v razpored pa se
+              vpiše šele po potrditvi. */}
+          <div className="card no-print">
+            <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
+              Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
+              in če drugega ni, ga označi. Predlogi se vpišejo <b>šele, ko jih potrdiš</b>.
+            </p>
+            {predlogiVrzeli && predlogiVrzeli.napaka && (
+              <p className="hint" style={{marginBottom:0, color:"var(--danger)"}}>{predlogiVrzeli.napaka}</p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.prazno && (
+              <p className="hint" style={{marginBottom:0}}>Ni vrzeli – vsaka izmena dosega nastavljeni minimum.</p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.vneseno > 0 && (
+              <p className="hint" style={{marginBottom:0, color:"var(--ok)"}}>
+                Vnesenih v razpored: {predlogiVrzeli.vneseno}. Vidne so v mreži spodaj in jih lahko še popraviš.
+              </p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.seznam && predlogiVrzeli.seznam.length > 0 && (
+              <div style={{marginTop:10}}>
+                <div style={{display:"flex", gap:8, marginBottom:8, flexWrap:"wrap"}}>
+                  <button className="btn btn-sm" onClick={() => {
+                    const vsi = {};
+                    predlogiVrzeli.seznam.forEach(pr => { vsi[kljucPredloga(pr)] = true; });
+                    setPotrjeneVrzeli(vsi);
+                  }}>Potrdi vse</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setPotrjeneVrzeli({})}>Počisti</button>
+                  <button className="btn btn-sm" onClick={vnesiPotrjeneVrzeli}
+                    disabled={!Object.values(potrjeneVrzeli).some(Boolean)}>
+                    Vnesi potrjene v razpored
+                  </button>
+                </div>
+                <div style={{maxHeight:240, overflowY:"auto"}}>
+                  {predlogiVrzeli.seznam.map(pr => (
+                    <label key={kljucPredloga(pr)} style={{display:"flex", alignItems:"flex-start", gap:8, fontSize:12, padding:"3px 0"}}>
+                      <input type="checkbox" checked={!!potrjeneVrzeli[kljucPredloga(pr)]}
+                        onChange={e => setPotrjeneVrzeli(t => ({ ...t, [kljucPredloga(pr)]: e.target.checked }))} />
+                      <span>
+                        <b>{window.Datum.slo(pr.datum)}</b> · {IZMENA_LABEL[pr.bucket] || pr.bucket} · {pr.oseba} → <b>{pr.sifra}</b>
+                        {pr.opozorilo && <span className="hint" style={{display:"block", margin:0, color:"var(--danger)"}}>{pr.opozorilo}</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="wardScroller" ref={wardRef}>
             <table className="wardTable">
