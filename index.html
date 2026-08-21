@@ -948,7 +948,16 @@ function WardView({ deptCode, month, myId }){
       client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("leave_entries").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
-    ]).then(([{ data: nosilci }, { data: pari }, { data: odsotnosti }]) => {
+      // OBJAVLJEN razpored NZV. Koordinator v mreži NZV marsikaj določi
+      // ročno (vskoči nekdo tretji, dogovor se sklene sproti) - kar objavi,
+      // mora veljati tudi tu, sicer bi oddelek kazal pravilo, mreža NZV pa
+      // dejansko stanje. Pravilo nadomeščanja se uporabi le za dneve, za
+      // katere objave še ni.
+      client.from("schedule_entries")
+        .select("work_date, department_code, pokriva_oddelek, profiles!employee_id(full_name, role)")
+        .gte("work_date", startISO).lte("work_date", endISO)
+        .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
+    ]).then(([{ data: nosilci }, { data: pari }, { data: odsotnosti }, { data: objavljeniVpisi }]) => {
       if (cancelled) return;
       const zEnotami = (nosilci || []).filter(n => n.enote);
       if (!zEnotami.length) { setNzvPoDnevih({}); return; }
@@ -959,7 +968,19 @@ function WardView({ deptCode, month, myId }){
           odsotenDan.add(kljuc(o.full_name) + "|" + o.work_date);
         }
       });
+      // Objavljeni vnosi NZV oseb, po dnevih. Vikendi in prazniki se
+      // izpustijo iz istega razloga kot pri izpeljavi: NZV takrat po
+      // enotah ne dela, dežurstvo pa ni enota.
+      const objavljeno = {};
+      (objavljeniVpisi || []).forEach(r => {
+        if (!r.profiles || !JE_NZV_VLOGA.has(r.profiles.role)) return;
+        if (window.Prazniki.jeVikend(r.work_date) || window.Prazniki.jePraznik(r.work_date)) return;
+        const kode = window.NzvZasedba.enoteIzZapisa(r);
+        if (!kode.length) return;
+        (objavljeno[r.work_date] = objavljeno[r.work_date] || []).push({ ime: r.profiles.full_name, kode });
+      });
       const poEnoti = window.NzvZasedba.zasedbaEnot({
+        objavljeno,
         nosilci: zEnotami,
         pari: pari || [],
         kljuc,

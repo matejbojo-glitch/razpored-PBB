@@ -1729,7 +1729,12 @@ function StanjeRazpredelnica({ oddelki }){
       // "profiles!employee_id" je nujno: schedule_entries ima več tujih
       // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
       // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).
-      client.from("schedule_entries").select("employee_id, work_date, shift_code")
+      // department_code/pokriva_oddelek: OBJAVLJEN razpored NZV pove, na
+      // kateri enoti kdo tisti dan je. Koordinator v mreži NZV marsikaj
+      // določi ročno, zato mora objavljeno prevladati nad izpeljavo po
+      // pravilih nadomeščanja - sicer bi ta zaslon kazal pravilo, mreža
+      // NZV pa dejansko stanje.
+      client.from("schedule_entries").select("employee_id, work_date, shift_code, department_code, pokriva_oddelek")
         .gte("work_date", startISO).lte("work_date", endISO),
       client.from("leave_entries").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
@@ -1842,15 +1847,71 @@ function StanjeRazpredelnica({ oddelki }){
       });
       const enotaNaDan = {}; // "id|datum" -> "C1" oz. "B, C"
       const poEnotiId = {};  // "ENOTA|datum" -> [id osebe]
-      if (nosilciSeznam.length) {
+      // Ime -> id po VSEH profilih, ne le po nosilcih enot: objavljen
+      // razpored lahko na enoto postavi tudi koga, ki v lead_departments
+      // ni zapisan kot nosilec (vskoči nekdo tretji). Če bi se iskalo samo
+      // med nosilci, bi tak vpis tiho izpadel iz seznama pod oddelkom.
+      const idPoImenuNzv = {};
+      seznam.forEach(p => { idPoImenuNzv[window.Imena.kljuc(p.full_name)] = p.id; });
+      if (nosilciSeznam.length || (vpisi || []).length) {
         const odsotenDan = new Set();
         (odsotnosti || []).forEach(o => {
           if (o.kind === "ld" || o.kind === "bs" || o.kind === "sti") {
             odsotenDan.add(window.Imena.kljuc(o.full_name) + "|" + o.work_date);
           }
         });
+        // Objavljeni vnosi NZV oseb po dnevih - ti prevladajo nad izpeljavo.
+        const objavljeno = {};
+        (vpisi || []).forEach(v => {
+          if (!jeNzvOseba[v.employee_id]) return;
+          if (window.Prazniki.jeDelaProstDan(v.work_date)) return;
+          const kode = window.NzvZasedba.enoteIzZapisa(v);
+          if (!kode.length) return;
+          const oseba = seznam.find(p => p.id === v.employee_id);
+          if (!oseba) return;
+          (objavljeno[v.work_date] = objavljeno[v.work_date] || []).push({ ime: oseba.full_name, kode });
+        });
+        // En sam izračun za OBA pogleda na tem zaslonu: kje je posamezna
+        // oseba (vrstica pod imenom) in kdo pokriva posamezen oddelek
+        // (vrstice NZV pod oddelčnim kadrom). Prej sta bila dva izpeljana
+        // zapisa iz istega klica; zdaj je vir en sam, zato se ne moreta
+        // razhajati - tudi kadar objava prepiše pravilo.
+        const poEnoti = window.NzvZasedba.zasedbaEnot({
+          objavljeno,
+          nosilci: nosilciSeznam,
+          pari: pokrivanja || [],
+          kljuc: window.Imena.kljuc,
+          datumi: dnevi.map(d => d.iso),
+          jeOdsoten: (ime, datum) => odsotenDan.has(window.Imena.kljuc(ime) + "|" + datum)
+            || window.NzvZasedba.trajnoOdsoten(
+                 nosilciSeznam.find(v => window.Imena.kljuc(v.full_name) === window.Imena.kljuc(ime)), datum),
+          jeProstDan: iso => window.Prazniki.jeDelaProstDan(iso),
+          saKodaZa: () => "SA",
+        });
+        // Naziv enote za prikaz ("ZO" se piše "ŽO", "B1B2" pa "B1,B2").
+        const nazivEnote = {};
+        window.NzvZasedba.STOLPCI.forEach(([koda, naziv]) => { nazivEnote[koda] = naziv; });
+        const kodePoOsebi = {}; // "id|datum" -> [koda]
+        Object.keys(poEnoti).forEach(k => {
+          const [koda, datum] = k.split("|");
+          poEnoti[k].forEach(ime => {
+            const id = idPoImenuNzv[window.Imena.kljuc(ime)];
+            if (!id) return;
+            (poEnotiId[koda + "|" + datum] = poEnotiId[koda + "|" + datum] || []).push(id);
+            (kodePoOsebi[id + "|" + datum] = kodePoOsebi[id + "|" + datum] || []).push(koda);
+          });
+        });
+        // Zapis enot POD IMENOM osebe.
+        //
+        // Za dneve, ki se izpeljejo po pravilu, se vzame besedilo iz
+        // razporedDneva, ne sestavljeno iz kod: sestavljene enote se v
+        // uradni predlogi pišejo kot celota ("UA/SA" pomeni "ena od obeh",
+        // ne "URGENCA in SA"), sestavljanje iz kod pa bi ta pomen izgubilo.
+        // Za dneve z OBJAVLJENIM razporedom pa velja objava, zato se zapis
+        // sestavi iz njenih enot.
         dnevi.forEach(d => {
           if (window.Prazniki.jeDelaProstDan(d.iso)) return;
+          if (objavljeno[d.iso] && objavljeno[d.iso].length) return;   // objava, glej spodaj
           window.NzvZasedba.razporedDneva({
             nosilci: nosilciSeznam,
             pari: pokrivanja || [],
@@ -1859,18 +1920,16 @@ function StanjeRazpredelnica({ oddelki }){
               || window.NzvZasedba.trajnoOdsoten(
                    nosilciSeznam.find(v => window.Imena.kljuc(v.full_name) === window.Imena.kljuc(ime)), d.iso),
             saKoda: "SA",
-          }).forEach(({ nosilec, enote, kode }) => {
-            const id = idPoKljucu[window.Imena.kljuc(nosilec.full_name)];
+          }).forEach(({ nosilec, enote }) => {
+            const id = idPoImenuNzv[window.Imena.kljuc(nosilec.full_name)];
+            if (id && enote) enotaNaDan[id + "|" + d.iso] = enote;
+          });
+        });
+        Object.keys(objavljeno).forEach(datum => {
+          objavljeno[datum].forEach(v => {
+            const id = idPoImenuNzv[window.Imena.kljuc(v.ime)];
             if (!id) return;
-            if (enote) enotaNaDan[id + "|" + d.iso] = enote;
-            // Ista vrstica, obrnjena: pod vsako enoto zapiši, kdo jo ta
-            // dan pokriva. Ob nadomeščanju je to nekdo drug kot običajno
-            // (Salkić na dopustu -> C1 pokriva Arnež), tudi če gre za en
-            // sam dan.
-            (kode || []).forEach(koda => {
-              const k = koda + "|" + d.iso;
-              (poEnotiId[k] = poEnotiId[k] || []).push(id);
-            });
+            enotaNaDan[id + "|" + datum] = v.kode.map(koda => nazivEnote[koda] || koda).join(", ");
           });
         });
       }
