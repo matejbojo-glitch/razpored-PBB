@@ -1111,7 +1111,12 @@ const GLAVE_MAPA = {
   // veljavne, sicer "user") vsako neveljavno vrednost varno prestreže.
   role: ["role","vloga"],
   department_code: ["department_code","oddelek"],
-  employee_code: ["employee_code","šifra zaposlenega","sifra zaposlenega"],
+  // "Mat.št" je zapis, ki ga uporabljajo resnične kadrovske datoteke
+  // (Zaposleni - SMS-DMS, Zaposleni - Oddelki) - brez teh različic se
+  // stolpec z matično številko ni prepoznal in vrstica brez e-pošte je
+  // odpadla, čeprav je imela stabilen ključ.
+  employee_code: ["employee_code","šifra zaposlenega","sifra zaposlenega",
+    "mat.št","mat. št.","mat št","mat.st","mat st","matična številka","maticna stevilka"],
   birth_date: ["birth_date","datum rojstva"],
   position_name: ["position_name","naziv delovnega mesta"],
   org_unit_name: ["org_unit_name","naziv enote organizacijske strukture"],
@@ -1169,7 +1174,13 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   const vrsticaVZapis = (v) => {
     const full_name = (v.full_name || "").trim();
     const email = (v.email || "").trim();
-    if (!full_name || !email) return null;
+    // Doslej je vrstica brez e-pošte odpadla kot napaka. Kadrovski izvozi
+    // pa e-pošte pogosto nimajo za vse (npr. za tiste brez službenega
+    // predala), imajo pa MATIČNO ŠTEVILKO - stabilen ključ, po katerem se
+    // oseba da najti prav tako zanesljivo. Zato zadošča ime + e-pošta ALI
+    // ime + matična številka; brez obojega vrstice res ni mogoče povezati.
+    const employee_code = (v.employee_code || "").trim();
+    if (!full_name || (!email && !employee_code)) return null;
     const role = ["admin","vodja","user"].includes(v.role) ? v.role : "user";
     let department_code = (v.department_code || "").trim() || null;
     if (!department_code && v.org_unit_name) {
@@ -1189,7 +1200,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     }
     return {
       full_name, email, phone: (v.phone || "").trim() || null, role, department_code,
-      employee_code: (v.employee_code || "").trim() || null,
+      employee_code: employee_code || null,
       birth_date: window.ImportUtils.normalizirajDatum(v.birth_date) || null,
       position_name: (v.position_name || "").trim() || null,
       manager_name: (v.manager_name || "").trim() || null,
@@ -1251,19 +1262,39 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     // obdelana, zato mora biti razrešitev ločen drugi prehod čez že
     // posodobljene profile, ne del posamezne iteracije.
     const vodjaPari = [];
+    // Kazalo obstoječih profilov po matični številki - za vrstice brez
+    // e-pošte (in kot rezerva, kadar je e-pošta v izvozu drugačna od tiste,
+    // s katero je oseba registrirana).
+    const { data: hrZaKazalo } = await client.from("profile_hr_details")
+      .select("profile_id, employee_code").not("employee_code", "is", null);
+    const profilZaSifro = {};
+    (hrZaKazalo || []).forEach(r => { profilZaSifro[String(r.employee_code).trim()] = r.profile_id; });
+
+    let brezEposte = 0;
     for (const v of vrsticeObj) {
       const zapis = vrsticaVZapis(v);
       if (!zapis) { napak++; continue; }
-      const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
+      const poEposti = zapis.email
+        ? osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase())
+        : null;
+      const idPoSifri = zapis.employee_code ? profilZaSifro[zapis.employee_code] : null;
+      const obstojeci = poEposti || (idPoSifri ? osebe.find(o => o.id === idPoSifri) : null);
+      if (!poEposti && obstojeci) brezEposte++;
       if (obstojeci) {
         const err = await prenesiPodatkeNaProfil(zapis, obstojeci.id);
         if (err) { napak++; } else {
           posodobljenih++;
           if (zapis.vodja_sifra) vodjaPari.push({ profileId: obstojeci.id, vodjaSifra: zapis.vodja_sifra });
         }
-      } else {
+      } else if (zapis.email) {
         const err = await dodajAliPosodobiVrstico(zapis);
         if (err) napak++; else dodanih++;
+      } else {
+        // Ime in matična številka, a osebe s to številko v aplikaciji še ni
+        // in e-pošte ni: v contact_imports je e-pošta obvezna (tam čaka na
+        // registracijo, ki gre prek e-pošte), zato take vrstice ni kam
+        // shraniti. Prešteje se posebej, da je razlog jasen.
+        napak++;
       }
     }
 
@@ -1285,6 +1316,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
     }
 
     setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno`
+      + (brezEposte ? ` (od tega ${brezEposte} najdenih po matični številki, brez e-pošte)` : "")
       + (vodjaPosodobljenih ? ` (od tega ${vodjaPosodobljenih} z nastavljenim neposrednim vodjo)` : "")
       + `, ${dodanih} novih dodanih/posodobljenih v seznamu za uvoz`
       + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));

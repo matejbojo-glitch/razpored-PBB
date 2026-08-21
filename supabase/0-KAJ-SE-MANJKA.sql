@@ -160,3 +160,13 @@ end $$;
 
 select zap as "št.", tocka as "kaj", stanje as "stanje / kaj narediti"
   from pbb_pregled order by zap;
+
+-- 11) Matična številka pri vodjih/nosilcih enot (lead_departments)
+-- Manjka -> poženi supabase/nzv-maticne-stevilke-vodij.sql
+select 'nzv-maticne-stevilke-vodij.sql' as skripta,
+       case when exists (
+         select 1 from information_schema.columns
+          where table_schema = 'public' and table_name = 'lead_departments'
+            and column_name = 'employee_code'
+       ) then 'OK – stolpec obstaja'
+       else 'MANJKA – poženi supabase/nzv-maticne-stevilke-vodij.sql' end as stanje;

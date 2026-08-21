@@ -209,10 +209,15 @@ async function obvestiOObjavi(rows, deptCode){
 
 async function publishScheduleRows(deptCode, rows){
   const imena = [...new Set(rows.map(r => r.ime))];
-  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code").in("full_name", imena);
+  // Osebo poišči prek skupnega kazala (matična številka, ime kot rezerva
+  // prek Imena.kljuc) - ne z dobesednim ujemanjem imena. Glej razlago pri
+  // publishLeadScheduleRows: dobesedna primerjava tiho izgubi človeka, ki
+  // je drugod zapisan z velikimi črkami ali brez strešic.
+  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code");
   if (perr) throw perr;
+  const kazalo = window.Imena.kazalo(profili || []);
   const byIme = {};
-  profili.forEach(p => { byIme[p.full_name] = p; });
+  imena.forEach(ime => { const p = kazalo.najdi(ime, null); if (p) byIme[ime] = p; });
   const manjkajo = imena.filter(i => !byIme[i]);
   const vrstice = rows.filter(r => byIme[r.ime]).map(r => ({
     employee_id: byIme[r.ime].id, department_code: deptCode, work_date: r.datum, shift_code: r.sifra || "",
@@ -221,7 +226,10 @@ async function publishScheduleRows(deptCode, rows){
     const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
     if (error) throw error;
   }
-  const brezOddelka = profili.filter(p => !p.department_code).map(p => p.id);
+  // POZOR: samo med ljudmi IZ TEGA RAZPOREDA. Poizvedba zgoraj zdaj vrne
+  // vse profile (iskanje po imenu je preseljeno v kazalo), zato bi
+  // filtriranje čez "profili" oddelek nastavilo vsem v bolnišnici.
+  const brezOddelka = Object.values(byIme).filter(p => !p.department_code).map(p => p.id);
   let oddelekNapaka = null;
   if (brezOddelka.length > 0){
     const { error } = await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
@@ -235,10 +243,38 @@ async function publishScheduleRows(deptCode, rows){
 // (vsak vodja ima svojo domačo enoto) – uporablja VodjeTab.
 async function publishLeadScheduleRows(rows){
   const imena = [...new Set(rows.map(r => r.ime))];
-  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name").in("full_name", imena);
+  // Osebo poišči po MATIČNI ŠTEVILKI, ime šele kot rezerva - in po imenu
+  // prek Imena.kljuc, ne dobesedno.
+  //
+  // Doslej je bilo tu .in("full_name", imena) proti PROFILES. Imena za
+  // razpored NZV pa prihajajo iz lead_departments, kjer so zapisana z
+  // velikimi črkami ("ALUKIĆ DINO"), v profiles pa so "Priimek Ime"
+  // ("Alukić Dino", glej supabase/imena-priimek-prvi.sql, ki popravi samo
+  // profiles). Dobesedna primerjava zato ni našla nikogar: objava je
+  // "uspela" z 0 zapisi, vsi pa so bili poročani kot "brez profila".
+  // Ista past čaka pri strešicah (Bećirović/Becirovic) in dvobesednih
+  // priimkih.
+  const [{ data: profili, error: perr }, { data: hrVrstice }, { data: vodjeVrstice }] = await Promise.all([
+    client.from("profiles").select("id, full_name"),
+    client.from("profile_hr_details").select("profile_id, employee_code")
+      .then(r => r, () => ({ data: [] })),
+    // Matična številka vodje (supabase/nzv-maticne-stevilke-vodij.sql). Če
+    // stolpca še ni, poizvedba pade - takrat se preprosto išče po imenu,
+    // objava pa vseeno dela.
+    client.from("lead_departments").select("full_name, employee_code")
+      .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
+  ]);
   if (perr) throw perr;
+  const sifraZaProfil = {};
+  (hrVrstice || []).forEach(r => { if (r.employee_code) sifraZaProfil[r.profile_id] = r.employee_code; });
+  const kazalo = window.Imena.kazalo((profili || []).map(p => ({ ...p, employee_code: sifraZaProfil[p.id] })));
+  const sifraZaIme = {};
+  (vodjeVrstice || []).forEach(r => { if (r.employee_code) sifraZaIme[window.Imena.kljuc(r.full_name)] = r.employee_code; });
   const byIme = {};
-  profili.forEach(p => { byIme[p.full_name] = p; });
+  imena.forEach(ime => {
+    const najden = kazalo.najdi(ime, sifraZaIme[window.Imena.kljuc(ime)]);
+    if (najden) byIme[ime] = najden;
+  });
   const manjkajo = imena.filter(i => !byIme[i]);
   // Ista oseba je isti dan pogosto na VEČ enotah (npr. Džamastagić na PDZN,
   // SOBO in U2), schedule_entries pa ima unique (employee_id, work_date).

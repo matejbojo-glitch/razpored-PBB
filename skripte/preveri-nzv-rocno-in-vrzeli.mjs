@@ -230,14 +230,22 @@ console.log("9) objava ne izgubi druge enote iste osebe");
 // "Predlagaj mesec" tak primer namenoma ustvarja (človek dobi drugo enoto),
 // zato mora objava to prenesti.
 let poslano = null;
+// Imena v profiles so "Priimek Ime", v lead_departments (od koder pridejo
+// imena za razpored NZV) pa z VELIKIMI črkami - natanko razhajanje, ob
+// katerem je dobesedna primerjava izgubila vse ljudi.
+const PROFILI_V_BAZI = [
+  { id: "id-dza", full_name: "Džamastagić Denis" },
+  { id: "id-boj", full_name: "Bojić Matej" },
+];
+const HR_VRSTICE = [{ profile_id: "id-dza", employee_code: "855" }];
+// Vodje imajo (po supabase/nzv-maticne-stevilke-vodij.sql) svojo matično
+// številko - z njo se oseba najde tudi, če se ime kje razlikuje.
+const VODJE_V_BAZI = [{ full_name: "DŽAMASTAGIĆ DENIS", employee_code: "855" }];
+const thenable = (podatki) => ({ then: (nx) => Promise.resolve({ data: podatki, error: null }).then(nx) });
 sandbox.client = {
   from: (tabela) => ({
-    select: () => ({
-      in: () => Promise.resolve({ data: [
-        { id: "id-dza", full_name: "Džamastagić Denis" },
-        { id: "id-boj", full_name: "Bojić Matej" },
-      ], error: null }),
-    }),
+    select: () => thenable(tabela === "profiles" ? PROFILI_V_BAZI
+      : tabela === "lead_departments" ? VODJE_V_BAZI : HR_VRSTICE),
     upsert: (vrstice) => { poslano = vrstice; return Promise.resolve({ error: null }); },
   }),
 };
@@ -269,6 +277,27 @@ const boj = poslano.find(v => v.employee_id === "id-boj");
 eq(boj.shift_code, "LD", "odsotnost ostane v šifri izmene");
 trdi(boj.pokriva_oddelek === undefined, "odsotnost ne zasede mesta enote");
 eq(izidObjave.objavljeno, 2, "objavljeno se šteje po zapisih, ki gredo v bazo");
+eq(izidObjave.manjkajo, [], "nihče ni izgubljen");
+
+console.log("10) oseba se najde tudi, kadar se zapis imena razlikuje");
+// Doslej je bilo tu .in("full_name", imena) - dobesedna primerjava proti
+// profiles. Ker so imena v lead_departments z velikimi črkami, ni našla
+// NIKOGAR: objava je "uspela" z 0 zapisi, vsi pa so bili poročani kot
+// "brez profila". Zato je to ključna trditev, ne podrobnost.
+poslano = null;
+const drugacenZapis = await sandbox.publishLeadScheduleRows([
+  { ime: "DŽAMASTAGIĆ DENIS", datum: "2026-10-02", sifra: "PRISOTEN", department_code: "PDZN", stolpec: "PDZN", jeEnota: true },
+  { ime: "BOJIC MATEJ", datum: "2026-10-02", sifra: "PRISOTEN", department_code: "MO", stolpec: "MO", jeEnota: true },
+]);
+eq(drugacenZapis.manjkajo, [], "velike črke in izgubljene strešice ne izgubijo nikogar");
+eq(poslano.map(v => v.employee_id).sort(), ["id-boj", "id-dza"], "oba zapisa gresta na pravi osebi");
+
+poslano = null;
+const neznana = await sandbox.publishLeadScheduleRows([
+  { ime: "Nihče Nikjer", datum: "2026-10-02", sifra: "PRISOTEN", department_code: "MO", stolpec: "MO", jeEnota: true },
+]);
+eq(neznana.manjkajo, ["Nihče Nikjer"], "kdor res ni v bazi, se javi kot manjkajoč");
+eq(neznana.objavljeno, 0, "in se ne objavi na koga drugega");
 
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }

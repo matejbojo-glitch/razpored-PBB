@@ -88,6 +88,56 @@ window.Imena = (function () {
     return priimek.charAt(0).toUpperCase() + priimek.slice(1).toLowerCase();
   }
 
+  // -------------------------------------------------------------------
+  // Kazalo oseb: MATIČNA ŠTEVILKA najprej, ime šele potem.
+  //
+  // Aplikacija je ljudi med viri doslej povezovala izključno po imenu.
+  // To je vir tihih izgub: lead_departments ima imena z velikimi črkami
+  // ("ALUKIĆ DINO"), profiles pa "Priimek Ime" ("Alukić Dino"), zato
+  // dobesedna primerjava (.in("full_name", ...)) ne najde NIKOGAR -
+  // razpored se "objavi", vsi pa so poročani kot "brez profila". Enako
+  // razhajanje delajo strešice (Bećirović/Becirovic) in dvobesedni
+  // priimki.
+  //
+  // Matična številka (profile_hr_details.employee_code) je stabilen
+  // ključ iz Kadrisa in se ne spreminja, zato ima prednost; ime je
+  // rezerva, ko številke ni. Iskanje po imenu gre prek kljuc(), ne
+  // dobesedno - to je isto pravilo kot povsod drugod v aplikaciji.
+  //
+  // profili: [{ id, full_name, employee_code? }]
+  // Vrne { najdi(ime, sifra), podvojeneSifre, podvojenaImena }.
+  function kazalo(profili) {
+    var poSifri = {}, poImenu = {};
+    var podvojeneSifre = [], podvojenaImena = [];
+    (profili || []).forEach(function (p) {
+      var sifra = String(p.employee_code == null ? "" : p.employee_code).trim();
+      if (sifra) {
+        if (poSifri[sifra] && poSifri[sifra].id !== p.id) podvojeneSifre.push(sifra);
+        else poSifri[sifra] = p;
+      }
+      var k = kljuc(p.full_name);
+      if (!k) return;
+      if (poImenu[k] && poImenu[k].id !== p.id) podvojenaImena.push(p.full_name);
+      else poImenu[k] = p;
+    });
+    return {
+      poSifri: poSifri,
+      poImenu: poImenu,
+      podvojeneSifre: podvojeneSifre,
+      podvojenaImena: podvojenaImena,
+      // Podvojeno ime NI zadetek: dva "Novak Ana" bi pomenila, da razpored
+      // pristane pri napačni osebi. Takrat rajši nič - klicatelj to javi.
+      najdi: function (ime, sifra) {
+        var s = String(sifra == null ? "" : sifra).trim();
+        if (s && poSifri[s]) return poSifri[s];
+        var k = kljuc(ime);
+        if (!k) return null;
+        if (podvojenaImena.some(function (n) { return kljuc(n) === k; })) return null;
+        return poImenu[k] || null;
+      },
+    };
+  }
+
   return {
     PSEVDONIM: PSEVDONIM,
     brezStresic: brezStresic,
@@ -96,5 +146,6 @@ window.Imena = (function () {
     seUjemata: seUjemata,
     kratkiKljuc: kratkiKljuc,
     kratkoIme: kratkoIme,
+    kazalo: kazalo,
   };
 })();
