@@ -902,3 +902,69 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   font-weight: 700;
   color: var(--muted);
 }
+
+/* Štirje zavihki na prvi strani Razporeda.
+   Širok zaslon: besedni gumbi, nespremenjeno (izrecna zahteva).
+   Telefon: ikona + drobna beseda pod njo, da gredo štirje v vrstico in
+   vseeno ostane jasno, kaj je kaj. Barve so barve aplikacije (bela/zlata),
+   ne temen pas. */
+.segIkone .segIkona,
+.segIkone .segKratko{ display: none; }
+@media (max-width: 640px){
+  .segIkone{ gap: 4px; }
+  .segIkone button{
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 2px;
+    min-height: 56px;
+    line-height: 1.15;
+  }
+  .segIkone .segIkona{
+    display: block;
+    font-size: 19px;
+  }
+  .segIkone .segNaziv{ display: none; }
+  .segIkone .segKratko{
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+}
+
+/* Dežurstvo: trije stolpci uradnega dokumenta. Imena so daljša od kod
+   izmen, zato celice dihajo in se ne lomijo sredi priimka. */
+.dezTabela td.cell{
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.dezOseba{
+  display: inline-block;
+  white-space: nowrap;
+}
+.dezOseba.jaz{
+  font-weight: 700;
+  color: var(--accent-2);
+}
+/* Na telefonu morajo vsi trije stolpci na zaslon hkrati - tabela s tremi
+   stolpci, ki jo je treba vodoravno vleči, je pri dežurstvu neuporabna
+   (pogleda se "kdo je nocoj"). Dan in glave se zato skrajšajo. */
+@media (max-width: 640px){
+  .dezTabela td.name, .dezTabela th.name{
+    font-size: 11px;
+    padding: 6px 4px;
+    white-space: nowrap;
+  }
+  .dezTabela td.cell, .dezTabela th{
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+  .dezOseba{ white-space: normal; }
+}
+
+.dezDatumKratek{ display: none; }
+@media (max-width: 640px){
+  .dezDatumKratek{ display: inline; }
+  .dezDatumPoln{ display: none; }
+}

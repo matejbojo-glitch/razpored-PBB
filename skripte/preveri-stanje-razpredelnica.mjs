@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus stanjeIzKode()/KIND_STANJE (imenik.html) – razvrščanja v pet
+/* Preizkus stanjeIzKode()/KIND_STANJE (index.html) – razvrščanja v pet
  * stanj, ki jih zahteva razpredelnica v Imeniku:
  *   1. na delu, 2. dežurstvo, 3. dopust, 4. bolniška, 5. prosto.
  *
@@ -20,11 +20,13 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(join(koren, "imenik.html"), "utf8");
+// Razpredelnica stanja je bila avgusta 2026 PRENESENA iz Imenika v
+// Razpored, zato se njena koda bere iz index.html.
+const html = readFileSync(join(koren, "index.html"), "utf8");
 
 function izvleci(ime) {
   const zac = html.indexOf("function " + ime + "(");
-  if (zac === -1) throw new Error("Funkcije " + ime + " ni v imenik.html.");
+  if (zac === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
   let globina = 0, zacTelo = html.indexOf("{", zac);
   for (let i = zacTelo; i < html.length; i++) {
     if (html[i] === "{") globina++;
@@ -34,7 +36,7 @@ function izvleci(ime) {
 }
 function izvleciConst(ime) {
   const zac = html.indexOf("const " + ime + " ");
-  if (zac === -1) throw new Error("const " + ime + " ni v imenik.html.");
+  if (zac === -1) throw new Error("const " + ime + " ni v index.html.");
   const konec = html.indexOf(";\n", zac);
   return html.slice(zac, konec + 1).replace(/^const\s+/, "var ");
 }
@@ -55,7 +57,7 @@ vm.runInContext([
   izvleciConst("KIND_KRATICA"),
   // Uradna legenda izmen, ujemanje imen in kratko ime živijo v skupnih
   // modulih (izmene.js, imena.js) - tu jih naložimo in preimenujemo v
-  // imena, ki jih uporablja izluščena koda iz imenik.html.
+  // imena, ki jih uporablja izluščena koda iz index.html.
   readFileSync(join(koren, "izmene.js"), "utf8"),
   "var STANJE_BARVA = window.Izmene.STANJE_BARVA;",
   "var IZMENA_KRATICE = window.Izmene.KRATICE;",
@@ -297,9 +299,9 @@ console.log("15) barva pisave je berljiva na vsaki podlagi");
   eq(barvaBesedila("#B49BD0"), "#2B2717", "na svetli vijolični (DF12) temna pisava");
 }
 
-console.log("16) legenda in menjave so v imenik.html res prikazane");
+console.log("16) legenda in menjave so v index.html res prikazane");
 {
-  const html2 = readFileSync(join(koren, "imenik.html"), "utf8");
+  const html2 = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/IZMENA_KRATICE\.filter\(v => v\[5\] === skupina\)/.test(html2),
     "legenda je razvrščena po petih stanjih");
   // Legenda mora biti zložena (na telefonu je odprta zavzela cel zaslon)
@@ -318,8 +320,22 @@ console.log("16) legenda in menjave so v imenik.html res prikazane");
   // Menjave se berejo iz pogleda menjave_javno (shema, sekcija 33), ne iz
   // obrazci: RLS na obrazci pokaže tuje menjave le za tekoči mesec, zato
   // je oznaka za druge mesece manjkala.
-  trdi(/from\("menjave_javno"\)/.test(html2), "menjave se berejo iz pogleda menjave_javno");
-  trdi(!/from\("obrazci"\)/.test(html2), "ne bere se več neposredno iz obrazci (ozek RLS)");
+  // Trditev velja za KOMPONENTO Razpredelnice, ne za celo stran: index.html
+  // bere obrazci tudi drugje (seznam menjav pod razporedom, kjer je to
+  // pravilno). Po prenosu iz Imenika je zato treba pogledati samo njeno
+  // kodo, sicer bi trditev vedno padla.
+  const razpredelnica = (() => {
+    const z = html2.indexOf("function StanjeRazpredelnica(");
+    if (z === -1) throw new Error("StanjeRazpredelnica ni v index.html.");
+    let g = 0;
+    for (let k = html2.indexOf("{", html2.indexOf(")", z)); k < html2.length; k++) {
+      if (html2[k] === "{") g++;
+      else if (html2[k] === "}") { g--; if (!g) return html2.slice(z, k + 1); }
+    }
+    throw new Error("Konec StanjeRazpredelnica ni najden.");
+  })();
+  trdi(/from\("menjave_javno"\)/.test(razpredelnica), "menjave se berejo iz pogleda menjave_javno");
+  trdi(!/from\("obrazci"\)/.test(razpredelnica), "ne bere se več neposredno iz obrazci (ozek RLS)");
   const shema = readFileSync(join(koren, "supabase", "schema.sql"), "utf8");
   const pogled = shema.slice(shema.indexOf("create view public.menjave_javno"));
   trdi(/status = 'zakljucen'/.test(pogled.slice(0, 600)), "pogled vsebuje SAMO potrjene menjave");
@@ -355,7 +371,7 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
   eq(kratkoIme("BOJIĆ MATEJ"), "Bojić", "s pravilnimi šumniki");
   eq(kratkoIme(""), "", "prazno ostane prazno");
 
-  const html3 = readFileSync(join(koren, "imenik.html"), "utf8");
+  const html3 = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote/.test(html3),
     "razpredelnica bere nosilce oddelkov");
   // Pokrivanje je VZAJEMNO in VEČKRATNO (Alukića nadomeščata Bojić IN

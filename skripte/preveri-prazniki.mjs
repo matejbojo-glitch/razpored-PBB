@@ -91,7 +91,8 @@ console.log("6) datum se razčleni kot BESEDILO (časovni pas ne sme premakniti 
 console.log("7) pravilo uporabljajo VSI zasloni, ne le eden");
 {
   const index = readFileSync(join(koren, "index.html"), "utf8");
-  const imenik = readFileSync(join(koren, "imenik.html"), "utf8");
+  // Razpredelnica je od avgusta 2026 v Razporedu, ne v Imeniku.
+  const imenik = readFileSync(join(koren, "index.html"), "utf8");
   const admin = readFileSync(join(koren, "admin.html"), "utf8");
 
   trdi(/<script src="prazniki\.js"><\/script>/.test(index), "index.html nalaga prazniki.js");

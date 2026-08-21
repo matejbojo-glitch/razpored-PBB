@@ -190,14 +190,18 @@ console.log("9) obe strani res kličeta skupno logiko");
     .split("\n").filter(v => !/^\s*\/\//.test(v)).join("\n");
   trdi(/window\.NzvZasedba\.zasedbaEnot\(/.test(brezKomentarjev("index.html")),
     "oddelčni razpored (index.html) kliče zasedbaEnot");
-  trdi(/window\.NzvZasedba\.zasedbaEnot\(/.test(brezKomentarjev("imenik.html")),
-    "Imenik → Razpredelnica kliče isto zasedbaEnot");
-  // Objava mora priti do OBEH zaslonov, sicer bi eden kazal pravilo, drugi
-  // pa dejansko stanje.
-  ["index.html", "imenik.html"].forEach(pot => {
-    trdi(/objavljeno,/.test(brezKomentarjev(pot)),
-      pot + " preda objavljen razpored NZV v izračun");
-  });
+  // Razpredelnica je bila avgusta 2026 prenesena iz Imenika v Razpored,
+  // zato sta oba pogleda (stolpec NZV na oddelku in vrstice nosilcev v
+  // razpredelnici) zdaj v index.html - vsak s svojim klicem.
+  const vir = brezKomentarjev("index.html");
+  trdi((vir.match(/window\.NzvZasedba\.zasedbaEnot\(/g) || []).length >= 2,
+    "oba pogleda kličeta isto zasedbaEnot, ne vsak svoje kopije");
+  // Objava mora priti do OBEH, sicer bi eden kazal pravilo, drugi pa
+  // dejansko stanje.
+  trdi((vir.match(/objavljeno,/g) || []).length >= 2,
+    "oba predata objavljen razpored NZV v izračun");
+  trdi(!/window\.NzvZasedba\.zasedbaEnot\(/.test(brezKomentarjev("imenik.html")),
+    "v imenik.html tega izračuna ni več (razpredelnica je prenesena)");
 }
 
 console.log("");
