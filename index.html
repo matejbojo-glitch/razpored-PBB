@@ -399,7 +399,25 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
   // Razpredelnice: "ob dopustu se ne izpiše").
   const naDelu = window.Izmene.stanje(sifra) === "delo"
     || window.Izmene.stanje(sifra) === "dezurstvo";
-  const zEnoto = (besedilo) => (enota && naDelu ? besedilo + " (" + enota + ")" : besedilo);
+  const formatirajEnotoZaPrikaz = (v) => {
+    if (!v && v !== 0) return "";
+    if (typeof window !== "undefined" && typeof window.formatirajOddelke === "function") {
+      return window.formatirajOddelke(v, null);
+    }
+    return String(v).split(/[\/,+]/)
+      .map(part => {
+        const p = String(part).trim();
+        if (!p) return "";
+        return p.replace(/ZO/gi, "ŽO");
+      })
+      .filter(Boolean)
+      .filter((part, idx, arr) => arr.indexOf(part) === idx)
+      .join(", ");
+  };
+  const zEnoto = (besedilo) => {
+    const prikazEnote = formatirajEnotoZaPrikaz(enota);
+    return (prikazEnote && naDelu ? besedilo + " (" + prikazEnote + ")" : besedilo);
+  };
   // "Dežurstvo" z veliko začetnico kot lastno ime izmene, ne z verzalkami:
   // v uradni legendi je zapisano tako, verzalke pa na zaslonu delujejo kot
   // vpitje (uporabnikova pripomba).
@@ -639,7 +657,11 @@ function MyScheduleView({ userId, month, jeNzv }){
       if (kje) izVnosa[e.work_date] = kje;
     });
     const lastna = (mojNosilec && mojNosilec.enote) || "";
-    return (datum) => enotaNaDan[datum] || izVnosa[datum] || lastna;
+    return (datum) => {
+      const vrednost = enotaNaDan[datum] || izVnosa[datum] || lastna;
+      if (!vrednost) return "";
+      return window.NzvZasedba.normalizirajNazivOddelka ? window.NzvZasedba.normalizirajNazivOddelka(vrednost) : vrednost;
+    };
   }, [entries, enotaNaDan, mojNosilec]);
 
   const byDate = useMemo(() => {
