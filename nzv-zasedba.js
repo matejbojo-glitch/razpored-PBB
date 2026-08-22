@@ -94,13 +94,13 @@ window.NzvZasedba = (function () {
   // Vrstni red je primarna enota najprej, dodatne sledijo le, če so različne.
   function formatirajOddelke(primarni, dodatni) {
     function norm(value) {
-      if (value == null) return "";
+      if (value == null) return [];
       if (Array.isArray(value)) {
-        return value.map(norm).filter(Boolean).join(", ");
+        return value.reduce(function (out, item) {
+          return out.concat(norm(item));
+        }, []);
       }
-      var s = String(value).trim();
-      if (!s) return "";
-      return s.split(/[\/,+]/)
+      return String(value).split(/[\/,+]/)
         .map(function (del) {
           var d = String(del).trim();
           if (!d) return "";
@@ -108,21 +108,46 @@ window.NzvZasedba = (function () {
           d = d.replace(/B1B2/gi, "B1,B2");
           return d;
         })
-        .filter(Boolean)
-        .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; })
-        .join(", ");
+        .filter(function (v) { return !!v; })
+        .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
     }
 
     var prim = norm(primarni);
     var dod = norm(dodatni);
-    var vsi = [];
-    [prim, dod].forEach(function (del) {
-      String(del || "").split(/,\s*/).forEach(function (part) {
-        var p = part.trim();
-        if (p && vsi.indexOf(p) < 0) vsi.push(p);
-      });
-    });
-    return vsi.join(", ");
+    var vsi = prim.concat(dod);
+    var out = [];
+    var dodano = {};
+
+    function dodaj(v) {
+      if (!v || dodano[v]) return;
+      dodano[v] = true;
+      out.push(v);
+    }
+
+    var imaMo = vsi.indexOf("MO") >= 0;
+    var imaZo = vsi.indexOf("\u017dO") >= 0;
+
+    if (prim.length === 1 && prim[0]) {
+      dodaj(prim[0]);
+    }
+    if (imaMo && imaZo) {
+      if (prim.length === 1 && (prim[0] === "MO" || prim[0] === "\u017dO")) {
+        dodaj((prim[0] === "MO") ? "\u017dO" : "MO");
+      } else {
+        dodaj("MO");
+        dodaj("\u017dO");
+      }
+    }
+
+    vsi.filter(function (v) { return v !== "MO" && v !== "\u017dO"; })
+      .forEach(dodaj);
+
+    if (!out.length) {
+      var preostali = (prim.length ? prim : dod).filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
+      preostali.forEach(dodaj);
+    }
+
+    return out.join(", ");
   }
 
   function normalizirajNazivOddelka(value) {

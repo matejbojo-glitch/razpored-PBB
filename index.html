@@ -660,6 +660,18 @@ function MyScheduleView({ userId, month, jeNzv }){
     return (datum) => {
       const vrednost = enotaNaDan[datum] || izVnosa[datum] || lastna;
       if (!vrednost) return "";
+      const zapis = (entries || []).find(e => e.work_date === datum);
+      const primarni = (zapis && (zapis.department_code || "").trim()) || (lastna ? String(lastna).split(/[\/,+]/)[0].trim() : "");
+      if (primarni) {
+        const deli = String(vrednost).split(/[\/,+]/).map(part => String(part).trim()).filter(Boolean);
+        const primCode = primarni.toUpperCase();
+        const ostalo = deli.filter(part => String(part).toUpperCase() !== primCode);
+        if (deli.length > 1 && ostalo.length) {
+          return window.NzvZasedba.normalizirajNazivOddelka ?
+            window.NzvZasedba.formatirajOddelke(primarni, ostalo.join(", ")) :
+            [primarni].concat(ostalo).join(", ");
+        }
+      }
       return window.NzvZasedba.normalizirajNazivOddelka ? window.NzvZasedba.normalizirajNazivOddelka(vrednost) : vrednost;
     };
   }, [entries, enotaNaDan, mojNosilec]);
