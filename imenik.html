@@ -216,6 +216,9 @@ function statusPrisotnosti(sifra){
 }
 
 function normalizirajNazivOddelka(v) {
+  if (typeof window !== "undefined" && typeof window.formatirajOddelke === "function") {
+    return window.formatirajOddelke(v, null);
+  }
   var s = String(v || "").trim();
   if (!s) return "";
   return s.split(/[\/,+]/)
@@ -232,6 +235,10 @@ function normalizirajNazivOddelka(v) {
 }
 
 function formatirajOddelkeIzKod(kode) {
+  if (typeof window !== "undefined" && typeof window.formatirajOddelke === "function") {
+    var vs = Array.isArray(kode) ? kode : [kode];
+    return window.formatirajOddelke(vs[0] || null, vs.slice(1));
+  }
   var vsi = [];
   (Array.isArray(kode) ? kode : [kode]).forEach(function (v) {
     if (v == null) return;

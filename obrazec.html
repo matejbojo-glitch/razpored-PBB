@@ -302,8 +302,10 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     }
   };
 
-  const prikazOddelka = profil && profil.department_code ? String(profil.department_code).split(/[\/,+]/)
-    .map(v => String(v).trim()).filter(Boolean).map(v => v.replace(/ZO/gi, "ŽO").replace(/B1B2/gi, "B1,B2")).filter((v, idx, arr) => arr.indexOf(v) === idx).join(", ") : "";
+  const prikazOddelka = profil && profil.department_code
+    ? (typeof window !== "undefined" && typeof window.formatirajOddelke === "function" ? window.formatirajOddelke(profil.department_code, null) : String(profil.department_code).split(/[\/,+]/)
+        .map(v => String(v).trim()).filter(Boolean).map(v => v.replace(/ZO/gi, "ŽO").replace(/B1B2/gi, "B1,B2")).filter((v, idx, arr) => arr.indexOf(v) === idx).join(", "))
+    : "";
 
   return (
     <div>

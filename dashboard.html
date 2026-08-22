@@ -111,6 +111,9 @@ function download(filename, obj){
 }
 
 function normalizirajNazivOddelka(v) {
+  if (typeof window !== "undefined" && typeof window.formatirajOddelke === "function") {
+    return window.formatirajOddelke(v, null);
+  }
   var s = String(v || "").trim();
   if (!s) return "";
   return s.split(/[\/,+]/)

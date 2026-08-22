@@ -124,7 +124,15 @@ window.NzvZasedba = (function () {
     });
     return vsi.join(", ");
   }
-  if (typeof window !== "undefined") window.formatirajOddelke = formatirajOddelke;
+
+  function normalizirajNazivOddelka(value) {
+    return formatirajOddelke(value, null);
+  }
+
+  if (typeof window !== "undefined") {
+    window.formatirajOddelke = formatirajOddelke;
+    window.normalizirajNazivOddelka = normalizirajNazivOddelka;
+  }
 
   // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) – oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v

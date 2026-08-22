@@ -90,6 +90,9 @@
   }
 
   function formatirajKodoOddelka(koda) {
+    if (typeof window !== "undefined" && typeof window.formatirajOddelke === "function") {
+      return window.formatirajOddelke(koda, null);
+    }
     var s = String(koda || "").trim();
     if (!s) return "";
     return s.split(/[\/,+]/)
