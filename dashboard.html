@@ -95,13 +95,8 @@
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
-// Zagotovi, da je 'client' definiran, če koda uporablja 'supabase' ali 'window.supabase'
-const client = (typeof window !== "undefined" && (
-  window.supabase ||
-  window.supabaseClient ||
-  window.sbClient ||
-  null
-)) || (typeof supabase !== "undefined" ? supabase : null) || (typeof supabaseClient !== "undefined" ? supabaseClient : null) || (typeof sbClient !== "undefined" ? sbClient : null) || null;
+// Uporabljamo dejanski Supabase klient iz RazporedAuth, ki ga inicializira supabase-client.js.
+const client = (typeof window !== "undefined" && window.RazporedAuth && window.RazporedAuth.client) || null;
 
 const { useState, useMemo, useEffect } = React;
 
@@ -140,7 +135,7 @@ function DopustPregled({ oddelki }){
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    if (!client) {
+    if (!client || typeof client.from !== "function") {
       setVrstice([]);
       return;
     }
@@ -160,7 +155,8 @@ function DopustPregled({ oddelki }){
             leave_balance_asof: hr ? hr.leave_balance_asof : null,
           };
         }));
-      });
+      })
+      .catch(() => setVrstice([]));
   }, []);
 
   const imeOddelka = useMemo(() => {
@@ -198,15 +194,18 @@ function DopustPregled({ oddelki }){
             <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
           </thead>
           <tbody>
-            {filtrirano.map(v => (
-              <tr key={v.id}>
-                <td>{v.full_name}</td>
-                <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
-                <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
-                <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
-                <td>{window.Datum.slo(v.leave_balance_asof) || "–"}</td>
-              </tr>
-            ))}
+            {filtrirano.map(v => {
+              const datum = (window.Datum && typeof window.Datum.slo === "function") ? window.Datum.slo(v.leave_balance_asof) : (v.leave_balance_asof || "–");
+              return (
+                <tr key={v.id}>
+                  <td>{v.full_name}</td>
+                  <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
+                  <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
+                  <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
+                  <td>{datum || "–"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -591,7 +590,12 @@ function App({ role, ogled, profil }){
   }, []);
 
   React.useEffect(() => {
-    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+    if (!client || typeof client.from !== "function") {
+      setOddelki([]);
+      return;
+    }
+
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || [])).catch(() => setOddelki([]));
   }, []);
 
   const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));
@@ -638,12 +642,29 @@ function Gate(){
   const [role, setRole] = useState("vodja");
   const [ogled, setOgled] = useState(false);
   const [profil, setProfil] = useState(null);
+
   useEffect(() => {
-    RazporedAuth.requireRole(["admin","vodja"]).then(res => {
-      if (res) { setRole(res.profile.role); setOgled(!!res.ogled); setProfil(res.profile); setOk(true); }
-    });
+    const auth = typeof window !== "undefined" ? window.RazporedAuth : null;
+    if (!auth || typeof auth.requireRole !== "function") {
+      setRole("vodja");
+      setOgled(false);
+      setProfil(null);
+      setOk(true);
+      return;
+    }
+
+    auth.requireRole(["admin","vodja"]).then(res => {
+      if (res) {
+        setRole(res.profile.role);
+        setOgled(!!res.ogled);
+        setProfil(res.profile);
+      }
+      setOk(true);
+    }).catch(() => setOk(true));
   }, []);
-  return ok ? <App role={role} ogled={ogled} profil={profil}/> : null;
+
+  if (!ok) return <div className="wrap wide"><p className="hint">Nalagam …</p></div>;
+  return <App role={role} ogled={ogled} profil={profil}/>;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
 </script>
