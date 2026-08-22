@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Menjava · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+
+<style>
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* širina: theme.css (.wrap / .wrap.wide / .wrap.polna) */
+  .wrap{ padding-bottom: 60px; }
+  /* Ozadje mora biti NEPROSOJNO. Prej je bilo linear-gradient(... , transparent),
+     zato je vsebina, ki je pri drsenju zašla pod spodnjih 22 % glave, prosvetila
+     skozi njeno lastno besedilo (ime prijavljenega se je prekrivalo z besedilom
+     strani). Mehak prehod je zdaj ločen element POD glavo. */
+  header.top{ position:sticky; top:0; z-index:20; background: var(--bg);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  header.top::after{ content:""; position:absolute; left:0; right:0; top:100%; height:14px;
+    background: linear-gradient(180deg, var(--bg), transparent); pointer-events:none; }
+  .tabs{ display:flex; gap:6px; margin: 10px 0 16px; background:var(--surface-2); border-radius:999px; padding:4px; }
+  .tabs button{ flex:1; border:0; background:none; padding:10px 8px; border-radius:999px; font-weight:800; font-size:12.5px;
+    color:var(--muted); cursor:pointer; font-family:inherit; min-height:40px; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+  select, input[type=date], input[type=time], input[type=text], textarea{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; width:100%; font-family:inherit;
+  }
+  textarea{ resize:vertical; min-height:60px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .shiftPreview{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .ghostBtn{ width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line);
+    padding:11px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; min-height:44px; }
+
+  .pill{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+  .pill.wait{ background: rgba(167,148,72,.18); color: var(--accent-2); }
+  .pill.ok{ background: var(--ok-bg); color: var(--ok); }
+  .pill.no{ background: var(--danger-bg); color: var(--danger); }
+
+  .entry{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .entry:last-child{ border-bottom:0; }
+  .entry .who{ font-weight:700; font-size:13.5px; }
+  .entry .meta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .entry .actions{ display:flex; gap:6px; flex:0 0 auto; }
+  .actBtn{ border:0; border-radius:8px; padding:11px 14px; min-height:40px; font-size:13px; font-weight:800; cursor:pointer; }
+  .actBtn.yes{ background: var(--ok); color:#12281A; }
+  .actBtn.no{ background: var(--danger); color:#2A1608; }
+  .candidate{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); gap:10px; }
+  .candidate:last-child{ border-bottom:0; }
+  .candBtn{ border:1px solid var(--line); background:var(--surface-2); border-radius:var(--radius-sm); padding:8px 12px;
+    font-weight:700; font-size:12.5px; cursor:pointer; min-height:40px; }
+  .candBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+
+  .empty{ color:var(--muted); font-size:13px; padding:8px 0; }
+  .err{ color:var(--danger); font-size:13px; margin-top:8px; }
+  .backBtn{ background:none; border:0; color:var(--muted); font-size:13px; font-weight:700; cursor:pointer; padding:0; margin-bottom:10px; font-family:inherit; }
+
+  .timeline{ list-style:none; margin:0; padding:0; }
+  .timeline li{ position:relative; padding:0 0 18px 26px; border-left:2px solid var(--line); margin-left:6px; }
+  .timeline li:last-child{ border-color:transparent; padding-bottom:0; }
+  .timeline li .dot{ position:absolute; left:-7px; top:0; width:12px; height:12px; border-radius:50%; background:var(--line); border:2px solid var(--surface); }
+  .timeline li.done .dot{ background:var(--ok); }
+  .timeline li.rejected .dot{ background:var(--danger); }
+  .timeline li .step{ font-weight:800; font-size:13.5px; }
+  .timeline li .meta{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .timeline li.pending .step{ color:var(--muted); }
+
+  .printHead{ display:none; }
+  @media print{
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; }
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+    .printHead{ display:block; margin-bottom:14px; }
+    .printHead h1{ font-size:18px; margin:0 0 4px; }
+    .printHead p{ font-size:11px; color:#444; margin:0; line-height:1.5; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="izmene.js"></script>
+<script src="delovni-cas.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+<script src="datum.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
+<script src="print-fit.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback } = React;
+const { client } = RazporedAuth;
+
+const VRSTA_LABEL = {
+  rocno_evidentiranje: "Ročno evidentiranje",
+  menjava_sluzbe: "Menjava službe",
+  drugo: "Drugo",
+};
+const STATUS_LABEL = {
+  osnutek: { text: "Osnutek", cls: "wait" },
+  caka_sodelavca: { text: "Čaka sodelavca", cls: "wait" },
+  caka_vodjo: { text: "Čaka vodjo", cls: "wait" },
+  caka_koordinatorja: { text: "Čaka koordinatorja", cls: "wait" },
+  zakljucen: { text: "Zaključen", cls: "ok" },
+  zavrnjen: { text: "Zavrnjen", cls: "no" },
+  preklican: { text: "Preklican", cls: "no" },
+};
+const DEJANJE_STOPNJA = ["ODDANO", "SODELAVEC_POTRDIL/ZAVRNIL", "VODJA_ODOBRIL/ZAVRNIL", "KOORDINATOR_POTRDIL/ZAVRNIL"];
+
+// Kar uporabnik VIDI namesto surove šifre iz baze: naziv iz uradne
+// legende (izmene.js) - "Dopoldne", "Popoldne", "Nočna". Šifra v bazi
+// ostane nespremenjena.
+function oznakaIzmene(sifra){
+  if (!sifra) return "prosto";
+  return (window.Izmene && window.Izmene.naziv(sifra)) || sifra;
+}
+
+function fmtDatum(iso){
+  return window.Datum.slo(iso);
+}
+function fmtCas(iso){
+  return window.Datum.sloSCasom(iso);
+}
+
+// Vsak vidi samo tisto, kar je zanj relevantno - namesto enega dolgega
+// opisa celotne verige (vseh vlog) za vse.
+function opisVerige(profile){
+  const rola = profile ? profile.role : "user";
+  const jeKoordinator = !!(profile && profile.is_koordinator);
+
+  if (jeKoordinator) {
+    return "Kot koordinator dokončno potrjuješ menjave dežurstva – po potrditvi sodelavca gredo naravnost k tebi, brez vmesnega koraka pri vodji. Navadne menjave službe (in ročno evidentiranje/drugo) dokončno potrdi kdorkoli ima vlogo administrator.";
+  }
+  if (rola === "admin") {
+    return "Kot administrator dokončno potrjuješ navadne menjave službe (po potrditvi sodelavca in vodje) ter ročno evidentiranje/drugo (po vodji). Menjave dežurstva namesto tega dokončno potrdi izključno koordinator – te se v tvojem seznamu \"Čaka name\" ne bodo pojavile.";
+  }
+  if (rola === "vodja") {
+    return "Zahtevke oseb, ki imajo tebe nastavljenega za neposrednega vodjo, odobriš na vmesni stopnji (po sodelavcu, pred administratorjem) – razen menjav dežurstva, ki to stopnjo preskočijo in gredo naravnost h koordinatorju. Tvoje lastne zahtevke odobrava enaka veriga, samo s tvojim neposrednim vodjo namesto tebe.";
+  }
+  return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator – pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
+}
+
+function StatusPill({ status }){
+  const s = STATUS_LABEL[status] || { text: status, cls: "wait" };
+  return <span className={"pill " + s.cls}>{s.text}</span>;
+}
+
+// Segmentna izbira vrste + dinamična polja + oddaja.
+function NovObrazec({ myId, profil, onOddano, prednapolni }){
+  const [vrsta, setVrsta] = useState((prednapolni && prednapolni.vrsta) || "menjava_sluzbe");
+  const [datum, setDatum] = useState((prednapolni && prednapolni.datum) || "");
+  const [prihod, setPrihod] = useState("");
+  const [odhod, setOdhod] = useState("");
+  const [razlog, setRazlog] = useState("");
+  const [opomba, setOpomba] = useState("");
+  const [mojaIzmena, setMojaIzmena] = useState(undefined);
+  const [kandidati, setKandidati] = useState(null);
+  const [kandidatiBusy, setKandidatiBusy] = useState(false);
+  const [izbranSodelavec, setIzbranSodelavec] = useState(null); // { profile_id, full_name, njihova_izmena, njihov_datum }
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); return; }
+    client.from("schedule_entries").select("shift_code").eq("employee_id", myId).eq("work_date", datum).maybeSingle()
+      .then(({ data }) => setMojaIzmena(data ? data.shift_code : ""));
+    setKandidati(null); setIzbranSodelavec(null);
+  }, [vrsta, datum, myId]);
+
+  const poisciSodelavce = async () => {
+    setKandidatiBusy(true); setErr(null);
+    try {
+      const { data, error } = await client.rpc("mozni_sodelavci", { p_profile_id: myId, p_datum: datum });
+      if (error) throw error;
+      setKandidati(data || []);
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setKandidatiBusy(false);
+    }
+  };
+
+  // Samo informativno (dejansko zaznavanje je server-side v obrazec_oddaj) -
+  // menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju
+  // (izključno Denis Džamastagić), zato je prav, da to vidiš že pred oddajo.
+  const jeDezurstvo = vrsta === "menjava_sluzbe" && (
+    (mojaIzmena || "").toLowerCase().startsWith("dežurstvo")
+    || (izbranSodelavec && (izbranSodelavec.njihova_izmena || "").toLowerCase().startsWith("dežurstvo"))
+  );
+
+  // Delovnopravno preverjanje menjave (ZDR-1) – generator je te omejitve
+  // upošteval, ročna menjava pa jih je doslej lahko tiho podrla: npr.
+  // popoldanska izmena zamenjana za jutranjo naslednji dan pomeni manj kot
+  // 12 h počitka. Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
+  const [krsitve, setKrsitve] = useState(null);
+  useEffect(() => {
+    if (vrsta !== "menjava_sluzbe" || !izbranSodelavec || !datum || !window.DelovniCas){
+      setKrsitve(null);
+      return;
+    }
+    let cancelled = false;
+    const dodaj = (iso, n) => {
+      const d = new Date(iso + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    // Okno ±3 dni okoli obeh datumov zajame vsa pravila, ki jih preverjamo
+    // (počitek med izmenama, zaporedne nočne, prost dan v oknu 7 dni).
+    const dnevi = [datum, izbranSodelavec.njihov_datum].sort();
+    const od = dodaj(dnevi[0], -3), doo = dodaj(dnevi[dnevi.length - 1], 3);
+    const jaz = myId, on = izbranSodelavec.profile_id;
+
+    client.from("schedule_entries")
+      .select("employee_id, work_date, shift_code")
+      .in("employee_id", [jaz, on])
+      .gte("work_date", od).lte("work_date", doo)
+      .then(({ data, error }) => {
+        if (cancelled || error) { if (!cancelled) setKrsitve(null); return; }
+        const mojeIme = (profil && profil.full_name) || "Ti";
+        const njegovoIme = izbranSodelavec.full_name;
+        // Mreža oseba|datum -> šifra, da uveljavitev menjave PREPIŠE
+        // obstoječi vnos namesto da bi mu dodala drugega. Dvojni vnos za
+        // isti dan bi pravila brala kot dve izmeni in javil izmišljeno
+        // kršitev počitka.
+        const mreza = {};
+        const kljuc = (oseba, dan) => oseba + "|" + dan;
+        (data || []).forEach(r => {
+          const oseba = r.employee_id === jaz ? mojeIme : njegovoIme;
+          mreza[kljuc(oseba, r.work_date)] = { oseba, datum: r.work_date, sifra: r.shift_code };
+        });
+        // Uveljavi menjavo: moja izmena gre njemu, njegova pride meni.
+        mreza[kljuc(mojeIme, datum)] = { oseba: mojeIme, datum, sifra: "" };
+        mreza[kljuc(njegovoIme, izbranSodelavec.njihov_datum)] =
+          { oseba: njegovoIme, datum: izbranSodelavec.njihov_datum, sifra: "" };
+        mreza[kljuc(mojeIme, izbranSodelavec.njihov_datum)] =
+          { oseba: mojeIme, datum: izbranSodelavec.njihov_datum, sifra: izbranSodelavec.njihova_izmena };
+        mreza[kljuc(njegovoIme, datum)] =
+          { oseba: njegovoIme, datum, sifra: mojaIzmena || "" };
+        setKrsitve(window.DelovniCas.preveriPravila(Object.values(mreza)));
+      });
+    return () => { cancelled = true; };
+  }, [vrsta, datum, izbranSodelavec, mojaIzmena, myId, profil]);
+
+  const oddaj = async () => {
+    setErr(null);
+    if (!datum){ setErr("Izberi datum."); return; }
+    let polja = { opomba: opomba.trim() || undefined };
+    let sodelavec_id = null;
+    if (vrsta === "menjava_sluzbe"){
+      if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo."); return; }
+      sodelavec_id = izbranSodelavec.profile_id;
+      polja = { ...polja, datum_a: datum, izmena_a: mojaIzmena || "", datum_b: izbranSodelavec.njihov_datum, izmena_b: izbranSodelavec.njihova_izmena };
+    } else if (vrsta === "rocno_evidentiranje"){
+      if (!prihod || !odhod){ setErr("Vnesi prihod in odhod."); return; }
+      polja = { ...polja, datum, prihod, odhod };
+    } else {
+      if (!razlog.trim()){ setErr("Vnesi razlog."); return; }
+      polja = { ...polja, datum, prihod: prihod || null, odhod: odhod || null, razlog: razlog.trim() };
+    }
+
+    setBusy(true);
+    try {
+      const { data, error } = await client.from("obrazci").insert({
+        vrsta, status: "osnutek", vlagatelj_id: myId, sodelavec_id, polja,
+      }).select().single();
+      if (error) throw error;
+      const { error: e2 } = await client.rpc("obrazec_oddaj", { p_id: data.id });
+      if (e2) throw e2;
+      setDatum(""); setPrihod(""); setOdhod(""); setRazlog(""); setOpomba(""); setKandidati(null); setIzbranSodelavec(null);
+      onOddano();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="tabs no-print" role="tablist">
+        {Object.keys(VRSTA_LABEL).map(v => (
+          <button key={v} role="tab" aria-selected={vrsta === v} onClick={() => { setVrsta(v); setErr(null); }}>{VRSTA_LABEL[v]}</button>
+        ))}
+      </div>
+      <div className="card">
+        <div className="field">
+          <label htmlFor="ip">Ime, priimek, oddelek</label>
+          <input id="ip" type="text" value={profil ? `${profil.full_name}${profil.department_code ? " · " + profil.department_code : ""}` : "Nalagam …"} disabled />
+        </div>
+
+        {vrsta === "menjava_sluzbe" && (
+          <React.Fragment>
+            <div className="field">
+              <label htmlFor="da">Moj datum</label>
+              <input id="da" type="date" value={datum} onChange={e => setDatum(e.target.value)} />
+              {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {oznakaIzmene(mojaIzmena)}</div>}
+            </div>
+            {datum && (
+              <button type="button" className="ghostBtn no-print" disabled={kandidatiBusy} onClick={poisciSodelavce}>
+                {kandidatiBusy ? "Iščem …" : "Poišči sodelavce za menjavo"}
+              </button>
+            )}
+            {kandidati !== null && (
+              <div style={{marginTop:10}}>
+                {kandidati.length === 0 && <p className="empty">Ni najdenih sodelavcev, ki bi tisti dan lahko zamenjali (počitek/odsotnost).</p>}
+                {kandidati.map(k => (
+                  <div className="candidate" key={k.profile_id + k.njihov_datum}>
+                    <div>
+                      <div className="who">
+                        <a href={"imenik.html?id=" + k.profile_id} style={{color:"inherit"}}
+                           title="Odpri profil">{k.full_name}</a>
+                      </div>
+                      <div className="meta">{fmtDatum(k.njihov_datum)} · {oznakaIzmene(k.njihova_izmena)} · {k.jaz_pridem_prej ? "ti prideš prej" : "on/ona pride prej"}</div>
+                    </div>
+                    <button type="button" className="candBtn" aria-pressed={izbranSodelavec && izbranSodelavec.profile_id === k.profile_id && izbranSodelavec.njihov_datum === k.njihov_datum}
+                      onClick={() => setIzbranSodelavec(k)}>Izberi</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </React.Fragment>
+        )}
+
+        {vrsta === "rocno_evidentiranje" && (
+          <React.Fragment>
+            <div className="field"><label htmlFor="d1">Datum</label><input id="d1" type="date" value={datum} onChange={e => setDatum(e.target.value)} /></div>
+            <div className="row2">
+              <div className="field"><label htmlFor="pr">Prihod</label><input id="pr" type="time" value={prihod} onChange={e => setPrihod(e.target.value)} /></div>
+              <div className="field"><label htmlFor="od">Odhod</label><input id="od" type="time" value={odhod} onChange={e => setOdhod(e.target.value)} /></div>
+            </div>
+          </React.Fragment>
+        )}
+
+        {vrsta === "drugo" && (
+          <React.Fragment>
+            <div className="field"><label htmlFor="d2">Datum</label><input id="d2" type="date" value={datum} onChange={e => setDatum(e.target.value)} /></div>
+            <div className="row2">
+              <div className="field"><label htmlFor="pr2">Prihod (neobvezno)</label><input id="pr2" type="time" value={prihod} onChange={e => setPrihod(e.target.value)} /></div>
+              <div className="field"><label htmlFor="od2">Odhod (neobvezno)</label><input id="od2" type="time" value={odhod} onChange={e => setOdhod(e.target.value)} /></div>
+            </div>
+            <div className="field">
+              <label htmlFor="rz">Razlog</label>
+              <textarea id="rz" value={razlog} onChange={e => setRazlog(e.target.value)} placeholder="npr. kasnejši prihod, nadomestni prihod zaradi odsotnosti razporejenega delavca" />
+              <HitriRazlog vrednost={razlog} naVnos={setRazlog} />
+            </div>
+          </React.Fragment>
+        )}
+
+        <div className="field">
+          <label htmlFor="op">{vrsta === "menjava_sluzbe" ? "Razlog menjave (neobvezno)" : "Opomba (neobvezno)"}</label>
+          <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
+          {vrsta === "menjava_sluzbe" && <HitriRazlog vrednost={opomba} naVnos={setOpomba} />}
+        </div>
+        {jeDezurstvo && (
+          <p className="hint" style={{marginTop:-6}}>
+            🔁 Menjava dežurstva: po potrditvi sodelavca gre predlog naravnost h koordinatorju
+            (Denis Džamastagić), brez vmesnega koraka pri vodji.
+          </p>
+        )}
+        {krsitve && krsitve.length > 0 && (
+          <div className="warnBox" style={{marginTop:4}}>
+            <div className="t">
+              ⚠ Ta menjava bi kršila delovnopravna pravila ({krsitve.length})
+            </div>
+            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
+              {krsitve.map((k, i) => (
+                <li key={i} style={{fontSize:12.5, marginBottom:2}}>
+                  <b>{k.oseba}</b> ({fmtDatum(k.datum)}): {k.sporocilo}
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Menjavo lahko vseeno oddaš – opozorilo si bosta ogledala še vodja in koordinator,
+              ki menjavo potrdita ali zavrneta.
+            </p>
+          </div>
+        )}
+        <button className="submitBtn" onClick={oddaj} disabled={busy}>{busy ? "Oddajam …" : "Oddaj obrazec"}</button>
+        {err && <p className="err">{err}</p>}
+      </div>
+    </div>
+  );
+}
+
+function CakaName({ rows, onOdloceno }){
+  const [busyId, setBusyId] = useState(null);
+  const [opombaId, setOpombaId] = useState(null);
+  const [opombaBesedilo, setOpombaBesedilo] = useState("");
+
+  if (rows.length === 0) return <p className="empty">Trenutno ni zahtevkov, ki čakajo tvojo odločitev.</p>;
+
+  const funkcijaZa = (dejanje) => ({
+    potrdi_kot_sodelavec: "obrazec_potrdi_sodelavec",
+    odobri_kot_vodja: "obrazec_potrdi_vodja",
+    potrdi_kot_koordinator: "obrazec_potrdi_koordinator",
+  })[dejanje];
+
+  const odloci = async (row, sprejmi) => {
+    if (!sprejmi && opombaId !== row.id){ setOpombaId(row.id); setOpombaBesedilo(""); return; }
+    setBusyId(row.id);
+    try {
+      const fn = funkcijaZa(row.moje_dejanje);
+      const { error } = await client.rpc(fn, { p_id: row.id, p_sprejmi: sprejmi, p_opomba: sprejmi ? null : (opombaBesedilo.trim() || null) });
+      if (error) throw error;
+      setOpombaId(null); setOpombaBesedilo("");
+      onOdloceno();
+    } catch (e) { alert(e.message || String(e)); }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <div className="card">
+      {rows.map(r => (
+        <div key={r.id}>
+          <div className="entry" style={{cursor:"default"}}>
+            <div>
+              <div className="who">{r.stevilka} · {VRSTA_LABEL[r.vrsta]}</div>
+              <div className="meta">{r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : (r.polja && r.polja.datum ? fmtDatum(r.polja.datum) : "")}</div>
+              {r.polja && r.polja.opomba && <div className="meta">{r.polja.opomba}</div>}
+            </div>
+            <div className="actions">
+              <button className="actBtn yes" disabled={busyId === r.id} onClick={() => odloci(r, true)}>Odobri</button>
+              <button className="actBtn no" disabled={busyId === r.id} onClick={() => odloci(r, false)}>Zavrni</button>
+            </div>
+          </div>
+          {opombaId === r.id && (
+            <div style={{padding:"0 0 12px"}}>
+              <textarea placeholder="Razlog zavrnitve (obvezno)" value={opombaBesedilo} onChange={e => setOpombaBesedilo(e.target.value)} />
+              <button className="ghostBtn" style={{marginTop:6}} disabled={!opombaBesedilo.trim() || busyId === r.id} onClick={() => odloci(r, false)}>Potrdi zavrnitev</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Pogosti razlogi za menjavo/evidentiranje - hitra izbira namesto tipkanja
+// na telefonu. Izbira samo VPIŠE besedilo v polje, ki ga je nato mogoče
+// dopolniti ali povsem prepisati (ni zaklenjen seznam).
+const HITRI_RAZLOGI = [
+  "Nadomeščanje sodelavca",
+  "Študijske obveznosti",
+  "Osebni razlogi",
+  "Zdravstveni razlog",
+  "Družinske obveznosti",
+  "Uskladitev prevoza",
+];
+
+function HitriRazlog({ vrednost, naVnos }){
+  return (
+    <div style={{display:"flex", gap:6, flexWrap:"wrap", marginTop:6}}>
+      {HITRI_RAZLOGI.map(r => (
+        <button key={r} type="button" className="pill"
+          style={{cursor:"pointer", border:"1px solid var(--line)"}}
+          onClick={() => naVnos(vrednost && vrednost.trim() ? vrednost.trim() + ", " + r.toLowerCase() : r)}>
+          + {r}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Casovnica({ obrazec, dnevnik }){
+  // Menjava dežurstva preskoči korak "Neposredni vodja" (glej
+  // obrazec_potrdi_sodelavec v supabase/schema.sql) - v časovnici se zato
+  // sploh ne prikaže, da ne izgleda kot "čaka", čeprav do tja nikoli ne pride.
+  const koraki = [
+    { stopnja: 1, naslov: "Oddano", kratko: "Oddano" },
+    ...(obrazec.vrsta === "menjava_sluzbe" ? [{ stopnja: 2, naslov: "Sodelavec", kratko: "Sodelavec" }] : []),
+    ...(obrazec.je_dezurstvo ? [] : [{ stopnja: 3, naslov: "Neposredni vodja", kratko: "Vodja" }]),
+    { stopnja: 4, naslov: obrazec.je_dezurstvo ? "Koordinator (Denis Džamastagić)" : "Koordinator", kratko: "Koordinator" },
+  ];
+  // Prvi korak brez vnosa v dnevniku je "aktiven" (tam zahtevek trenutno
+  // stoji) - vsi za njim so šele v prihodnosti.
+  const koncan = koraki.filter(k => dnevnik.some(d => d.stopnja === k.stopnja)).length;
+  const jeZavrnjen = dnevnik.some(d => d.dejanje.includes("ZAVRNIL"));
+
+  return (
+    <div>
+      {/* Vodoravna časovna premica - stanje na prvi pogled. Podroben
+          dnevnik (kdo/kdaj/opomba) ostaja pod njo. */}
+      <div className="premica">
+        {koraki.map((k, i) => {
+          const vnos = dnevnik.find(d => d.stopnja === k.stopnja);
+          const zavrnjen = vnos && vnos.dejanje.includes("ZAVRNIL");
+          const razred = zavrnjen ? "zavrnjen"
+            : vnos ? "koncan"
+            : (i === koncan && !jeZavrnjen) ? "aktiven" : "";
+          return (
+            <div key={k.stopnja} className={"korak " + razred}>
+              <div className="pika">{zavrnjen ? "✗" : vnos ? "✓" : (i === koncan && !jeZavrnjen) ? "●" : i + 1}</div>
+              <div className="oznaka">{k.kratko || k.naslov}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <ul className="timeline">
+        {koraki.map(k => {
+          const vnos = dnevnik.find(d => d.stopnja === k.stopnja);
+          const zavrnjen = vnos && vnos.dejanje.includes("ZAVRNIL");
+          return (
+            <li key={k.stopnja} className={vnos ? (zavrnjen ? "rejected" : "done") : "pending"}>
+              <span className="dot"></span>
+              <div className="step">{k.naslov}{vnos ? (zavrnjen ? " – zavrnjeno" : " – potrjeno") : " – čaka"}</div>
+              {vnos && <div className="meta">{vnos.ime_ob_dejanju} ({vnos.vloga_ob_dejanju}) · {fmtCas(vnos.cas)}{vnos.opomba ? " · " + vnos.opomba : ""}</div>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function DetajlObrazca({ obrazec, profil, onNazaj }){
+  const [dnevnik, setDnevnik] = useState([]);
+  useEffect(() => {
+    client.from("obrazci_dnevnik").select("*").eq("obrazec_id", obrazec.id).order("cas")
+      .then(({ data }) => setDnevnik(data || []));
+  }, [obrazec.id]);
+
+  const p = obrazec.polja || {};
+  return (
+    <div>
+      <button className="backBtn no-print" onClick={onNazaj}>‹ Nazaj</button>
+      <div className="printHead">
+        <h1>Zahtevek za spremembo evidence delovnega časa in razporeda</h1>
+        <p>Št. {obrazec.stevilka}</p>
+      </div>
+      <div className="card">
+        <div className="field"><label>Vrsta</label><div>{VRSTA_LABEL[obrazec.vrsta]}</div></div>
+        {obrazec.vrsta === "menjava_sluzbe" && (
+          <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+        )}
+        {obrazec.vrsta === "rocno_evidentiranje" && (
+          <div className="field"><label>Ročno evidentiranje</label><div>{p.datum && fmtDatum(p.datum)} · prihod {p.prihod} · odhod {p.odhod}</div></div>
+        )}
+        {obrazec.vrsta === "drugo" && (
+          <div className="field"><label>Drugo</label><div>{p.datum && fmtDatum(p.datum)}{p.prihod ? " · prihod " + p.prihod : ""}{p.odhod ? " · odhod " + p.odhod : ""} · {p.razlog}</div></div>
+        )}
+        {p.opomba && <div className="field"><label>Opomba</label><div>{p.opomba}</div></div>}
+        {obrazec.razlog_zavrnitve && <div className="field"><label>Razlog zavrnitve</label><div>{obrazec.razlog_zavrnitve}</div></div>}
+      </div>
+      <h2 className="section">Pregled potrditev</h2>
+      <div className="card"><Casovnica obrazec={obrazec} dnevnik={dnevnik} /></div>
+      {obrazec.status === "zakljucen" && (
+        <button className="submitBtn no-print" onClick={() => PrintFit.natisni(null, { orientacija: "portrait" })}>📄 Prenesi PDF</button>
+      )}
+      <footer className="foot printHead" style={{display:"block", marginTop:20}}>
+        <p>Psihiatrična bolnišnica Begunje · Begunje na Gorenjskem 55, 4275 Begunje na Gorenjskem<br/>
+        04 53 35 213 · 04 53 35 298 · tajnistvo@pb-begunje.si<br/>
+        davčna številka 94700699 · matična številka 5054818</p>
+      </footer>
+    </div>
+  );
+}
+
+function MojiObrazci({ rows, onOdpri }){
+  if (rows.length === 0) return <p className="empty">Nimaš še nobenega obrazca.</p>;
+  return (
+    <div className="card">
+      {rows.map(r => (
+        <div className="entry" key={r.id} onClick={() => onOdpri(r)}>
+          <div>
+            <div className="who">{r.stevilka} · {VRSTA_LABEL[r.vrsta]}</div>
+            <div className="meta">{window.Datum.slo(r.ustvarjen)}</div>
+          </div>
+          <StatusPill status={r.status} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// "V tem mesecu" – vse menjave službe (ne ročno evidentiranje/drugo) tekočega
+// meseca, vidne VSEM prijavljenim (glej razširjeno obrazci_select RLS v
+// supabase/schema.sql, sekcija 22) - ne samo lastnim/udeleženim, ker je
+// uporabnik izrecno zahteval pregleden mesečni seznam za vse.
+function MenjaveMeseca({ rows }){
+  if (rows === null) return <p className="empty">Nalagam …</p>;
+  if (rows.length === 0) return <p className="empty">V tem mesecu še ni bilo nobene menjave.</p>;
+  return (
+    <div className="card">
+      {rows.map(r => {
+        const p = r.polja || {};
+        return (
+          <div className="entry" style={{cursor:"default"}} key={r.id}>
+            <div>
+              <div className="who">
+                {r.vlagatelj ? r.vlagatelj.full_name : "?"}
+                {" ↔ "}
+                {r.sodelavec ? r.sodelavec.full_name : "?"}
+                {r.je_dezurstvo && <span className="pill wait" style={{marginLeft:6}}>dežurstvo</span>}
+              </div>
+              <div className="meta">{p.datum_a ? fmtDatum(p.datum_a) : ""} ⇄ {p.datum_b ? fmtDatum(p.datum_b) : ""}</div>
+            </div>
+            <StatusPill status={r.status} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function App(){
+  const [auth, setAuth] = useState(null);
+  const [zavihek, setZavihek] = useState("nov"); // nov | caka | moji | mesec
+  const [caka, setCaka] = useState([]);
+  const [moji, setMoji] = useState([]);
+  const [mesec, setMesec] = useState(null);
+  const [odprt, setOdprt] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [prednapolni, setPrednapolni] = useState(null);
+
+  useEffect(() => {
+    RazporedAuth.requireAuth().then(res => { if (res) setAuth(res); });
+    const params = new URLSearchParams(location.search);
+    if (params.get("vrsta") || params.get("datum")) {
+      setPrednapolni({ vrsta: params.get("vrsta") || undefined, datum: params.get("datum") || undefined });
+      setZavihek("nov");
+    }
+  }, []);
+
+  const reload = useCallback(() => setReloadKey(k => k + 1), []);
+
+  useEffect(() => {
+    if (!auth) return;
+    const myId = auth.session.user.id;
+    client.from("obrazci_moja_naloga").select("*").not("moje_dejanje", "is", null).order("ustvarjen")
+      .then(({ data }) => setCaka(data || []));
+    client.from("obrazci").select("*").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
+      .then(({ data }) => setMoji(data || []));
+
+    const zdaj = new Date();
+    const prviDan = new Date(zdaj.getFullYear(), zdaj.getMonth(), 1).toISOString().slice(0, 10);
+    const naslednjiPrviDan = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1).toISOString().slice(0, 10);
+    client.from("obrazci")
+      .select("*, vlagatelj:profiles!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profiles!obrazci_sodelavec_id_fkey(full_name)")
+      .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
+      .filter("polja->>datum_a", "gte", prviDan).filter("polja->>datum_a", "lt", naslednjiPrviDan)
+      .order("ustvarjen", { ascending: false })
+      .then(({ data, error }) => { if (error) console.error("Nalaganje menjav meseca ni uspelo:", error); setMesec(data || []); });
+  }, [auth, reloadKey]);
+
+  if (!auth) return null;
+  const { profile } = auth;
+  const myId = auth.session.user.id;
+
+  return (
+    <div className="wrap wide">
+      <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
+      <header className="top no-print">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Menjava</span></div>
+        <p className="sub">Menjave izmen in evidentiranje prisotnosti · {profile ? profile.full_name : ""}</p>
+      </header>
+
+      {!odprt && (
+        <React.Fragment>
+          <div className="tabs no-print" role="tablist">
+            <button role="tab" aria-selected={zavihek === "nov"} onClick={() => setZavihek("nov")}>Nov obrazec</button>
+            <button role="tab" aria-selected={zavihek === "caka"} onClick={() => setZavihek("caka")}>Čaka name{caka.length > 0 ? " (" + caka.length + ")" : ""}</button>
+            <button role="tab" aria-selected={zavihek === "moji"} onClick={() => setZavihek("moji")}>Moji obrazci</button>
+            <button role="tab" aria-selected={zavihek === "mesec"} onClick={() => setZavihek("mesec")}>V tem mesecu</button>
+          </div>
+
+          {zavihek === "nov" && (
+            <div style={{maxWidth:560}}>
+              <NovObrazec myId={myId} profil={profile} onOddano={() => { reload(); setZavihek("moji"); }} prednapolni={prednapolni} />
+            </div>
+          )}
+          {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} />}
+          {zavihek === "moji" && (
+            <React.Fragment>
+              <MojiObrazci rows={moji} onOdpri={setOdprt} />
+              <RazporedIzvozVir
+                naziv="Moji obrazci"
+                naslov="moji-obrazci"
+                pripravi={() => [{
+                  ime: "Obrazci",
+                  glave: ["Številka", "Vrsta", "Ustvarjen", "Status"],
+                  vrstice: moji.map(r => [
+                    r.stevilka, VRSTA_LABEL[r.vrsta] || r.vrsta,
+                    window.Datum.slo(r.ustvarjen),
+                    (STATUS_LABEL[r.status] || { text: r.status }).text,
+                  ]),
+                }]}
+              />
+            </React.Fragment>
+          )}
+          {zavihek === "mesec" && (
+            <React.Fragment>
+              <p className="hint no-print">Vse menjave izmen (ne ročno evidentiranje/drugo) za tekoči mesec, vidne vsem.</p>
+              <MenjaveMeseca rows={mesec} />
+              {mesec && mesec.length > 0 && (
+                <RazporedIzvozVir
+                  naziv="Menjave meseca"
+                  naslov="menjave-meseca"
+                  pripravi={() => [{
+                    ime: "Menjave",
+                    glave: ["Predlagatelj", "Sodelavec", "Datum 1", "Datum 2", "Dežurstvo", "Status"],
+                    vrstice: mesec.map(r => [
+                      r.vlagatelj ? r.vlagatelj.full_name : "?",
+                      r.sodelavec ? r.sodelavec.full_name : "?",
+                      r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : "",
+                      r.polja && r.polja.datum_b ? fmtDatum(r.polja.datum_b) : "",
+                      r.je_dezurstvo ? "da" : "ne",
+                      (STATUS_LABEL[r.status] || { text: r.status }).text,
+                    ]),
+                  }]}
+                />
+              )}
+            </React.Fragment>
+          )}
+        </React.Fragment>
+      )}
+      {odprt && <DetajlObrazca obrazec={odprt} profil={profile} onNazaj={() => setOdprt(null)} />}
+
+      <footer className="foot no-print">
+        <p>Digitalna različica obrazca »Zahtevek za spremembo evidence delovnega časa in razporeda«.</p>
+        <p>{opisVerige(profile)}</p>
+      </footer>
+
+      <RazporedNav active="menjava" role={profile ? profile.role : "user"} unread={0} />
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,759 @@
+{
+ "osnova_sms": {
+  "obdobje": "1. 1. – 30. 9. 2026",
+  "podatki": [
+   {
+    "ime": "BAJT A.",
+    "enota": "E2",
+    "delo": 144,
+    "nocne": 57,
+    "nedpraz": 20,
+    "vikend": 34,
+    "ld": 36,
+    "kpu": 43
+   },
+   {
+    "ime": "BEČIROVIĆ N.",
+    "enota": "C1",
+    "delo": 139,
+    "nocne": 57,
+    "nedpraz": 17,
+    "vikend": 29,
+    "ld": 43,
+    "kpu": 38
+   },
+   {
+    "ime": "BRATUŠA M.",
+    "enota": "E1",
+    "delo": 151,
+    "nocne": 55,
+    "nedpraz": 19,
+    "vikend": 36,
+    "ld": 39,
+    "kpu": 35
+   },
+   {
+    "ime": "BURNAR S.",
+    "enota": "FLEXI",
+    "delo": 23,
+    "nocne": 0,
+    "nedpraz": 1,
+    "vikend": 2,
+    "ld": 20,
+    "kpu": 0
+   },
+   {
+    "ime": "DJEDOVIĆ M.",
+    "enota": "C",
+    "delo": 136,
+    "nocne": 12,
+    "nedpraz": 7,
+    "vikend": 18,
+    "ld": 19,
+    "kpu": 9
+   },
+   {
+    "ime": "DOLAR T.",
+    "enota": "B",
+    "delo": 144,
+    "nocne": 56,
+    "nedpraz": 20,
+    "vikend": 33,
+    "ld": 43,
+    "kpu": 37
+   },
+   {
+    "ime": "DŽINIĆ A.",
+    "enota": "C1",
+    "delo": 150,
+    "nocne": 53,
+    "nedpraz": 19,
+    "vikend": 32,
+    "ld": 36,
+    "kpu": 38
+   },
+   {
+    "ime": "GASHI G.",
+    "enota": "FLEXI",
+    "delo": 137,
+    "nocne": 0,
+    "nedpraz": 4,
+    "vikend": 10,
+    "ld": 18,
+    "kpu": 4
+   },
+   {
+    "ime": "GAZIBARA A.",
+    "enota": "C1",
+    "delo": 145,
+    "nocne": 56,
+    "nedpraz": 20,
+    "vikend": 36,
+    "ld": 40,
+    "kpu": 40
+   },
+   {
+    "ime": "HUSEINBAŠIĆ A.",
+    "enota": "C",
+    "delo": 20,
+    "nocne": 0,
+    "nedpraz": 1,
+    "vikend": 2,
+    "ld": 45,
+    "kpu": 0
+   },
+   {
+    "ime": "JEREB S.",
+    "enota": "C",
+    "delo": 86,
+    "nocne": 0,
+    "nedpraz": 5,
+    "vikend": 9,
+    "ld": 10,
+    "kpu": 0
+   },
+   {
+    "ime": "KARNIČAR J.",
+    "enota": "C1",
+    "delo": 156,
+    "nocne": 55,
+    "nedpraz": 21,
+    "vikend": 33,
+    "ld": 35,
+    "kpu": 34
+   },
+   {
+    "ime": "KODRAS N.",
+    "enota": "C",
+    "delo": 144,
+    "nocne": 58,
+    "nedpraz": 13,
+    "vikend": 24,
+    "ld": 41,
+    "kpu": 29
+   },
+   {
+    "ime": "KOGOJ E.",
+    "enota": "E2",
+    "delo": 49,
+    "nocne": 3,
+    "nedpraz": 2,
+    "vikend": 5,
+    "ld": 6,
+    "kpu": 0
+   },
+   {
+    "ime": "KVRŽIĆ M.",
+    "enota": "E2",
+    "delo": 170,
+    "nocne": 19,
+    "nedpraz": 15,
+    "vikend": 25,
+    "ld": 30,
+    "kpu": 15
+   },
+   {
+    "ime": "MAGLIĆ A.",
+    "enota": "FLEXI",
+    "delo": 41,
+    "nocne": 0,
+    "nedpraz": 7,
+    "vikend": 6,
+    "ld": 7,
+    "kpu": 0
+   },
+   {
+    "ime": "MALER A.",
+    "enota": "E1",
+    "delo": 142,
+    "nocne": 58,
+    "nedpraz": 17,
+    "vikend": 31,
+    "ld": 37,
+    "kpu": 39
+   },
+   {
+    "ime": "MEGLIČ J.",
+    "enota": "D",
+    "delo": 148,
+    "nocne": 59,
+    "nedpraz": 20,
+    "vikend": 30,
+    "ld": 38,
+    "kpu": 38
+   },
+   {
+    "ime": "MISOTIĆ R.",
+    "enota": "FLEXI",
+    "delo": 162,
+    "nocne": 0,
+    "nedpraz": 11,
+    "vikend": 9,
+    "ld": 37,
+    "kpu": 1
+   },
+   {
+    "ime": "MOČNIK S.",
+    "enota": "C",
+    "delo": 151,
+    "nocne": 51,
+    "nedpraz": 22,
+    "vikend": 38,
+    "ld": 40,
+    "kpu": 37
+   },
+   {
+    "ime": "MRAVLJE U.",
+    "enota": "D",
+    "delo": 143,
+    "nocne": 53,
+    "nedpraz": 21,
+    "vikend": 33,
+    "ld": 39,
+    "kpu": 43
+   },
+   {
+    "ime": "MURIĆ A.",
+    "enota": "D",
+    "delo": 133,
+    "nocne": 48,
+    "nedpraz": 16,
+    "vikend": 24,
+    "ld": 29,
+    "kpu": 41
+   },
+   {
+    "ime": "MUŠIĆ A.",
+    "enota": "E2",
+    "delo": 145,
+    "nocne": 59,
+    "nedpraz": 14,
+    "vikend": 28,
+    "ld": 37,
+    "kpu": 36
+   },
+   {
+    "ime": "MUŠIĆ I.",
+    "enota": "FLEXI",
+    "delo": 36,
+    "nocne": 0,
+    "nedpraz": 0,
+    "vikend": 0,
+    "ld": 62,
+    "kpu": 0
+   },
+   {
+    "ime": "NUHANOVIĆ M.",
+    "enota": "D",
+    "delo": 142,
+    "nocne": 60,
+    "nedpraz": 18,
+    "vikend": 30,
+    "ld": 38,
+    "kpu": 41
+   },
+   {
+    "ime": "PETERMAN R.",
+    "enota": "E1",
+    "delo": 143,
+    "nocne": 51,
+    "nedpraz": 22,
+    "vikend": 32,
+    "ld": 43,
+    "kpu": 40
+   },
+   {
+    "ime": "POGAČNIK M.",
+    "enota": "C1",
+    "delo": 146,
+    "nocne": 50,
+    "nedpraz": 23,
+    "vikend": 35,
+    "ld": 44,
+    "kpu": 38
+   },
+   {
+    "ime": "RANT L.",
+    "enota": "D",
+    "delo": 128,
+    "nocne": 50,
+    "nedpraz": 15,
+    "vikend": 28,
+    "ld": 51,
+    "kpu": 39
+   },
+   {
+    "ime": "REJC J.",
+    "enota": "B",
+    "delo": 128,
+    "nocne": 47,
+    "nedpraz": 14,
+    "vikend": 22,
+    "ld": 49,
+    "kpu": 36
+   },
+   {
+    "ime": "REKIĆ E.",
+    "enota": "D",
+    "delo": 152,
+    "nocne": 48,
+    "nedpraz": 19,
+    "vikend": 31,
+    "ld": 41,
+    "kpu": 30
+   },
+   {
+    "ime": "ROZMAN A.",
+    "enota": "B",
+    "delo": 138,
+    "nocne": 61,
+    "nedpraz": 17,
+    "vikend": 28,
+    "ld": 40,
+    "kpu": 42
+   },
+   {
+    "ime": "ROZMAN K.",
+    "enota": "C",
+    "delo": 154,
+    "nocne": 58,
+    "nedpraz": 21,
+    "vikend": 31,
+    "ld": 37,
+    "kpu": 35
+   },
+   {
+    "ime": "SIJAMHODŽIĆ N.",
+    "enota": "C",
+    "delo": 67,
+    "nocne": 0,
+    "nedpraz": 0,
+    "vikend": 5,
+    "ld": 11,
+    "kpu": 1
+   },
+   {
+    "ime": "SMOLEJ N.",
+    "enota": "C",
+    "delo": 146,
+    "nocne": 44,
+    "nedpraz": 21,
+    "vikend": 33,
+    "ld": 42,
+    "kpu": 37
+   },
+   {
+    "ime": "SODJA B.",
+    "enota": "E2",
+    "delo": 142,
+    "nocne": 54,
+    "nedpraz": 21,
+    "vikend": 34,
+    "ld": 38,
+    "kpu": 44
+   },
+   {
+    "ime": "SOFRIĆ N.",
+    "enota": "FLEXI",
+    "delo": 114,
+    "nocne": 0,
+    "nedpraz": 4,
+    "vikend": 10,
+    "ld": 21,
+    "kpu": 3
+   },
+   {
+    "ime": "STARC E.",
+    "enota": "C1",
+    "delo": 140,
+    "nocne": 57,
+    "nedpraz": 17,
+    "vikend": 28,
+    "ld": 44,
+    "kpu": 34
+   },
+   {
+    "ime": "SUŠNIK J.",
+    "enota": "C1",
+    "delo": 134,
+    "nocne": 44,
+    "nedpraz": 15,
+    "vikend": 26,
+    "ld": 52,
+    "kpu": 31
+   },
+   {
+    "ime": "SVETINA R.",
+    "enota": "E1",
+    "delo": 136,
+    "nocne": 52,
+    "nedpraz": 17,
+    "vikend": 27,
+    "ld": 43,
+    "kpu": 38
+   },
+   {
+    "ime": "SVETINA S.",
+    "enota": "B",
+    "delo": 137,
+    "nocne": 48,
+    "nedpraz": 16,
+    "vikend": 30,
+    "ld": 43,
+    "kpu": 39
+   },
+   {
+    "ime": "TALIĆ A.",
+    "enota": "E2",
+    "delo": 144,
+    "nocne": 53,
+    "nedpraz": 20,
+    "vikend": 34,
+    "ld": 45,
+    "kpu": 36
+   },
+   {
+    "ime": "TAVČAR M.",
+    "enota": "B",
+    "delo": 49,
+    "nocne": 14,
+    "nedpraz": 4,
+    "vikend": 8,
+    "ld": 25,
+    "kpu": 11
+   },
+   {
+    "ime": "TOMAŠIĆ N.",
+    "enota": "D",
+    "delo": 142,
+    "nocne": 55,
+    "nedpraz": 16,
+    "vikend": 30,
+    "ld": 36,
+    "kpu": 42
+   },
+   {
+    "ime": "URANKER M.",
+    "enota": "E1",
+    "delo": 147,
+    "nocne": 54,
+    "nedpraz": 19,
+    "vikend": 32,
+    "ld": 35,
+    "kpu": 41
+   },
+   {
+    "ime": "VALJAVEC A.",
+    "enota": "C1",
+    "delo": 147,
+    "nocne": 59,
+    "nedpraz": 20,
+    "vikend": 32,
+    "ld": 37,
+    "kpu": 40
+   },
+   {
+    "ime": "VOLARIČ N.",
+    "enota": "E2",
+    "delo": 142,
+    "nocne": 52,
+    "nedpraz": 17,
+    "vikend": 26,
+    "ld": 45,
+    "kpu": 32
+   },
+   {
+    "ime": "VOVK U.",
+    "enota": "B",
+    "delo": 145,
+    "nocne": 51,
+    "nedpraz": 21,
+    "vikend": 34,
+    "ld": 42,
+    "kpu": 39
+   },
+   {
+    "ime": "VOZEL D.",
+    "enota": "D",
+    "delo": 150,
+    "nocne": 53,
+    "nedpraz": 17,
+    "vikend": 30,
+    "ld": 31,
+    "kpu": 39
+   },
+   {
+    "ime": "VOZEL N.",
+    "enota": "C",
+    "delo": 44,
+    "nocne": 3,
+    "nedpraz": 1,
+    "vikend": 4,
+    "ld": 10,
+    "kpu": 0
+   },
+   {
+    "ime": "VREVC M.",
+    "enota": "E1",
+    "delo": 163,
+    "nocne": 0,
+    "nedpraz": 0,
+    "vikend": 1,
+    "ld": 27,
+    "kpu": 0
+   },
+   {
+    "ime": "ZEKAN A.",
+    "enota": "C1",
+    "delo": 146,
+    "nocne": 53,
+    "nedpraz": 18,
+    "vikend": 32,
+    "ld": 42,
+    "kpu": 35
+   },
+   {
+    "ime": "ŠABIĆ S.",
+    "enota": "C",
+    "delo": 156,
+    "nocne": 46,
+    "nedpraz": 20,
+    "vikend": 31,
+    "ld": 35,
+    "kpu": 33
+   },
+   {
+    "ime": "ŠKANTAR M.",
+    "enota": "C1",
+    "delo": 139,
+    "nocne": 55,
+    "nedpraz": 17,
+    "vikend": 26,
+    "ld": 42,
+    "kpu": 36
+   }
+  ]
+ },
+ "osnova_dez": {
+  "obdobje": "1. 1. – 30. 9. 2026",
+  "podatki": [
+   {
+    "ime": "ALUKIĆ DINO",
+    "enota": "E2",
+    "dezurstva": 23,
+    "ure": 1250.5,
+    "redi": 15.8,
+    "nzv": 346.1
+   },
+   {
+    "ime": "ARNEŽ GREGA",
+    "enota": "C",
+    "dezurstva": 20,
+    "ure": 1231.5,
+    "redi": 211.1,
+    "nzv": 304.0
+   },
+   {
+    "ime": "BOJIĆ MATEJ",
+    "enota": "C",
+    "dezurstva": 23,
+    "ure": 1224.7,
+    "redi": 0.0,
+    "nzv": 315.0
+   },
+   {
+    "ime": "HROVAT NINA",
+    "enota": "134",
+    "dezurstva": 21,
+    "ure": 1066.2,
+    "redi": 0.0,
+    "nzv": 265.0
+   },
+   {
+    "ime": "LUNAR MATEJA",
+    "enota": "B",
+    "dezurstva": 21,
+    "ure": 1178.0,
+    "redi": 0.0,
+    "nzv": 258.5
+   },
+   {
+    "ime": "MAVRI TRATNIK MAGDALENA",
+    "enota": "130",
+    "dezurstva": 20,
+    "ure": 928.1,
+    "redi": 0.0,
+    "nzv": 259.5
+   },
+   {
+    "ime": "PERVIZ AMAL",
+    "enota": "D",
+    "dezurstva": 23,
+    "ure": 1133.6,
+    "redi": 803.9,
+    "nzv": 305.9
+   },
+   {
+    "ime": "SALKIĆ MARUŠA",
+    "enota": "C1",
+    "dezurstva": 8,
+    "ure": 838.5,
+    "redi": 663.7,
+    "nzv": 77.5
+   },
+   {
+    "ime": "TOMAŽEVIČ SIMONA",
+    "enota": "FLEXI/skupne",
+    "dezurstva": 21,
+    "ure": 1154.5,
+    "redi": 0.0,
+    "nzv": 298.5
+   },
+   {
+    "ime": "TORKAR TANJA",
+    "enota": "134",
+    "dezurstva": 21,
+    "ure": 1156.0,
+    "redi": 0.0,
+    "nzv": 314.5
+   },
+   {
+    "ime": "TRPIN SAŠA",
+    "enota": "170",
+    "dezurstva": 9,
+    "ure": 898.9,
+    "redi": 8.0,
+    "nzv": 70.0
+   },
+   {
+    "ime": "ŠUBIC PETRA",
+    "enota": "130",
+    "dezurstva": 21,
+    "ure": 995.9,
+    "redi": 14.6,
+    "nzv": 299.0
+   },
+   {
+    "ime": "DŽAMASTAGIĆ DENIS",
+    "enota": "?",
+    "dezurstva": 23,
+    "ure": 0.0,
+    "redi": 0.0,
+    "nzv": 0.0
+   },
+   {
+    "ime": "VELUŠČEK METKA",
+    "enota": "?",
+    "dezurstva": 19,
+    "ure": 0.0,
+    "redi": 0.0,
+    "nzv": 0.0
+   }
+  ]
+ },
+ "osnova_nedez": {
+  "obdobje": "1. 1. – 31. 7. 2026",
+  "podatki": [
+   {
+    "ime": "BIZJAK TEA",
+    "enota": "200",
+    "podskupina": "B",
+    "ure": 658.5,
+    "redi": 210.9,
+    "noc": 0.0,
+    "ned": 0,
+    "praz": 0
+   },
+   {
+    "ime": "GAZIBARA ALDIN",
+    "enota": "C1",
+    "podskupina": "A",
+    "ure": 967.9,
+    "redi": 942.9,
+    "noc": 330.9,
+    "ned": 11,
+    "praz": 3
+   },
+   {
+    "ime": "HUMAR SAŠA",
+    "enota": "200",
+    "podskupina": "C",
+    "ure": 782.4,
+    "redi": 0.0,
+    "noc": 0.0,
+    "ned": 0,
+    "praz": 0
+   },
+   {
+    "ime": "LELIČ DIJANA",
+    "enota": "E2",
+    "podskupina": "C",
+    "ure": 1049.7,
+    "redi": 0.0,
+    "noc": 0.0,
+    "ned": 6,
+    "praz": 0
+   },
+   {
+    "ime": "MAGLIĆ ALEKSANDER",
+    "enota": "C1",
+    "podskupina": "B",
+    "ure": 898.9,
+    "redi": 243.9,
+    "noc": 16.0,
+    "ned": 3,
+    "praz": 2
+   },
+   {
+    "ime": "MISOTIČ REBEKA",
+    "enota": "C",
+    "podskupina": "B",
+    "ure": 901.0,
+    "redi": 149.1,
+    "noc": 4.0,
+    "ned": 5,
+    "praz": 6
+   },
+   {
+    "ime": "MUŠIČ INES",
+    "enota": "200",
+    "podskupina": "D",
+    "ure": 182.0,
+    "redi": 0.0,
+    "noc": 0.0,
+    "ned": 0,
+    "praz": 0
+   },
+   {
+    "ime": "POGAČNIK TEJA",
+    "enota": "D",
+    "podskupina": "D",
+    "ure": 613.0,
+    "redi": 0.0,
+    "noc": 0.0,
+    "ned": 0,
+    "praz": 0
+   },
+   {
+    "ime": "SOFRIĆ NIKOLINA",
+    "enota": "E2",
+    "podskupina": "C",
+    "ure": 692.2,
+    "redi": 0.0,
+    "noc": 6.3,
+    "ned": 2,
+    "praz": 1
+   },
+   {
+    "ime": "VOZEL DEJAN",
+    "enota": "D",
+    "podskupina": "A",
+    "ure": 989.5,
+    "redi": 963.1,
+    "noc": 333.4,
+    "ned": 12,
+    "praz": 1
+   }
+  ]
+ }
+}

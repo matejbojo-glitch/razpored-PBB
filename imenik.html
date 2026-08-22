@@ -1,0 +1,1926 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Imenik · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+
+<style>
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* širina: theme.css (.wrap / .wrap.wide / .wrap.polna) */
+  .wrap{ padding-bottom: 60px; }
+  /* Ozadje mora biti NEPROSOJNO. Prej je bilo linear-gradient(... , transparent),
+     zato je vsebina, ki je pri drsenju zašla pod spodnjih 22 % glave, prosvetila
+     skozi njeno lastno besedilo (ime prijavljenega se je prekrivalo z besedilom
+     strani). Mehak prehod je zdaj ločen element POD glavo. */
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 78%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .backlink{ display:inline-block; margin: 8px 14px 0 0; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0; font-family:inherit; }
+  input[type=text], input[type=search], input[type=tel], input[type=email], select{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; width:100%; font-family:inherit;
+  }
+  .searchWrap{ position:relative; margin-bottom:14px; }
+  .searchWrap input{ padding-left:34px; }
+  .searchWrap .ic{ position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px; }
+
+  .pill{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+  .pill.admin{ background: var(--danger-bg); color: var(--danger); }
+  .pill.vodja{ background: rgba(167,148,72,.18); color: var(--accent-2); }
+  .pill.user{ background: var(--ok-bg); color: var(--ok); }
+  .pill.pending{ background: var(--surface-2); color: var(--muted); }
+
+  /* width/box-sizing sta nujna, ne okrasna: vrstice seznama so <button>,
+     ta pa se privzeto oži po vsebini (width:auto = shrink-to-fit) tudi kot
+     display:flex. Brez tega je bila vsaka vrstica druge širine – desni
+     robovi so se lomili v "stopnice", ker je širina sledila dolžini imena
+     in števila oddelkov. */
+  .person{ display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);
+    width:100%; box-sizing:border-box; }
+  .person:last-child{ border-bottom:0; }
+  .person .av{ width:36px; height:36px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--accent-2); flex:0 0 auto; }
+  .person .info{ flex:1; min-width:0; text-align:left; background:none; border:0; padding:0; font-family:inherit; cursor:pointer; }
+  .person .name{ font-weight:700; font-size:14px; color:var(--text); }
+  .person .meta{ font-size:12px; color:var(--muted); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .person .chev{ color:var(--muted); font-size:14px; flex:0 0 auto; }
+
+  .rowline{ display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .rowline:last-child{ border-bottom:0; }
+  .rowline .lbl{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; width:70px; flex:0 0 auto; }
+  .rowline .val{ flex:1; min-width:0; font-size:14.5px; word-break:break-word; }
+  .rowline a.tel, .rowline a.mail{ color:var(--accent-2); text-decoration:none; font-weight:700; }
+  .iconBtn{ border:1px solid var(--line); background:var(--surface-2); color:var(--accent-2); border-radius:8px;
+    padding:6px 9px; font-size:12px; font-weight:700; cursor:pointer; flex:0 0 auto; }
+  .iconBtn:active{ transform:scale(.96); }
+
+  .avatarBig{ width:56px; height:56px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; color:var(--accent-2); margin-bottom:10px; }
+  .dangerBtn{ margin-top:6px; width:100%; background: var(--danger-bg); color: var(--danger); border:1px solid var(--danger);
+    padding:11px; border-radius: var(--radius-sm); font-weight:800; font-size:13.5px; cursor:pointer; }
+
+  .empty{ color:var(--muted); font-size:13px; padding:8px 0; }
+  .err{ color:var(--danger); font-size:13px; margin-top:8px; }
+  .okMsg{ color:var(--ok); font-size:13px; margin-top:8px; }
+  @media print{
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+<script src="imena.js"></script>
+<script src="izmene.js"></script>
+<script src="datum.js"></script>
+<script src="parafa.js"></script>
+<script src="prazniki.js"></script>
+<script src="nzv-zasedba.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
+<script src="oseba-vrstica.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+const { client } = RazporedAuth;
+
+// Oddelki za kreiranje/generiranje razporeda – na izrecno željo omejeno na
+// natanko teh 8 (B/C/C1/D/E1/E2/FLEXI za vlogo "user", NZV za vlogo
+// "vodja"/"admin", glej admin.html/zelje.html). Stare kode (DEZ, NEDEZ,
+// PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA, U2) ostanejo v bazi
+// (schedule_entries jih zgodovinsko referencira), samo tu se jih ne ponuja
+// več za NOVO dodeljevanje – obstoječi profili s staro kodo ostanejo
+// nedotaknjeni, dokler jih admin ročno ne popravi spodaj.
+const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+
+// "DEZ" ni oddelek, ampak ČLANSTVO v dežurnem krogu – nosi ga lahko kdor
+// koli poleg svojega domačega oddelka. Zato ga zgornji seznam namenoma ne
+// vsebuje, dodeljiv pa mora ostati: admin.html (Dežurstva) bere članstvo
+// prav iz njega, in ko je bil izbirnik omejen na 8 kod, dežurnega kadra ni
+// bilo več mogoče nikjer dodati – na seznamu so ostali samo tisti, ki so
+// kodo nosili od prej. NZV ga ne more nadomestiti: NZV so vsi vodje in
+// administratorji, dežurstvo pa jih opravlja le del.
+const CLANSTVO_ODDELKI = ["DEZ"];
+const VSI_DODELJIVI = [...RAZPORED_ODDELKI, ...CLANSTVO_ODDELKI];
+const jeClanstvo = (code) => CLANSTVO_ODDELKI.includes(code);
+
+// Napredkovna vrstica za dopust: preostanek glede na letno kvoto.
+// Barva je pomenska, ne okrasna - malo preostanka je rdeče (nevarnost
+// izgube/nakopičenja), veliko preostanka zeleno.
+function DopustNapredek({ skupaj, preostanek, naDan }){
+  const kvota = Number(skupaj);
+  const ostalo = Number(preostanek);
+  if (!Number.isFinite(kvota) || kvota <= 0 || !Number.isFinite(ostalo)) return null;
+  const porabljeno = Math.max(0, kvota - ostalo);
+  const delezPorabljen = Math.min(100, Math.round(100 * porabljeno / kvota));
+  const delezOstalo = 100 - delezPorabljen;
+  const razred = delezOstalo >= 50 ? "veliko" : (delezOstalo <= 20 ? "malo" : "");
+  return (
+    <div className="napredek">
+      <div className="vrh">
+        <span className="lbl">Izkoriščen dopust{naDan ? " (na dan " + window.Datum.slo(naDan) + ")" : ""}</span>
+        <span className="val">{porabljeno} / {kvota} dni</span>
+      </div>
+      <div className="tir"><i className={razred} style={{width: delezPorabljen + "%"}}></i></div>
+      <div className="vrh" style={{marginTop:4, marginBottom:0}}>
+        <span className="lbl">Preostanek</span>
+        <span className="val">{ostalo} dni</span>
+      </div>
+    </div>
+  );
+}
+
+function initials(ime){
+  return (ime || "?").trim().split(/\s+/).slice(0,2).map(s => s[0]).join("").toUpperCase();
+}
+
+function copyBesedilo(txt, onDone){
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => onDone(true)).catch(() => onDone(false));
+  } else {
+    onDone(false);
+  }
+}
+
+function EmailRow({ email }){
+  const [msg, setMsg] = useState(null);
+  if (!email) return null;
+  return (
+    <div className="rowline">
+      <div className="lbl">E-pošta</div>
+      <div className="val"><a className="mail" href={"mailto:" + email}>{email}</a></div>
+      <button className="iconBtn" onClick={() => copyBesedilo(email, ok => { setMsg(ok ? "Kopirano" : "Napaka"); setTimeout(() => setMsg(null), 1500); })}>
+        {msg || "⧉ Kopiraj"}
+      </button>
+    </div>
+  );
+}
+
+function PhoneRow({ phone }){
+  if (!phone) return null;
+  return (
+    <div className="rowline">
+      <div className="lbl">Telefon</div>
+      <div className="val"><a className="tel" href={"tel:" + phone.replace(/\s+/g, "")}>{phone}</a></div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Iskalno polje + seznam oseb – uporabno tudi kot vgradljiva komponenta
+// na drugih straneh, če jo bomo kdaj želeli ponovno uporabiti.
+// ---------------------------------------------------------------------
+// Status prisotnosti DANES, izpeljan iz objavljenega razporeda
+// (schedule_entries). Namenoma samo iz enega vira - "prosto" pomeni tudi
+// "za danes ni objavljenega vnosa", kar je za pogled v imeniku dovolj
+// natančno in se ne more razhajati z razporedom.
+function statusPrisotnosti(sifra){
+  const t = (sifra || "").toLowerCase();
+  if (!t) return { koda: "prosto", naziv: "Ni v razporedu" };
+  if (t.startsWith("dežurstvo") || t.startsWith("dezurstvo")) return { koda: "dezurstvo", naziv: "Dežurstvo" };
+  if (t.startsWith("ld")) return { koda: "dopust", naziv: "Letni dopust" };
+  if (t.startsWith("bs")) return { koda: "bolniska", naziv: "Bolniška" };
+  if (t.startsWith("kpu")) return { koda: "prosto", naziv: "KPU / prosto" };
+  return { koda: "delo", naziv: sifra };
+}
+
+function Seznam({ osebe, oddelki, onOdpri }){
+  // Današnje izmene za barvni status ob avatarju.
+  const [danes, setDanes] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    const d = new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    client.from("schedule_entries").select("employee_id, shift_code").eq("work_date", iso)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const m = {};
+        (data || []).forEach(r => { m[r.employee_id] = r.shift_code; });
+        setDanes(m);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const [q, setQ] = useState("");
+  // Oddelčni filter (spustni seznam) – brez njega je seznam vseh ~70+ ljudi
+  // ena dolga, nerazčlenjena vrsta, ki jo je težko pregledati.
+  const [oddelekFiltr, setOddelekFiltr] = useState("");
+  const imeOddelka = useMemo(() => {
+    const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
+  }, [oddelki]);
+  const oddelkiUrejeni = useMemo(
+    () => oddelki.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "sl")),
+    [oddelki]
+  );
+  const filtrirano = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return osebe.filter(o => {
+      const kode = o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []);
+      if (oddelekFiltr && !kode.includes(oddelekFiltr)) return false;
+      if (!s) return true;
+      return (o.full_name || "").toLowerCase().includes(s) ||
+        (o.email || "").toLowerCase().includes(s) ||
+        kode.some(k => (imeOddelka[k] || "").toLowerCase().includes(s));
+    });
+  }, [osebe, q, oddelekFiltr, imeOddelka]);
+
+  return (
+    <React.Fragment>
+      <div className="searchWrap no-print">
+        <span className="ic">🔍</span>
+        <input type="search" placeholder="Išči po imenu, e-pošti ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
+      </div>
+      <div className="field no-print" style={{marginTop:-6}}>
+        <label htmlFor="oddFiltr">Oddelek</label>
+        <select id="oddFiltr" value={oddelekFiltr} onChange={e => setOddelekFiltr(e.target.value)}>
+          <option value="">Vsi oddelki</option>
+          {oddelkiUrejeni.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+        </select>
+      </div>
+      <RazporedIzvozVir
+        naziv="Imenik"
+        naslov="imenik"
+        pripravi={() => [{
+          ime: "Imenik",
+          glave: ["Priimek in ime", "Vloga", "Oddelek", "E-pošta", "Telefon"],
+          vrstice: filtrirano.map(o => [
+            o.full_name || "",
+            o.pending ? "še ni registriran" : (RazporedAuth.ROLE_LABEL[o.role] || o.role),
+            (o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []))
+              .map(k => imeOddelka[k] || k).join(", "),
+            o.email || "",
+            o.phone || "",
+          ]),
+        }]}
+      />
+      <div className="legend no-print" style={{marginTop:10}}>
+        <span className="li"><span className="dot" style={{background:"var(--ok)"}}></span>na delu</span>
+        <span className="li"><span className="dot" style={{background:"var(--danger)"}}></span>dežurstvo</span>
+        <span className="li"><span className="dot" style={{background:"var(--ld)"}}></span>dopust</span>
+        <span className="li"><span className="dot" style={{background:"var(--pop)"}}></span>bolniška</span>
+        <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>prosto / ni v razporedu</span>
+      </div>
+      <div className="card">
+        {filtrirano.length === 0 && <p className="empty">Ni zadetkov.</p>}
+        {filtrirano.map(o => {
+          const st = statusPrisotnosti(danes[o.id]);
+          const kode = o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []);
+          return (
+            <RazporedOsebaVrstica
+              key={o.id}
+              ime={o.full_name}
+              naProfil={() => onOdpri(o.id)}
+              pikaRazred={st.koda}
+              pikaNaziv={st.naziv}
+              otroci={
+                <React.Fragment>
+                  <div className="ovMeta">
+                    {o.pending
+                      ? <span className="pill pending">še ni registriran</span>
+                      : <span className={"pill " + o.role}>{RazporedAuth.ROLE_LABEL[o.role] || o.role}</span>}
+                    <span>{st.naziv}</span>
+                  </div>
+                  <div className="ovMeta">
+                    {kode.length === 0
+                      ? <span>Brez oddelka</span>
+                      : kode.map((k, i) => (
+                          <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
+                        ))}
+                  </div>
+                  {o.email && <div className="ovMeta"><a className="mail" href={"mailto:" + o.email}>{o.email}</a></div>}
+                  <button className="iconBtn" style={{alignSelf:"flex-start"}} onClick={() => onOdpri(o.id)}>
+                    Odpri celoten zapis ›
+                  </button>
+                </React.Fragment>
+              }
+            />
+          );
+        })}
+      </div>
+    </React.Fragment>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Admin: ustvari PRAVO prijavo (Auth račun) za novo osebo – takoj se lahko
+// prijavi. Ločeno od "Uvoz zaposlenih" spodaj, ki samo doda vrstico v
+// čakalni seznam (contact_imports) do trenutka, ko se oseba SAMA
+// registrira prek login.html – to tu naredi prijavo namesto nje, prek
+// Edge Function "admin-uporabnik" (potrebuje service_role ključ, ki ga
+// brskalnik nikoli ne sme imeti neposredno, glej UPORABNIKI-SETUP.md).
+// ---------------------------------------------------------------------
+const PRAZEN_NOV_UPORABNIK = { full_name:"", email:"", role:"user", department_code:"", phone:"" };
+
+function DodajUporabnika({ oddelki, onSpremenjeno }){
+  const [obrazec, setObrazec] = useState(PRAZEN_NOV_UPORABNIK);
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+  const [ustvarjen, setUstvarjen] = useState(null); // { full_name, email, geslo } - prikazano SAMO enkrat, takoj po ustvarjanju
+  const [kopMsg, setKopMsg] = useState(null);
+
+  const ustvari = async () => {
+    const full_name = obrazec.full_name.trim();
+    const email = obrazec.email.trim();
+    if (!full_name || !email) { setNapaka("Vnesi ime, priimek in e-pošto."); return; }
+    setBusy(true); setNapaka(null);
+    try {
+      const { data, error } = await client.functions.invoke("admin-uporabnik", {
+        body: {
+          action: "ustvari", full_name, email,
+          role: obrazec.role, department_code: obrazec.department_code || null,
+          phone: obrazec.phone.trim() || null,
+        },
+      });
+      if (error) {
+        let sporocilo = error.message || String(error);
+        // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) –
+        // brez tega bi uporabnik videl samo generično "non-2xx status code".
+        if (error.context && typeof error.context.json === "function") {
+          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
+        }
+        throw new Error(sporocilo);
+      }
+      setUstvarjen({ full_name, email, geslo: data.geslo });
+      setObrazec(PRAZEN_NOV_UPORABNIK);
+      onSpremenjeno();
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="no-print">
+      <h2 className="section">Dodaj uporabnika (nova prijava)</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Takoj ustvari pravo prijavo (e-pošta + začasno geslo) – oseba se lahko prijavi nemudoma, ob prvi
+        prijavi pa mora nastaviti svoje geslo. Za dodajanje osebe v imenik BREZ prijave (dokler se ne
+        registrira sama) uporabi "Uvoz zaposlenih" spodaj.
+      </p>
+      <div className="card">
+        {ustvarjen && (
+          <div className="rowline" style={{flexDirection:"column", alignItems:"stretch", gap:6}}>
+            <p className="okMsg" style={{margin:0}}>
+              Račun za <b>{ustvarjen.full_name}</b> ({ustvarjen.email}) je ustvarjen. Spodnje geslo je vidno
+              samo zdaj – sporoči ga osebi osebno (ne po e-pošti/klepetu), ob prvi prijavi ga bo morala
+              zamenjati.
+            </p>
+            <div style={{display:"flex", gap:8, alignItems:"center"}}>
+              <code style={{background:"var(--surface-2)", border:"1px solid var(--line)", borderRadius:8, padding:"6px 10px", fontSize:14, fontWeight:700}}>{ustvarjen.geslo}</code>
+              <button className="iconBtn" onClick={() => copyBesedilo(ustvarjen.geslo, ok => { setKopMsg(ok ? "Kopirano" : "Napaka"); setTimeout(() => setKopMsg(null), 1500); })}>
+                {kopMsg || "⧉ Kopiraj"}
+              </button>
+            </div>
+            <button className="iconBtn" style={{alignSelf:"flex-start"}} onClick={() => setUstvarjen(null)}>Zapri</button>
+          </div>
+        )}
+        {!ustvarjen && (
+          <React.Fragment>
+            <div className="field"><label>Priimek in ime</label><input type="text" placeholder="npr. Rozman Anka" value={obrazec.full_name} onChange={e => setObrazec(o => ({...o, full_name:e.target.value}))} /></div>
+            <div className="field"><label>E-pošta</label><input type="email" value={obrazec.email} onChange={e => setObrazec(o => ({...o, email:e.target.value}))} /></div>
+            <div className="field"><label>Telefon (neobvezno)</label><input type="tel" value={obrazec.phone} onChange={e => setObrazec(o => ({...o, phone:e.target.value}))} /></div>
+            <div className="field">
+              <label>Vloga</label>
+              <select value={obrazec.role} onChange={e => setObrazec(o => ({...o, role:e.target.value}))}>
+                <option value="user">Zaposleni</option>
+                <option value="vodja">Vodja ekipe</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Oddelek (neobvezno, lahko dodaš tudi kasneje)</label>
+              <select value={obrazec.department_code} onChange={e => setObrazec(o => ({...o, department_code:e.target.value}))}>
+                <option value="">– brez –</option>
+                {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+              </select>
+            </div>
+            <button className="submitBtn" onClick={ustvari} disabled={busy}>{busy ? "Ustvarjam …" : "+ Ustvari prijavo"}</button>
+            {napaka && <p className="err">{napaka}</p>}
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Profil ene osebe.
+// ---------------------------------------------------------------------
+const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"",
+  duty_min_monthly:"", duty_max_monthly:"", duty_day_off:"", duty_weekdays_only:false };
+
+function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno }){
+  const jeMoj = oseba.id === myId;
+  const smemVidetiHr = jeMoj || myRole === "admin";
+  const [telefon, setTelefon] = useState(oseba.phone || "");
+  const [vloga, setVloga] = useState(oseba.role);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [ogledBusy, setOgledBusy] = useState(false);
+  const [ogledMsg, setOgledMsg] = useState(null);
+
+  const zacniOgledOsebe = async () => {
+    setOgledBusy(true); setOgledMsg(null);
+    const { error } = await RazporedAuth.zacniOgled({ id: oseba.id, full_name: oseba.full_name, email: oseba.email });
+    if (error) { setOgledMsg(error); setOgledBusy(false); return; }
+    location.href = "index.html";
+  };
+
+  // Več oddelkov na osebo (profile_departments) – prvi (primarni) je tisti,
+  // ki šteje za generator urnika (profiles.department_code, sprožilec v
+  // schema.sql ju drži usklajena). Ostali so tu samo informativni/urejljivi.
+  const [primarni, setPrimarni] = useState(oseba.department_code || null);
+  const [oddelkiOsebe, setOddelkiOsebe] = useState(oseba.dept_codes && oseba.dept_codes.length ? oseba.dept_codes : (oseba.department_code ? [oseba.department_code] : []));
+  const [novOddelek, setNovOddelek] = useState("");
+  const [oddBusy, setOddBusy] = useState(false);
+  const [oddMsg, setOddMsg] = useState(null);
+
+  const dodajOddelek = async () => {
+    if (!novOddelek || oddelkiOsebe.includes(novOddelek)) return;
+    setOddBusy(true); setOddMsg(null);
+    try {
+      // Članstvo (DEZ) ne sme postati primarni oddelek niti takrat, ko
+      // oseba še nima nobenega – primarni poganja generator kalupa in
+      // "Enota" v Dežurstvih, dežurstvo pa ni domači oddelek nikogar.
+      if (!primarni && !jeClanstvo(novOddelek)) {
+        const { error } = await client.from("profiles").update({ department_code: novOddelek }).eq("id", oseba.id);
+        if (error) throw error;
+        setPrimarni(novOddelek);
+      } else {
+        const { error } = await client.from("profile_departments").insert({ profile_id: oseba.id, department_code: novOddelek, sort_order: oddelkiOsebe.length });
+        if (error) throw error;
+      }
+      setOddelkiOsebe(o => [...o, novOddelek]);
+      setNovOddelek("");
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
+
+  const naredniPrimaren = async (code) => {
+    setOddBusy(true); setOddMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ department_code: code }).eq("id", oseba.id);
+      if (error) throw error;
+      setPrimarni(code);
+      setOddelkiOsebe(o => [code, ...o.filter(k => k !== code)]);
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
+
+  const odstraniOddelek = async (code) => {
+    setOddBusy(true); setOddMsg(null);
+    try {
+      const { error: e1 } = await client.from("profile_departments").delete().eq("profile_id", oseba.id).eq("department_code", code);
+      if (e1) throw e1;
+      const preostali = oddelkiOsebe.filter(k => k !== code);
+      if (primarni === code) {
+        const nov = preostali[0] || null;
+        const { error: e2 } = await client.from("profiles").update({ department_code: nov }).eq("id", oseba.id);
+        if (e2) throw e2;
+        setPrimarni(nov);
+      }
+      setOddelkiOsebe(preostali);
+      onSpremenjeno();
+    } catch (e) { setOddMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setOddBusy(false); }
+  };
+
+  // Rotacijska črka (A-E) za Kalup generator (admin.html) – samo za 6
+  // SMS/TZN oddelkov. Prej trdo kodirano v admin.html WARDS_META, zdaj
+  // urejljivo tu (glej supabase/schema.sql profiles.rotation_slot).
+  const [rotSlot, setRotSlot] = useState(oseba.rotation_slot || "");
+  const [rotBusy, setRotBusy] = useState(false);
+  const [rotMsg, setRotMsg] = useState(null);
+  const shraniRotacijo = async () => {
+    setRotBusy(true); setRotMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ rotation_slot: rotSlot || null }).eq("id", oseba.id);
+      if (error) throw error;
+      setRotMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setRotMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setRotBusy(false); }
+  };
+
+  // Neposredni vodja (profiles.vodja_id) – prava FK-povezava na drugo osebo,
+  // ki jo stran Menjava (obrazec.html, "Zahtevek za spremembo evidence
+  // delovnega časa in razporeda") uporablja za usmerjanje odobritev. Ločeno
+  // od profile_hr_details.manager_name zgoraj, ki je samo prikazno prosto
+  // besedilo.
+  const [vodjaId, setVodjaId] = useState(oseba.vodja_id || "");
+  const [vsiZaVodjo, setVsiZaVodjo] = useState(null);
+  const [vodjaBusy, setVodjaBusy] = useState(false);
+  const [vodjaMsg, setVodjaMsg] = useState(null);
+  useEffect(() => {
+    if (myRole !== "admin") return;
+    client.from("profiles").select("id, full_name").neq("id", oseba.id).order("full_name")
+      .then(({ data }) => setVsiZaVodjo(data || []));
+    // eslint-disable-next-line
+  }, [oseba.id]);
+  const shraniVodjo = async () => {
+    setVodjaBusy(true); setVodjaMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ vodja_id: vodjaId || null }).eq("id", oseba.id);
+      if (error) throw error;
+      setVodjaMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setVodjaMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setVodjaBusy(false); }
+  };
+
+  // Koordinator za menjave (profiles.is_koordinator) – kdor ima to zastavico,
+  // sam (in samo on/oni) dokončno potrjuje menjave DEŽURSTVA (glej
+  // obrazec.html "Menjava" / obrazec_potrdi_koordinator v schema.sql), ki
+  // preskočijo korak vodje. Navadne menjave službe še vedno potrdi kdorkoli
+  // ima vlogo administrator. Privzeto samo Denis Džamastagić, a urejljivo
+  // tu, da ni trajno trdo vezano na eno osebo.
+  const [koordinator, setKoordinator] = useState(!!oseba.is_koordinator);
+  const [koordinatorBusy, setKoordinatorBusy] = useState(false);
+  const [koordinatorMsg, setKoordinatorMsg] = useState(null);
+  const preklopiKoordinatorja = async () => {
+    const novaVrednost = !koordinator;
+    setKoordinatorBusy(true); setKoordinatorMsg(null);
+    try {
+      const { error } = await client.from("profiles").update({ is_koordinator: novaVrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setKoordinator(novaVrednost);
+      setKoordinatorMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setKoordinatorMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setKoordinatorBusy(false); }
+  };
+
+  // Parafa (profiles.parafa) – kratka oznaka (npr. "BOJ"), ki jo stran
+  // "Razpored" → NZV prikaže namesto polnega imena v celicah (po vzoru
+  // uradne predloge "Letni dopusti in omejitve za NZV"). Na profiles (ne
+  // profile_hr_details), ker jo mora videti vsak prijavljen - glej
+  // schema.sql sekcija 24. Če prazna, index.html sam izpelje grobo
+  // privzeto iz priimka - to polje jo lahko ročno popravi/precizira.
+  const [parafa, setParafa] = useState(oseba.parafa || "");
+  const [parafaBusy, setParafaBusy] = useState(false);
+  const [parafaMsg, setParafaMsg] = useState(null);
+  const shraniParafo = async () => {
+    setParafaBusy(true); setParafaMsg(null);
+    try {
+      const vrednost = parafa.trim().toUpperCase() || null;
+      const { error } = await client.from("profiles").update({ parafa: vrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setParafa(vrednost || "");
+      setParafaMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setParafaMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setParafaBusy(false); }
+  };
+
+  // Naziv za podpis pod razporedom (profiles.job_title, npr. "dipl. zn.,
+  // Strokovni vodja V") - na profiles (ne profile_hr_details.position_name),
+  // ker mora podpis videti vsak prijavljen, ne samo lastnik/admin - glej
+  // schema.sql sekcija 25.
+  const [nazivPodpisa, setNazivPodpisa] = useState(oseba.job_title || "");
+  const [nazivBusy, setNazivBusy] = useState(false);
+  const [nazivMsg, setNazivMsg] = useState(null);
+  const shraniNazivPodpisa = async () => {
+    setNazivBusy(true); setNazivMsg(null);
+    try {
+      const vrednost = nazivPodpisa.trim() || null;
+      const { error } = await client.from("profiles").update({ job_title: vrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setNazivPodpisa(vrednost || "");
+      setNazivMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setNazivMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setNazivBusy(false); }
+  };
+
+  const [hr, setHr] = useState(null); // null = še ni naloženo
+  const [hrEdit, setHrEdit] = useState(HR_PRAZNO);
+  const [hrBusy, setHrBusy] = useState(false);
+  const [hrMsg, setHrMsg] = useState(null);
+
+  useEffect(() => {
+    if (!smemVidetiHr) { setHr(null); return; }
+    client.from("profile_hr_details").select("*").eq("profile_id", oseba.id).maybeSingle()
+      .then(({ data }) => { setHr(data || {}); setHrEdit(data ? { ...HR_PRAZNO, ...data, annual_leave_total: data.annual_leave_total ?? "", leave_balance_days: data.leave_balance_days ?? "", leave_balance_asof: data.leave_balance_asof || "",
+        duty_min_monthly: data.duty_min_monthly ?? "", duty_max_monthly: data.duty_max_monthly ?? "",
+        duty_day_off: data.duty_day_off || "", duty_weekdays_only: !!data.duty_weekdays_only } : HR_PRAZNO); });
+    // eslint-disable-next-line
+  }, [oseba.id, smemVidetiHr]);
+
+  const shraniHr = async () => {
+    setHrBusy(true); setHrMsg(null);
+    try {
+      const { error } = await client.from("profile_hr_details").upsert({
+        profile_id: oseba.id,
+        employee_code: hrEdit.employee_code.trim() || null,
+        birth_date: hrEdit.birth_date || null,
+        position_name: hrEdit.position_name.trim() || null,
+        manager_name: hrEdit.manager_name.trim() || null,
+        parental_leave: hrEdit.parental_leave.trim() || null,
+        annual_leave_total: hrEdit.annual_leave_total !== "" ? Number(hrEdit.annual_leave_total) : null,
+        leave_balance_days: hrEdit.leave_balance_days !== "" ? Number(hrEdit.leave_balance_days) : null,
+        leave_balance_asof: hrEdit.leave_balance_asof || null,
+        // Dežurna pravila so TRAJNA (veljajo do preklica). V Generatorju →
+        // Dežurstva jih je mogoče spremeniti samo za tisto eno generiranje;
+        // trajno se nastavijo tu, sicer bi jih moral popravljati kdo z
+        // dostopom do baze.
+        duty_min_monthly: hrEdit.duty_min_monthly !== "" ? Number(hrEdit.duty_min_monthly) : null,
+        duty_max_monthly: hrEdit.duty_max_monthly !== "" ? Number(hrEdit.duty_max_monthly) : null,
+        duty_day_off: hrEdit.duty_day_off || null,
+        duty_weekdays_only: !!hrEdit.duty_weekdays_only,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setHr({ ...hrEdit });
+      setHrMsg({ ok:true, text:"Shranjeno." });
+    } catch (e) { setHrMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setHrBusy(false); }
+  };
+
+  const shraniTelefonOsebno = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const { error } = await client.from("contact_phones").upsert({ profile_id: myId, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      setMsg({ ok:true, text:"Telefon shranjen." });
+      onSpremenjeno();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  const shraniAdmin = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      // department_code ureja spodnji ločen urejevalnik oddelkov (več
+      // oddelkov na osebo) – tu se posodobi samo vloga, da ne prihaja do
+      // nasprotujočih si zapisov med tem in "primarni"/"dodaj oddelek".
+      const { error: e1 } = await client.from("profiles").update({ role: vloga }).eq("id", oseba.id);
+      if (e1) throw e1;
+      const { error: e2 } = await client.from("contact_phones").upsert({ profile_id: oseba.id, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
+      if (e2) throw e2;
+      setMsg({ ok:true, text:"Shranjeno." });
+      onSpremenjeno();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  const odstraniUporabnika = async () => {
+    if (!confirm(oseba.full_name + " bo odstranjen(a) iz imenika: vloga se ponastavi na »Zaposleni«, oddelek in telefon se izbrišeta. Njen/njegov Auth račun (prijava) OSTANE – samo znova bo brez vloge/oddelka, dokler ga admin ne uredi. Za popoln izbris prijave in zgodovine uporabi \"Trajno izbriši uporabnika\" spodaj. Nadaljuj?")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const { error: e1 } = await client.from("contact_phones").delete().eq("profile_id", oseba.id);
+      if (e1) throw e1;
+      const { error: e2 } = await client.from("profile_departments").delete().eq("profile_id", oseba.id);
+      if (e2) throw e2;
+      const { error } = await client.from("profiles").update({ role: "user", department_code: null }).eq("id", oseba.id);
+      if (error) throw error;
+      setMsg({ ok:true, text:"Odstranjeno." });
+      onSpremenjeno();
+      onNazaj();
+    } catch (e) { setMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setBusy(false); }
+  };
+
+  // Pravi, TRAJEN izbris – Auth račun (prijava) izgine, kar prek "on delete
+  // cascade" (schema.sql) odnese tudi profil in ves njegov razpored/
+  // dopuste/želje. Kliče Edge Function "admin-uporabnik" (potrebuje
+  // service_role ključ). Za osebo z zgodovino v menjavah/obrazcih (brez
+  // kaskade, namerno) funkcija zavrne z jasno napako in usmeri na
+  // supabase/odstrani-zaposlene.sql – to NI hrošč, glej komentar tam.
+  const [izbrisPotrdi, setIzbrisPotrdi] = useState("");
+  const [izbrisBusy, setIzbrisBusy] = useState(false);
+  const [izbrisMsg, setIzbrisMsg] = useState(null);
+  const izbrisiTrajno = async () => {
+    if (izbrisPotrdi.trim() !== oseba.full_name) {
+      setIzbrisMsg({ ok:false, text:"Prepiši ime natančno (»" + oseba.full_name + "«), da potrdiš." });
+      return;
+    }
+    if (!confirm("TRAJNO izbrišem " + oseba.full_name + " – Auth račun (prijava) in ves njen/njegov razpored, dopuste in želje? Tega NI mogoče razveljaviti.")) return;
+    setIzbrisBusy(true); setIzbrisMsg(null);
+    try {
+      const { error } = await client.functions.invoke("admin-uporabnik", { body: { action:"izbrisi", profile_id: oseba.id } });
+      if (error) {
+        let sporocilo = error.message || String(error);
+        if (error.context && typeof error.context.json === "function") {
+          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
+        }
+        throw new Error(sporocilo);
+      }
+      onSpremenjeno();
+      onNazaj();
+    } catch (e) { setIzbrisMsg({ ok:false, text: e.message || String(e) }); }
+    finally { setIzbrisBusy(false); }
+  };
+
+  return (
+    <div>
+      <button className="backlink no-print" onClick={onNazaj}>‹ Nazaj na imenik</button>
+      <div className="card" style={{marginTop:10, textAlign:"center"}}>
+        <div className="avatarBig" style={{margin:"0 auto 10px"}}>{initials(oseba.full_name)}</div>
+        <div className="name" style={{fontSize:18, fontWeight:800}}>{oseba.full_name}</div>
+        <div style={{marginTop:6}}><span className={"pill " + oseba.role}>{RazporedAuth.ROLE_LABEL[oseba.role] || oseba.role}</span></div>
+      </div>
+
+      <div className="card">
+        <EmailRow email={oseba.email} />
+        <PhoneRow phone={oseba.phone} />
+        {oddelkiOsebe.length > 0 && (
+          <div className="rowline">
+            <div className="lbl">Oddelek{oddelkiOsebe.length > 1 ? "i" : ""}</div>
+            <div className="val">
+              {oddelkiOsebe.map((k, i) => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}
+              {oddelkiOsebe.length > 1 && <span className="hint" style={{display:"block", marginTop:2}}>Prvi ({(oddelki.find(o => o.code === oddelkiOsebe[0]) || {}).name || oddelkiOsebe[0]}) šteje za generator razporeda.</span>}
+            </div>
+          </div>
+        )}
+        {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
+      </div>
+
+      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null || hr.duty_max_monthly != null || hr.duty_weekdays_only) && (
+        <div className="card">
+          {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
+          {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{window.Datum.slo(hr.birth_date)}</div></div>}
+          {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
+          {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
+          {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
+          {(hr.duty_min_monthly != null || hr.duty_max_monthly != null || hr.duty_weekdays_only || hr.duty_day_off) && (
+            <div className="rowline">
+              <div className="lbl">Dežurstva</div>
+              <div className="val">
+                {[
+                  hr.duty_min_monthly != null && hr.duty_max_monthly != null && hr.duty_min_monthly === hr.duty_max_monthly
+                    ? `${hr.duty_max_monthly} na mesec`
+                    : [hr.duty_min_monthly != null ? `najmanj ${hr.duty_min_monthly}` : null,
+                       hr.duty_max_monthly != null ? `največ ${hr.duty_max_monthly}` : null].filter(Boolean).join(", "),
+                  hr.duty_weekdays_only ? "samo med tednom" : null,
+                  hr.duty_day_off ? `prost ${hr.duty_day_off}` : null,
+                ].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          )}
+          {hr.annual_leave_total != null && hr.annual_leave_total !== "" && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
+          {hr.leave_balance_days != null && hr.leave_balance_days !== "" && (
+            <div className="rowline">
+              <div className="lbl">Stanje dopusta</div>
+              <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + window.Datum.slo(hr.leave_balance_asof) + ")" : ""}</div>
+            </div>
+          )}
+          <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki – vidni samo tebi (admin) in tej osebi."}</p>
+        </div>
+      )}
+
+      {jeMoj && (
+        <React.Fragment>
+          <h2 className="section no-print">Moja telefonska številka</h2>
+          <div className="card no-print">
+            <div className="field">
+              <label htmlFor="mytel">Telefon (viden adminu, vodjem in tebi)</label>
+              <input id="mytel" type="tel" value={telefon} onChange={e => setTelefon(e.target.value)} placeholder="npr. 041 234 567" />
+            </div>
+            <button className="submitBtn" onClick={shraniTelefonOsebno} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
+            {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+        </React.Fragment>
+      )}
+
+      {!jeMoj && myRole === "admin" && (
+        <React.Fragment>
+          <h2 className="section no-print">Uredi (admin)</h2>
+          <div className="card no-print">
+            <div className="field">
+              <label htmlFor="ptel">Telefon</label>
+              <input id="ptel" type="tel" value={telefon} onChange={e => setTelefon(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="prole">Vloga</label>
+              <select id="prole" value={vloga} onChange={e => setVloga(e.target.value)}>
+                <option value="user">Zaposleni</option>
+                <option value="vodja">Vodja ekipe</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+            <button className="submitBtn" onClick={shraniAdmin} disabled={busy}>{busy ? "Shranjujem …" : "Shrani"}</button>
+            <button className="dangerBtn" onClick={odstraniUporabnika} disabled={busy}>Odstrani uporabnika iz imenika</button>
+            {msg && <p className={msg.ok ? "okMsg" : "err"}>{msg.text}</p>}
+          </div>
+
+          <h2 className="section no-print">Trajno izbriši uporabnika (nevarno)</h2>
+          <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              Za razliko od zgornjega gumba to POPOLNOMA izbriše prijavo (Auth račun) in ves razpored,
+              dopuste in želje te osebe – <b>tega ni mogoče razveljaviti</b>. Če ima oseba zgodovino menjav
+              ali obrazcev, bo izbris zavrnjen (potreben je ročen postopek, glej sporočilo). Za začasno
+              odsotnost ali napako pri vlogi/oddelku uporabi zgornji "Odstrani iz imenika" – tega je mogoče
+              popraviti nazaj.
+            </p>
+            <div className="field">
+              <label htmlFor="izbrisPotrdi">Za potrditev prepiši ime: {oseba.full_name}</label>
+              <input id="izbrisPotrdi" type="text" value={izbrisPotrdi} onChange={e => setIzbrisPotrdi(e.target.value)} />
+            </div>
+            <button className="dangerBtn" onClick={izbrisiTrajno} disabled={izbrisBusy || izbrisPotrdi.trim() !== oseba.full_name}>
+              {izbrisBusy ? "Izbrišem …" : "Trajno izbriši uporabnika"}
+            </button>
+            {izbrisMsg && <p className={izbrisMsg.ok ? "okMsg" : "err"}>{izbrisMsg.text}</p>}
+          </div>
+
+          <h2 className="section no-print">Ogled kot ta uporabnik (admin)</h2>
+          <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              Vidiš aplikacijo natanko tako, kot jo vidi {oseba.full_name} (vloga, oddelek, "moj razpored" itd.) – brez
+              poznavanja ali ponastavljanja gesla. Vsak začetek/konec ogleda se zabeleži v revizijsko sled.
+            </p>
+            <button className="submitBtn" onClick={zacniOgledOsebe} disabled={ogledBusy}>
+              {ogledBusy ? "Začenjam …" : ogled ? `👁 Preklopi ogled na ${oseba.full_name}` : `👁 Prijavi se kot ${oseba.full_name}`}
+            </button>
+            {ogled && <p className="hint" style={{marginTop:6}}>Trenutno si v ogledu kot druga oseba – s tem gumbom preklopiš neposredno nanjo, brez vmesnega izhoda.</p>}
+            {ogledMsg && <p className="err">{ogledMsg}</p>}
+          </div>
+
+          <h2 className="section no-print">Oddelki (admin) – prvi šteje za generator razporeda</h2>
+          <div className="card no-print">
+            <p className="hint" style={{marginTop:0}}>
+              »Dežurni kader (DMS/DZN)« ni domači oddelek, ampak članstvo v dežurnem krogu – dodajte ga
+              <b> poleg</b> domačega oddelka. Šele s tem se oseba pojavi v Generator → Dežurstva. Vsi vodje
+              (NZV) niso dežurni; dežurstvo opravlja le del njih.
+            </p>
+            {oddelkiOsebe.length === 0 && <p className="empty">Ni dodanih oddelkov.</p>}
+            {oddelkiOsebe.map((k, i) => (
+              <div className="rowline" key={k}>
+                <div className="val">{i === 0 && "★ "}{(oddelki.find(o => o.code === k) || {}).name || k}</div>
+                {i > 0 && !jeClanstvo(k) && <button className="iconBtn" disabled={oddBusy} onClick={() => naredniPrimaren(k)}>Naredi primaren</button>}
+                <button className="iconBtn" disabled={oddBusy} onClick={() => odstraniOddelek(k)}>Odstrani</button>
+              </div>
+            ))}
+            <div className="field" style={{marginTop:10}}>
+              <label>Dodaj oddelek</label>
+              <div style={{display:"flex", gap:8}}>
+                <select value={novOddelek} onChange={e => setNovOddelek(e.target.value)} style={{flex:1}}>
+                  <option value="">Izberi …</option>
+                  {oddelki.filter(o => !oddelkiOsebe.includes(o.code)).map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+                </select>
+                <button className="iconBtn" disabled={oddBusy || !novOddelek} onClick={dodajOddelek}>+ Dodaj</button>
+              </div>
+            </div>
+            {oddMsg && <p className={oddMsg.ok === false ? "err" : "okMsg"}>{oddMsg.text}</p>}
+          </div>
+
+          {["B","C","C1","D","E1","E2"].includes(primarni) && (
+            <React.Fragment>
+              <h2 className="section no-print">Rotacija za Kalup (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Izhodiščna črka 5-tedenskega kalupa (A–E) v Kalup generatorju (admin.html) – velja samo za
+                  6 SMS/TZN oddelkov. Če ni nastavljena, generator privzame "A" in to označi z ⚠.
+                </p>
+                <div className="field" style={{maxWidth:160}}>
+                  <label>Rotacijska črka</label>
+                  <select value={rotSlot} onChange={e => setRotSlot(e.target.value)}>
+                    <option value="">– ni nastavljena –</option>
+                    {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <button className="submitBtn" onClick={shraniRotacijo} disabled={rotBusy}>{rotBusy ? "Shranjujem …" : "Shrani"}</button>
+                {rotMsg && <p className={rotMsg.ok ? "okMsg" : "err"}>{rotMsg.text}</p>}
+              </div>
+            </React.Fragment>
+          )}
+
+          {myRole === "admin" && (
+            <React.Fragment>
+              <h2 className="section no-print">Neposredni vodja (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Uporablja stran Menjava ("Zahtevek za spremembo evidence delovnega časa in razporeda") za
+                  usmerjanje odobritev – brez tega oseba ne more oddati obrazca.
+                </p>
+                <div className="field">
+                  <label>Neposredni vodja</label>
+                  <select value={vodjaId} onChange={e => setVodjaId(e.target.value)} disabled={!vsiZaVodjo}>
+                    <option value="">– ni nastavljen –</option>
+                    {(vsiZaVodjo || []).map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                  </select>
+                </div>
+                <button className="submitBtn" onClick={shraniVodjo} disabled={vodjaBusy}>{vodjaBusy ? "Shranjujem …" : "Shrani"}</button>
+                {vodjaMsg && <p className={vodjaMsg.ok ? "okMsg" : "err"}>{vodjaMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Koordinator za menjave (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Menjave DEŽURSTVA (glej stran "Menjava") preskočijo korak neposrednega vodje in gredo po potrditvi
+                  sodelavca naravnost h koordinatorju – dokončno jih lahko potrdi izključno oseba s to zastavico
+                  (privzeto samo Denis Džamastagić). Navadne menjave službe potrdi kdorkoli ima vlogo administrator.
+                </p>
+                <label style={{display:"flex", alignItems:"center", gap:8, fontSize:14, fontWeight:600}}>
+                  <input type="checkbox" checked={koordinator} onChange={preklopiKoordinatorja} disabled={koordinatorBusy} />
+                  Ta oseba je koordinator za menjave
+                </label>
+                {koordinatorMsg && <p className={koordinatorMsg.ok ? "okMsg" : "err"}>{koordinatorMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Parafa za razpored NZV (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Kratka oznaka (2-4 črke, npr. "BOJ"), ki jo stran "Razpored" → NZV prikaže v celicah namesto polnega
+                  imena, po vzoru uradne predloge. Če pustiš prazno, aplikacija sama izpelje grobo privzeto oznako iz
+                  priimka.
+                </p>
+                <div className="field" style={{marginTop:0}}>
+                  <input type="text" value={parafa} maxLength={4} placeholder="npr. BOJ"
+                    onChange={e => setParafa(e.target.value.toUpperCase())} style={{maxWidth:120}} />
+                </div>
+                <button className="submitBtn" onClick={shraniParafo} disabled={parafaBusy}>{parafaBusy ? "Shranjujem …" : "Shrani"}</button>
+                {parafaMsg && <p className={parafaMsg.ok ? "okMsg" : "err"}>{parafaMsg.text}</p>}
+              </div>
+
+              <h2 className="section no-print">Naziv za podpis pod razporedom (admin)</h2>
+              <div className="card no-print">
+                <p className="hint" style={{marginTop:0}}>
+                  Izpiše se pod tabelo na strani "Razpored" (Po oddelkih/NZV), če je ta oseba pripravila ali odobrila
+                  razpored - npr. "dipl. zn., Strokovni vodja V". Vidno vsem, ne samo tebi (za razliko od HR
+                  podatkov spodaj).
+                </p>
+                <div className="field" style={{marginTop:0}}>
+                  <input type="text" value={nazivPodpisa} placeholder="npr. dipl. zn., Strokovni vodja V"
+                    onChange={e => setNazivPodpisa(e.target.value)} />
+                </div>
+                <button className="submitBtn" onClick={shraniNazivPodpisa} disabled={nazivBusy}>{nazivBusy ? "Shranjujem …" : "Shrani"}</button>
+                {nazivMsg && <p className={nazivMsg.ok ? "okMsg" : "err"}>{nazivMsg.text}</p>}
+              </div>
+            </React.Fragment>
+          )}
+
+          <h2 className="section no-print">HR podatki (admin, vidno samo tebi in tej osebi)</h2>
+          <div className="card no-print">
+            <div className="field"><label>Šifra zaposlenega</label><input type="text" value={hrEdit.employee_code} onChange={e => setHrEdit(h => ({...h, employee_code:e.target.value}))} /></div>
+            <div className="field"><label>Datum rojstva</label><input type="date" value={hrEdit.birth_date} onChange={e => setHrEdit(h => ({...h, birth_date:e.target.value}))} /></div>
+            <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={hrEdit.position_name} onChange={e => setHrEdit(h => ({...h, position_name:e.target.value}))} /></div>
+            <div className="field"><label>Vodja (naziv)</label><input type="text" value={hrEdit.manager_name} onChange={e => setHrEdit(h => ({...h, manager_name:e.target.value}))} /></div>
+            <h3 style={{fontSize:13, fontWeight:800, margin:"14px 0 2px"}}>Dežurstva – trajna pravila</h3>
+            <p className="hint" style={{marginTop:0}}>
+              Veljajo do preklica. Generator → Dežurstva jih vzame kot izhodišče; tam jih je mogoče spremeniti
+              samo za tisto eno generiranje, trajno pa se nastavijo tu. Prazno = brez omejitve.
+            </p>
+            <div style={{display:"flex", gap:8}}>
+              <div className="field" style={{flex:1}}><label>Najmanj na mesec</label>
+                <input type="number" min="0" value={hrEdit.duty_min_monthly}
+                  onChange={e => setHrEdit(h => ({...h, duty_min_monthly:e.target.value}))} /></div>
+              <div className="field" style={{flex:1}}><label>Največ na mesec</label>
+                <input type="number" min="0" value={hrEdit.duty_max_monthly}
+                  onChange={e => setHrEdit(h => ({...h, duty_max_monthly:e.target.value}))} /></div>
+            </div>
+            <div className="field"><label>Stalno prost dan v tednu</label>
+              <select value={hrEdit.duty_day_off} onChange={e => setHrEdit(h => ({...h, duty_day_off:e.target.value}))}>
+                <option value="">– brez –</option>
+                {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
+              </select></div>
+            <label className="rowline" style={{cursor:"pointer"}}>
+              <input type="checkbox" checked={!!hrEdit.duty_weekdays_only}
+                onChange={e => setHrEdit(h => ({...h, duty_weekdays_only:e.target.checked}))} />
+              <span style={{marginLeft:8}}>Samo med tednom (nikoli sobota/nedelja)</span>
+            </label>
+            <div className="field"><label>Starševsko varstvo</label><input type="text" value={hrEdit.parental_leave} onChange={e => setHrEdit(h => ({...h, parental_leave:e.target.value}))} /></div>
+            <div className="field"><label>Letni dopust 2026 (skupaj)</label><input type="number" value={hrEdit.annual_leave_total} onChange={e => setHrEdit(h => ({...h, annual_leave_total:e.target.value}))} /></div>
+            <div className="field"><label>Stanje dopusta (preostanek, dni)</label><input type="number" value={hrEdit.leave_balance_days} onChange={e => setHrEdit(h => ({...h, leave_balance_days:e.target.value}))} /></div>
+            <div className="field"><label>Stanje na dan</label><input type="date" value={hrEdit.leave_balance_asof} onChange={e => setHrEdit(h => ({...h, leave_balance_asof:e.target.value}))} /></div>
+            <button className="submitBtn" onClick={shraniHr} disabled={hrBusy}>{hrBusy ? "Shranjujem …" : "Shrani HR podatke"}</button>
+            {hrMsg && <p className={hrMsg.ok ? "okMsg" : "err"}>{hrMsg.text}</p>}
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Bralni prikaz še ne povezane (neregistrirane) osebe – vidna vsem, na
+// izrecno željo, z istimi vidnostnimi pravili kot pri registriranih
+// profilih. contact_imports_public (glej schema.sql) že vrne null za
+// stolpce, ki jih klicatelj po vlogi ne sme videti (phone/HR polja), zato
+// se tu samo prikaže, kar je prišlo.
+// ---------------------------------------------------------------------
+function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
+  const hr = oseba.hr || {};
+  const imaHr = hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null;
+  return (
+    <div>
+      <button className="backlink no-print" onClick={onNazaj}>‹ Nazaj na imenik</button>
+      <div className="card" style={{marginTop:10, textAlign:"center"}}>
+        <div className="avatarBig" style={{margin:"0 auto 10px"}}>{initials(oseba.full_name)}</div>
+        <div className="name" style={{fontSize:18, fontWeight:800}}>{oseba.full_name}</div>
+        <div style={{marginTop:6}}><span className="pill pending">še ni registriran</span></div>
+      </div>
+
+      <div className="card">
+        <EmailRow email={oseba.email} />
+        <PhoneRow phone={oseba.phone} />
+        {oseba.dept_codes.length > 0 && (
+          <div className="rowline">
+            <div className="lbl">Oddelek</div>
+            <div className="val">{oseba.dept_codes.map(k => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}</div>
+          </div>
+        )}
+        {!oseba.phone && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
+      </div>
+
+      {imaHr && (
+        <div className="card">
+          {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
+          {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{window.Datum.slo(hr.birth_date)}</div></div>}
+          {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
+          {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
+          {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
+          {hr.annual_leave_total != null && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
+          {hr.leave_balance_days != null && (
+            <div className="rowline">
+              <div className="lbl">Stanje dopusta</div>
+              <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + window.Datum.slo(hr.leave_balance_asof) + ")" : ""}</div>
+            </div>
+          )}
+          <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
+          <p className="hint" style={{marginTop:8, marginBottom:0}}>HR podatki – vidni samo adminu.</p>
+        </div>
+      )}
+
+      {myRole === "admin" && (
+        <p className="hint no-print">Za povezovanje s pravim profilom (ko se oseba registrira) ali urejanje pojdi na dno strani v razdelek "Uvoz zaposlenih".</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Admin: uvoz seznama zaposlenih (še neregistriranih) + povezovanje z
+// dejanskimi profili, ko se oseba sama registrira.
+// ---------------------------------------------------------------------
+// Mapiranje "Naziv enote organizacijske strukture" (uraden HR izvoz) na
+// department_code, kadar datoteka nima ločenega stolpca department_code.
+// Samo za 6 negovalnih oddelkov z znano, stabilno poimenovanje enote – za
+// vodstvo/druge enote department_code ostane prazen, admin ga dopolni ročno.
+const UNIT_TO_DEPT = {
+  "zn - oddelek b": "B", "zn - oddelek c": "C", "zn - oddelek c1 (intenziva)": "C1",
+  "zn - oddelek d (intenziva)": "D", "zn - oddelek e1": "E1", "zn - oddelek e2": "E2",
+  "zn - oddelek a, mt": "A",
+};
+
+// Kanonična polja, ki jih zna uvoz prepoznati po glavi stolpca (poljuben
+// vrstni red, case-insensitive) – pokriva tako preprosto CSV obliko
+// (full_name,email,...) kot uraden HR izvoz v slovenščini.
+const GLAVE_MAPA = {
+  full_name: ["full_name","priimek in ime","ime in priimek","ime"],
+  email: ["email","elektronska pošta","elektronska posta","e-pošta","e-posta"],
+  phone: ["phone","telefon"],
+  // "vloga" dodan nazaj (v. 1 tega uvoza je bil namenoma izpuščen, ker bi
+  // generičen HR izvoz lahko tu imel delovno-mestno klasifikacijo namesto
+  // aplikacijske vloge) - v resničnih datotekah admin/vodja/user vrednosti
+  // uporablja, in obstoječa zaščita spodaj (le "admin"/"vodja"/"user" so
+  // veljavne, sicer "user") vsako neveljavno vrednost varno prestreže.
+  role: ["role","vloga"],
+  department_code: ["department_code","oddelek"],
+  // "Mat.št" je zapis, ki ga uporabljajo resnične kadrovske datoteke
+  // (Zaposleni - SMS-DMS, Zaposleni - Oddelki) - brez teh različic se
+  // stolpec z matično številko ni prepoznal in vrstica brez e-pošte je
+  // odpadla, čeprav je imela stabilen ključ.
+  employee_code: ["employee_code","šifra zaposlenega","sifra zaposlenega",
+    "mat.št","mat. št.","mat št","mat.st","mat st","matična številka","maticna stevilka"],
+  birth_date: ["birth_date","datum rojstva"],
+  position_name: ["position_name","naziv delovnega mesta"],
+  org_unit_name: ["org_unit_name","naziv enote organizacijske strukture"],
+  manager_name: ["manager_name","vodja (naziv)","vodja"],
+  // Šifra neposrednega vodje (ne ime) – če jo znamo razrešiti na obstoječ
+  // profil (prek profile_hr_details.employee_code), uvoz samodejno nastavi
+  // profiles.vodja_id (glej vodjaPari spodaj v uvoziVrsticeObjekte). To je
+  // ločeno od manager_name zgoraj (tisto je samo prosto besedilo za prikaz).
+  vodja_sifra: ["vodja_sifra","vodja (šifra)","vodja (sifra)"],
+  parental_leave: ["parental_leave","starševsko varstvo","starsevsko varstvo"],
+  annual_leave_total: ["annual_leave_total","letni dopust 2026 (skupaj)","letni dopust (skupaj)","letni dopust"],
+  // Tekoče stanje dopusta (preostanek dni) - ločeno od letne kvote zgoraj,
+  // ker se to spreminja med letom in ga admin redno posodablja z uvozom.
+  leave_balance_days: ["leave_balance_days","stanje dopusta","stanje dopusta (dni)","preostanek dopusta","preostanek dopusta (dni)","dopust stanje"],
+  leave_balance_asof: ["leave_balance_asof","stanje na dan","dopust na dan"],
+};
+
+const PRAZEN_NOV = { full_name:"", email:"", phone:"", role:"user", department_code:"",
+  employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"",
+  leave_balance_days:"", leave_balance_asof:"" };
+
+function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
+  const [uvozi, setUvozi] = useState(null);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [novo, setNovo] = useState(PRAZEN_NOV);
+  const [dodajBusy, setDodajBusy] = useState(false);
+  const [gsheetUrl, setGsheetUrl] = useState("");
+  const [pdfBesedilo, setPdfBesedilo] = useState(null); // surovo besedilo iz PDF, čaka na ročni pregled/uvoz
+  const fileRef = useRef();
+
+  const nalozi = () => {
+    client.from("contact_imports").select("*").order("created_at", { ascending:false }).then(({ data }) => setUvozi(data || []));
+  };
+  useEffect(() => { nalozi(); }, []);
+
+  const dodajVrstico = async (vrstica) => {
+    const { error } = await client.from("contact_imports").insert(vrstica);
+    return error;
+  };
+
+  // Če je oseba (po e-pošti) že v seznamu "še ne povezani", POSODOBI to
+  // vrstico namesto da doda podvojeno – na izrecno željo, ker se ista, še
+  // neregistrirana oseba lahko pojavi v več zaporednih uvozih (posodobljeni
+  // podatki čez čas), prej je vsak tak uvoz ustvaril nov, podvojen zapis.
+  const dodajAliPosodobiVrstico = async (vrstica) => {
+    const obstojeci = uvozi.find(u => !u.linked_profile_id && (u.email || "").toLowerCase() === vrstica.email.toLowerCase());
+    if (obstojeci) {
+      const { error } = await client.from("contact_imports").update(vrstica).eq("id", obstojeci.id);
+      return error;
+    }
+    return dodajVrstico(vrstica);
+  };
+
+  const vrsticaVZapis = (v) => {
+    const full_name = (v.full_name || "").trim();
+    const email = (v.email || "").trim();
+    // Doslej je vrstica brez e-pošte odpadla kot napaka. Kadrovski izvozi
+    // pa e-pošte pogosto nimajo za vse (npr. za tiste brez službenega
+    // predala), imajo pa MATIČNO ŠTEVILKO - stabilen ključ, po katerem se
+    // oseba da najti prav tako zanesljivo. Zato zadošča ime + e-pošta ALI
+    // ime + matična številka; brez obojega vrstice res ni mogoče povezati.
+    const employee_code = (v.employee_code || "").trim();
+    if (!full_name || (!email && !employee_code)) return null;
+    const role = ["admin","vodja","user"].includes(v.role) ? v.role : "user";
+    let department_code = (v.department_code || "").trim() || null;
+    if (!department_code && v.org_unit_name) {
+      department_code = UNIT_TO_DEPT[v.org_unit_name.trim().toLowerCase()] || null;
+    }
+    const annual_leave_total = v.annual_leave_total !== undefined && v.annual_leave_total !== "" && !isNaN(Number(v.annual_leave_total))
+      ? Number(v.annual_leave_total) : null;
+    const leave_balance_days = v.leave_balance_days !== undefined && v.leave_balance_days !== "" && !isNaN(Number(v.leave_balance_days))
+      ? Number(v.leave_balance_days) : null;
+    // Če je stanje dopusta podano brez lastnega datuma, privzemi 1. v
+    // tekočem mesecu (na izrecno željo: "dodatno stanje dopusta na 1 dan v
+    // mesecu") - admin lahko datum kasneje ročno popravi v profilu osebe.
+    let leave_balance_asof = window.ImportUtils.normalizirajDatum(v.leave_balance_asof) || null;
+    if (leave_balance_days != null && !leave_balance_asof) {
+      const zdaj = new Date();
+      leave_balance_asof = `${zdaj.getFullYear()}-${String(zdaj.getMonth()+1).padStart(2,"0")}-01`;
+    }
+    return {
+      full_name, email, phone: (v.phone || "").trim() || null, role, department_code,
+      employee_code: employee_code || null,
+      birth_date: window.ImportUtils.normalizirajDatum(v.birth_date) || null,
+      position_name: (v.position_name || "").trim() || null,
+      manager_name: (v.manager_name || "").trim() || null,
+      vodja_sifra: (v.vodja_sifra || "").trim() || null,
+      parental_leave: (v.parental_leave || "").trim() || null,
+      annual_leave_total, leave_balance_days, leave_balance_asof,
+    };
+  };
+
+  // Prenese podatke (vloga/oddelek/telefon/HR polja, vključno s stanjem
+  // dopusta) neposredno na ŽE registriran profil. Skupno za "Poveži" (prvič)
+  // IN za ponoven uvoz posodobljenega stanja pri osebah, ki so že povezane –
+  // na izrecno željo: admin redno uvozi novo Excel tabelo, obstoječi
+  // zaposleni naj bodo takoj na tekočem, brez ročnega "Poveži" vsakič znova.
+  const prenesiPodatkeNaProfil = async (zapis, profileId) => {
+    // Najprej preberi trenutno stanje: splošen HR izvoz pogosto nima WARDS_META
+    // kode oddelka (samo splošno organizacijsko enoto, ki se ne preslika prek
+    // UNIT_TO_DEPT) – brez tega bi uvoz vsakič povozil ročno/SQL nastavljen
+    // oddelek z null. Enako varuje vlogo: uvoz nikoli ne povrne admina/vodje
+    // nazaj na "user", tudi če je izvorni stolpec "vloga" tam prazen/drugačen.
+    const { data: trenutni } = await client.from("profiles").select("role, department_code").eq("id", profileId).single();
+    const novaVloga = trenutni && trenutni.role !== "user" ? trenutni.role : (zapis.role || "user");
+    const noviOddelek = zapis.department_code || (trenutni && trenutni.department_code) || null;
+    // full_name se vedno prepiše z izvozom – vrsticaVZapis() zgoraj zajame
+    // vrstico samo, če ima neprazno ime IN e-pošto, izvor pa je uraden HR
+    // izvoz, torej zanesljivejši od morebitne napačne vrednosti v bazi (npr.
+    // če je handle_new_user() sprožilec ob ustvarjanju računa padel nazaj na
+    // e-pošto namesto imena, ker takrat ni dobil pravih metapodatkov).
+    const { error: e1 } = await client.from("profiles").update({
+      full_name: zapis.full_name, role: novaVloga, department_code: noviOddelek,
+    }).eq("id", profileId);
+    if (e1) return e1;
+    if (zapis.phone) {
+      await client.from("contact_phones").upsert({ profile_id: profileId, phone: zapis.phone, updated_at: new Date().toISOString() });
+    }
+    const imaHrPodatke = zapis.employee_code || zapis.birth_date || zapis.position_name || zapis.manager_name
+      || zapis.parental_leave || zapis.annual_leave_total != null || zapis.leave_balance_days != null;
+    if (imaHrPodatke) {
+      await client.from("profile_hr_details").upsert({
+        profile_id: profileId,
+        employee_code: zapis.employee_code || null, birth_date: zapis.birth_date || null,
+        position_name: zapis.position_name || null, manager_name: zapis.manager_name || null,
+        parental_leave: zapis.parental_leave || null, annual_leave_total: zapis.annual_leave_total,
+        leave_balance_days: zapis.leave_balance_days, leave_balance_asof: zapis.leave_balance_asof,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    return null;
+  };
+
+  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo. Če
+  // se e-pošta ujema z že registriranim profilom, se podatki posodobijo
+  // NANJ neposredno (glej prenesiPodatkeNaProfil); sicer gredo v
+  // contact_imports kot doslej (čaka na registracijo + ročno "Poveži").
+  const uvoziVrsticeObjekte = async (vrsticeObj) => {
+    let dodanih = 0, posodobljenih = 0, napak = 0;
+    // Zbrano med glavno zanko, razrešeno šele po njej (glej spodaj) – vodja
+    // je lahko naveden s svojo šifro PREDEN je njegova/njena vrstica sploh
+    // obdelana, zato mora biti razrešitev ločen drugi prehod čez že
+    // posodobljene profile, ne del posamezne iteracije.
+    const vodjaPari = [];
+    // Kazalo obstoječih profilov po matični številki - za vrstice brez
+    // e-pošte (in kot rezerva, kadar je e-pošta v izvozu drugačna od tiste,
+    // s katero je oseba registrirana).
+    const { data: hrZaKazalo } = await client.from("profile_hr_details")
+      .select("profile_id, employee_code").not("employee_code", "is", null);
+    const profilZaSifro = {};
+    (hrZaKazalo || []).forEach(r => { profilZaSifro[String(r.employee_code).trim()] = r.profile_id; });
+
+    let brezEposte = 0;
+    for (const v of vrsticeObj) {
+      const zapis = vrsticaVZapis(v);
+      if (!zapis) { napak++; continue; }
+      const poEposti = zapis.email
+        ? osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase())
+        : null;
+      const idPoSifri = zapis.employee_code ? profilZaSifro[zapis.employee_code] : null;
+      const obstojeci = poEposti || (idPoSifri ? osebe.find(o => o.id === idPoSifri) : null);
+      if (!poEposti && obstojeci) brezEposte++;
+      if (obstojeci) {
+        const err = await prenesiPodatkeNaProfil(zapis, obstojeci.id);
+        if (err) { napak++; } else {
+          posodobljenih++;
+          if (zapis.vodja_sifra) vodjaPari.push({ profileId: obstojeci.id, vodjaSifra: zapis.vodja_sifra });
+        }
+      } else if (zapis.email) {
+        const err = await dodajAliPosodobiVrstico(zapis);
+        if (err) napak++; else dodanih++;
+      } else {
+        // Ime in matična številka, a osebe s to številko v aplikaciji še ni
+        // in e-pošte ni: v contact_imports je e-pošta obvezna (tam čaka na
+        // registracijo, ki gre prek e-pošte), zato take vrstice ni kam
+        // shraniti. Prešteje se posebej, da je razlog jasen.
+        napak++;
+      }
+    }
+
+    let vodjaPosodobljenih = 0;
+    if (vodjaPari.length > 0) {
+      const { data: hrVrstice } = await client.from("profile_hr_details")
+        .select("profile_id, employee_code").not("employee_code", "is", null);
+      const sifraNaProfil = {};
+      (hrVrstice || []).forEach(r => { sifraNaProfil[r.employee_code] = r.profile_id; });
+      for (const par of vodjaPari) {
+        const vodjaProfilId = sifraNaProfil[par.vodjaSifra];
+        // Preskoči, če šifra vodje ne pripada nikomur z računom v aplikaciji
+        // (npr. direktor izven Službe za ZN) ali bi oseba postala sama sebi
+        // vodja (napaka v izvoru).
+        if (!vodjaProfilId || vodjaProfilId === par.profileId) continue;
+        const { error } = await client.from("profiles").update({ vodja_id: vodjaProfilId }).eq("id", par.profileId);
+        if (!error) vodjaPosodobljenih++;
+      }
+    }
+
+    setUvozMsg(`${posodobljenih} že registriranih posodobljenih neposredno`
+      + (brezEposte ? ` (od tega ${brezEposte} najdenih po matični številki, brez e-pošte)` : "")
+      + (vodjaPosodobljenih ? ` (od tega ${vodjaPosodobljenih} z nastavljenim neposrednim vodjo)` : "")
+      + `, ${dodanih} novih dodanih/posodobljenih v seznamu za uvoz`
+      + (napak ? `, ${napak} preskočenih (manjkajo obvezna polja ali napaka).` : "."));
+    nalozi();
+    onSpremenjeno();
+  };
+
+  const STOLPCI = ["full_name","email","phone","role","department_code"];
+  const GLAVE = ["full_name","ime"];
+
+  // Prebere surove vrstice v vrstice-objekte: najprej poskusi prepoznati
+  // glavo po imenu (poljuben vrstni red, tudi uraden HR izvoz z več stolpci),
+  // če ne prepozna NOBENEGA stolpca pa pade nazaj na preprosto pozicijsko
+  // obliko full_name,email,phone,role,department_code (brez/z glavo).
+  const vVrsticeObjekteSplosno = (vrsteVrstic) => {
+    const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, GLAVE_MAPA);
+    if (najdeniStolpci.length > 0) return objekti;
+    return window.ImportUtils.vVrsticeObjekte(vrsteVrstic, STOLPCI, GLAVE);
+  };
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null); setPdfBesedilo(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") {
+        // PDF nima zanesljivih stolpcev (glej opombo v import-utils.js) – samo
+        // izvlečemo golo besedilo in ga damo v urejljivo polje spodaj, admin
+        // ga preoblikuje v CSV vrstice in klikne "Uvozi urejeno besedilo".
+        setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
+        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila – preveri/uredi spodaj v obliko "full_name,email,phone,role,department_code" pred uvozom.`);
+      } else {
+        await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
+      }
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziIzGoogleSheet = async () => {
+    if (!gsheetUrl.trim()) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(gsheetUrl.trim());
+      await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
+    } catch (e) {
+      setUvozMsg("Napaka pri branju Google Sheets: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziUrejenoPdfBesedilo = async () => {
+    if (!pdfBesedilo) return;
+    setUvozBusy(true);
+    try {
+      const vrsteVrstic = window.ImportUtils.csvBesedilaVVrstice(pdfBesedilo);
+      await uvoziVrsticeObjekte(vVrsticeObjekteSplosno(vrsteVrstic));
+      setPdfBesedilo(null);
+    } catch (e) {
+      setUvozMsg("Napaka pri uvozu: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const dodajRocno = async () => {
+    const zapis = vrsticaVZapis(novo);
+    if (!zapis) return;
+    setDodajBusy(true);
+    const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
+    const err = obstojeci ? await prenesiPodatkeNaProfil(zapis, obstojeci.id) : await dodajAliPosodobiVrstico(zapis);
+    setDodajBusy(false);
+    if (!err) {
+      setNovo(PRAZEN_NOV); nalozi();
+      if (obstojeci) onSpremenjeno();
+    }
+    else alert(err.message || String(err));
+  };
+
+  const odstraniUvoz = async (id) => {
+    if (!confirm("Odstranim to vrstico iz seznama za uvoz?")) return;
+    const { error } = await client.from("contact_imports").delete().eq("id", id);
+    if (error) { alert(error.message); return; }
+    nalozi();
+  };
+
+  const poveziZProfilom = async (uvoz, profileId) => {
+    if (!profileId) return;
+    const err = await prenesiPodatkeNaProfil(uvoz, profileId);
+    if (err) { alert(err.message); return; }
+    const { error } = await client.from("contact_imports").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
+    if (error) { alert(error.message); return; }
+    nalozi();
+    onSpremenjeno();
+  };
+
+  if (uvozi === null) return <p className="hint">Nalagam …</p>;
+  const nepovezani = uvozi.filter(u => !u.linked_profile_id);
+
+  return (
+    <div className="no-print">
+      <h2 className="section">Uvoz zaposlenih (admin)</h2>
+      <p className="hint">
+        Naloži seznam vseh zaposlenih. Če je oseba že registrirana (e-pošta se ujema), se telefon in HR podatki
+        (rojstni datum, delovno mesto, vodja, starševsko varstvo, letni dopust, stanje dopusta) posodobijo NANJO
+        TAKOJ, brez ročnega koraka – tudi če jih uvoziš znova čez mesec z novo tabelo (npr. posodobljeno stanje
+        dopusta). Če oseba še ni registrirana, gre v spodnji seznam "Še ne povezani" in jo povežeš ročno, ko se
+        prijavi. HR podatke vidi samo ta oseba sama in admin – nikoli vodja ali drugi.
+      </p>
+      <div className="card">
+        <RazporedUvozVir ikona="📇" naziv="Imenik zaposlenih"
+          opis="CSV / Excel / JSON – kadrovski izvoz"
+          onClick={() => fileRef.current && fileRef.current.click()} />
+        <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="submitBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz iz datoteke (CSV / Excel / PDF)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Datoteka mora imeti glavo (prva vrstica z imeni stolpcev) – prepozna tako preprosto obliko
+          (<code>full_name,email,phone,role,department_code</code>) kot uraden HR izvoz v slovenščini ("Priimek in
+          ime", "Elektronska pošta", "Datum rojstva", "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo",
+          "Letni dopust 2026 (skupaj)" …) – vrstni red stolpcev ni pomemben. Oddelek se, če ni izrecnega stolpca,
+          poskusi razbrati iz "Naziv enote organizacijske strukture" (samo za 6 negovalnih oddelkov). PDF nima
+          zanesljivih stolpcev, zato se iz njega samo izvleče golo besedilo – uredi ga spodaj v isto obliko pred
+          uvozom.
+        </p>
+        <div className="field" style={{marginTop:10}}>
+          <label>… ali povezava do Google Sheets (deljeno kot »vsak, ki ima povezavo, lahko ogleda«)</label>
+          <div style={{display:"flex", gap:8}}>
+            <input type="url" value={gsheetUrl} onChange={e => setGsheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..." style={{flex:1}} />
+            <button className="submitBtn" disabled={uvozBusy || !gsheetUrl.trim()} onClick={uvoziIzGoogleSheet}>Uvozi</button>
+          </div>
+        </div>
+        {pdfBesedilo !== null && (
+          <div className="field" style={{marginTop:10}}>
+            <label>Golo besedilo iz PDF – preoblikuj v vrstice »full_name,email,phone,role,department_code« (ena oseba na vrstico)</label>
+            <textarea rows={10} value={pdfBesedilo} onChange={e => setPdfBesedilo(e.target.value)} style={{width:"100%", fontFamily:"monospace"}} />
+            <button className="submitBtn" style={{marginTop:8}} disabled={uvozBusy} onClick={uvoziUrejenoPdfBesedilo}>Uvozi urejeno besedilo</button>
+          </div>
+        )}
+        {uvozMsg && <p className="okMsg">{uvozMsg}</p>}
+      </div>
+
+      <div className="card">
+        <p className="hint" style={{marginTop:0}}>Ali dodaj eno osebo ročno:</p>
+        <div className="field"><label>Priimek in ime</label><input type="text" placeholder="npr. Rozman Anka" value={novo.full_name} onChange={e => setNovo(n => ({...n, full_name:e.target.value}))} /></div>
+        <div className="field"><label>E-pošta</label><input type="email" value={novo.email} onChange={e => setNovo(n => ({...n, email:e.target.value}))} /></div>
+        <div className="field"><label>Telefon</label><input type="tel" value={novo.phone} onChange={e => setNovo(n => ({...n, phone:e.target.value}))} /></div>
+        <div className="field"><label>Vloga</label>
+          <select value={novo.role} onChange={e => setNovo(n => ({...n, role:e.target.value}))}>
+            <option value="user">Zaposleni</option><option value="vodja">Vodja ekipe</option><option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div className="field"><label>Oddelek</label>
+          <select value={novo.department_code} onChange={e => setNovo(n => ({...n, department_code:e.target.value}))}>
+            <option value="">– brez –</option>
+            {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+          </select>
+        </div>
+        <details>
+          <summary style={{cursor:"pointer", fontSize:12.5, color:"var(--muted)", fontWeight:700, marginBottom:8}}>
+            + Dodatni HR podatki (neobvezno – po povezavi vidna samo osebi in adminu)
+          </summary>
+          <div className="field"><label>Šifra zaposlenega</label><input type="text" value={novo.employee_code} onChange={e => setNovo(n => ({...n, employee_code:e.target.value}))} /></div>
+          <div className="field"><label>Datum rojstva</label><input type="date" value={novo.birth_date} onChange={e => setNovo(n => ({...n, birth_date:e.target.value}))} /></div>
+          <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={novo.position_name} onChange={e => setNovo(n => ({...n, position_name:e.target.value}))} /></div>
+          <div className="field"><label>Vodja (naziv)</label><input type="text" value={novo.manager_name} onChange={e => setNovo(n => ({...n, manager_name:e.target.value}))} /></div>
+          <div className="field"><label>Starševsko varstvo</label><input type="text" value={novo.parental_leave} onChange={e => setNovo(n => ({...n, parental_leave:e.target.value}))} /></div>
+          <div className="field"><label>Letni dopust 2026 (skupaj)</label><input type="number" value={novo.annual_leave_total} onChange={e => setNovo(n => ({...n, annual_leave_total:e.target.value}))} /></div>
+          <div className="field"><label>Stanje dopusta (preostanek, dni)</label><input type="number" value={novo.leave_balance_days} onChange={e => setNovo(n => ({...n, leave_balance_days:e.target.value}))} /></div>
+          <div className="field"><label>Stanje na dan</label><input type="date" value={novo.leave_balance_asof} onChange={e => setNovo(n => ({...n, leave_balance_asof:e.target.value}))} /></div>
+        </details>
+        <button className="submitBtn" onClick={dodajRocno} disabled={dodajBusy}>{dodajBusy ? "Dodajam …" : "+ Dodaj v seznam za uvoz"}</button>
+      </div>
+
+      <h2 className="section">Še ne povezani ({nepovezani.length})</h2>
+      {nepovezani.length === 0 && <p className="empty">Vsi uvoženi zapisi so povezani z registriranimi profili.</p>}
+      {nepovezani.map(u => {
+        const ujemanje = osebe.find(o => (o.email || "").toLowerCase() === (u.email || "").toLowerCase());
+        return (
+          <div className="card" key={u.id}>
+            <div className="person" style={{cursor:"default"}}>
+              <div className="av">{initials(u.full_name)}</div>
+              <div className="info" style={{cursor:"default"}}>
+                <div className="name">{u.full_name}</div>
+                <div className="meta"><span className="pill pending">še ni registriran</span><span>{u.email}</span></div>
+                {(u.position_name || u.manager_name) && (
+                  <div className="meta">{[u.position_name, u.manager_name && ("vodja: " + u.manager_name)].filter(Boolean).join(" · ")}</div>
+                )}
+              </div>
+            </div>
+            {ujemanje ? (
+              <p className="hint" style={{margin:"8px 0"}}>
+                Ujema se z že registriranim profilom <b>{ujemanje.full_name}</b> (ista e-pošta).
+                <button className="iconBtn" style={{marginLeft:8}} onClick={() => poveziZProfilom(u, ujemanje.id)}>Poveži</button>
+              </p>
+            ) : (
+              <div className="field" style={{marginTop:8}}>
+                <label>Ali ročno poveži z obstoječim profilom (če se e-pošta ne ujema natančno)</label>
+                <select defaultValue="" onChange={e => e.target.value && poveziZProfilom(u, e.target.value)}>
+                  <option value="">Izberi profil …</option>
+                  {osebe.map(o => <option key={o.id} value={o.id}>{o.full_name} ({o.email})</option>)}
+                </select>
+              </div>
+            )}
+            <button className="dangerBtn" onClick={() => odstraniUvoz(u.id)}>Odstrani iz seznama za uvoz</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Zbirni pregled stanja dopusta (admin) – kontrolni seznam, razdelek 7:
+// doslej je bilo stanje dopusta vidno samo po posamezniku (na njegovem
+// profilu), tu je zbrano na enem mestu za vse. Bere isti profile_hr_details
+// vir, ki ga PR #15 že polni/posodablja ob uvozu HR podatkov.
+// ---------------------------------------------------------------------
+// Mesečna razpredelnica stanja po osebah – kdo je na dani dan na delu, na
+// dežurstvu, na dopustu, na bolniški ali prost. Uporabnikova izrecna
+// zahteva: pet stanj, en pogled, brez brskanja po posameznih profilih.
+//
+// Podatki pridejo iz DVEH virov, ki se dopolnjujeta:
+//   - schedule_entries: objavljen razpored (izmena ali dežurstvo);
+//   - leave_entries: barvna razpredelnica Želje (letni dopust, bolniška,
+//     študijski dopust) - ta pokriva tudi ljudi, ki objavljenega razporeda
+//     po osebi nimajo (NZV/vodje).
+// Kjer je za isti dan oboje, ima razpored prednost (dežurstvo/izmena je
+// dejansko opravljeno delo), razen odsotnosti, ki so izrecnejše od
+// privzete prisotnosti.
+// Pet stanj, po katerih so kratice razvrščene v legendi (uporabnikova
+// zahteva iz prejšnjega kroga). Barva celice zdaj pride iz KRATICE, ne iz
+// stanja - stanje ostane kot naslov skupine, da je legenda pregledna.
+// Uradna legenda izmen (kratice, barve, časi) in razvrstitev živijo v
+// izmene.js - en sam vir za vse zaslone. Prej je bila polna legenda samo
+// tu, Razpored pa je risal svoje, grobe barve, zato je bila ista izmena
+// v Imeniku ena barva in v Razporedu druga.
+const IZMENA_KRATICE = window.Izmene.KRATICE;
+const STANJE_BARVA = window.Izmene.STANJE_BARVA;
+const izmenaVnos = window.Izmene.vnos;
+const vnosPoKratici = window.Izmene.poKratici;
+const jeProst = window.Izmene.jeProst;
+const izmenaKratica = window.Izmene.kratica;
+const izmenaBarva = window.Izmene.barva;
+const stanjeIzKode = window.Izmene.stanje;
+const barvaBesedila = window.Izmene.barvaBesedila;
+
+// Ali gre za isto osebo, kljub drugačnemu vrstnemu redu besed in drugačnim
+// strešicam. Potrebno, ker lead_departments hrani ime kot prosto besedilo
+// (brez povezave na profil) in ga uradne opombe pišejo po svoje: "Dijana
+// Lelić" proti "Lelič Dijana".
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone. Prej
+// je imel vsak svojo, drugače strogo različico (ta je prenesla izgubljene
+// strešice, ni pa poznala potrjenih tipkarskih napak "Horvat"/"Tomažević"
+// - v "Moj razpored" pa ravno obratno), zato se je ista oseba na enem
+// zaslonu našla, na drugem pa ne.
+const imenaSeUjemataBrezStresic = window.Imena.seUjemata;
+const kratkoIme = window.Imena.kratkoIme;
+
+// Kdo sodi v NZV (vodje/administratorji) - zanje velja delovnik PON-PET,
+// vikendi in prazniki prosti razen dežurstva. Nabor je v nzv-zasedba.js,
+// da se z "Moj razpored" in NZV mrežo ne more razdružiti.
+const JE_NZV_VLOGA = new Set(window.NzvZasedba.VLOGE);
+
+// leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
+// želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
+const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
+
+// Pregled nadomeščanj v isti obliki kot uporabnikova razpredelnica
+// (Razpored_nadomescanj.xlsx): Oseba | Enote | Nadomeščajo mene | Pokrivam.
+//
+// Obe smeri se izpeljeta iz ISTE tabele parov (nadomescanja), zato se ne
+// moreta razhajati - v izvirni preglednici sta bili zapisani ločeno in sta
+// si na dveh mestih nasprotovali.
+
+
+
+
+function DopustPregled({ oddelki }){
+  const [vrstice, setVrstice] = useState(null);
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    client.from("profiles")
+      .select("id, full_name, department_code, profile_hr_details(annual_leave_total, leave_balance_days, leave_balance_asof)")
+      .order("full_name")
+      .then(({ data }) => {
+        setVrstice((data || []).map(p => {
+          const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+          return {
+            id: p.id, full_name: p.full_name, department_code: p.department_code,
+            annual_leave_total: hr ? hr.annual_leave_total : null,
+            leave_balance_days: hr ? hr.leave_balance_days : null,
+            leave_balance_asof: hr ? hr.leave_balance_asof : null,
+          };
+        }));
+      });
+  }, []);
+
+  const imeOddelka = useMemo(() => {
+    const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
+  }, [oddelki]);
+
+  const filtrirano = useMemo(() => {
+    if (!vrstice) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return vrstice;
+    return vrstice.filter(v =>
+      (v.full_name || "").toLowerCase().includes(s) ||
+      (imeOddelka[v.department_code] || "").toLowerCase().includes(s)
+    );
+  }, [vrstice, q, imeOddelka]);
+
+  const manjkaPodatek = filtrirano.filter(v => v.leave_balance_days == null).length;
+
+  if (!vrstice) return <p className="hint">Nalagam …</p>;
+
+  return (
+    <React.Fragment>
+      <div className="searchWrap no-print">
+        <span className="ic">🔍</span>
+        <input type="search" placeholder="Išči po imenu ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
+      </div>
+      <p className="hint no-print">
+        {filtrirano.length} oseb{manjkaPodatek > 0 ? ` – ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
+      </p>
+      <div className="card" style={{overflowX:"auto"}}>
+        <table className="fairTable">
+          <thead>
+            <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
+          </thead>
+          <tbody>
+            {filtrirano.map(v => (
+              <tr key={v.id}>
+                <td>{v.full_name}</td>
+                <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
+                <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
+                <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
+                <td>{window.Datum.slo(v.leave_balance_asof) || "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </React.Fragment>
+  );
+}
+
+// Pregled paraf – viden VSEM prijavljenim (izrecna zahteva uporabnika).
+// Parafa je kratka oznaka, ki jo uradne predloge in NZV razpored
+// uporabljajo namesto polnega imena; doslej jo je bilo mogoče videti samo
+// posamično, na profilu ene osebe, in samo adminu.
+//
+// Pregled hkrati pokaže dve stvari, ki tiho lomita uvoz razporeda:
+//   1. TRK - dve osebi imata isto parafo. Uvoz take oznake ne more
+//      enolično pripisati osebi, zato jo (pravilno) zavrne in vpis
+//      odpade; v poročilu se pokaže kot "parafa se ujema z več osebami".
+//   2. IZPELJANA parafa - oseba nima izrecno nastavljene, zato se vzame
+//      prve tri črke priimka. Prav to je najpogostejši vir trkov (dva
+//      Pogačnika -> oba "POG").
+function ParafePregled({ osebe }){
+  // Parafa je vezana na DATUM razporeda (prenova z veljavnostjo od
+  // 1.10.2026), ne na današnji dan - zato izbirnik meseca: pri uvozu
+  // starejšega meseca velja stara parafa.
+  const [mesec, setMesec] = useState(() => new Date().toISOString().slice(0, 7));
+  const vrstice = useMemo(() => {
+    return (osebe || []).map(o => ({
+      oseba: o,
+      parafa: window.Parafa.zaDatum(o, mesec),
+      izpeljana: window.Parafa.jeIzpeljana(o, mesec),
+    })).sort((a, b) => a.parafa.localeCompare(b.parafa, "sl") || a.oseba.full_name.localeCompare(b.oseba.full_name, "sl"));
+  }, [osebe, mesec]);
+  const trki = useMemo(() => window.Parafa.trki(osebe || [], mesec), [osebe, mesec]);
+  const trkKljuci = Object.keys(trki);
+
+  return (
+    <React.Fragment>
+      <h2 className="section">Parafe ({vrstice.length})</h2>
+      <p className="hint" style={{marginTop:0}}>
+        Kratka oznaka, ki jo razpored NZV in uradne predloge uporabljajo namesto polnega imena. Parafo lahko
+        spremeni administrator na profilu osebe.
+      </p>
+      <div className="field" style={{maxWidth:220}}>
+        <label htmlFor="parafaMesec">Velja za mesec</label>
+        <input id="parafaMesec" type="month" value={mesec} onChange={e => setMesec(e.target.value)} />
+      </div>
+
+      {trkKljuci.length > 0 && (
+        <div className="card" style={{borderColor:"var(--danger)", marginBottom:12}}>
+          <b style={{color:"var(--danger)"}}>⚠ {trkKljuci.length} parafa/e pripada/jo več osebam</b>
+          <p className="hint" style={{marginBottom:0}}>
+            Uvoz razporeda take oznake ne more pripisati eni osebi, zato jo preskoči in vpis odpade
+            (v poročilu uvoza se pokaže kot "parafa se ujema z več osebami"). Administrator naj vsaj eni od
+            navedenih oseb nastavi drugačno parafo na njenem profilu.
+          </p>
+          <ul style={{margin:"8px 0 0", paddingLeft:18}}>
+            {trkKljuci.sort().map(k => (
+              <li key={k} style={{fontSize:13}}>
+                <b>{k}</b> – {trki[k].map(o => o.full_name).join(", ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="card" style={{padding:0}}>
+        {vrstice.map(({ oseba, parafa, izpeljana }) => (
+          <div key={oseba.id} style={{display:"flex", alignItems:"center", gap:12, padding:"9px 14px",
+            borderBottom:"1px solid var(--line)"}}>
+            <span style={{
+              fontWeight:800, fontVariantNumeric:"tabular-nums", minWidth:52,
+              color: trki[parafa.toUpperCase()] ? "var(--danger)" : "var(--text)",
+            }}>{parafa}</span>
+            <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+              {oseba.full_name}
+            </span>
+            {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena – izpeljana iz priimka">izpeljana</span>}
+            {trki[parafa.toUpperCase()] && <span className="pill danger">trk</span>}
+          </div>
+        ))}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function App(){
+  const [auth, setAuth] = useState(null);
+  const [osebe, setOsebe] = useState([]);
+  const [cakajoce, setCakajoce] = useState([]); // še ne povezane osebe (contact_imports_public) – vidne VSEM, na izrecno željo
+  const [oddelki, setOddelki] = useState([]);
+  // Naslov "imenik.html?id=<uuid>" mora odpreti profil te osebe. Parameter
+  // se je doslej samo ZAPISOVAL (ob kliku v seznamu), nikoli pa prebral,
+  // zato so povezave iz drugih zaslonov (Razpored -> Po oddelkih,
+  // Generator, Nastavitve) pripeljale le na navaden seznam - videti je
+  // bilo, kot da klik na ime ne naredi ničesar.
+  const [odprtId, setOdprtId] = useState(() => {
+    try { return new URL(location.href).searchParams.get("id") || null; }
+    catch (e) { return null; }
+  });
+  // Gumb "nazaj" v brskalniku mora profil zapreti oziroma odpreti prejšnjega.
+  useEffect(() => {
+    const naNazaj = () => {
+      try { setOdprtId(new URL(location.href).searchParams.get("id") || null); }
+      catch (e) { setOdprtId(null); }
+    };
+    window.addEventListener("popstate", naNazaj);
+    return () => window.removeEventListener("popstate", naNazaj);
+  }, []);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [pogled, setPogled] = useState("seznam"); // "seznam" | "dopust" (slednje samo admin)
+  const [napakaOsebe, setNapakaOsebe] = useState(null);
+
+  useEffect(() => {
+    RazporedAuth.requireAuth().then(res => {
+      if (!res) return;
+      setAuth(res);
+      const params = new URLSearchParams(location.search);
+      if (params.get("id")) setOdprtId(params.get("id"));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!auth) return;
+    client.from("profiles")
+      .select("id, full_name, role, department_code, rotation_slot, vodja_id, is_koordinator, parafa, parafa_pred_oktobrom_2026, job_title, email, contact_phones(phone), profile_departments(department_code, sort_order)")
+      .order("full_name")
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Nalaganje seznama oseb ni uspelo:", error);
+          // Najverjetnejši vzrok: manjka stolpec profiles.is_koordinator, ker
+          // še ni bila pognana zadnja različica supabase/schema.sql v
+          // Supabase SQL Editorju (dodan v PR "Menjava: enostopenjska
+          // koordinatorska odobritev ..."). Brez preverjanja napake bi to
+          // tiho izpraznilo cel seznam (data ostane undefined) - zato jasno
+          // sporočilo namesto praznega imenika.
+          setNapakaOsebe(
+            "Nalaganje seznama oseb ni uspelo (" + (error.message || String(error)) + "). "
+            + "Najverjetneje je treba v Supabase SQL Editorju znova pognati celoten supabase/schema.sql "
+            + "(dodaja stolpec profiles.is_koordinator)."
+          );
+          return;
+        }
+        setNapakaOsebe(null);
+        setOsebe((data || []).map(o => ({
+          ...o,
+          phone: Array.isArray(o.contact_phones) ? (o.contact_phones[0] && o.contact_phones[0].phone) : (o.contact_phones ? o.contact_phones.phone : null),
+          dept_codes: (o.profile_departments || []).slice().sort((a, b) => a.sort_order - b.sort_order).map(d => d.department_code),
+        })));
+      });
+    client.from("departments").select("code, name").in("code", VSI_DODELJIVI).order("code")
+      .then(({ data }) => setOddelki(data || []));
+    client.from("contact_imports_public").select("*").is("linked_profile_id", null).order("full_name")
+      .then(({ data }) => {
+        setCakajoce((data || []).map(u => ({
+          id: u.id, full_name: u.full_name, role: u.role || "user",
+          dept_codes: u.department_code ? [u.department_code] : [],
+          email: u.email, phone: u.phone, pending: true,
+          hr: {
+            employee_code: u.employee_code, birth_date: u.birth_date, position_name: u.position_name,
+            manager_name: u.manager_name, parental_leave: u.parental_leave,
+            annual_leave_total: u.annual_leave_total, leave_balance_days: u.leave_balance_days,
+            leave_balance_asof: u.leave_balance_asof,
+          },
+        })));
+      });
+  }, [auth, reloadKey]);
+
+  const odpri = (id) => {
+    setOdprtId(id);
+    const url = new URL(location.href);
+    url.searchParams.set("id", id);
+    history.pushState(null, "", url);
+  };
+  const zapri = () => {
+    setOdprtId(null);
+    const url = new URL(location.href);
+    url.searchParams.delete("id");
+    history.pushState(null, "", url);
+  };
+
+  // POZOR: useMemo mora biti PRED "if (!auth) return null" spodaj – vse
+  // kljuke (Hooks) se morajo klicati v enakem vrstnem redu na vsakem izrisu,
+  // sicer React neha izrisovati sploh karkoli (bela stran) takoj, ko auth
+  // preide iz null v nastavljeno (prej-in-po različno število klicanih
+  // kljuk). To je bil pravi vzrok "Imenik sploh ne deluje, vse je belo".
+  const vsi = useMemo(() => osebe.concat(cakajoce), [osebe, cakajoce]);
+
+  if (!auth) return null;
+  const { profile } = auth;
+  const myId = auth.session.user.id;
+  const myRole = profile ? profile.role : "user";
+  const oseba = odprtId ? osebe.find(o => o.id === odprtId) : null;
+  const cakajocaOseba = !oseba && odprtId ? cakajoce.find(o => o.id === odprtId) : null;
+
+  return (
+    <div className="wrap wide">
+      <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
+      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
+      <header className="top">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Imenik</span></div>
+        <p className="sub">{profile ? profile.full_name : ""} · {RazporedAuth.ROLE_LABEL[myRole]}</p>
+      </header>
+
+      <p className="hint no-print">
+        {myRole === "admin" && "Vidiš vse podatke vseh zaposlenih, vključno s telefonskimi številkami."}
+        {myRole === "vodja" && "Vidiš e-pošto in telefonsko številko vseh zaposlenih."}
+        {myRole === "user" && "Vidiš e-pošto vseh sodelavcev; telefonske številke vidita samo admin in vodja (razen tvoje lastne)."}
+      </p>
+
+      {napakaOsebe && <p className="err no-print">{napakaOsebe}</p>}
+
+      {odprtId && oseba && (
+        <Profil oseba={oseba} myId={myId} myRole={myRole} oddelki={oddelki} ogled={!!auth.ogled} onNazaj={zapri} onSpremenjeno={() => setReloadKey(k => k+1)} />
+      )}
+      {odprtId && cakajocaOseba && (
+        <PendingProfil oseba={cakajocaOseba} myRole={myRole} oddelki={oddelki} onNazaj={zapri} />
+      )}
+      {odprtId && !oseba && !cakajocaOseba && vsi.length > 0 && (
+        <div><button className="backlink no-print" onClick={zapri}>‹ Nazaj na imenik</button><p className="empty">Osebe ni bilo mogoče najti.</p></div>
+      )}
+
+      {/* Zavihka "Seznam" in "Parafe" sta na voljo VSEM prijavljenim
+          (parafe na izrecno zahtevo uporabnika); "Stanje dopusta" ostaja
+          samo adminu, ker prikazuje kadrovske podatke. */}
+      {!odprtId && (
+        <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
+          <button role="tab" aria-selected={pogled==="seznam"} onClick={() => setPogled("seznam")}>Seznam</button>
+          <button role="tab" aria-selected={pogled==="parafe"} onClick={() => setPogled("parafe")}>Parafe</button>
+          {myRole === "admin" && (
+            <button role="tab" aria-selected={pogled==="dopust"} onClick={() => setPogled("dopust")}>Stanje dopusta</button>
+          )}
+        </div>
+      )}
+
+      {!odprtId && pogled === "seznam" && (
+        <React.Fragment>
+          <Seznam osebe={vsi} oddelki={oddelki} onOdpri={odpri} />
+          {myRole === "admin" && <DodajUporabnika oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
+          {myRole === "admin" && <AdminUvoz osebe={osebe} oddelki={oddelki} onSpremenjeno={() => setReloadKey(k => k+1)} />}
+        </React.Fragment>
+      )}
+
+      {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} />}
+
+
+      {!odprtId && pogled === "dopust" && myRole === "admin" && (
+        <DopustPregled oddelki={oddelki} />
+      )}
+
+      <footer className="foot no-print">
+        <p><b>Imenik.</b> Klik na osebo kjerkoli v aplikaciji te pripelje sem, na njen profil. E-pošto lahko kopiraš z gumbom, na telefonsko številko pa klikneš za klic.</p>
+      </footer>
+
+      <RazporedNav active="imenik" role={myRole} unread={0} />
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

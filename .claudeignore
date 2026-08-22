@@ -1,0 +1,37 @@
+﻿# Arhivi in varnostne kopije
+*.zip
+razpored-app-1.zip
+razpored-redesign.zip
+
+# Minificirane zunanje knjižnice
+*.min.js
+*.min.mjs
+babel.min.js
+exceljs.min.js
+pdf.min.mjs
+pdf.worker.min.mjs
+react.production.min.js
+react-dom.production.min.js
+supabase-js.min.js
+xlsx.core.min.js
+
+# Odvisnosti in predpomnilnik
+node_modules/
+__pycache__/
+*.pyc
+
+# Veliki podatki in slike
+*.png
+*.jpg
+*.jpeg
+*.svg
+roster/*.csv
+roster/*.tsv
+roster/*.txt
+data-*.json
+tools/schedule_data.json
+skripte/porocilo-*.csv
+
+# Okoljske spremenljivke in Git
+.env*
+.git/

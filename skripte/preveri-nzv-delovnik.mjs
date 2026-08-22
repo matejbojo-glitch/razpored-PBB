@@ -1,0 +1,182 @@
+#!/usr/bin/env node
+/* Preizkus nzvPrikaz() (index.html) – pravila delovnika NZV
+ * (vodje/administratorji) v pogledu "Moj razpored".
+ *
+ * Uporabnik je pravilo večkrat izrecno ponovil, prikaz pa ga ni upošteval:
+ *   - redni delovnik je od PONEDELJKA DO PETKA;
+ *   - SOBOTA in NEDELJA sta PROSTI, razen če je tisti dan dežurstvo;
+ *   - letni dopust velja samo za delovne dni - vikend sredi dopusta ni
+ *     "dopust", ampak navaden prost dan (na posnetku zaslona je 1.8. v
+ *     soboto kazalo "LD", 2.8. v nedeljo pa "PRISOTEN");
+ *   - dežurstvo MED TEDNOM se opravlja PO redni prisotnosti (15:30-07:00),
+ *     zato tak dan pomeni oboje: "Dopoldne + Dežurstvo". Vikend dežurstvo
+ *     traja 07:00-07:00 in redne prisotnosti ob njem ni.
+ *
+ * Ključno je tudi, česa pravilo NE sme spremeniti: oddelčni kader
+ * (B/C/C1/D/E1/E2/FLEXI) vikende dela normalno in ima prave kode izmen.
+ *
+ * Zagon: node skripte/preveri-nzv-delovnik.mjs
+ */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import vm from "node:vm";
+
+const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
+const html = readFileSync(join(koren, "index.html"), "utf8");
+
+function izvleci(ime) {
+  const zac = html.indexOf("function " + ime + "(");
+  if (zac === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
+  let globina = 0, zacTelo = html.indexOf("{", zac);
+  for (let i = zacTelo; i < html.length; i++) {
+    if (html[i] === "{") globina++;
+    else if (html[i] === "}") { globina--; if (globina === 0) return html.slice(zac, i + 1); }
+  }
+  throw new Error("Konec funkcije " + ime + " ni najden.");
+}
+
+const napake = [];
+function trdi(pogoj, opis) {
+  console.log((pogoj ? "  ✓ " : "  ✗ ") + opis);
+  if (!pogoj) napake.push(opis);
+}
+function eq(a, b, opis) {
+  trdi(a === b, opis + (a === b ? "" : ` – dobil "${a}", pričakoval "${b}"`));
+}
+
+const sandbox = { console, window: {} };
+vm.createContext(sandbox);
+vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
+// classify živi v izmene.js (skupni modul za vse zaslone).
+vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
+vm.runInContext("var classify = window.Izmene.skupina;", sandbox);
+// nzvPrikaz kliče shiftLabel (preslikava PRISOTEN -> dopoldan), zato
+// mora biti v peskovniku tudi ta.
+vm.runInContext(izvleci("shiftLabel"), sandbox);
+vm.runInContext(izvleci("nzvPrikaz"), sandbox);
+const { nzvPrikaz, classify } = sandbox;
+const jeVikendISO = sandbox.window.Prazniki.jeVikend;
+
+const NZV = true, ODDELEK = false;
+
+console.log("1) NZV med tednom: dežurstvo pomeni PRISOTEN + DEŽURSTVO (dežurstvo je po redni prisotnosti)");
+{
+  eq(nzvPrikaz("Dežurstvo", "TO", NZV), "Dopoldne + Dežurstvo", "torek z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "PO", NZV), "Dopoldne + Dežurstvo", "ponedeljek z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "PE", NZV), "Dopoldne + Dežurstvo", "petek z dežurstvom");
+}
+
+console.log("2) NZV vikend: dežurstvo je SAMO dežurstvo (07:00-07:00, brez ločene prisotnosti)");
+{
+  eq(nzvPrikaz("Dežurstvo", "SO", NZV), "Dežurstvo", "sobota z dežurstvom");
+  eq(nzvPrikaz("Dežurstvo", "NE", NZV), "Dežurstvo", "nedelja z dežurstvom");
+}
+
+console.log("3) NZV vikend brez dežurstva je PROST – tudi če je v podatkih PRISOTEN ali LD");
+{
+  // Natanko primera s posnetka zaslona uporabnika (avgust 2026).
+  eq(nzvPrikaz("LD", "SO", NZV), "", "1.8. sobota je kazala 'LD' -> mora biti prosto");
+  eq(nzvPrikaz("PRISOTEN", "NE", NZV), "", "2.8. nedelja je kazala 'PRISOTEN' -> mora biti prosto");
+  eq(nzvPrikaz("LD", "NE", NZV), "", "nedelja sredi letnega dopusta -> prosto, ne dopust");
+  eq(nzvPrikaz("", "SO", NZV), "", "prazen dan v soboto ostane prazen");
+}
+
+console.log("4) NZV med tednom ostane nespremenjen");
+{
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV), "Dopoldne", "sreda: prisoten (PRISOTEN se izpiše kot dopoldan)");
+  eq(nzvPrikaz("LD", "ČE", NZV), "Letni dopust", "četrtek: letni dopust velja");
+  eq(nzvPrikaz("", "PO", NZV), "", "prazen delovni dan ostane prazen");
+}
+
+console.log("5) ODDELČNI kader se pravila NE dotakne – vikende dela normalno");
+{
+  eq(nzvPrikaz("Dopoldne", "SO", ODDELEK), "Dopoldne", "sobota dopoldan ostane");
+  eq(nzvPrikaz("DNEVNA12", "NE", ODDELEK), "Dnevna 12", "nedeljska 12-urna ostane");
+  eq(nzvPrikaz("NOČNA", "SO", ODDELEK), "Nočna", "sobotna nočna ostane");
+  eq(nzvPrikaz("LD", "SO", ODDELEK), "Letni dopust", "oddelčni kader: sobotni dopust OSTANE dopust (vikend je zanje delovni)");
+}
+
+console.log("6) barva: 'PRISOTEN + DEŽURSTVO' se mora obarvati kot DEŽURSTVO, ne kot prisotnost");
+{
+  // V izrisu se barva računa iz IZVIRNE kode, prav zaradi tega primera:
+  // sestavljeno besedilo, ki ga vidi uporabnik, se na nobeno izmeno v
+  // legendi ne ujame ("off"), zato bi celica ostala siva namesto rdeča.
+  eq(classify("DEŽURSTVO"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
+  eq(classify("Dopoldne + Dežurstvo"), "off",
+    "sestavljeno besedilo se ne ujame z nobeno izmeno - zato se barva NE računa iz njega");
+}
+
+console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v 'Moj razpored'");
+{
+  // Uporabnikova pripomba: mreža NZV je ob vikendih še vedno kazala vodje
+  // na enotah. Tam ni kratice dneva (kot v nzvPrikaz), ampak samo delovni
+  // datum, zato se vikend ugotovi iz njega.
+  trdi(jeVikendISO("2026-08-01"), "1.8.2026 je sobota");
+  trdi(jeVikendISO("2026-08-02"), "2.8.2026 je nedelja");
+  trdi(!jeVikendISO("2026-07-31"), "31.7.2026 je petek - ni vikend");
+  trdi(!jeVikendISO("2026-08-03"), "3.8.2026 je ponedeljek - ni vikend");
+  trdi(!jeVikendISO(""), "prazen datum ne sme veljati za vikend");
+  trdi(!jeVikendISO(null), "manjkajoč datum prav tako ne");
+  trdi(!jeVikendISO("nekaj"), "neveljaven zapis prav tako ne");
+
+  // Izračun prostega dne živi v prazniki.js (en sam vir za vse zaslone) -
+  // podrobnosti pokriva skripte/preveri-prazniki.mjs.
+  trdi(/window\.Prazniki\.jeDelaProstDan\(r\.work_date\) && classify\(r\.shift_code\) !== "dez"/.test(html),
+    "enote: prost dan brez dežurstva se izpusti");
+  trdi(/r\.department_code !== "DEZ"/.test(html),
+    "dežurni stolpec (DEZ) ob prostem dnevu OSTANE");
+  trdi(/window\.Prazniki\.jeDelaProstDan\(d\.work_date\)/.test(html),
+    "stolpci LD/IZOB/BS: prost dan se izpusti (dopust velja za delovne dni)");
+}
+
+console.log("8) PRAZNIK šteje enako kot vikend (uporabnikova dopolnitev pravila)");
+{
+  // 15. 8. 2026 je sobota, zato za pravilo ni dokaz. Vzemimo praznik, ki
+  // pade na DELOVNI dan: velikonočni ponedeljek 6. 4. 2026.
+  eq(nzvPrikaz("Dopoldne", "PO", NZV, "2026-04-06"), "",
+    "velikonočni ponedeljek: NZV je prost, čeprav je ponedeljek");
+  eq(nzvPrikaz("LD", "PO", NZV, "2026-04-06"), "",
+    "in dopust se tisti dan ne vodi");
+  eq(nzvPrikaz("Dežurstvo", "PO", NZV, "2026-04-06"), "Dežurstvo",
+    "dežurstvo na praznik OSTANE - in samo dežurstvo, brez prisotnosti");
+  eq(nzvPrikaz("Dopoldne", "PO", NZV, "2026-04-07"), "Dopoldne",
+    "naslednji dan (torek) je spet navaden delovnik");
+  eq(nzvPrikaz("Dopoldne", "PO", ODDELEK, "2026-04-06"),  "Dopoldne",
+    "oddelčnega kadra se praznik ne dotakne");
+  // Brez datuma mora ostati staro vedenje (klic iz starejše kode).
+  eq(nzvPrikaz("Dopoldne", "PO", NZV), "Dopoldne", "brez datuma se praznik ne more upoštevati");
+}
+
+console.log("9) Delovišče se pripiše izmeni (uporabnikova zahteva)");
+{
+  // "Moj razpored" mora povedati ne le KDAJ, ampak tudi KJE.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "C1"), "Dopoldne (C1)",
+    "vodja: dopoldan + enota");
+  eq(nzvPrikaz("Dopoldne", "SR", ODDELEK, "2026-09-02", "D"), "Dopoldne (D)",
+    "oddelčni kader: izmena + oddelek");
+  eq(nzvPrikaz("popoldan", "SR", ODDELEK, "2026-09-02", "E2"), "Popoldne (E2)",
+    "velja za vse izmene, ne le dopoldan");
+
+  // Ob nadomeščanju je enot lahko več - izpišeta se obe.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", "E2, E1"), "Dopoldne (E2, E1)",
+    "nadomeščanje: obe enoti");
+
+  // Brez znane enote ostane zapis kot prej - nič se ne izmisli.
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02", ""), "Dopoldne",
+    "brez enote ostane samo izmena");
+  eq(nzvPrikaz("PRISOTEN", "SR", NZV, "2026-09-02"), "Dopoldne",
+    "enota je neobvezen podatek");
+
+  // Dežurstvo: velika začetnica, ne verzalke, in enota se pripiše dnevnemu delu.
+  eq(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO"), "Dopoldne (MO) + Dežurstvo",
+    "dežurstvo med tednom: enota pri dnevnem delu");
+  eq(nzvPrikaz("DEŽURSTVO", "SO", NZV, "2026-09-05", "MO"), "Dežurstvo",
+    "vikendno dežurstvo je samo dežurstvo (dnevnega dela ni)");
+  trdi(!/DEŽURSTVO/.test(nzvPrikaz("DEŽURSTVO", "SR", NZV, "2026-09-02", "MO")),
+    "nikjer več ni zapisa z verzalkami");
+}
+
+console.log("");
+if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
+console.log("VSE V REDU");

@@ -1,0 +1,994 @@
+/* ============================================================
+   Razpored PBB – skupni oblikovni sistem (theme.css)
+   Ena datoteka, ki jo vključujejo vse strani aplikacije.
+   Barve so NAMENOMA nespremenjene (bolnišnična identiteta) –
+   izboljšana so razmerja, tipografija, sence, presledki in
+   ponovno uporabni gradniki (.btn, .card, .field …), da je
+   videz na vseh straneh dosleden.
+   ============================================================ */
+
+/* Pisava Fraunces se NE nalaga tu z @import: @import v slogovni
+   datoteki zadržuje izvajanje vseh skript za njo, zato je stran ob
+   nedosegljivem Google Fonts (požarni zid, ni signala) obtičala na
+   beli - tudi prijavna stran. Vsaka stran jo namesto tega vključi
+   neblokirno v <head> (media="print" + onload). Rezerva spodaj
+   (--font-display: ui-serif, Georgia, serif) je zato normalno
+   stanje, ne napaka. */
+
+:root{
+  /* --- barve: identične prejšnjim, samo zbrane na enem mestu --- */
+  --bg: #FAF8F1;
+  --bg-grad: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F2EEDF;
+  --line: #E1D9C2;
+  --text: #2B2712;
+  --muted: #8A7F5E;
+  --accent: #A79448;
+  --accent-2: #6E5F2A;
+  --accent-ink: #2B2712;
+  --dop: #4F9B6B;
+  --pop: #C9713F;
+  --noc: #4A67B0;
+  --h12: #8560A8;
+  --off: #8B8672;
+  --off-text: #6B6656;
+  --ld: #2F6B4A;
+  --danger: #B3402A;
+  --ok: #4F9B6B;
+
+  /* --- izpeljano (rgb za prosojnost, brez novih barv) --- */
+  --text-rgb: 43,39,18;
+  --accent-rgb: 167,148,72;
+  --danger-rgb: 179,64,42;
+  --ok-rgb: 79,155,107;
+  /* Nežni ozadji za sporočila o uspehu/napaki in hladna modra za grafe.
+     Doslej jih theme.css NI imel, zato jih je vsaka stran definirala
+     zase - prav taka podvojitev je povzročila, da se je --ok razšel
+     (#4C8C63 po straneh proti #4F9B6B tu). Zdaj so na enem mestu. */
+  --ok-bg: #EAF3EC;
+  --danger-bg: #FBEAE6;
+  --cool: #4A67B0;
+  /* Rumena za "izračunano, a še ne potrjeno" - predlogi nadomeščanja v
+     generatorju. Ista barva kot "omejitev" v uradnih predlogah NZV. */
+  --predlog: #FFD966;
+  --predlog-rgb: 255,217,102;
+
+  /* --- merski sistem --- */
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --tabular: "tnum" 1, "lnum" 1;
+  --ease: cubic-bezier(.22,.7,.24,1);
+  --fast: 140ms;
+  --slow: 240ms;
+
+  /* --- sence: mehke, plastovite, tople (ne sive) --- */
+  --shadow-xs: 0 1px 2px rgba(var(--text-rgb),.05);
+  --shadow-sm: 0 1px 1px rgba(var(--text-rgb),.04), 0 6px 16px -6px rgba(var(--text-rgb),.14);
+  --shadow-md: 0 2px 6px rgba(var(--text-rgb),.05), 0 16px 32px -12px rgba(var(--text-rgb),.20);
+  --shadow-lg: 0 8px 16px rgba(var(--text-rgb),.08), 0 30px 60px -20px rgba(var(--text-rgb),.28);
+  --shadow-accent: 0 10px 22px -10px rgba(var(--accent-rgb),.55);
+
+  /* --- tipografija --- */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
+/* ---------- osnove ---------- */
+*{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:
+    radial-gradient(900px 480px at 14% -8%, rgba(var(--accent-rgb),.09), transparent 60%),
+    radial-gradient(1200px 600px at 100% 0%, var(--bg-grad), var(--bg) 55%);
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+/* ENA SAMA lestvica širin vsebine za vso aplikacijo. Strani je ne
+   prepisujejo več – prej je vsaka nosila svojo številko (640/720/780/820,
+   "wide" pa 1040 proti 1320 proti 1400), zato je bila ista aplikacija na
+   namizju vsakič drugače široka. Tri stopnje pokrijejo vse primere:
+     .wrap        – branje, obrazci, nastavitve
+     .wrap.wide   – seznami in razpredelnice
+     .wrap.polna  – mreže, ki potrebujejo vso širino (mesečna razpredelnica
+                    z 31 stolpci, razpored po oddelkih) */
+.wrap{ max-width: 640px; margin: 0 auto; padding: 0 16px 40px; }
+
+/* ------------------------------------------------------------------
+   Skupni gradniki strani (.card, .sub, .field, h2.section, p.hint,
+   .submitBtn) so definirani NIŽE v tej datoteki – tam, kjer je
+   oblikovni sistem. Strani svojih kopij nimajo več: prej jih je vsaka
+   nosila po svoje (61 znakovno enakih podvojitev in 13 razredov, ki so
+   se razhajali), zato je bila ista kartica drugje drugačna.
+   ------------------------------------------------------------------ */
+a{ color: inherit; }
+a, button, input, select, textarea{ font-family: inherit; }
+:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+::selection{ background: rgba(var(--accent-rgb),.30); }
+
+/* scrollbar (webkit) – tanek, v barvah sheme */
+*::-webkit-scrollbar{ height:8px; width:8px; }
+*::-webkit-scrollbar-track{ background:transparent; }
+*::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover{ background: var(--muted); }
+
+/* ---------- glava strani ---------- */
+header.top{
+  position: sticky; top:0; z-index: 20;
+  background: linear-gradient(180deg, var(--bg) 68%, rgba(250,248,241,0));
+  padding: calc(env(safe-area-inset-top) + 18px) 0 12px;
+}
+.wordmark{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding-right: 96px; }
+.wordmark .logoSmall{ height:30px; width:auto; border-radius: 7px; }
+.wordmark .mark, .mark{
+  font-family: var(--font-display);
+  font-weight: 600; font-size: 20px; letter-spacing: -0.02em;
+}
+.wordmark .dept{
+  font-size: 12.5px; color: var(--accent-2); font-weight: 700;
+  letter-spacing: 0.03em; background: rgba(var(--accent-rgb),.14);
+  padding: 3px 9px; border-radius: var(--radius-pill);
+}
+.sub{ margin: 5px 0 0; font-size: 13px; color: var(--muted); letter-spacing:.01em; }
+.whoRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; }
+.whoRow .who{ font-size:12.5px; color:var(--muted); }
+.whoRow .who b{ color:var(--text); font-weight:700; }
+.navLinks{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.navLink{
+  font-size:12px; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
+  text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0;
+  transition: color var(--fast) var(--ease);
+}
+.navLink:hover{ color:var(--accent-2); }
+
+/* eyebrow / naslov razdelka (uporabljano dosledno namesto ad-hoc velikih tipk) */
+.eyebrow{
+  font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  color: var(--muted);
+}
+h1.pageTitle, h2.pageTitle{
+  font-family: var(--font-display); font-weight:600; letter-spacing:-0.01em;
+  font-size: 21px; margin: 2px 0 0; color: var(--text);
+}
+
+/* ---------- oznake / značke ---------- */
+.badge{
+  display:inline-block; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+  background:var(--danger); color:#fff; font-size:10px; font-weight:800; line-height:16px;
+  text-align:center; margin-left:4px;
+}
+.pill, .tag{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--accent-2); border:1px solid transparent;
+}
+.pill.ok, .tag.ok{ background: rgba(var(--ok-rgb),.14); color:#33694A; }
+.pill.warn, .tag.warn{ background: rgba(var(--accent-rgb),.18); color: var(--accent-2); }
+.pill.danger, .tag.danger{ background: rgba(var(--danger-rgb),.12); color: var(--danger); }
+.pill.muted, .tag.muted{ background: var(--surface-2); color: var(--muted); }
+
+/* ---------- barvno kodirane značke (izmene, status) ----------
+   En skupen izgled za vse strani: poln (ne prosojen) obarvan pravokotnik +
+   bela pisava, dovolj kontrastno za razpoznavo na prvi pogled (Nočna =
+   modra, Dežurstvo/Urgentno = rdeča, Dopust = zelena, Prosto = siva …).
+   Barve ostajajo iste spremenljivke kot doslej (samo zbrane tu namesto
+   raztresene po inline stilih vsake strani). */
+/* Ozadje in barva pisave prideta iz uradne legende (izmene.js) prek
+   inline sloga - vsaka izmena ima svojo barvo, ne le ena od sedmih
+   skupin, tako da so barve enake kot v Imenik -> Razpredelnica. Zato tu
+   ni več .swatch-dop/.swatch-noc/… razredov. */
+.swatch{
+  display:inline-block; padding:3px 7px; border-radius:6px; font-size:10.5px; font-weight:700;
+  line-height:1.3;
+}
+.dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,.5) inset; }
+
+/* ---------- zložljiva pomoč/navodila ("?" gumb namesto stalnega besedila) ---------- */
+.infoToggle{
+  display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px;
+  border-radius:50%; border:1px solid var(--line); background:var(--surface-2); color:var(--accent-2);
+  font-size:12px; font-weight:800; cursor:pointer; flex:0 0 auto; line-height:1;
+}
+.infoToggle:hover{ background: var(--line); }
+.infoPanel{ margin-top:8px; }
+.legend{ margin-top:16px; display:flex; flex-wrap:wrap; gap:8px 14px; font-size:12px; color: var(--muted); }
+.legend .li{ display:flex; align-items:center; gap:6px; }
+.legend .dot{ width:9px; height:9px; box-shadow:none; }
+
+/* ---------- preklopnik (segmented) ---------- */
+.segmented{
+  display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
+  padding:4px; border-radius: var(--radius-pill); margin-top: 14px; box-shadow: var(--shadow-xs);
+}
+.segmented button{
+  flex:1; border:0; background:transparent; color: var(--muted);
+  padding: 9px 10px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700;
+  cursor:pointer; transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.segmented button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-accent); }
+.segmented button:not([aria-selected="true"]):hover{ color: var(--text); background: var(--surface-2); }
+
+/* ---------- polja / vnosi ---------- */
+.field{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+.field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+
+/* Na telefonu v ležeči legi (nizka višina zaslona) je header.top - logo,
+   podnaslov, "Prijavljen", zavihki, izbirniki Oddelek/Mesec - prej
+   zapolnil CELOTNO vidno višino, še preden se je prikazala ena sama
+   vrstica razporeda (uporabnikov posnetek zaslona: v ležeči legi ni bilo
+   videti ničesar od dejanske tabele brez drsenja, kar je "širši prikaz"
+   naredilo brez učinka). max-height (ne samo orientation) namenoma omeji
+   to SAMO na dejansko nizke telefonske zaslone - širši/višji ležeči
+   zasloni (tablice, namizje) ostanejo nespremenjeni. */
+@media (orientation: landscape) and (max-height: 500px){
+  header.top{ padding: calc(env(safe-area-inset-top) + 6px) 0 6px; }
+  .wordmark{ gap:6px; }
+  .wordmark .logoSmall{ height:20px; }
+  .wordmark .mark, .mark{ font-size:15px; }
+  .sub{ display:none; }
+  .whoRow{ margin-top:4px; }
+  .whoRow .who{ font-size:11px; }
+  .segmented{ margin-top:6px; padding:3px; }
+  .segmented button{ padding:6px 8px; font-size:12.5px; }
+  .field{ margin-top:6px; gap:3px; }
+  .field label{ font-size:10px; }
+}
+
+input, select, textarea{
+  background: var(--surface); border:1px solid var(--line); color:var(--text);
+  padding:10px 12px; border-radius: var(--radius-sm); font-size:14.5px;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+input::placeholder, textarea::placeholder{ color:#B7AC87; }
+input:hover, select:hover, textarea:hover{ border-color: var(--muted); }
+input:focus, select:focus, textarea:focus{
+  outline:none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),.18);
+}
+input:disabled, select:disabled, textarea:disabled{ opacity:.6; cursor:not-allowed; }
+textarea{ resize: vertical; min-height: 76px; line-height:1.5; }
+
+/* ---------- gumbi: en sistem za vso aplikacijo ---------- */
+button{ cursor:pointer; }
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  font-size:14px; font-weight:700; padding: 11px 16px; min-height:44px;
+  border-radius: var(--radius-sm); border:1px solid transparent;
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              background-color var(--fast) var(--ease), border-color var(--fast) var(--ease), opacity var(--fast) var(--ease);
+  white-space: nowrap;
+}
+.btn:active{ transform: translateY(1px) scale(.99); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+.btn-block{ width:100%; }
+.btn-sm{ padding: 7px 12px; min-height:36px; font-size:13px; border-radius: var(--radius-sm); }
+
+.btn-primary{ background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: var(--shadow-accent); }
+.btn-primary:hover{ background: var(--accent-2); border-color: var(--accent-2); color:#fff; }
+
+.btn-ghost{ background: var(--surface); color: var(--text); border-color: var(--line); box-shadow: var(--shadow-xs); }
+.btn-ghost:hover{ background: var(--surface-2); border-color: var(--muted); }
+
+.btn-outline{ background: transparent; color: var(--accent-2); border-color: var(--accent); }
+.btn-outline:hover{ background: rgba(var(--accent-rgb),.10); }
+
+.btn-danger{ background: #FBEAE6; color: var(--danger); border-color: #F0C9BE; }
+.btn-danger:hover{ background: var(--danger); color:#fff; border-color: var(--danger); }
+
+.btn-link{ background:none; border:0; color: var(--accent-2); text-decoration:underline; text-underline-offset:3px; padding:4px 2px; min-height:auto; font-weight:700; }
+.btn-link:hover{ color: var(--text); }
+
+/* ---------- kartice ---------- */
+.card{
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; box-shadow: var(--shadow-sm);
+}
+.card + .card{ margin-top: 14px; }
+.section{ margin-top: 22px; }
+.section > .eyebrow{ display:block; margin: 0 2px 8px; }
+
+.todayCard{
+  margin-top:16px; background: linear-gradient(135deg, var(--surface-2), var(--surface));
+  border:1px solid var(--line); border-radius: var(--radius-lg); padding:18px;
+  box-shadow: var(--shadow-md);
+}
+.todayCard .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+.todayCard .shift{ display:flex; align-items:center; gap:11px; margin-top:9px; }
+.todayCard .shiftName{ font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing:-0.01em; }
+.todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
+
+/* ---------- seznami / vrstice ---------- */
+.row{
+  display:flex; align-items:center; gap:12px; padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child{ border-bottom:0; }
+
+.weekLabel{
+  font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+  color: var(--muted); margin: 24px 2px 8px;
+}
+.dayRow{
+  display:flex; align-items:center; gap:12px; padding: 10px 4px;
+  border-bottom: 1px solid var(--line); border-radius: 10px;
+  transition: background var(--fast) var(--ease);
+}
+.dayRow:last-child{ border-bottom:0; }
+.dayRow .dnum{ width: 40px; flex: 0 0 auto; text-align:center; font-variant-numeric: tabular-nums; }
+.dayRow .dnum .n{ font-size:18px; font-weight:800; line-height:1; }
+.dayRow .dnum .d{ font-size:10px; color: var(--muted); text-transform:uppercase; margin-top:2px; }
+.dayRow.today{ background: rgba(var(--accent-rgb),.12); }
+.dayRow.today .dnum .n{ color: var(--accent-2); }
+.dayRow.weekend .dnum .d{ color: var(--pop); }
+.chip{
+  flex:1; display:flex; align-items:center; gap:8px; padding: 9px 13px;
+  border-radius: var(--radius-pill); font-size: 13.5px; font-weight:700; min-width:0;
+}
+.chip .txt{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chip.off{ color: var(--off-text); }
+
+/* ---------- tabele (razpored, dežurstva, pravičnost …) ---------- */
+.wardScroller, .tableScroller{
+  margin-top: 16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
+  -webkit-overflow-scrolling: touch; box-shadow: var(--shadow-xs); background: var(--surface);
+}
+table{ border-collapse:separate; border-spacing:0; width:100%; }
+table.wardTable, table.dutyTable, table.fairTable{ width:max-content; min-width:100%; }
+table th, table td{
+  padding: 9px 10px; font-size: 12.5px; text-align:center; white-space:nowrap;
+  border-bottom: 1px solid var(--line); border-right: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+table tr:last-child td{ border-bottom:0; }
+table th:last-child, table td:last-child{ border-right:0; }
+table thead th{
+  background: var(--surface-2); color: var(--accent-2); font-weight:800; position:sticky; top:0; z-index:2;
+  font-size: 10.5px; text-transform:uppercase; letter-spacing:.03em;
+}
+table thead th.weekend{ color: var(--pop); }
+table td.name, table th.name{
+  position:sticky; left:0; z-index:3; background: var(--surface); text-align:left;
+  font-weight:700; min-width:120px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
+}
+table thead th.name{ z-index:4; background: var(--surface-2); }
+table td.cell{ min-width:46px; }
+table td.me{ box-shadow: inset 0 0 0 2px var(--accent); border-radius: 6px; }
+table tbody tr:hover td{ background: rgba(var(--accent-rgb),.05); }
+table tbody tr:hover td.name{ background: var(--surface-2); }
+
+/* ---------- stanja: prazno / opozorilo / v redu ---------- */
+.emptyState{
+  text-align:center; padding: 40px 16px; color: var(--muted); font-size:13.5px;
+  border:1.5px dashed var(--line); border-radius: var(--radius); background: rgba(var(--accent-rgb),.03);
+}
+.hint{ font-size:12px; color: var(--muted); line-height:1.55; margin-top:8px; }
+.warnBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: rgba(var(--accent-rgb),.12); border:1px solid rgba(var(--accent-rgb),.35); color: var(--accent-2);
+}
+.okBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: rgba(var(--ok-rgb),.12); border:1px solid rgba(var(--ok-rgb),.35); color:#2E5C40;
+}
+.dangerBox{
+  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
+  background: #FBEAE6; border:1px solid #F0C9BE; color: var(--danger);
+}
+
+/* ---------- vznožje ---------- */
+footer.foot{
+  margin-top: 32px; padding-top:16px; border-top:1px solid var(--line);
+  font-size: 11.5px; color: var(--muted); line-height:1.65;
+}
+footer.foot b{ color: var(--text); }
+
+.installBar{
+  position: sticky; bottom: 0; margin-top: 20px; background: var(--surface);
+  border:1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px;
+  display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow: var(--shadow-md);
+}
+.installBar .t{ font-size:13px; font-weight:700; }
+.installBar .s{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+
+/* ---------- uvodni nagovor (namestitev + obvestila) ---------- */
+/* Ni lepljiv kot .installBar: gre za navodila v več korakih, ki jih je
+   treba prebrati, ne za trak, ki visi čez vsebino. */
+.uvodKarta{
+  position: relative; margin-top: 20px; background: var(--surface);
+  border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 16px 18px; box-shadow: var(--shadow-md);
+}
+.uvodNaslov{ font-size: 15px; font-weight: 800; margin-bottom: 12px; padding-right: 24px; }
+.uvodZapri{
+  position: absolute; top: 8px; right: 10px; background: none; border: 0;
+  font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer;
+  padding: 2px 6px; font-family: inherit;
+}
+.uvodZapri:hover{ color: var(--text); }
+.uvodKorak{ display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.uvodKorak:last-of-type{ margin-bottom: 0; }
+.uvodKorak b{ font-size: 13.5px; }
+.uvodStevilka{
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; margin-top: 1px;
+}
+.uvodOpis{ font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.55; }
+.uvodGumb{
+  margin-top: 8px; background: var(--accent); color: var(--accent-ink); border: 0;
+  padding: 9px 14px; border-radius: var(--radius-sm); font-weight: 800; font-size: 13px;
+  cursor: pointer; font-family: inherit;
+}
+.uvodGumb:disabled{ opacity: .5; cursor: default; }
+
+/* ---------- nalaganje (skeleton) ---------- */
+.skel{
+  background: linear-gradient(90deg, var(--surface-2) 25%, #EAE4CE 37%, var(--surface-2) 63%);
+  background-size: 400% 100%; animation: skel-shine 1.4s ease infinite; border-radius: var(--radius-sm);
+}
+@keyframes skel-shine{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
+
+/* ---------- majhne pripomočke ---------- */
+.stack-xs > * + *{ margin-top:6px; }
+.stack-sm > * + *{ margin-top:10px; }
+.stack > * + *{ margin-top:16px; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+@media print{
+  .no-print{ display:none !important; }
+  body{ background: #fff !important; }
+}
+
+/* Spletna/namizna različica: nekatere strani (imajo tabele/sezname, ki
+   izkoristijo prostor) se na širših zaslonih razširijo prek "wide" razreda,
+   ki ga stran doda na svoj .wrap. Dve ravni: 900px (isti prag kot vrh-nav
+   v nav.js) in 1400px+ za res velike monitorje. Prijavne strani (login,
+   reset-geslo) namenoma NE uporabljajo "wide" – kratek obrazec naj ostane
+   ozek in berljiv ne glede na širino zaslona. */
+@media (min-width: 640px){
+  /* Tablica: razpredelnice dobijo nekaj več od bralne širine, še preden
+     se pri 900px vklopi namizna postavitev. */
+  .wrap.wide{ max-width: 820px; }
+}
+@media (min-width: 900px){
+  .wrap.wide{ max-width: 1040px; }
+  .wrap.polna{ max-width: 1400px; }
+}
+@media (min-width: 1400px){
+  .wrap.wide{ max-width: 1240px; }
+}
+
+/* ============================================================
+   Poravnava obstoječih, na posamezni strani "domačih" imen
+   razredov (nastala, ker je bila vsaka stran zgrajena posebej)
+   na en sam, dosleden vizualni jezik – brez spreminjanja JSX,
+   torej brez tveganja za obstoječo funkcionalnost.
+   ============================================================ */
+
+/* zavihki: .tabs (admin/zelje/dashboard/login) = .segmented (index) */
+.tabs{
+  display:flex; gap:4px; background: var(--surface); border:1px solid var(--line);
+  padding:4px; border-radius: var(--radius-pill); margin-top: 14px; box-shadow: var(--shadow-xs);
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+.tabs button{
+  flex:1; border:0; background:transparent; color: var(--muted); white-space:nowrap;
+  padding: 9px 14px; border-radius: var(--radius-pill); font-size: 13.5px; font-weight: 700;
+  cursor:pointer; transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.tabs button[aria-selected="true"]{ background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-accent); }
+.tabs button:not([aria-selected="true"]):hover{ color: var(--text); background: var(--surface-2); }
+
+/* naslov razdelka: div.section (spacing) ali h2.section (naslov+spacing) */
+.section{ margin-top: 22px; }
+h2.section{
+  font-family: var(--font-display); font-weight:600; font-size:18px; letter-spacing:-0.01em;
+  margin: 26px 0 10px; color: var(--text);
+}
+p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.55; }
+
+/* nazaj-povezava nad glavo strani */
+.backlink{
+  display:inline-flex; align-items:center; gap:4px; margin-top:10px; font-size:12.5px; color:var(--muted);
+  text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line);
+  transition: color var(--fast) var(--ease);
+}
+.backlink:hover{ color: var(--accent-2); }
+
+/* glavni CTA gumbi po straneh -> primarni .btn videz */
+.submitBtn, .genBtn, #genBtn{
+  margin-top:16px; width:100%; background: var(--accent); color: var(--accent-ink); border:1px solid var(--accent);
+  padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; min-height:46px;
+  box-shadow: var(--shadow-accent); transition: background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.submitBtn:hover, .genBtn:hover{ background: var(--accent-2); border-color:var(--accent-2); color:#fff; }
+.submitBtn:active, .genBtn:active{ transform: translateY(1px) scale(.99); }
+.submitBtn:disabled, .genBtn:disabled{ opacity:.5; cursor:default; box-shadow:none; }
+
+/* sekundarni gumbi (prenos, datoteka, povezava …) -> ghost .btn videz */
+.dlBtn, .fileBtn, .navBtn, .toolBtn{
+  margin-top:10px; background: var(--surface); color: var(--text); border:1px solid var(--line);
+  padding:11px 14px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer;
+  box-shadow: var(--shadow-xs); transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.dlBtn:hover, .fileBtn:hover, .navBtn:hover, .toolBtn:hover{ background: var(--surface-2); border-color: var(--muted); }
+
+/* nevarni gumbi (izbriši, odstrani …) */
+.dangerBtn, .delBtn, .clearImg{
+  background: #FBEAE6; color: var(--danger); border:1px solid #F0C9BE;
+  padding:10px 14px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.dangerBtn:hover, .delBtn:hover, .clearImg:hover{ background: var(--danger); color:#fff; border-color:var(--danger); }
+
+/* majhne okrogle ikonske tipke (puščice, urejanje …) */
+.iconBtn, .chev{
+  display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px;
+  border-radius:50%; background: var(--surface); border:1px solid var(--line); color: var(--accent-2);
+  cursor:pointer; transition: background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.iconBtn:hover, .chev:hover{ background: var(--surface-2); }
+.iconBtn:active, .chev:active{ transform: scale(.94); }
+
+/* preklopni gumbi za oddelke/tedne (aria-pressed) */
+.deptBtn{
+  border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-weight:800;
+  padding:9px 16px; border-radius:var(--radius-pill); cursor:pointer; font-size:14px;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.deptBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); box-shadow: var(--shadow-accent); }
+.weekToggle{
+  border:1px solid var(--line); background:transparent; color:var(--muted); font-size:11px;
+  font-weight:800; padding:6px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#fff; }
+
+/* statusne značke: .pill + vloge/stanja modifikatorji */
+.pill{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800;
+  padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--accent-2);
+}
+.pill.admin{ background: rgba(var(--accent-rgb),.20); color: var(--accent-2); }
+.pill.vodja{ background: rgba(74,103,176,.14); color: #34508A; }
+.pill.user{ background: var(--surface-2); color: var(--muted); }
+.pill.pending, .pill.wait{ background: rgba(var(--accent-rgb),.18); color: var(--accent-2); }
+.pill.ok{ background: rgba(var(--ok-rgb),.16); color:#2E5C40; }
+.pill.no{ background: rgba(var(--danger-rgb),.12); color: var(--danger); }
+
+/* sporočila o napaki/uspehu */
+.err, .msg.err, .statusMsg.err{
+  color: var(--danger); font-size:13px; font-weight:600; margin-top:8px; line-height:1.5;
+}
+.okMsg, .msg.ok{
+  color:#2E5C40; font-size:13px; font-weight:600; margin-top:8px; line-height:1.5;
+}
+
+/* prazno stanje (seznami brez vsebine) */
+.empty{
+  text-align:center; padding: 36px 16px; color: var(--muted); font-size:13.5px;
+  border:1.5px dashed var(--line); border-radius: var(--radius); background: rgba(var(--accent-rgb),.03);
+  margin-top:14px;
+}
+
+/* napredkovna vrstica (pravičnost/obremenitev) */
+.bar{ height:7px; border-radius:4px; background: var(--surface-2); overflow:hidden; margin-top:5px; }
+.bar i{ display:block; height:100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius:4px; }
+
+/* logotip na prijavnih straneh */
+.logo{ height:46px; width:auto; display:block; margin:0 auto 14px; filter: drop-shadow(var(--shadow-sm)); }
+
+/* ============================================================
+   PRENOVA UI/UX – skupni kartični gradniki
+   Uporabljajo jih vsi moduli (Generator, Razpored, Menjava,
+   Imenik, Statistika, Želje). Barvna paleta ostaja nespremenjena
+   (olivno zelena + topli bež), spremeni se samo postavitev:
+   iz goste tabele v kartice, značke in vizualne pokazatelje.
+   ============================================================ */
+
+/* ---------- statusne ikone pravil (✓ / ! / ✗) ---------- */
+.statusIkona{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%; font-size:12px; font-weight:800;
+  flex:0 0 auto; color:#fff; line-height:1;
+}
+.statusIkona.ok{ background: var(--ok); }
+.statusIkona.opozorilo{ background: #C9942F; }
+.statusIkona.kritično, .statusIkona.kriticno{ background: var(--danger); }
+
+.pravilo{
+  display:flex; align-items:flex-start; gap:10px; padding:10px 0;
+  border-bottom:1px solid var(--line); font-size:13px;
+}
+.pravilo:last-child{ border-bottom:0; }
+.pravilo .besedilo{ flex:1; min-width:0; }
+/* naslov in opis morata biti bloka - kot inline span-a bi se besedili
+   zlepili v eno vrstico ("Nepokrite izmene12 vrzeli ...") */
+.pravilo .naslov{ display:block; font-weight:700; }
+.pravilo .opis{ display:block; color: var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
+
+/* ---------- KPI kartice (Statistika) ---------- */
+.kpiMreza{
+  display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px; margin-top:14px;
+}
+.kpiKarta{
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding:14px; box-shadow: var(--shadow-xs);
+}
+.kpiKarta .oznaka{
+  font-size:11px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.04em;
+}
+.kpiKarta .vrednost{
+  font-size:26px; font-weight:800; margin-top:6px; line-height:1.1;
+  font-variant-numeric: tabular-nums; color: var(--accent-2);
+}
+.kpiKarta .pod{ font-size:11.5px; color: var(--muted); margin-top:4px; }
+
+/* ---------- vodoravni stolpčni graf (brez zunanje knjižnice) ---------- */
+.grafVrstica{ display:flex; align-items:center; gap:10px; padding:6px 0; font-size:12.5px; }
+.grafVrstica .ime{
+  flex:0 0 132px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600;
+}
+.grafVrstica .stolpec{ flex:1; height:16px; background: var(--surface-2); border-radius:4px; overflow:hidden; }
+.grafVrstica .stolpec i{ display:block; height:100%; border-radius:4px; background: var(--accent); }
+.grafVrstica .stolpec i.nad{ background: var(--danger); }
+.grafVrstica .stolpec i.pod{ background: var(--noc); }
+.grafVrstica .st{
+  flex:0 0 46px; text-align:right; font-weight:700; font-variant-numeric: tabular-nums;
+}
+@media (max-width:520px){ .grafVrstica .ime{ flex-basis:96px; } }
+
+/* ---------- toplotna karta (obremenjenost) ---------- */
+.heatVrstica{ display:flex; align-items:center; gap:8px; padding:3px 0; }
+.heatVrstica .ime{
+  flex:0 0 132px; font-size:12px; font-weight:600; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+}
+.heatCelice{ display:flex; gap:2px; flex:1; flex-wrap:nowrap; overflow-x:auto; }
+.heatCelica{
+  width:15px; height:15px; border-radius:3px; flex:0 0 auto;
+  background: var(--surface-2); position:relative;
+}
+.heatLegenda{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); margin-top:10px; }
+.heatLegenda .vzorec{ width:14px; height:14px; border-radius:3px; }
+
+/* ---------- časovna premica (status zahtevka) ---------- */
+.premica{ display:flex; align-items:flex-start; margin:14px 0 4px; }
+.premica .korak{ flex:1; text-align:center; position:relative; min-width:0; }
+.premica .korak::before{
+  content:""; position:absolute; top:13px; left:-50%; width:100%; height:2px;
+  background: var(--line); z-index:0;
+}
+.premica .korak:first-child::before{ display:none; }
+.premica .korak.koncan::before, .premica .korak.aktiven::before{ background: var(--accent); }
+.premica .pika{
+  width:28px; height:28px; border-radius:50%; margin:0 auto 6px; position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;
+  background: var(--surface); border:2px solid var(--line); color: var(--muted);
+}
+.premica .korak.koncan .pika{ background: var(--ok); border-color: var(--ok); color:#fff; }
+.premica .korak.aktiven .pika{
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb),.20);
+}
+.premica .korak.zavrnjen .pika{ background: var(--danger); border-color: var(--danger); color:#fff; }
+.premica .oznaka{ font-size:11px; font-weight:700; color: var(--muted); line-height:1.3; padding:0 2px; }
+.premica .korak.aktiven .oznaka, .premica .korak.koncan .oznaka{ color: var(--text); }
+
+/* ---------- napredkovna vrstica z oznako (dopust) ---------- */
+.napredek{ margin-top:10px; }
+.napredek .vrh{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; }
+.napredek .vrh .lbl{ color: var(--muted); font-weight:600; }
+.napredek .vrh .val{ font-weight:800; font-variant-numeric: tabular-nums; }
+.napredek .tir{ height:9px; border-radius:5px; background: var(--surface-2); overflow:hidden; }
+.napredek .tir i{ display:block; height:100%; border-radius:5px; background: var(--accent); transition: width var(--slow) var(--ease); }
+.napredek .tir i.veliko{ background: var(--ok); }
+.napredek .tir i.malo{ background: var(--danger); }
+
+/* ---------- modalno okno (navodila, uvoz, pomoč) ---------- */
+.modalOzadje{
+  position:fixed; inset:0; background: rgba(var(--text-rgb),.45); z-index:60;
+  display:flex; align-items:flex-end; justify-content:center; padding:0;
+  animation: modalPojav var(--fast) var(--ease);
+}
+@media (min-width:640px){ .modalOzadje{ align-items:center; padding:24px; } }
+@keyframes modalPojav{ from{ opacity:0 } to{ opacity:1 } }
+.modalOkno{
+  background: var(--surface); width:100%; max-width:560px; max-height:86vh; overflow-y:auto;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding:18px;
+  box-shadow: var(--shadow-lg); border:1px solid var(--line);
+}
+@media (min-width:640px){ .modalOkno{ border-radius: var(--radius-lg); } }
+.modalGlava{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin-bottom:12px;
+}
+.modalGlava h3{ margin:0; font-size:16px; font-weight:800; }
+.modalZapri{
+  border:0; background: var(--surface-2); color: var(--text); width:30px; height:30px;
+  border-radius:50%; font-size:16px; cursor:pointer; line-height:1; flex:0 0 auto;
+}
+.modalZapri:hover{ background: var(--line); }
+
+/* ---------- koledar na dotik (Želje, mobilno) ---------- */
+.koledar{ display:grid; grid-template-columns: repeat(7, 1fr); gap:4px; margin-top:10px; }
+.koledar .glavaDan{
+  text-align:center; font-size:10.5px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; padding:4px 0;
+}
+.koledar .dan{
+  aspect-ratio:1; border:1px solid var(--line); border-radius:8px; background: var(--surface);
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700;
+  cursor:pointer; user-select:none; -webkit-user-select:none; color: var(--text);
+  padding:0; font-family:inherit; touch-action: manipulation;
+}
+.koledar .dan:disabled{ opacity:.35; cursor:default; }
+.koledar .dan.prazen{ border:0; background:none; cursor:default; }
+.koledar .dan.vikend{ color: var(--pop); }
+.koledar .dan.izbran-ld{ background: var(--ld); border-color: var(--ld); color:#fff; }
+.koledar .dan.izbran-omejitev{ background: #E8C766; border-color:#D9B44A; color: var(--text); }
+.koledar .dan.izbran-bs{ background: var(--dop); border-color: var(--dop); color:#fff; }
+.koledar .dan.izbran-sti{ background: var(--h12); border-color: var(--h12); color:#fff; }
+.koledar .dan.danes{ box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* ---------- zložljiv razdelek ---------- */
+.zlozljiv > .glava{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+  background:none; border:0; padding:12px 0; cursor:pointer; font-family:inherit;
+  font-size:14px; font-weight:800; color: var(--text); text-align:left;
+}
+.zlozljiv > .glava .puscica{ color: var(--muted); font-size:12px; transition: transform var(--fast) var(--ease); }
+.zlozljiv > .glava[aria-expanded="true"] .puscica{ transform: rotate(180deg); }
+.zlozljiv > .vsebina{ padding-bottom:12px; }
+
+/* ---------- lepljiva orodna vrstica (Generator) ---------- */
+.orodjaVrh{
+  display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding:12px; box-shadow: var(--shadow-xs); margin-top:14px;
+}
+.orodjaVrh .field{ margin:0; flex:1 1 130px; min-width:0; }
+.orodjaVrh .field label{ font-size:11px; }
+.orodjaDno{
+  display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;
+  padding-top:12px; border-top:1px solid var(--line);
+}
+
+/* Obvestilo o novi različici (nav.js). Prikaže se samo, kadar je
+   uporabnik že kaj vtipkal in samodejna osvežitev ne bi bila varna. */
+.rpNovaRazlicica{
+  position:fixed; left:12px; right:12px; bottom:76px; z-index:9999;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  padding:10px 14px; border-radius:var(--radius-sm);
+  background:var(--accent); color:var(--accent-ink);
+  border:1px solid var(--accent-2); box-shadow:var(--shadow-accent);
+  font-size:13px; font-weight:600;
+}
+.rpNovaRazlicica button{
+  padding:5px 12px; border-radius:8px; border:1px solid var(--accent-2);
+  background:var(--surface); color:var(--text); font:inherit; font-weight:700; cursor:pointer;
+}
+@media print{ .rpNovaRazlicica{ display:none; } }
+
+/* Opozorilno polje: nekaj, kar je vredno pogledati, a ni napaka in nič ne
+   blokira (npr. razpored, ki se ne drži pravil nadomeščanja). Zato topla
+   oranžna --pop in ne rdeča --danger, ki v aplikaciji pomeni napako. */
+.opozorilnoPolje{
+  border: 1px solid var(--pop);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(var(--text-rgb), .03);
+  padding: 10px 12px;
+}
+
+/* --- Želje: skupen izbirnik skupine + zložena sekcija želja -----------
+   Prej sta bila dva zavihka, vsak s svojim izbirnikom oddelka, mreža pa je
+   risala vseh osem skupin pod sabo. Na telefonu je bilo treba dolgo drseti
+   do svoje skupine. Zdaj se skupina izbere enkrat in velja za oboje. */
+.skupinaRow{
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 10px 0 14px;
+}
+.skupinaBtn{
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;           /* dovolj velika tarča za prst */
+}
+.skupinaBtn[aria-selected="true"]{
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.skupinaNaslov{ margin-top: 0; }
+
+/* Navodilo je zloženo - odpre se le, kadar ga kdo res potrebuje. */
+.navodilo > summary{
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.zeljeSekcija{ margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.zeljeToggle{
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+/* Most iz Želja v Generator: pod razpredelnico, ko je izbrana ena skupina.
+   Poudarjen, ker je to naslednji korak v delu (vpis omejitev → generiranje),
+   a še vedno le povezava – generira se v Generatorju. */
+.vGenerator{
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.vGeneratorGumbi{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vGeneratorBtn{
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.vGeneratorBtn:hover{ background: var(--accent-2); color: var(--bg-grad); }
+
+/* Stolpec "NZV" na oddelčnem razporedu: kdo iz NZV je tisti dan zadolžen
+   za ta oddelek. Ni izmena, ampak odgovornost, zato je ločen od barvne
+   legende izmen in poudarjen z robom, ne z ozadjem cele celice. */
+.wardTable th.nzvStolpec,
+.wardTable td.nzvStolpec{
+  border-left: 2px solid var(--accent);
+  white-space: nowrap;
+}
+.nzvNosilec{
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--accent-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.nzvNosilec + .nzvNosilec{ margin-left: 4px; }
+
+/* Ločnica med oddelčnim kadrom in nosilci NZV v Imenik → Razpredelnica. */
+.wardTable tr.nzvLocnica td{
+  border-top: 2px solid var(--accent);
+  background: var(--surface-2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Štirje zavihki na prvi strani Razporeda.
+   Širok zaslon: besedni gumbi, nespremenjeno (izrecna zahteva).
+   Telefon: ikona + drobna beseda pod njo, da gredo štirje v vrstico in
+   vseeno ostane jasno, kaj je kaj. Barve so barve aplikacije (bela/zlata),
+   ne temen pas. */
+.segIkone .segIkona,
+.segIkone .segKratko{ display: none; }
+@media (max-width: 640px){
+  .segIkone{ gap: 4px; }
+  .segIkone button{
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 2px;
+    min-height: 56px;
+    line-height: 1.15;
+  }
+  .segIkone .segIkona{
+    display: block;
+    font-size: 19px;
+  }
+  .segIkone .segNaziv{ display: none; }
+  .segIkone .segKratko{
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+}
+
+/* Dežurstvo: trije stolpci uradnega dokumenta. Imena so daljša od kod
+   izmen, zato celice dihajo in se ne lomijo sredi priimka. */
+.dezTabela td.cell{
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.dezOseba{
+  display: inline-block;
+  white-space: nowrap;
+}
+.dezOseba.jaz{
+  font-weight: 700;
+  color: var(--accent-2);
+}
+/* Na telefonu morajo vsi trije stolpci na zaslon hkrati - tabela s tremi
+   stolpci, ki jo je treba vodoravno vleči, je pri dežurstvu neuporabna
+   (pogleda se "kdo je nocoj"). Dan in glave se zato skrajšajo. */
+@media (max-width: 640px){
+  .dezTabela td.name, .dezTabela th.name{
+    font-size: 11px;
+    padding: 6px 4px;
+    white-space: nowrap;
+  }
+  .dezTabela td.cell, .dezTabela th{
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+  .dezOseba{ white-space: normal; }
+}
+
+.dezDatumKratek{ display: none; }
+@media (max-width: 640px){
+  .dezDatumKratek{ display: inline; }
+  .dezDatumPoln{ display: none; }
+}
+
+/* Razpredelnica stanja: cel mesec na en zaslon.
+   Oddelčni razpored ima 1400 px dovolj (dnevi so v vrsticah), tu pa je 31
+   dni v STOLPCIH, zato omejitve širine ni - stran uporabi ves monitor. */
+@media (min-width: 900px){
+  .wrap.cezZaslon{ max-width: none; }
+}
+/* Ozki dnevni stolpci, da jih gre 31 v vrsto. Stolpec z imenom ostane
+   berljiv; drobna pisava velja samo za dneve. */
+@media (min-width: 900px){
+  .razpPolna th, .razpPolna td{
+    padding: 3px 2px;
+    font-size: 10px;
+  }
+  .razpPolna td.name, .razpPolna th.name{
+    font-size: 12px;
+    padding: 4px 8px;
+    min-width: 132px;
+  }
+  .razpPolna td:not(.name), .razpPolna th:not(.name){
+    min-width: 0;
+    width: 2.6%;
+  }
+}

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Prijava · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+<style>
+  /* Barve in radiji so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej sta imeli ti dve strani svojo kopijo, ki se je
+     razšla: --ok je bil #4C8C63, drugod v aplikaciji #4F9B6B, zato
+     je bila ista "uspešno" zelena na prijavi drugačna kot povsod. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ max-width:400px; margin:0 auto; padding: 60px 16px 40px; }
+  .logo{ display:block; margin:0 auto 10px; height:64px; width:auto; }
+  .mark{ font-weight:800; font-size:22px; letter-spacing:-0.02em; text-align:center; display:block; }
+  .sub{ text-align:center; color:var(--muted); font-size:13px; margin: 4px 0 28px; }
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
+  .tabs{ display:flex; gap:4px; background:var(--surface-2); border:1px solid var(--line); padding:4px;
+    border-radius:999px; margin-bottom:18px; }
+  .tabs button{ flex:1; border:0; background:transparent; color:var(--muted); padding:9px 10px;
+    border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+  .field{ display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+  .field label{ font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  input{ background: var(--bg); border:1px solid var(--line); color:var(--text); padding:11px 12px;
+    border-radius: var(--radius-sm); font-size:15px; width:100%; font-family:inherit; }
+  .submitBtn{ margin-top:6px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .submitBtn:disabled{ opacity:.5; cursor:default; }
+  .linkBtn{ display:block; margin:12px auto 0; background:none; border:0; color:var(--accent-2); font-size:12.5px;
+    font-weight:700; cursor:pointer; text-decoration:underline; text-underline-offset:3px; font-family:inherit; }
+  .msg{ margin-top:14px; font-size:13px; text-align:center; }
+  .msg.err{ color: var(--danger); }
+  .msg.ok{ color: var(--ok); }
+  .hint{ color:var(--muted); font-size:12px; text-align:center; margin-top:16px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const { client } = RazporedAuth;
+
+function nextPage(){
+  const p = new URLSearchParams(location.search).get("next");
+  return p && /^[a-z0-9_-]+\.html$/i.test(p) ? p : "index.html";
+}
+
+function nastaviGesloPovezava(){
+  // Redirect stran za Supabase "resetPasswordForEmail" - ista mapa kot login.html.
+  return location.origin + location.pathname.replace(/[^/]*$/, "") + "reset-geslo.html";
+}
+
+function App(){
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot" | "set-password"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    client.auth.getSession().then(({ data: { session } }) => {
+      if (session) location.replace(nextPage());
+      else setChecking(false);
+    });
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    try {
+      if (mode === "login"){
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        location.replace(nextPage());
+      } else if (mode === "forgot"){
+        // Namerno enako sporočilo ne glede na to, ali e-pošta obstaja - da ne
+        // razkrivamo, kateri računi obstajajo (Supabase samo tudi ne javi napake).
+        await client.auth.resetPasswordForEmail(email, { redirectTo: nastaviGesloPovezava() });
+        setMsg({ ok:true, text:"Če račun s to e-pošto obstaja, je bila nanjo poslana povezava za nastavitev novega gesla." });
+      } else if (mode === "set-password"){
+        if (password.length < 6) throw new Error("Geslo mora imeti vsaj 6 znakov.");
+        if (password !== password2) throw new Error("Gesli se ne ujemata.");
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw error;
+        location.replace(nextPage());
+      } else {
+        if (!fullName.trim()) throw new Error("Vnesi priimek in ime (enako kot v razporedu, npr. Rozman Anka).");
+        const { data, error } = await client.auth.signUp({
+          email, password, options: { data: { full_name: fullName.trim() } },
+        });
+        if (error) throw error;
+        if (data.session){
+          // Na izrecno željo: takoj po registraciji uporabnik še enkrat
+          // potrdi/nastavi geslo, preden pride na glavno stran.
+          setPassword(""); setPassword2("");
+          setMode("set-password");
+        } else {
+          setMsg({ ok:true, text:"Račun je ustvarjen. Preveri e-pošto za potrditev, nato se prijavi. Dostop do koordinatorskih orodij ti mora po prijavi dodeliti administrator." });
+          setMode("login");
+        }
+      }
+    } catch (err) {
+      setMsg({ ok:false, text: err.message || String(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (checking) return null;
+
+  return (
+    <div className="wrap">
+      <img className="logo" src="logo-pbb.png" alt="Psihiatrična bolnišnica Begunje" />
+      <span className="mark">Razpored · Begunje</span>
+      <p className="sub">Prijava zaposlenih zdravstvene nege</p>
+      <div className="card">
+        {mode !== "set-password" && (
+          <div className="tabs" role="tablist">
+            <button role="tab" aria-selected={mode==="login" || mode==="forgot"} onClick={() => { setMode("login"); setMsg(null); }}>Prijava</button>
+            <button role="tab" aria-selected={mode==="signup"} onClick={() => { setMode("signup"); setMsg(null); }}>Nova registracija</button>
+          </div>
+        )}
+        {mode === "set-password" && (
+          <p className="sub" style={{margin:"0 0 16px"}}>Račun je ustvarjen – pred nadaljevanjem še enkrat nastavi geslo.</p>
+        )}
+        <form onSubmit={submit}>
+          {mode==="signup" && (
+            <div className="field">
+              {/* Vrstni red je pomemben, ne kozmetičen: cela aplikacija
+                  zapisuje "Priimek Ime" (imenik se po tem razvršča, parafa
+                  za razpored se vzame iz prvega dela). Prej je polje vabilo
+                  k "Ime in priimek" – od tod mešanica obeh zapisov. */}
+              <label htmlFor="fn">Priimek in ime</label>
+              <input id="fn" type="text" required placeholder="npr. Rozman Anka" value={fullName} onChange={e => setFullName(e.target.value)} />
+            </div>
+          )}
+          {mode !== "set-password" && (
+            <div className="field">
+              <label htmlFor="em">E-pošta</label>
+              <input id="em" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
+          )}
+          {mode !== "forgot" && (
+            <div className="field">
+              <label htmlFor="pw">{mode==="set-password" ? "Novo geslo" : "Geslo"}</label>
+              <input id="pw" type="password" required minLength={6} autoComplete={mode==="login" ? "current-password" : "new-password"}
+                value={password} onChange={e => setPassword(e.target.value)} />
+            </div>
+          )}
+          {mode === "set-password" && (
+            <div className="field">
+              <label htmlFor="pw2">Ponovi novo geslo</label>
+              <input id="pw2" type="password" required minLength={6} autoComplete="new-password"
+                value={password2} onChange={e => setPassword2(e.target.value)} />
+            </div>
+          )}
+          <button className="submitBtn" type="submit" disabled={busy}>
+            {busy ? "Trenutek …" : (
+              mode==="login" ? "Prijava" : mode==="signup" ? "Ustvari račun" : mode==="forgot" ? "Pošlji povezavo" : "Nastavi geslo"
+            )}
+          </button>
+        </form>
+        {mode === "login" && (
+          <button type="button" className="linkBtn" onClick={() => { setMode("forgot"); setMsg(null); }}>Pozabljeno geslo?</button>
+        )}
+        {mode === "forgot" && (
+          <button type="button" className="linkBtn" onClick={() => { setMode("login"); setMsg(null); }}>‹ Nazaj na prijavo</button>
+        )}
+        {msg && <p className={"msg" + (msg.ok ? " ok" : " err")}>{msg.text}</p>}
+      </div>
+      {mode !== "set-password" && (
+        <p className="hint">
+          Nov račun ima privzeto vlogo »zaposleni« (vidiš samo razporede in lahko predlagaš menjave).
+          Za dostop do koordinatorskih orodij (generator, nadzorna plošča, odobritve) te mora
+          po prijavi ročno potrditi administrator.
+        </p>
+      )}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

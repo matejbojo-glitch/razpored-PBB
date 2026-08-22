@@ -1,0 +1,571 @@
+// ---------------------------------------------------------------------------
+// razpored-PBB — Prisma shema (MOŽNOST A)
+//
+// Ta datoteka OPISUJE obstoječo Supabase bazo. NE ustvarja je in NE spreminja.
+// Aplikacija sama Prisme NE uporablja — brskalnik se še naprej pogovarja
+// naravnost s Supabase in avtorizacijo vsiljuje RLS. Prisma je tu zgolj:
+//
+//   1. berljiv, verzioniran opis sheme na enem mestu,
+//   2. vir TypeScript tipov za morebitno prihodnjo strežniško kodo,
+//   3. orodje za generiranje migracijskega SQL (`npm run db:diff`).
+//
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ NIKOLI NE POŽENI `prisma migrate dev` ALI `prisma db push` PROTI TEJ    │
+// │ BAZI. Primerjata shemo z bazo in ODSTRANITA, česar v shemi ni —        │
+// │ vključno z RLS politikami, prožilci in funkcijami. Glej README.md.     │
+// └─────────────────────────────────────────────────────────────────────────┘
+//
+// Preverjeno: shema je bila pridobljena s `prisma db pull` proti bazi,
+// zgrajeni iz supabase/schema.sql (21 tabel), nato preimenovana z @map/@@map.
+// `prisma migrate diff` proti isti bazi vrne prazno razliko — kar pomeni, da
+// ta datoteka opisuje bazo natančno, ne približno.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooler (port 6543, pgbouncer=true) — za morebitno strežniško kodo.
+  url       = env("DATABASE_URL")
+  // Neposredna povezava (port 5432) — obvezna za `db pull` in `migrate diff`.
+  directUrl = env("DIRECT_URL")
+  schemas   = ["auth", "public"]
+}
+
+// ---------------------------------------------------------------------------
+// NAMERNA ODSTOPANJA OD POSLANE SHEME — in zakaj
+//
+// * Brez `enum`. Baza uporablja `text` + `check` omejitve (npr.
+//   profiles.role in ('admin','vodja','user')). Prehod na prave PG enume je
+//   migracija, ne preimenovanje — dovoljene vrednosti so zato pri vsakem
+//   polju zapisane v komentarju. Enako velja za AbsenceType in ExceptionReason.
+//   Prisma `check` omejitev sploh ne zna zapisati; ostajajo v schema.sql.
+//
+// * `Shift.shiftCode` je prosto besedilo, ne `shiftTypeId`. Poslana shema
+//   predvideva tuji ključ na `ShiftType`; to zahteva migracijo podatkov
+//   (PRISMA-NACRT.md, §3.2). Nabor kod danes živi v delovni-cas.js.
+//
+// * `LeaveEntry` (Absence) je vezan na `fullName`, ne na `userId`. Isti razlog.
+//
+// * `ProfileHrDetail.employeeCode` ni obvezen in ni unikaten. Poslana shema
+//   ima `employeeId String @unique` — obvezen unikaten stolpec bi migracijo
+//   ustavil, ker matična številka ni izpolnjena za vse.
+//
+// * ČESA PRISMA NE ZNA ZAPISATI in zato živi IZKLJUČNO v supabase/schema.sql:
+//     - 42 RLS politik in 31 `security definer` funkcij (celotna avtorizacija),
+//     - prožilci (schedule_entries_touch, schedule_entries_audit, obvestila),
+//     - `check` omejitve,
+//     - DELNI indeksi: `notifications_kljuc_idx ... where kljuc is not null`
+//       in `notifications_push_pending_idx ... where push_sent_at is null`.
+//   Ta datoteka opisuje OBLIKO podatkov, ne varnosti in ne vedenja nad njimi.
+// ---------------------------------------------------------------------------
+
+/// Supabase Auth. Modelirana je samo `id`, ker nanjo kažejo tuji ključi.
+/// `prisma db pull` proti pravi bazi bo dodal preostale stolpce in tabele
+/// sheme `auth` — te je varno pobrisati, `users.id` pa mora ostati.
+model AuthUser {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  profile           Profile?
+  absenceColorMaps  AbsenceColorMap[]
+  adminViewAsLogs   AdminViewAsLog[]
+  employeeWishes    EmployeeWish[]
+  leaveBalances     LeaveBalanceHistory[]
+  leaveEntries      LeaveEntry[]
+  leaveEntryLogs    LeaveEntryLog[]
+
+  @@map("users")
+  @@schema("auth")
+}
+
+/// Oddelki in enote (B, C, C1, D, E1, E2, FLEXI, NZV, DEZ ...).
+model Department {
+  code String @id
+  name String
+
+  profiles       Profile[]
+  shifts         Shift[]
+  contactImports ContactImport[]
+  memberships    ProfileDepartment[]
+  leads          LeadDepartment[]
+  shiftMinimums  DepartmentShiftMinimum[]
+
+  @@map("departments")
+  @@schema("public")
+}
+
+/// Zaposleni. `id` je enak `auth.users.id`.
+/// V poslani shemi se ta model imenuje `User`.
+model Profile {
+  id             String   @id @db.Uuid
+  fullName       String   @map("full_name")
+  /// 'admin' | 'vodja' | 'user'
+  role           String   @default("user")
+  departmentCode String?  @map("department_code")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  email          String?
+  /// Kalup-črka 5-tedenske rotacije: 'A' | 'B' | 'C' | 'D' | 'E'
+  rotationSlot   String?  @map("rotation_slot")
+  vodjaId        String?  @map("vodja_id") @db.Uuid
+  isKoordinator  Boolean  @default(false) @map("is_koordinator")
+  /// Parafa (inicialke) za podpisne bloke razporeda NZV.
+  parafa         String?
+  /// Naziv delovnega mesta, kot se izpiše pod podpisom.
+  jobTitle       String?  @map("job_title")
+
+  authUser   AuthUser    @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  department Department? @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+  vodja      Profile?    @relation("ProfileVodja", fields: [vodjaId], references: [id], onUpdate: NoAction)
+  podrejeni  Profile[]   @relation("ProfileVodja")
+
+  hrDetails      ProfileHrDetail?
+  contactPhone   ContactPhone?
+  memberships    ProfileDepartment[]
+  shifts         Shift[]               @relation("ShiftEmployee")
+  shiftsCreated  Shift[]               @relation("ShiftCreatedBy")
+  shiftsUpdated  Shift[]               @relation("ShiftUpdatedBy")
+  auditEntries   ShiftAuditLog[]       @relation("ShiftAuditChangedBy")
+  notifications  Notification[]
+  pushSubs       PushSubscription[]
+  wishes         EmployeeWish[]
+  leaveBalances  LeaveBalanceHistory[]
+  linkedImports  ContactImport[]
+  viewedAsTarget AdminViewAsLog[]
+
+  swapsRequested SwapRequest[] @relation("SwapRequester")
+  swapsTargeted  SwapRequest[] @relation("SwapTarget")
+  swapsAsLead    SwapRequest[] @relation("SwapLead")
+  swapsAsAdmin   SwapRequest[] @relation("SwapAdmin")
+
+  obrazciVlagatelj   Obrazec[]        @relation("ObrazecVlagatelj")
+  obrazciSodelavec   Obrazec[]        @relation("ObrazecSodelavec")
+  obrazciVodja       Obrazec[]        @relation("ObrazecVodja")
+  obrazciKoordinator Obrazec[]        @relation("ObrazecKoordinator")
+  obrazciDnevnik     ObrazecDnevnik[]
+
+  @@map("profiles")
+  @@schema("public")
+}
+
+/// Kadrovski podatki. Ločena tabela, ker jo RLS varuje strožje od `profiles`
+/// (zaposleni vidi samo svojo vrstico).
+model ProfileHrDetail {
+  profileId        String    @id @map("profile_id") @db.Uuid
+  /// Matična številka (Kadris). Ni obvezna in ni unikatna — glej opombo zgoraj.
+  employeeCode     String?   @map("employee_code")
+  birthDate        DateTime? @map("birth_date") @db.Date
+  positionName     String?   @map("position_name")
+  managerName      String?   @map("manager_name")
+  parentalLeave    String?   @map("parental_leave")
+  annualLeaveTotal Int?      @map("annual_leave_total")
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  leaveBalanceDays Int?      @map("leave_balance_days")
+  leaveBalanceAsof DateTime? @map("leave_balance_asof") @db.Date
+  /// Pravila dežurstev (NZV). Berljivo v Admin → NZV.
+  dutyMinMonthly   Int?      @map("duty_min_monthly")
+  dutyMaxMonthly   Int?      @map("duty_max_monthly")
+  /// 'PO' | 'TO' | 'SR' | 'ČE' | 'PE' | 'SO' | 'NE'
+  dutyDayOff       String?   @map("duty_day_off")
+  dutyWeekdaysOnly Boolean?  @map("duty_weekdays_only")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("profile_hr_details")
+  @@schema("public")
+}
+
+/// Več-oddelčno članstvo. `sortOrder = 0` je primarni oddelek — edini, ki
+/// šteje za rotacijski generator.
+model ProfileDepartment {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId      String @map("profile_id") @db.Uuid
+  departmentCode String @map("department_code")
+  sortOrder      Int    @default(0) @map("sort_order")
+
+  profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  department Department @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+
+  @@unique([profileId, departmentCode])
+  @@map("profile_departments")
+  @@schema("public")
+}
+
+model ContactPhone {
+  profileId String   @id @map("profile_id") @db.Uuid
+  phone     String?
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("contact_phones")
+  @@schema("public")
+}
+
+/// Vmesna tabela za uvoz imenika iz Excela/Kadrisa, preden se vrstice
+/// povežejo z resničnimi profili.
+model ContactImport {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName         String    @map("full_name")
+  email            String
+  phone            String?
+  /// 'admin' | 'vodja' | 'user'
+  role             String?
+  departmentCode   String?   @map("department_code")
+  linkedProfileId  String?   @map("linked_profile_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  employeeCode     String?   @map("employee_code")
+  birthDate        DateTime? @map("birth_date") @db.Date
+  positionName     String?   @map("position_name")
+  managerName      String?   @map("manager_name")
+  parentalLeave    String?   @map("parental_leave")
+  annualLeaveTotal Int?      @map("annual_leave_total")
+  leaveBalanceDays Int?      @map("leave_balance_days")
+  leaveBalanceAsof DateTime? @map("leave_balance_asof") @db.Date
+
+  department    Department? @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+  linkedProfile Profile?    @relation(fields: [linkedProfileId], references: [id], onUpdate: NoAction)
+
+  @@map("contact_imports")
+  @@schema("public")
+}
+
+/// En zapis = ena oseba, en dan, ena izmena.
+/// V poslani shemi se ta model imenuje `Shift`.
+///
+/// POZOR: `shiftCode` je PROSTO BESEDILO brez omejitve v bazi. Nabor kod
+/// ("dopoldan", "popoldan", "NOČNA", "NOČNA12", "DNEVNA12", "LD", "KPU" ...)
+/// je konvencija, ki živi v delovni-cas.js (IZMENE).
+model Shift {
+  id             BigInt   @id @default(autoincrement())
+  employeeId     String   @map("employee_id") @db.Uuid
+  departmentCode String   @map("department_code")
+  workDate       DateTime @map("work_date") @db.Date
+  shiftCode      String   @default("") @map("shift_code")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+
+  employee   Profile    @relation("ShiftEmployee", fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  department Department @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+  creator    Profile?   @relation("ShiftCreatedBy", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updater    Profile?   @relation("ShiftUpdatedBy", fields: [updatedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([employeeId, workDate])
+  @@index([workDate], map: "schedule_entries_date_idx")
+  @@index([departmentCode, workDate], map: "schedule_entries_dept_idx")
+  @@map("schedule_entries")
+  @@schema("public")
+}
+
+/// Revizijska sled sprememb razporeda (samo dodajanje, brez brisanja).
+/// V poslani shemi `AuditLog`; tu je obseg ožji — pokriva samo razpored.
+model ShiftAuditLog {
+  id             BigInt    @id @default(autoincrement())
+  entryId        BigInt?   @map("entry_id")
+  /// Brez tujega ključa, da zapis preživi izbris profila.
+  employeeId     String?   @map("employee_id") @db.Uuid
+  departmentCode String?   @map("department_code")
+  workDate       DateTime? @map("work_date") @db.Date
+  oldShiftCode   String?   @map("old_shift_code")
+  newShiftCode   String?   @map("new_shift_code")
+  /// 'insert' | 'update' | 'delete'
+  action         String
+  changedBy      String?   @map("changed_by") @db.Uuid
+  changedAt      DateTime  @default(now()) @map("changed_at") @db.Timestamptz(6)
+
+  changedByProfile Profile? @relation("ShiftAuditChangedBy", fields: [changedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([workDate], map: "schedule_entries_log_date_idx")
+  @@index([employeeId, workDate], map: "schedule_entries_log_emp_idx")
+  @@map("schedule_entries_log")
+  @@schema("public")
+}
+
+/// Odsotnosti in omejitve (rdeča/rumena/zelena/vijolična mreža v Željah).
+/// V poslani shemi `Absence`.
+///
+/// POZOR: ključ je `fullName` (BESEDILO), ne `userId`.
+model LeaveEntry {
+  id        BigInt   @id @default(autoincrement())
+  fullName  String   @map("full_name")
+  workDate  DateTime @map("work_date") @db.Date
+  /// 'omejitev' (rumena) | 'ld' (rdeča) | 'bs' (zelena) | 'sti' (vijolična)
+  kind      String
+  note      String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  creator AuthUser? @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@unique([fullName, workDate])
+  @@map("leave_entries")
+  @@schema("public")
+}
+
+model LeaveEntryLog {
+  id         BigInt   @id @default(autoincrement())
+  fullName   String   @map("full_name")
+  workDate   DateTime @map("work_date") @db.Date
+  fromKind   String?  @map("from_kind")
+  toKind     String?  @map("to_kind")
+  editorId   String?  @map("editor_id") @db.Uuid
+  editorName String?  @map("editor_name")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  editor AuthUser? @relation(fields: [editorId], references: [id], onUpdate: NoAction)
+
+  @@map("leave_entries_log")
+  @@schema("public")
+}
+
+/// Preostanek letnega dopusta po mesecih (uvoz iz Kadrisa).
+model LeaveBalanceHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeCode String   @map("employee_code")
+  fullName     String   @map("full_name")
+  leto         Int      @db.SmallInt
+  mesec        Int      @db.SmallInt
+  dnevi        Decimal  @db.Decimal(5, 1)
+  profileId    String?  @map("profile_id") @db.Uuid
+  uvozeno      DateTime @default(now()) @db.Timestamptz(6)
+  uvozil       String?  @db.Uuid
+
+  profile   Profile?  @relation(fields: [profileId], references: [id], onUpdate: NoAction)
+  uvozilUser AuthUser? @relation(fields: [uvozil], references: [id], onUpdate: NoAction)
+
+  @@unique([employeeCode, leto, mesec])
+  @@index([leto, mesec], map: "idx_leave_balance_history_obdobje")
+  @@index([profileId], map: "idx_leave_balance_history_profile")
+  @@map("leave_balance_history")
+  @@schema("public")
+}
+
+/// Vodje in nosilci enot NZV. Ključ je IME, ne uuid — ta tabela je starejša
+/// od `profiles` in ni nujno povezana z računom v Auth.
+model LeadDepartment {
+  fullName           String    @id @map("full_name")
+  departmentCode     String?   @map("department_code")
+  dezurstvoDovoljeno Boolean   @default(false) @map("dezurstvo_dovoljeno")
+  maxMesecno         Int?      @map("max_mesecno")
+  samoMedTednom      Boolean   @default(false) @map("samo_med_tednom")
+  delovnik           String?
+  urNaDan            Decimal?  @map("ur_na_dan") @db.Decimal
+  odsotnostTip       String?   @map("odsotnost_tip")
+  odsotnostDo        DateTime? @map("odsotnost_do") @db.Date
+  nadomesca          String?
+  opomba             String?
+
+  department Department? @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+
+  @@map("lead_departments")
+  @@schema("public")
+}
+
+/// Preslikava barve iz uvožene Google/Excel preglednice v vrsto odsotnosti.
+model AbsenceColorMap {
+  barva        String   @id
+  /// 'omejitev' | 'ld' | 'bs' | 'sti' — null samo, kadar je `prezri = true`.
+  kind         String?
+  prezri       Boolean  @default(false)
+  posodobil    String?  @db.Uuid
+  posodobljeno DateTime @default(now()) @db.Timestamptz(6)
+
+  posodobilUser AuthUser? @relation(fields: [posodobil], references: [id], onUpdate: NoAction)
+
+  @@map("absence_color_map")
+  @@schema("public")
+}
+
+/// Sled o tem, kdaj je admin gledal aplikacijo kot druga oseba.
+model AdminViewAsLog {
+  id              BigInt    @id @default(autoincrement())
+  adminId         String    @map("admin_id") @db.Uuid
+  adminEmail      String?   @map("admin_email")
+  targetProfileId String    @map("target_profile_id") @db.Uuid
+  targetFullName  String?   @map("target_full_name")
+  targetEmail     String?   @map("target_email")
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
+
+  admin         AuthUser @relation(fields: [adminId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  targetProfile Profile  @relation(fields: [targetProfileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([adminId], map: "idx_admin_view_as_log_admin")
+  @@map("admin_view_as_log")
+  @@schema("public")
+}
+
+/// Želje zaposlenih za prihodnji mesec.
+/// `departmentCode` je omejen s `check` in NIMA tujega ključa na `departments`.
+model EmployeeWish {
+  id             BigInt   @id @default(autoincrement())
+  profileId      String?  @map("profile_id") @db.Uuid
+  fullName       String   @map("full_name")
+  /// 'B' | 'C' | 'C1' | 'D' | 'E1' | 'E2' | 'VODJE'
+  departmentCode String   @map("department_code")
+  obdobje        String?
+  opis           String?
+  slika          String?
+  createdBy      String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile Profile?  @relation(fields: [profileId], references: [id], onUpdate: NoAction)
+  creator AuthUser? @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
+
+  @@index([departmentCode], map: "idx_employee_wishes_dept")
+  @@map("employee_wishes")
+  @@schema("public")
+}
+
+/// Najmanjša zasedba po oddelku in izmeni. Vir praga za rdeča opozorila
+/// v "Pokritost po dnevih".
+model DepartmentShiftMinimum {
+  departmentCode String   @map("department_code")
+  /// 'DOPOLDNE' | 'POPOLDNE' | 'PONOCI'
+  shiftBucket    String   @map("shift_bucket")
+  minDms         Int?     @map("min_dms")
+  minSms         Int?     @map("min_sms")
+  minFlexi       Int?     @map("min_flexi")
+  note           String?
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentCode], references: [code], onDelete: NoAction)
+
+  @@id([departmentCode, shiftBucket])
+  @@map("department_shift_minimums")
+  @@schema("public")
+}
+
+/// Obrazci: "Zahtevek za spremembo evidence delovnega časa in razporeda"
+/// ter menjave službe. Celoten postopek z verigo odobritev.
+/// V poslani shemi ta model NIMA ustreznice.
+model Obrazec {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stevilka        String?   @unique
+  /// 'rocno_evidentiranje' | 'menjava_sluzbe' | 'drugo'
+  vrsta           String
+  /// 'osnutek' | 'caka_sodelavca' | 'caka_vodjo' | 'caka_koordinatorja'
+  /// | 'zakljucen' | 'zavrnjen' | 'preklican'
+  status          String    @default("osnutek")
+  vlagateljId     String    @map("vlagatelj_id") @db.Uuid
+  sodelavecId     String?   @map("sodelavec_id") @db.Uuid
+  vodjaId         String?   @map("vodja_id") @db.Uuid
+  koordinatorId   String?   @map("koordinator_id") @db.Uuid
+  polja           Json      @default("{}")
+  ustvarjen       DateTime  @default(now()) @db.Timestamptz(6)
+  zakljucenDne    DateTime? @map("zakljucen_dne") @db.Timestamptz(6)
+  razlogZavrnitve String?   @map("razlog_zavrnitve")
+  jeDezurstvo     Boolean   @default(false) @map("je_dezurstvo")
+
+  vlagatelj   Profile  @relation("ObrazecVlagatelj", fields: [vlagateljId], references: [id], onUpdate: NoAction)
+  sodelavec   Profile? @relation("ObrazecSodelavec", fields: [sodelavecId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  vodja       Profile? @relation("ObrazecVodja", fields: [vodjaId], references: [id], onUpdate: NoAction)
+  koordinator Profile? @relation("ObrazecKoordinator", fields: [koordinatorId], references: [id], onUpdate: NoAction)
+
+  dnevnik ObrazecDnevnik[]
+
+  @@index([sodelavecId], map: "idx_obrazci_sodelavec")
+  @@index([status], map: "idx_obrazci_status")
+  @@index([vlagateljId], map: "idx_obrazci_vlagatelj")
+  @@map("obrazci")
+  @@schema("public")
+}
+
+/// Dnevnik dejanj nad obrazcem (kdo, kdaj, na kateri stopnji).
+model ObrazecDnevnik {
+  id             BigInt   @id @default(autoincrement())
+  obrazecId      String   @map("obrazec_id") @db.Uuid
+  stopnja        Int      @db.SmallInt
+  dejanje        String
+  uporabnikId    String?  @map("uporabnik_id") @db.Uuid
+  imeObDejanju   String?  @map("ime_ob_dejanju")
+  vlogaObDejanju String?  @map("vloga_ob_dejanju")
+  opomba         String?
+  cas            DateTime @default(now()) @db.Timestamptz(6)
+
+  obrazec   Obrazec  @relation(fields: [obrazecId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uporabnik Profile? @relation(fields: [uporabnikId], references: [id], onUpdate: NoAction)
+
+  @@index([obrazecId, cas], map: "idx_obrazci_dnevnik_obrazec")
+  @@map("obrazci_dnevnik")
+  @@schema("public")
+}
+
+/// UPOKOJENO. Nadomeščeno z modelom `Obrazec` (vrsta = 'menjava_sluzbe').
+/// Tabela in podatki ostajajo zaradi zgodovine; nova koda je ne uporablja.
+model SwapRequest {
+  id             BigInt    @id @default(autoincrement())
+  requesterId    String    @map("requester_id") @db.Uuid
+  requesterDate  DateTime  @map("requester_date") @db.Date
+  targetId       String    @map("target_id") @db.Uuid
+  targetDate     DateTime  @map("target_date") @db.Date
+  note           String?
+  /// 'pending_lead' | 'pending_admin' | 'approved'
+  /// | 'rejected_by_lead' | 'rejected_by_admin'
+  status         String    @default("pending_lead")
+  leadId         String?   @map("lead_id") @db.Uuid
+  leadDecidedAt  DateTime? @map("lead_decided_at") @db.Timestamptz(6)
+  leadNote       String?   @map("lead_note")
+  adminId        String?   @map("admin_id") @db.Uuid
+  adminDecidedAt DateTime? @map("admin_decided_at") @db.Timestamptz(6)
+  adminNote      String?   @map("admin_note")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  requester Profile  @relation("SwapRequester", fields: [requesterId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  target    Profile  @relation("SwapTarget", fields: [targetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lead      Profile? @relation("SwapLead", fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  admin     Profile? @relation("SwapAdmin", fields: [adminId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  notifications Notification[]
+
+  @@index([requesterId], map: "swap_requests_requester_idx")
+  @@index([status], map: "swap_requests_status_idx")
+  @@index([targetId], map: "swap_requests_target_idx")
+  @@map("swap_requests")
+  @@schema("public")
+}
+
+/// Obvestila v aplikaciji. Ista vrstica je vir za potisno obvestilo (Web Push).
+model Notification {
+  id            BigInt    @id @default(autoincrement())
+  userId        String    @map("user_id") @db.Uuid
+  swapRequestId BigInt?   @map("swap_request_id")
+  message       String
+  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  title         String?
+  url           String?
+  pushSentAt    DateTime? @map("push_sent_at") @db.Timestamptz(6)
+  /// Ključ za idempotenco (npr. "objava:2026-11:B"). Nad njim je v bazi
+  /// DELNI unikatni indeks `where kljuc is not null`, ki ga Prisma ne zna
+  /// zapisati — definiran je samo v supabase/schema.sql.
+  kljuc         String?
+
+  user        Profile      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  swapRequest SwapRequest? @relation(fields: [swapRequestId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId, readAt], map: "notifications_user_idx")
+  @@map("notifications")
+  @@schema("public")
+}
+
+/// Naročnine na potisna obvestila. Ena vrstica = ena naprava/brskalnik.
+model PushSubscription {
+  id        BigInt    @id @default(autoincrement())
+  profileId String    @map("profile_id") @db.Uuid
+  endpoint  String    @unique
+  p256dh    String
+  auth      String
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastOkAt  DateTime? @map("last_ok_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([profileId], map: "push_subscriptions_profile_idx")
+  @@map("push_subscriptions")
+  @@schema("public")
+}

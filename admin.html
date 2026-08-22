@@ -1,0 +1,3478 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Generator razporeda · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+
+<style>
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* širina: theme.css (.wrap / .wrap.wide / .wrap.polna) */
+  .wrap{ padding-bottom: 60px; }
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
+    padding:2px 8px; border-radius:999px; }
+  .backlink{ display:inline-block; margin-top:10px; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); }
+
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); padding:4px;
+    border-radius:999px; margin-top:14px; }
+  .tabs button{ flex:1; border:0; background:transparent; color:var(--muted); padding:10px 10px;
+    border-radius:999px; font-size:13.5px; font-weight:700; cursor:pointer; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=month], input[type=number], input[type=text], select{
+    background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; min-width:0;
+  }
+  select{ min-width: 90px; }
+  .chk{ display:flex; align-items:center; gap:8px; font-size:13.5px; }
+  .chk input{ width:17px; height:17px; accent-color: var(--accent); }
+
+  .deptRow{ display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0 4px; }
+  .deptBtn{ border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-weight:800;
+    padding:9px 16px; border-radius:999px; cursor:pointer; font-size:14px; }
+  .deptBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+
+  table.roster{ width:100%; border-collapse:separate; border-spacing:0; margin-top:10px; font-size:13px; }
+  table.roster th{ text-align:left; color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase;
+    letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.roster tr:last-child td{ border-bottom:0; }
+  /* Prvi stolpec (ime/datum) ostane viden pri vodoravnem drsenju - te tabele
+     imajo stolpec na teden, zato se na telefonu vedno drsi. Neprozorno
+     ozadje, da vsebina pod njim ne presveti. */
+  table.roster th:first-child, table.roster td:first-child{
+    position:sticky; left:0; z-index:1; background:var(--surface);
+  }
+  table.roster thead th:first-child{ z-index:2; background:var(--surface-2); }
+  .weekToggle{ border:1px solid var(--line); background:transparent; color:var(--muted); font-size:12px;
+    font-weight:800; padding:9px 11px; min-height:40px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+  .weekToggle[aria-pressed="true"]{ background: var(--danger); border-color:var(--danger); color:#2A1608; }
+
+  .genBtn{ margin-top:16px; width:100%; background: var(--accent); color: var(--accent-ink); border:0;
+    padding:13px; border-radius: var(--radius-sm); font-weight:800; font-size:15px; cursor:pointer; }
+  .genBtn:disabled{ opacity:.5; cursor:default; }
+  .dlBtn{ margin-top:10px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
+    padding:11px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; }
+
+  .warnBox{ margin-top:14px; background: var(--danger-bg); border:1px solid var(--danger); border-radius: var(--radius-sm);
+    padding:12px 14px; font-size:13px; }
+  .warnBox .t{ font-weight:800; color: var(--danger); margin-bottom:6px; }
+  .warnBox li{ margin: 3px 0; }
+
+  .wardScroller{ margin-top:16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
+    -webkit-overflow-scrolling:touch; }
+  table.wardTable{ border-collapse:separate; border-spacing:0; width:max-content; }
+  table.wardTable th, table.wardTable td{ padding:8px 9px; font-size:12px; text-align:center; white-space:nowrap;
+    border-bottom:1px solid var(--line); border-right:1px solid var(--line); }
+  table.wardTable thead th{ background:var(--surface-2); color:var(--muted); font-weight:700; position:sticky; top:0; font-size:11px; }
+  table.wardTable td.name, table.wardTable th.name{ position:sticky; left:0; background:var(--surface); text-align:left;
+    font-weight:700; min-width:118px; max-width:118px; overflow:hidden; text-overflow:ellipsis; z-index:2; }
+  table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
+  .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
+
+  .dutyTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
+  .dutyTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px;
+    border-bottom:1px solid var(--line); }
+  .dutyTable td{ padding:8px; border-bottom:1px solid var(--line); }
+  .dutyTable tr.we td{ background: rgba(201,113,63,0.08); }
+  .dutyTable tr.warn td{ background: var(--danger-bg); }
+  .pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; }
+  .pill.ok{ background: rgba(var(--ok-rgb),.16); color: var(--ok); }
+
+  /* Vrstico osebe riše skupna komponenta (oseba-vrstica.js) – tu ostane
+     samo postavitev polj za urejanje, ki se pokažejo ob razprtju: dve
+     koloni na širokem, ena na ozkem zaslonu. */
+  .uporabnikPolja{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  @media (max-width: 560px){ .uporabnikPolja{ grid-template-columns:1fr; } }
+
+  /* Revizija pravic: vpis kot kartica, ne vrstica tabele – najpomembnejši
+     podatek (kaj se je spremenilo in ali gre za povišanje) mora biti viden
+     brez vodoravnega drsenja na telefonu. */
+  .revVnos{ padding:10px 0; border-bottom:1px solid var(--line); }
+  .revVnos:last-child{ border-bottom:0; }
+  .revGlava{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:14px; }
+  .revSprememba{ font-size:13px; margin-top:3px; }
+  .revNoga{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+
+  .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
+  .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; }
+  .bar i{ display:block; height:100%; background: var(--accent); }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+
+  @media print{
+    :root{ --bg:#fff; --bg-grad:#fff; --surface:#fff; --surface-2:#f2f2f2; --line:#ccc; --text:#000; --muted:#444; }
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; background:#fff !important; }
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+    table.wardTable td.name, table.wardTable th.name{ background:#fff !important; }
+    table.wardTable thead th, table.roster th{ background:#f2f2f2 !important; }
+    /* Izvoz v PDF (Kalup/Vodje) mora iti na 1 A4 stran ne glede na število
+       zaposlenih/dni v mesecu – PrintFit.natisni() izračuna --print-scale in
+       pokliče window.print(); "zoom" (ne transform) dejansko zmanjša zaseden
+       prostor, kar brskalnik potrebuje za pravilen izračun 1 strani. Sticky
+       stolpci/vrstice na 1 strani niso potrebni in bi lahko motili tisk. */
+    .wardScroller{ overflow:visible !important; max-height:none !important; border:none !important;
+      zoom: var(--print-scale, 1); }
+    table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
+    table.wardTable tr, table.dutyTable tr{ break-inside:avoid; page-break-inside:avoid; }
+    .printBlok{ zoom: var(--print-scale, 1); }
+    table.wardTable input[type="text"]{ border:none !important; color:#000 !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="generator-core.js"></script>
+<script src="delovni-cas.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+<script src="imena.js"></script>
+<script src="nzv-zasedba.js"></script>
+<script src="izmene.js"></script>
+<script src="datum.js"></script>
+<script src="parafa.js"></script>
+<script src="prazniki.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="import-utils.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
+<script src="sheets-mreza.js"></script>
+<script src="oseba-vrstica.js"></script>
+<script src="print-fit.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useCallback, useEffect, useRef } = React;
+const { client } = RazporedAuth;
+
+// Oddelki za kreiranje/generiranje razporeda – na izrecno željo omejeno na
+// natanko teh 8 (glej supabase/schema.sql sekcija 23, isti seznam kot v
+// imenik.html/zelje.html). Stare kode ostanejo v bazi (schedule_entries jih
+// zgodovinsko referencira), samo tu se jih ne ponuja več za dodeljevanje.
+const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+
+// ---------------------------------------------------------------------
+// Objava generiranega razporeda naravnost v Supabase (schedule_entries),
+// poleg obstoječega ročnega prenosa JSON. Zaposlene poveže po polnem
+// imenu (profiles.full_name) – kdor se še ni registriral, se ne objavi
+// in je izpisan kot manjkajoč.
+// ---------------------------------------------------------------------
+// Po uspešni objavi obvesti vse prizadete zaposlene (obvestilo v
+// aplikaciji + potisno obvestilo na telefon, glej schema.sql sekcija 27).
+// Namenoma NE prekine objave, če obveščanje spodleti - razpored je takrat
+// že objavljen in to je pomembnejše od obvestila; napako samo vrnemo, da
+// jo klicatelj lahko pokaže.
+async function obvestiOObjavi(rows, deptCode){
+  const datumi = rows.map(r => r.datum).filter(Boolean).sort();
+  if (!datumi.length) return null;
+  try {
+    const { error } = await client.rpc("obvesti_o_objavi_razporeda", {
+      p_start: datumi[0], p_end: datumi[datumi.length - 1], p_oddelek: deptCode || null,
+    });
+    if (error) throw error;
+    return null;
+  } catch (e) {
+    return e.message || String(e);
+  }
+}
+
+async function publishScheduleRows(deptCode, rows){
+  const imena = [...new Set(rows.map(r => r.ime))];
+  // Osebo poišči prek skupnega kazala (matična številka, ime kot rezerva
+  // prek Imena.kljuc) - ne z dobesednim ujemanjem imena. Glej razlago pri
+  // publishLeadScheduleRows: dobesedna primerjava tiho izgubi človeka, ki
+  // je drugod zapisan z velikimi črkami ali brez strešic.
+  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code");
+  if (perr) throw perr;
+  const kazalo = window.Imena.kazalo(profili || []);
+  const byIme = {};
+  imena.forEach(ime => { const p = kazalo.najdi(ime, null); if (p) byIme[ime] = p; });
+  const manjkajo = imena.filter(i => !byIme[i]);
+  const vrstice = rows.filter(r => byIme[r.ime]).map(r => ({
+    employee_id: byIme[r.ime].id, department_code: deptCode, work_date: r.datum, shift_code: r.sifra || "",
+  }));
+  if (vrstice.length > 0){
+    const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    if (error) throw error;
+  }
+  // POZOR: samo med ljudmi IZ TEGA RAZPOREDA. Poizvedba zgoraj zdaj vrne
+  // vse profile (iskanje po imenu je preseljeno v kazalo), zato bi
+  // filtriranje čez "profili" oddelek nastavilo vsem v bolnišnici.
+  const brezOddelka = Object.values(byIme).filter(p => !p.department_code).map(p => p.id);
+  let oddelekNapaka = null;
+  if (brezOddelka.length > 0){
+    const { error } = await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
+    if (error) oddelekNapaka = error.message;
+  }
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, deptCode) : null;
+  return { objavljeno: vrstice.length, manjkajo, oddelekNapaka, obvestilaNapaka };
+}
+
+// Kot publishScheduleRows, a vsaka vrstica nosi SVOJ department_code
+// (vsak vodja ima svojo domačo enoto) – uporablja VodjeTab.
+async function publishLeadScheduleRows(rows){
+  const imena = [...new Set(rows.map(r => r.ime))];
+  // Osebo poišči po MATIČNI ŠTEVILKI, ime šele kot rezerva - in po imenu
+  // prek Imena.kljuc, ne dobesedno.
+  //
+  // Doslej je bilo tu .in("full_name", imena) proti PROFILES. Imena za
+  // razpored NZV pa prihajajo iz lead_departments, kjer so zapisana z
+  // velikimi črkami ("ALUKIĆ DINO"), v profiles pa so "Priimek Ime"
+  // ("Alukić Dino", glej supabase/imena-priimek-prvi.sql, ki popravi samo
+  // profiles). Dobesedna primerjava zato ni našla nikogar: objava je
+  // "uspela" z 0 zapisi, vsi pa so bili poročani kot "brez profila".
+  // Ista past čaka pri strešicah (Bećirović/Becirovic) in dvobesednih
+  // priimkih.
+  const [{ data: profili, error: perr }, { data: hrVrstice }, { data: vodjeVrstice }] = await Promise.all([
+    client.from("profiles").select("id, full_name"),
+    client.from("profile_hr_details").select("profile_id, employee_code")
+      .then(r => r, () => ({ data: [] })),
+    // Matična številka vodje (supabase/nzv-maticne-stevilke-vodij.sql). Če
+    // stolpca še ni, poizvedba pade - takrat se preprosto išče po imenu,
+    // objava pa vseeno dela.
+    client.from("lead_departments").select("full_name, employee_code")
+      .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
+  ]);
+  if (perr) throw perr;
+  const sifraZaProfil = {};
+  (hrVrstice || []).forEach(r => { if (r.employee_code) sifraZaProfil[r.profile_id] = r.employee_code; });
+  const kazalo = window.Imena.kazalo((profili || []).map(p => ({ ...p, employee_code: sifraZaProfil[p.id] })));
+  const sifraZaIme = {};
+  (vodjeVrstice || []).forEach(r => { if (r.employee_code) sifraZaIme[window.Imena.kljuc(r.full_name)] = r.employee_code; });
+  const byIme = {};
+  imena.forEach(ime => {
+    const najden = kazalo.najdi(ime, sifraZaIme[window.Imena.kljuc(ime)]);
+    if (najden) byIme[ime] = najden;
+  });
+  const manjkajo = imena.filter(i => !byIme[i]);
+  // Ista oseba je isti dan pogosto na VEČ enotah (npr. Džamastagić na PDZN,
+  // SOBO in U2), schedule_entries pa ima unique (employee_id, work_date).
+  // Brez združevanja je vsaka nadaljnja enota tiho prepisala prejšnjo -
+  // razpored je pokazal eno enoto, druge pa so izginile. Isto pravilo in
+  // ista koda kot pri uvozu NZV iz Sheets (nzv-zasedba.js): prva enota gre
+  // v department_code, ostale v pokriva_oddelek.
+  const vrstice = window.NzvZasedba.zdruziNzvZapise(
+    rows.filter(r => byIme[r.ime] && r.department_code).map(r => ({
+      employee_id: byIme[r.ime].id, department_code: r.department_code,
+      work_date: r.datum, shift_code: r.sifra || "",
+      // Odsotnost (LD/IZOB/BS) ni enota - brez "stolpec" ostane v shift_code
+      // in ne zasede mesta enote.
+      stolpec: r.jeEnota ? r.stolpec : undefined,
+    })));
+  if (vrstice.length > 0){
+    let { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    // Če stolpec pokriva_oddelek v bazi še ne obstaja (supabase/
+    // dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne CEL
+    // upsert. To ne sme pomeniti, da objava sploh ne dela: shrani brez
+    // tega polja (ena enota na osebo/dan, kot je bilo doslej).
+    if (error && /pokriva_oddelek/i.test((error.message || "") + (error.details || ""))) {
+      const brez = vrstice.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
+      ({ error } = await client.from("schedule_entries").upsert(brez, { onConflict: "employee_id,work_date" }));
+    }
+    if (error) throw error;
+  }
+  const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, null) : null;
+  return { objavljeno: vrstice.length, manjkajo, obvestilaNapaka };
+}
+
+// ---------------------------------------------------------------------
+// Statični podatki o oddelkih (SMS/TZN) – enaki kot pri generiranju
+// oktobra 2026. Črka je stanje kalupa v tednu 28. 9. 2026 (sidro).
+// ---------------------------------------------------------------------
+const ANCHOR_MONDAY = "2026-09-28";
+// Oddelčna struktura (kode, nazivi, hsuffix) je stalna nastavitev – 6
+// SMS/TZN oddelkov se ne spreminja. Članstvo in rotacijska črka (A-E) sta
+// PREJ bila tu trdo kodirana skupaj s to strukturo (glej git zgodovino),
+// zdaj pa prihajata živo iz Supabase (profiles.department_code +
+// profiles.rotation_slot, urejljivo v Imeniku) – glej nalozizOddelek spodaj.
+const WARDS_META = {
+  B:  { naziv:"B – oddelek",  hsuffix:false },
+  C:  { naziv:"C – oddelek",  hsuffix:false },
+  C1: { naziv:"C1 – oddelek", hsuffix:false },
+  D:  { naziv:"D – oddelek",  hsuffix:false },
+  E1: { naziv:"E1 – oddelek", hsuffix:true },
+  E2: { naziv:"E2 – oddelek", hsuffix:false },
+};
+
+// ---------------------------------------------------------------------
+// Napotilo iz Želja: "admin.html?tab=kalup&oddelek=C1&mesec=2026-10" ali
+// "admin.html?tab=nzv&pod=dez&mesec=2026-10". Stran Želje pošlje sem s tem
+// naslovom, da koordinatorju ni treba istega oddelka in meseca izbirati
+// znova - tam je pravkar vpisal dopuste in omejitve, generator pa jih
+// prebere iz baze sam.
+//
+// Naslov je ZUNANJI vhod (uporabnik ga lahko poljubno spremeni ali deli
+// naprej), zato se vsako polje preveri proti znanim vrednostim, namesto da
+// bi se mu zaupalo. Neveljavna vrednost pomeni "uporabi privzeto", ne
+// napake - enako kot pri "index.html?uvoz=1&…" (glej preberiUvozIzNaslova
+// v index.html). Ta funkcija NIČESAR ne generira in ne objavi: samo
+// prednastavi zavihek, oddelek in mesec, sprožiti pa mora uporabnik sam.
+const NAPOTILO_ZAVIHKI = ["kalup", "nzv", "uporabniki", "dopust", "place", "revizija"];
+function preberiNapotiloIzNaslova(search){
+  const p = new URLSearchParams(search || "");
+  const tab = (p.get("tab") || "").trim().toLowerCase();
+  const oddelek = (p.get("oddelek") || "").trim().toUpperCase();
+  const pod = (p.get("pod") || "").trim().toLowerCase();
+  const mesec = (p.get("mesec") || "").trim();
+  const veljaven = {
+    tab: NAPOTILO_ZAVIHKI.includes(tab) ? tab : null,
+    // Generator rotacije pozna samo 6 SMS/TZN oddelkov (WARDS_META).
+    // FLEXI in NZV se tu NE generirata - Želje za FLEXI napotijo drugam.
+    oddelek: Object.prototype.hasOwnProperty.call(WARDS_META, oddelek) ? oddelek : null,
+    pod: (pod === "vodje" || pod === "dez") ? pod : null,
+    mesec: /^\d{4}-(0[1-9]|1[0-2])$/.test(mesec) ? mesec : null,
+  };
+  // Brez enega samega veljavnega podatka naslov ni napotilo - stran se
+  // odpre povsem po svoje, kot doslej.
+  return Object.keys(veljaven).some(k => veljaven[k]) ? veljaven : null;
+}
+
+// Vrne [[ime, rotacijskaČrka], ...] za en oddelek – ista oblika, kot jo je
+// prej vračal WARDS_META[koda].staff, da ostane vsa nadaljnja koda (Kalup,
+// PrednostniPanel) nespremenjena. Manjkajoč rotation_slot (nova oseba, še
+// ne nastavljena v Imeniku) privzeto pade na "A", vidno označeno spodaj.
+async function nalozizOddelek(koda){
+  // "id" je tu zato, da je ime v mreži lahko povezava na profil osebe
+  // (imenik.html?id=...). Generator sam ga ne potrebuje.
+  const { data } = await client.from("profiles").select("id, full_name, rotation_slot")
+    .eq("department_code", koda).order("full_name");
+  return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot, p.id]);
+}
+
+// Dnevne "rumene" omejitve (Razpredelnica Želje, leave_entries.kind="omejitev")
+// za dani razpon – Kalup generator jih uporabi za samodejno iskanje
+// nadomestila (glej generirajKalup v generator-core.js).
+// "imena" so imena osebja, kot jih pozna kalup - izid se vrne pod TEMI
+// imeni, ne pod tistimi iz leave_entries. Ujemanje gre prek imena.js
+// (isti modul kot NZV), ker so imena v leave_entries zapisana različno:
+// ročni vnos v Razpredelnici tako kot v Imeniku, uvoz iz CSV pa z velikimi
+// črkami. Z dobesedno primerjavo se je prenesel le tisti del, ki se je
+// slučajno ujemal črko v črko.
+// Katere vrste odsotnosti pomenijo "ta dan ne more delati na oddelku".
+// Poleg rumene omejitve tudi BOLNIŠKA in STROKOVNO IZOBRAŽEVANJE: prej ju
+// kalup sploh ni bral, zato je osebo na bolniški vseeno razporedil na
+// izmeno in zanjo ni iskal nadomestila. Letni dopust ima svojo pot
+// (nalozizLdTedne), ker se šteje v CELIH tednih.
+const KALUP_ODSOTNOST_KIND = ["omejitev", "bs", "sti"];
+
+async function nalozizOmejitve(startISO, endISO, imena){
+  const { data } = await client.from("leave_entries").select("full_name, work_date")
+    .in("kind", KALUP_ODSOTNOST_KIND).gte("work_date", startISO).lte("work_date", endISO);
+  const poKljucu = {};
+  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
+  const map = {};
+  (data || []).forEach(r => {
+    const ime = poKljucu[kljucImena(r.full_name)];
+    if (!ime) return;
+    (map[ime] = map[ime] || []).push(r.work_date);
+  });
+  return map;
+}
+
+// Letni dopust (Razpredelnica Želje, leave_entries.kind="ld") za dani
+// razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
+// Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
+// dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
+// izpraznil cel teden rotacije.
+async function nalozizLdTedne(startISO, endISO, tedni, imena){
+  const { data } = await client.from("leave_entries").select("full_name, work_date")
+    .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
+  const poKljucu = {};
+  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
+  const stetje = {}; // "ime|ponedeljek" -> stevilo dni LD
+  (data || []).forEach(r => {
+    const d = new Date(r.work_date + "T00:00:00Z");
+    const zamik = (d.getUTCDay() + 6) % 7;          // 0 = ponedeljek
+    d.setUTCDate(d.getUTCDate() - zamik);
+    const mo = d.toISOString().slice(0, 10);
+    if (!tedni.includes(mo)) return;
+    // Ključ pod IMENOM OSEBJA (ne pod imenom iz leave_entries) - ročni
+    // popravki v razpredelnici uporabljajo isti zapis in se morajo z
+    // izpeljanimi tedni sešteti, ne izključevati.
+    const ime = poKljucu[kljucImena(r.full_name)];
+    if (!ime) return;
+    const k = ime + "|" + mo;
+    stetje[k] = (stetje[k] || 0) + 1;
+  });
+  const out = {};
+  Object.keys(stetje).forEach(k => { if (stetje[k] >= 3) out[k] = "LD"; });
+  return out;
+}
+
+// Dežurni kader DMS/DZN – ZAPRTA zgodovina do 31. 8. 2026 (iz uradnega
+// seznama dežurstev jan.–avg. 2026, posredoval uporabnik, 243 vnosov,
+// preverjeno v celoti – glej roster/dezurstva-jan-avg-2026.tsv in
+// roster/analiza-razporedov.md §1a). To obdobje je pred obstojem te
+// aplikacije, zato ostaja tu kot fiksna osnova (se ne bo več spreminjalo) –
+// vse OD 1. 9. 2026 naprej nalozizDezurniKader spodaj prišteje živo iz
+// schedule_entries, tako da se stevilo/zadnje ne bosta nikoli več ročno
+// prepisovala. Članstvo (kdo je dežurni kader) in osebne nastavitve
+// (min/maks mesečno, prost dan, samo med tednom) so od te spremembe dalje v
+// Supabase (profiles.department_code="DEZ" + profile_hr_details.duty_*).
+const DEZURNI_OSNOVA_DO_31_8_2026 = {
+  "ALUKIĆ DINO": { stevilo:21, zadnje:"2026-08-20" },
+  "ARNEŽ GREGA": { stevilo:18, zadnje:"2026-08-03" },
+  "BOJIĆ MATEJ": { stevilo:21, zadnje:"2026-08-26" },
+  "DŽAMASTAGIĆ DENIS": { stevilo:21, zadnje:"2026-08-29" },
+  "PERVIZ AMAL": { stevilo:21, zadnje:"2026-08-21" },
+  "TOMAŽEVIČ SIMONA": { stevilo:18, zadnje:"2026-08-31" },
+  "TORKAR TANJA": { stevilo:19, zadnje:"2026-08-16" },
+  "HROVAT NINA": { stevilo:18, zadnje:"2026-08-23" },
+  "ŠUBIC PETRA": { stevilo:18, zadnje:"2026-08-19" },
+  "LUNAR MATEJA": { stevilo:18, zadnje:"2026-08-28" },
+  "MAVRI TRATNIK MAGDALENA": { stevilo:18, zadnje:"2026-08-30" },
+  "VELUŠČEK METKA": { stevilo:17, zadnje:"2026-08-10" },
+  "SALKIĆ MARUŠA": { stevilo:7, zadnje:"2026-08-24" },
+  "TRPIN SAŠA": { stevilo:8, zadnje:"2026-08-27" },
+};
+
+// Zgornji slovar je ključen po "PRIIMEK IME" z velikimi črkami (tako je
+// zapisan uradni seznam dežurstev). profiles.full_name pa je lahko zapisan
+// drugače – "Dino Alukić" namesto "ALUKIĆ DINO". Iskanje po točnem ključu
+// bi v takem primeru tiho vrnilo nič in osebi ponastavilo zgodovino na 0
+// dežurstev; generator pravičnosti bi ji nato naložil preveč dežurstev,
+// pri čemer bi bil zaslon videti povsem normalen. Zato se išče po vreči
+// besed v velikih črkah – isto pravilo kot imenaSeUjemataAdmin, le
+// predračunano v slovar, ker tu iščemo in ne primerjamo dveh imen.
+// Ključ prek imena.js (skupni modul), ne lastne različice: ta je poleg
+// velikih črk in vrstnega reda besed odstranila tudi strešice, admin pa
+// ne - "Bojić Matej" in "BOJIC MATEJ" sta se tu razhajala, drugod pa ne.
+// Dve pravili za isto stvar sta pri razporedu nevarni: ista oseba je bila
+// enkrat prepoznana in drugič ne, odvisno od zaslona.
+function kljucImena(s){
+  return window.Imena.kljuc(s);
+}
+const DEZURNI_OSNOVA_PO_KLJUCU = Object.fromEntries(
+  Object.entries(DEZURNI_OSNOVA_DO_31_8_2026).map(([ime, v]) => [kljucImena(ime), v])
+);
+
+// Vrne polni začetni roster za DezurstvaTab: članstvo iz profiles (primarni
+// department_code ali profile_departments "DEZ" – nekdo je lahko hkrati na
+// svojem oddelku IN v dežurnem kadru), stevilo/zadnje = zaprta osnova do
+// 31. 8. 2026 + živo prišteti schedule_entries od 1. 9. 2026 do startISO
+// (izključno), osebne nastavitve iz profile_hr_details.duty_*.
+async function nalozizDezurniKader(startISO){
+  const { data: profili } = await client.from("profiles")
+    .select("id, full_name, department_code, profile_departments(department_code), profile_hr_details(duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)")
+    .order("full_name");
+  const dezurni = (profili || []).filter(p =>
+    p.department_code === "DEZ" || (p.profile_departments || []).some(d => d.department_code === "DEZ")
+  );
+  const { data: entries } = await client.from("schedule_entries").select("employee_id, work_date")
+    .eq("department_code", "DEZ").gte("work_date", "2026-09-01").lt("work_date", startISO);
+  const odZivih = {};
+  (entries || []).forEach(e => {
+    const s = odZivih[e.employee_id] || (odZivih[e.employee_id] = { stevilo:0, zadnje:null });
+    s.stevilo += 1;
+    if (!s.zadnje || e.work_date > s.zadnje) s.zadnje = e.work_date;
+  });
+  return dezurni.map(p => {
+    const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+    const osnova = DEZURNI_OSNOVA_PO_KLJUCU[kljucImena(p.full_name)] || { stevilo:0, zadnje:null };
+    const ziv = odZivih[p.id] || { stevilo:0, zadnje:null };
+    return {
+      id: p.id, ime: p.full_name, enota: p.department_code || "?",
+      stevilo: osnova.stevilo + ziv.stevilo,
+      zadnje: (ziv.zadnje && (!osnova.zadnje || ziv.zadnje > osnova.zadnje)) ? ziv.zadnje : (osnova.zadnje || ""),
+      odsotnosti:"", dopust:"", omejitve:"",
+      prostDanVTednu: (hr && hr.duty_day_off) || "",
+      minMesecno: hr && hr.duty_min_monthly != null ? String(hr.duty_min_monthly) : "",
+      maxMesecno: hr && hr.duty_max_monthly != null ? String(hr.duty_max_monthly) : "",
+      samoMedTednom: !!(hr && hr.duty_weekdays_only),
+    };
+  });
+}
+
+// Razvrstitev izmen in barve živijo v izmene.js - en sam vir za vse
+// zaslone. Generator uporablja SVOJO različico razvrstitve: tu se šteje
+// DEJANSKA zasedba izmene na oddelku, zato letni dopust in dežurstvo
+// padeta v "off" (kdor je na dopustu, ni na izmeni). Prav ta razlika je
+// razlog, da funkciji nista zliti v eno - glej opombo v izmene.js.
+const classify = window.Izmene.skupinaGeneratorja;
+const BARVE = window.Izmene.SKUPINA_BARVA;
+
+// Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
+// od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" – tu ju
+// razdelimo, ker dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
+// 07:00-19:00) pokrivata dan in štejeta k DOPOLDNE, nočna12 pa k PONOCI.
+// Ime zaposlenega je povsod povezava na njegov profil (uporabnikova
+// zahteva). Kjer identifikatorja ni - npr. vrstica, ki pride iz uvožene
+// preglednice in ne iz Imenika - ostane navadno besedilo, da povezava ne
+// pelje nikamor.
+function ImeOsebe({ id, children }){
+  if (!id) return <React.Fragment>{children}</React.Fragment>;
+  return <a href={"imenik.html?id=" + id} style={{color:"inherit"}} title="Odpri profil">{children}</a>;
+}
+
+function shiftBucket(sifra){
+  const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
+  if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomočdrugje" || !t) return null;
+  if (t.includes("nočna12")) return "PONOCI";
+  if (t.includes("dnevna12")) return "DOPOLDNE";
+  if (t.startsWith("nočna")) return "PONOCI";
+  // Obe pisavi: stari zapisi v bazi ("dopoldan") in novi iz kalupa
+  // ("Dopoldne").
+  if (t.startsWith("dopoldan") || t.startsWith("dopoldne")) return "DOPOLDNE";
+  if (t.startsWith("popoldan") || t.startsWith("popoldne")) return "POPOLDNE";
+  return null;
+}
+const IZMENA_LABEL = { DOPOLDNE: "Dopoldne", POPOLDNE: "Popoldne", PONOCI: "Nočna" };
+
+async function nalozizMinimume(koda){
+  const { data, error } = await client.from("department_shift_minimums").select("*").eq("department_code", koda);
+  if (error) { console.error("Nalaganje minimumov ni uspelo:", error); return {}; }
+  const map = {};
+  (data || []).forEach(row => { map[row.shift_bucket] = row; });
+  return map;
+}
+
+// Koledarski izračuni so v datum.js - en sam vir za vse strani (ta
+// različica je edina računala v UTC, ostale v lokalnem času).
+const monthRange = window.Datum.obseg;
+// Dnevi v mesecu in sestava ISO datuma prav tako iz datum.js. Kratica
+// dneva ostane trigla ("PON", "TOR" ...), kot je bila v tem pogledu.
+function danovVMesecu2(monthStr){ const [y,m] = monthStr.split("-").map(Number); return window.Datum.zadnjiDan(y, m); }
+function isoZaMesec(monthStr, d){ const [y,m] = monthStr.split("-").map(Number); return window.Datum.iso(y, m, d); }
+// Prazniki so v prazniki.js - en sam vir za vse zaslone. Tu je bila
+// doslej ČETRTA kopija izračuna (lasten velikonočni algoritem + svoj
+// seznam datumov). Ravno tako razpršeno pravilo je že trikrat povzročilo
+// napačen razpored, zato tudi generator zdaj bere iz skupnega vira.
+function mondaysInRange(startISO, endISO){
+  const { toDate, mondayOfWeek, fromDate, addDays } = Generator.util;
+  const out = [];
+  let d = mondayOfWeek(toDate(startISO));
+  const end = toDate(endISO);
+  while (d.getTime() <= end.getTime()){
+    out.push(fromDate(d));
+    d = addDays(d, 7);
+  }
+  return out;
+}
+function fmtShort(iso){
+  const d = new Date(iso+"T00:00:00Z");
+  return d.getUTCDate() + "." + (d.getUTCMonth()+1) + ".";
+}
+function download(filename, text){
+  const blob = new Blob([text], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------
+// Predlog prednosti za prost teden – na podlagi dejanske obremenjenosti
+// (nočne ure, nedelje/prazniki) iz nadzorne plošče (modul 3), ne iz
+// ugibanja. Kvota letnega dopusta ni znana vnaprej (ni je v Kadrisu, ki
+// smo ga analizirali) – vnese jo koordinator ročno, po zaposlenem.
+// ---------------------------------------------------------------------
+function PrednostniPanel({ staff, stanje, tedni, onPredlagaj, kvote, setKvote }){
+  const [baseline, setBaseline] = useState(null);
+  const [err, setErr] = useState(null);
+  const [sortKey, setSortKey] = useState("nedpraz");
+  const [sortDir, setSortDir] = useState(-1);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    fetch("dashboard-baseline.json").then(r => r.json())
+      .then(d => setBaseline(d.osnova_sms.podatki))
+      .catch(() => setErr("Ni mogoče naložiti dashboard-baseline.json – panel prikazuje samo imena, brez podatkov o obremenjenosti."));
+  }, []);
+
+  const rows = useMemo(() => {
+    return staff.map(([ime]) => {
+      const b = (baseline || []).find(z => z.ime === ime);
+      const dosedanjiLD = b ? b.ld : null;
+      const novihTaSeja = tedni.filter(mo => stanje[ime + "|" + mo] === "LD").length;
+      const kvota = kvote[ime] !== undefined && kvote[ime] !== "" ? Number(kvote[ime]) : null;
+      const preostane = (kvota != null && dosedanjiLD != null) ? kvota - dosedanjiLD - novihTaSeja : null;
+      return {
+        ime,
+        nocne: b ? b.nocne : null,
+        nedpraz: b ? b.nedpraz : null,
+        ld: dosedanjiLD,
+        novihTaSeja,
+        kvota,
+        preostane,
+      };
+    });
+  }, [staff, baseline, kvote, stanje, tedni]);
+
+  const sorted = useMemo(() => {
+    const arr = rows.slice();
+    arr.sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * sortDir;
+    });
+    return arr;
+  }, [rows, sortKey, sortDir]);
+
+  const onSort = (k) => { if (k === sortKey) setSortDir(d => -d); else { setSortKey(k); setSortDir(-1); } };
+  const maxNedpraz = Math.max(1, ...rows.map(r => r.nedpraz || 0));
+
+  const predlagaj = (ime) => {
+    const prostTeden = tedni.find(mo => !stanje[ime + "|" + mo]);
+    if (!prostTeden) { setMsg(ime + ": vsi vidni tedni so že označeni."); return; }
+    onPredlagaj(ime, prostTeden);
+    setMsg(null);
+  };
+
+  return (
+    <div className="card" style={{overflowX:"auto", marginTop:10}}>
+      {err && <p className="hint" style={{color:"var(--danger)"}}>{err}</p>}
+      <table className="roster">
+        <thead>
+          <tr>
+            <th>Zaposleni</th>
+            <th style={{cursor:"pointer"}} onClick={() => onSort("nocne")}>Nočne ure{sortKey==="nocne"?" ▾":""}</th>
+            <th style={{cursor:"pointer"}} onClick={() => onSort("nedpraz")}>Ned.+praz.{sortKey==="nedpraz"?" ▾":""}</th>
+            <th>Doslej LD</th>
+            <th>Letna kvota</th>
+            <th>Preostane</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(r => (
+            <tr key={r.ime}>
+              <td>{r.ime}</td>
+              <td>
+                {r.nocne != null ? r.nocne : "–"}
+                {r.nedpraz != null && <div className="bar"><i style={{width:(100*(r.nedpraz||0)/maxNedpraz)+"%"}}></i></div>}
+              </td>
+              <td>{r.nedpraz != null ? r.nedpraz : "–"}</td>
+              <td>{r.ld != null ? r.ld : "–"}</td>
+              <td>
+                <input type="number" style={{width:56}} min="0" placeholder="?"
+                  value={kvote[r.ime] !== undefined ? kvote[r.ime] : ""}
+                  onChange={e => setKvote(k => ({...k, [r.ime]: e.target.value}))} />
+              </td>
+              <td>{r.preostane != null ? r.preostane : <span style={{color:"var(--muted)"}}>vnesi kvoto</span>}</td>
+              <td><button className="weekToggle" onClick={() => predlagaj(r.ime)}>Predlagaj teden</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {msg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{msg}</p>}
+      <p className="hint" style={{marginTop:10, marginBottom:0}}>
+        Nočne ure in nedelje/prazniki so kumulativni podatki iz nadzorne plošče (modul 3) – kdor ima
+        največ (obarvan vrh razvrstitve), je najbolj upravičen do prostega tedna. Kvoto letnega dopusta
+        vnesite ročno po zaposlenem (ni je bilo mogoče razbrati iz analize prisotnosti). Gumb "Predlagaj
+        teden" samo označi prvi še neoznačeni teden spodaj – vi ga potrdite ali spremenite pred generiranjem.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Pokritost po dnevih – kontrolni seznam, razdelek 7, predlog 3: primerja
+// dejansko zasedbo (po dopustu/pomoči/nadomestilih) s tem, kar bi kalup
+// običajno zasedel ta dan brez odsotnosti. Prag je samodejno izračunan,
+// a ostaja ročno popravljiv na dan, ker "pričakovano" ni vedno enoznačno
+// (npr. namerno tanjša zasedba ob znanih mirnejših dnevih).
+// Urejevalnik minimumov (department_shift_minimums) – admin ureja natančen
+// minimum po izmeni za trenutni oddelek. Osnutek vrednosti je bil seed-an
+// prek schema.sql (§17, iz starega analiznega prototipa) – ni potrjen,
+// zato je tu vedno urejljiv, ne prikazan kot trdno pravilo.
+function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const polje = (bucket, key, vrednost) => {
+    setMinimumi(m => ({ ...m, [bucket]: { ...(m[bucket] || { shift_bucket: bucket }), [key]: vrednost } }));
+  };
+
+  const shrani = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const rows = ["DOPOLDNE", "POPOLDNE", "PONOCI"].map(b => {
+        const v = minimumi[b] || {};
+        return {
+          department_code: koda, shift_bucket: b,
+          min_dms: v.min_dms === "" || v.min_dms == null ? null : Number(v.min_dms),
+          min_sms: v.min_sms === "" || v.min_sms == null ? null : Number(v.min_sms),
+          min_flexi: v.min_flexi === "" || v.min_flexi == null ? null : Number(v.min_flexi),
+          note: v.note || null,
+          updated_at: new Date().toISOString(),
+        };
+      });
+      const { error } = await client.from("department_shift_minimums").upsert(rows, { onConflict: "department_code,shift_bucket" });
+      if (error) throw error;
+      setMsg({ ok: true, text: "Minimumi shranjeni." });
+    } catch (e) {
+      setMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card no-print" style={{overflowX:"auto", marginBottom:10}}>
+      <table className="roster">
+        <thead><tr><th>Izmena</th><th>Min. DMS</th><th>Min. SMS</th><th>Min. FLEXI</th><th>Opomba</th></tr></thead>
+        <tbody>
+          {["DOPOLDNE", "POPOLDNE", "PONOCI"].map(b => {
+            const v = minimumi[b] || {};
+            return (
+              <tr key={b}>
+                <td>{IZMENA_LABEL[b]}</td>
+                {["min_dms", "min_sms", "min_flexi"].map(key => (
+                  <td key={key}>
+                    <input type="number" min="0" style={{width:56}} value={v[key] ?? ""}
+                      onChange={e => polje(b, key, e.target.value)} />
+                  </td>
+                ))}
+                <td><input type="text" style={{width:"100%"}} value={v.note || ""} onChange={e => polje(b, "note", e.target.value)} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button className="dlBtn" style={{marginTop:8}} disabled={busy} onClick={shrani}>{busy ? "Shranjujem …" : "Shrani minimume"}</button>
+      {msg && <p className="hint" style={{marginTop:6, color: msg.ok ? "inherit" : "var(--danger)"}}>{msg.text}</p>}
+    </div>
+  );
+}
+
+// Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
+// tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
+// podvajanja logike).
+function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
+  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
+    const v = minimumi[b];
+    return v && (v.min_dms || v.min_sms || v.min_flexi);
+  });
+  const vrzeli = [];
+  if (imaMinimume) {
+    rezultat.dnevi.forEach(dn => {
+      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
+        const v = minimumi[b];
+        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
+        if (!minVsota) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+        // "bucket" pove, KATERE izmene zmanjka - brez tega se vrzeli da
+        // samo prešteti, ne pa tudi predlagati, kdo naj jo zapolni.
+        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: minVsota - dejansko });
+      });
+    });
+  } else {
+    rezultat.dnevi.forEach(dn => {
+      const dejansko = rezultat.staff.filter(z => {
+        const v = celica(z, dn);
+        return v && v !== "LD";
+      }).length;
+      const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
+      const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
+      // Brez nastavljenih minimumov se ve le, da tisti dan manjka toliko
+      // ljudi - ne pa, v kateri izmeni. Predlog zato takrat ni mogoč
+      // (bucket ostane null) in gumb to pove.
+      if (prag - dejansko > 0) vrzeli.push({ datum: dn.datum, bucket: null, primanjkljaj: prag - dejansko });
+    });
+  }
+  return { vrzeli, imaMinimume };
+}
+
+// Vizualni povzetek pravil namesto dolgih besedilnih pojasnil:
+// [✓] izpolnjeno · [!] manjše opozorilo · [✗] kritična kršitev.
+// Zložljiv razdelek - dolga pojasnila in napredne nastavitve so privzeto
+// skrita, da je na vrhu vidno samo bistvo (izberi → generiraj → rezultat).
+// Slovenska sklanjatev: 1 teden, 2 tedna, 3-4 tedni, 5+ tednov.
+function tedniBesedilo(n){
+  const d = n % 10, s = n % 100;
+  if (s >= 11 && s <= 14) return n + " tednov";
+  if (d === 1) return n + " teden";
+  if (d === 2) return n + " tedna";
+  if (d === 3 || d === 4) return n + " tedni";
+  return n + " tednov";
+}
+
+function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
+  const [odprto, setOdprto] = useState(!!privzetoOdprto);
+  return (
+    <div className="zlozljiv no-print">
+      <button type="button" className="glava" aria-expanded={odprto} onClick={() => setOdprto(o => !o)}>
+        <span>{naslov}{opis && <span className="hint" style={{display:"block", margin:0, fontWeight:600}}>{opis}</span>}</span>
+        <span className="puscica">▾</span>
+      </button>
+      {odprto && <div className="vsebina">{children}</div>}
+    </div>
+  );
+}
+
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
+  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+  const opozorila = rezultat.opozorila || [];
+
+  // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
+  // v tednu) – krsitve prihajajo od zunaj (KalupTab), izračunane nad
+  // DEJANSKIM razporedom (vključno z ročnimi popravki celic), tako da jih
+  // lahko ista izračunana lista pobarva tudi v mreži spodaj, ne samo tu.
+  const pov = window.DelovniCas.povzetek(krsitve);
+  const [prikaziKrsitve, setPrikaziKrsitve] = useState(false);
+
+  const pravila = [
+    vrzeli.length === 0
+      ? { stanje: "ok", naslov: "Pokritost izmen", opis: imaMinimume
+          ? "Vsak dan dosega nastavljene minimume po izmenah."
+          : "Vsak dan dosega pričakovano zasedbo kalupa." }
+      : { stanje: "kriticno", naslov: "Nepokrite izmene", opis:
+          `${vrzeli.length} ${vrzeli.length === 1 ? "vrzel" : "vrzeli"} v pokritosti – glej razdelek "Pokritost po dnevih" spodaj.` },
+
+    opozorila.length === 0
+      ? { stanje: "ok", naslov: "Želje in omejitve", opis: "Vse vnesene omejitve so samodejno pokrite z nadomestilom." }
+      : { stanje: "opozorilo", naslov: "Omejitve brez nadomestila", opis:
+          `${opozorila.length} ${opozorila.length === 1 ? "omejitev" : "omejitev"} ni bilo mogoče samodejno pokriti – potreben ročen pregled.` },
+
+    imaMinimume
+      ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
+      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah zgoraj." },
+
+    pov.kriticnih > 0
+      ? { stanje: "kriticno", naslov: "Delovnopravne kršitve", opis:
+          `${pov.kriticnih} kritičnih${pov.opozoril ? ` in ${pov.opozoril} opozoril` : ""} (počitek med izmenama, zaporedne nočne, prost dan v tednu).` }
+      : pov.opozoril > 0
+        ? { stanje: "opozorilo", naslov: "Delovnopravna opozorila", opis: `${pov.opozoril} opozoril – brez kritičnih kršitev.` }
+        : { stanje: "ok", naslov: "Delovnopravna pravila", opis: "Počitek med izmenama, zaporedne nočne in prost dan v tednu so v mejah." },
+
+    { stanje: "ok", naslov: "Obseg razporeda", opis: `${rezultat.staff.length} zaposlenih × ${rezultat.dnevi.length} dni.` },
+  ];
+
+  const IKONA = { ok: "✓", opozorilo: "!", kriticno: "✗" };
+
+  return (
+    <div className="card no-print">
+      {pravila.map(pr => (
+        <div className="pravilo" key={pr.naslov}>
+          <span className={"statusIkona " + pr.stanje}>{IKONA[pr.stanje]}</span>
+          <span className="besedilo">
+            <span className="naslov">{pr.naslov}</span>
+            <span className="opis">{pr.opis}</span>
+          </span>
+        </div>
+      ))}
+
+      {krsitve.length > 0 && (
+        <div style={{marginTop:10}}>
+          <button type="button" className="btn btn-ghost btn-sm" aria-expanded={prikaziKrsitve}
+            onClick={() => setPrikaziKrsitve(o => !o)}>
+            {prikaziKrsitve ? "Skrij" : "Pokaži"} seznam kršitev ({krsitve.length})
+          </button>
+          {prikaziKrsitve && (
+            <ul className="hint" style={{marginTop:8, paddingLeft:18}}>
+              {krsitve.map((k, i) => (
+                <li key={i} style={{marginBottom:4, color: k.resnost === "kriticno" ? "var(--danger)" : "var(--text)"}}>
+                  <b>{k.oseba}</b> – {k.sporocilo}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
+  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
+    const v = minimumi[b];
+    return v && (v.min_dms || v.min_sms || v.min_flexi);
+  });
+
+  if (imaMinimume) {
+    const vrstice = [];
+    rezultat.dnevi.forEach(dn => {
+      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
+        const v = minimumi[b];
+        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
+        if (!minVsota) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+        if (dejansko < minVsota) vrstice.push({ dn, b, dejansko, minVsota, primanjkljaj: minVsota - dejansko });
+      });
+    });
+    if (vrstice.length === 0) {
+      return <p className="hint no-print">Ni zaznanih vrzeli – dejanska zasedba po izmenah ustreza nastavljenim minimumom na vsak dan.</p>;
+    }
+    return (
+      <div className="card no-print" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead><tr><th>Dan</th><th>Izmena</th><th>Dejansko</th><th>Minimum</th><th>Primanjkljaj</th></tr></thead>
+          <tbody>
+            {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj }) => (
+              <tr key={dn.datum + b}>
+                <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
+                <td>{IZMENA_LABEL[b]}</td>
+                <td>{dejansko}</td>
+                <td>{minVsota}</td>
+                <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Brez nastavljenih minimumov za ta oddelek: pade nazaj na prvotno
+  // primerjavo z "bazni kalup" (brez odsotnosti), da ni regresije.
+  const vrstice = rezultat.dnevi.map(dn => {
+    const dejansko = rezultat.staff.filter(z => {
+      const v = celica(z, dn);
+      return v && v !== "LD";
+    }).length;
+    const samodejniPrag = rezultat.pricakovanoPoDnevih[dn.datum] || 0;
+    const prag = pragPopravki[dn.datum] != null ? pragPopravki[dn.datum] : samodejniPrag;
+    return { dn, dejansko, prag, samodejniPrag, primanjkljaj: prag - dejansko };
+  }).filter(v => v.primanjkljaj > 0);
+
+  if (vrstice.length === 0) {
+    return <p className="hint no-print">Ni zaznanih vrzeli – dejanska zasedba ustreza pričakovani zasedbi kalupa na vsak dan. (Nasvet: nastavi natančne minimume po izmeni zgoraj za bolj natančno zaznavo.)</p>;
+  }
+
+  return (
+    <div className="card no-print" style={{overflowX:"auto"}}>
+      <table className="roster">
+        <thead><tr><th>Dan</th><th>Dejansko</th><th>Pričakovano</th><th>Primanjkljaj</th></tr></thead>
+        <tbody>
+          {vrstice.map(({ dn, dejansko, prag, samodejniPrag, primanjkljaj }) => (
+            <tr key={dn.datum}>
+              <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
+              <td>{dejansko}</td>
+              <td>
+                <input type="number" min="0" style={{width:56}} value={prag}
+                  onChange={e => setPragPopravki(p => ({ ...p, [dn.datum]: e.target.value === "" ? samodejniPrag : Number(e.target.value) }))}
+                  title="Samodejno izračunano iz kalupa, ročno popravljivo" />
+              </td>
+              <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Uvoz ŽE SESTAVLJENEGA razporeda (Excel/PDF/CSV/Google Sheets) za vse
+// skupine - 6 oddelkov + FLEXI + NZV. Sam uvoz živi v index.html (ena
+// sama, testirana pot za vse skupine, glej uvoziDatotekoPametno); tu je
+// napotilo nanj z že izbrano skupino in mesecem, prek naslova
+// "index.html?uvoz=1&oddelek=…&mesec=…".
+//
+// Zakaj napotilo in ne kopija uvoza sem: uvozna logika je ~300 vrstic,
+// razpršenih čez index.html in pokritih z več preizkusi (preveri-pametni-
+// uvoz, preveri-flexi-uvoz, preveri-nzv-*). Druga kopija bi se sčasoma
+// razšla s prvo - to je isti razlog, zaradi katerega sheets-mreza.js
+// (edina namerna podvojitev) potrebuje lasten preizkus usklajenosti.
+const UVOZ_SKUPINE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+function UvozRazporedaNapotek({ koda, month }){
+  // Generator pokriva samo 6 oddelkov, uvoz pa VSE skupine - zato ima ta
+  // razdelek svoj izbirnik, ki ni vezan na izbiro oddelka za generator
+  // (privzeto pa se z njo ujema, da je pot čim krajša).
+  const [skupina, setSkupina] = useState(koda);
+  useEffect(() => { setSkupina(koda); }, [koda]);
+  const naslov = `index.html?uvoz=1&oddelek=${encodeURIComponent(skupina)}&mesec=${encodeURIComponent(month)}`;
+  return (
+    <div className="card no-print" style={{marginTop:12, marginBottom:12}}>
+      <h3 style={{margin:"0 0 6px", fontSize:15}}>📥 Uvozi že sestavljen razpored</h3>
+      <p className="hint" style={{marginTop:0}}>
+        Naloži Excel/PDF/CSV izvoz razporeda (npr. cel dokument "2026 SMS RAZPORED" – vsi zavihki naenkrat) ali
+        poveži Google Sheets. Velja za vse skupine: 6 oddelkov, FLEXI in NZV. To je ločeno od generatorja zgoraj –
+        uvozi obstoječ razpored, namesto da ga izračuna.
+      </p>
+      <div style={{display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap"}}>
+        <div className="field" style={{marginBottom:0}}>
+          <label htmlFor="uvozSkupina">Skupina</label>
+          <select id="uvozSkupina" value={skupina} onChange={e => setSkupina(e.target.value)}>
+            {UVOZ_SKUPINE.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </div>
+        <a className="dlBtn" href={naslov} style={{textDecoration:"none", flex:"0 0 auto"}}>
+          📥 Odpri uvoz za {skupina}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function KalupTab({ zacetniOddelek, zacetniMesec }){
+  const [koda, setKoda] = useState(zacetniOddelek || "B");
+  const [month, setMonth] = useState(zacetniMesec || "2026-11");
+  const [letters, setLetters] = useState({}); // override startLetter po imenu
+  // "ime|monday" -> "LD" (letni dopust) | undefined (navadna rotacija).
+  // Oznaka "POMOC" ("Pomoč na drugem oddelku") je bila odstranjena na
+  // uporabnikovo zahtevo - navzkrižno pokrivanje se ne vodi več prek
+  // generatorja, ampak z razporedom na ciljnem oddelku.
+  const [tedenskoStanje, setTedenskoStanje] = useState({});
+  const [samodejnoLdSt, setSamodejnoLdSt] = useState(0); // koliko tednov LD je bilo samodejno prebranih iz baze
+  const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
+  const [rezultat, setRezultat] = useState(null);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
+  const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
+  const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
+  const kvoteFileRef = useRef();
+  const wardRef = useRef();
+  // Zapis PREDOGLEDA (še ne objavljenega) nazaj v Google Sheets – ista
+  // povezava/dokument, ki ga admin že uporablja za ta oddelek, zato se
+  // shrani ločeno po oddelku (localStorage), enako kot v index.html.
+  const [sheetsUrl, setSheetsUrl] = useState(() => { try { return localStorage.getItem("kalup-sheets-url-" + koda) || ""; } catch (e) { return ""; } });
+  const [sheetsBusy, setSheetsBusy] = useState(false);
+  const [sheetsMsg, setSheetsMsg] = useState(null);
+  useEffect(() => {
+    setSheetsMsg(null);
+    try { setSheetsUrl(localStorage.getItem("kalup-sheets-url-" + koda) || ""); } catch (e) { setSheetsUrl(""); }
+  }, [koda]);
+  const spremeniSheetsUrl = (v) => {
+    setSheetsUrl(v);
+    try { localStorage.setItem("kalup-sheets-url-" + koda, v); } catch (e) { /* zasebni način ipd. - ni usodno */ }
+  };
+  // Ročni popravki po izračunu: "ime|datum" -> besedilo. Podobna logika kot v
+  // zavihku Vodje, a tu se (za razliko od Vodje) popravek upošteva TUDI ob
+  // objavi v Supabase - vsaka celica tu je natanko ena oseba/en dan, zato se
+  // zanesljivo preslika nazaj na eno izmeno (v Vodje en stolpec združuje več
+  // ljudi v eno prosto besedilo, zato tam to ni varno).
+  const [popravki, setPopravki] = useState({});
+  // Pokritost po dnevih (razdelek 7, predlog 3): samodejno pričakovano
+  // število po dnevu (iz kalupa) je le izhodišče – admin ga lahko tu
+  // ročno popravi, če se za posamezen dan ne zdi pravilno.
+  const [pragPopravki, setPragPopravki] = useState({});
+  // "Predlagaj mesec": predlogi za vrzeli. Enako kot pri mreži NZV so to
+  // PREDLOGI - v razpored se vpišejo šele, ko jih koordinator potrdi.
+  const [predlogiVrzeli, setPredlogiVrzeli] = useState(null);
+  const [potrjeneVrzeli, setPotrjeneVrzeli] = useState({});
+  const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev, id], ...]
+  // Generator kalupa ID-ja ne prenaša skozi (dela samo z imeni in vzorci),
+  // zato ga za povezavo na profil poiščemo nazaj po imenu. Imena v tem
+  // seznamu prihajajo iz istega vira kot mreža, zato je ujemanje točno.
+  const idPoImenu = useMemo(() => {
+    const m = {};
+    (staffList || []).forEach(([ime, , , id]) => { if (id) m[ime] = id; });
+    return m;
+  }, [staffList]);
+  useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
+  const [genBusy, setGenBusy] = useState(false);
+  // Minimumi po izmeni (department_shift_minimums) – natančnejša osnova za
+  // "Pokritost po dnevih" kot bazni-kalup primerjava, glej PokritostPoDnevih.
+  const [minimumi, setMinimumi] = useState({});
+  useEffect(() => { setMinimumi({}); nalozizMinimume(koda).then(setMinimumi); }, [koda]);
+
+  const meta = WARDS_META[koda];
+  const { startISO, endISO } = monthRange(month);
+  const tedni = useMemo(() => mondaysInRange(startISO, endISO), [startISO, endISO]);
+
+  // Klik preklaplja: navadna rotacija <-> LD.
+  const cikliTeden = (ime, monday) => {
+    const key = ime + "|" + monday;
+    setTedenskoStanje(t => {
+      const kopija = { ...t };
+      if (t[key] === "LD") delete kopija[key]; else kopija[key] = "LD";
+      return kopija;
+    });
+  };
+  // "Predlagaj teden" iz spodnjega panela vedno predlaga LD, ne kroži.
+  const predlagajLD = (ime, monday) => {
+    setTedenskoStanje(t => ({ ...t, [ime + "|" + monday]: "LD" }));
+  };
+
+  const uvoziKvote = async (file) => {
+    if (!file) return;
+    setKvoteUvozBusy(true); setKvoteUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setKvoteUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
+      const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["ime","kvota"], ["ime","full_name"]);
+      const nove = {};
+      objekti.forEach(o => { if (o.ime && o.kvota !== "") nove[o.ime.toUpperCase()] = o.kvota; });
+      setKvote(k => ({ ...k, ...nove }));
+      setKvoteUvozMsg(`Uvoženih ${Object.keys(nove).length} kvot iz "${file.name}".`);
+    } catch (e) {
+      setKvoteUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setKvoteUvozBusy(false);
+    }
+  };
+
+  const generiraj = async () => {
+    setGenBusy(true);
+    try {
+      // "Generiraj takoj": vse iz baze naenkrat - omejitve IN letni dopust.
+      // Ročno nastavljeni tedni (klik v razpredelnici spodaj) imajo prednost
+      // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
+      // odločitve koordinatorja.
+      const [omejitveMap, samodejniLd] = await Promise.all([
+        nalozizOmejitve(startISO, endISO, staffList.map(([ime]) => ime)),
+        nalozizLdTedne(startISO, endISO, tedni, staffList.map(([ime]) => ime)),
+      ]);
+      const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
+      setTedenskoStanje(zdruzenoStanje);
+      setSamodejnoLdSt(Object.keys(samodejniLd).filter(k => tedenskoStanje[k] == null).length);
+
+      const staff = staffList.map(([ime, defLetter]) => ({
+        ime,
+        startLetter: letters[ime] || defLetter,
+        hsuffix: meta.hsuffix,
+        dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
+        omejitve: omejitveMap[ime] || [],
+      }));
+      const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
+      // Pokritost po dnevih: kar bi kalup ta dan običajno zasedel, ČE nihče
+      // ne bi bil na dopustu/pomoči drugje (isto osebje/rotacija, brez
+      // odsotnosti) – izhodišče za primerjavo z dejansko zasedbo spodaj.
+      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], omejitve: [] }));
+      const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
+      const pricakovanoPoDnevih = {};
+      bazno.dnevi.forEach(dn => {
+        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v).length;
+      });
+      setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
+      setPredlogiVrzeli(null);
+      setPotrjeneVrzeli({});
+      setPopravki({});
+      setPragPopravki({});
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
+  const celica = (z, dn) => {
+    const key = z.ime + "|" + dn.datum;
+    return popravki[key] != null ? popravki[key] : (dn.izmene[z.ime] || "");
+  };
+  // Katero oznako izmene predlagati za to izmeno na ta dan. Namenoma se
+  // NE ugane iz seznama kod, ampak se prebere, kaj ta oddelek za to izmeno
+  // TISTI TIP DNEVA (delavnik/vikend) dejansko uporablja - E1 ima "do 19h"
+  // namesto "do 19", vikendi pa 12-urne izmene. Če za tak dan ni primera,
+  // se vzame osnovna oznaka.
+  const OSNOVNA_SIFRA = { DOPOLDNE: "dopoldan", POPOLDNE: "popoldan", PONOCI: "NOČNA" };
+  const sifraZaBucket = (datum, bucket) => {
+    if (!rezultat || !bucket) return null;
+    const vikend = (iso) => { const d = window.Datum.dan3(iso); return d === "SO" || d === "NE"; };
+    const jeVikend = vikend(datum);
+    const stevec = {};
+    rezultat.dnevi.forEach(dn => {
+      if (vikend(dn.datum) !== jeVikend) return;
+      rezultat.staff.forEach(z => {
+        const sifra = celica(z, dn);
+        if (shiftBucket(sifra) !== bucket) return;
+        stevec[sifra] = (stevec[sifra] || 0) + 1;
+      });
+    });
+    const najpogostejsa = Object.keys(stevec).sort((a, b) =>
+      stevec[b] - stevec[a] || (a < b ? -1 : a > b ? 1 : 0))[0];
+    return najpogostejsa || OSNOVNA_SIFRA[bucket] || null;
+  };
+
+  const predlagajVrzeli = () => {
+    if (!rezultat) return;
+    const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+    if (!imaMinimume) {
+      setPredlogiVrzeli({ napaka: "Za ta oddelek minimumi po izmenah niso nastavljeni, zato se ne ve, KATERE izmene zmanjka. Nastavi jih zgoraj (»Minimalna zasedba po izmenah«) in poskusi znova." });
+      return;
+    }
+    if (!vrzeli.length) { setPredlogiVrzeli({ prazno: true }); return; }
+    const predlogi = window.Generator.predlagajZapolnitevOddelka({
+      vrzeli,
+      staff: rezultat.staff.map(z => z.ime),
+      dnevi: rezultat.dnevi.map(dn => dn.datum),
+      sifraZa: (ime, datum) => {
+        const key = ime + "|" + datum;
+        const dn = rezultat.dnevi.find(d => d.datum === datum);
+        return popravki[key] != null ? popravki[key] : ((dn && dn.izmene[ime]) || "");
+      },
+      vBucket: shiftBucket,
+      sifraZaBucket,
+      preveriPravila: (vnosi) => window.DelovniCas.preveriPravila(vnosi),
+    });
+    setPredlogiVrzeli({ seznam: predlogi });
+    setPotrjeneVrzeli({});
+  };
+
+  const kljucPredloga = (pr) => pr.oseba + "|" + pr.datum;
+  const vnesiPotrjeneVrzeli = () => {
+    const seznam = (predlogiVrzeli && predlogiVrzeli.seznam) || [];
+    const izbrani = seznam.filter(pr => potrjeneVrzeli[kljucPredloga(pr)]);
+    if (!izbrani.length) return;
+    setPopravki(p => {
+      const novi = { ...p };
+      izbrani.forEach(pr => { novi[kljucPredloga(pr)] = pr.sifra; });
+      return novi;
+    });
+    // Vpisani predlogi so od tu naprej navadni ročni popravki (vidni v
+    // mreži, gredo v izvoz in objavo), zato se seznam počisti - sicer bi
+    // isti predlog ostal ponujen, čeprav je že v razporedu.
+    setPredlogiVrzeli({ seznam: seznam.filter(pr => !potrjeneVrzeli[kljucPredloga(pr)]), vneseno: izbrani.length });
+    setPotrjeneVrzeli({});
+  };
+
+  const nastaviPopravek = (z, dn, vrednost) => {
+    setPopravki(p => ({ ...p, [z.ime + "|" + dn.datum]: vrednost }));
+  };
+
+  // Zapiše PREDOGLED (rezultat + ročni popravki, torej natanko to, kar je
+  // trenutno prikazano v mreži spodaj) nazaj v obstoječi Google Sheets
+  // dokument – ŠE PRED objavo v Supabase, da lahko admin sprotno popravlja
+  // in vidi rezultat v svojem pravem, deljenem dokumentu. Piše na iste
+  // koordinate kot bi kasneje pisal "Zapiši nazaj v Sheets" iz Razporeda za
+  // že objavljen razpored (glej sheets-mreza.js) – samo obstoječe celice,
+  // nikoli nova vrstica/stolpec, da imena/vloge/podpisni blok ostanejo
+  // nedotaknjeni.
+  const zapisiPredogledVSheets = async () => {
+    if (!rezultat) return;
+    if (!sheetsUrl.trim()) { setSheetsMsg({ ok: false, text: "Vnesi povezavo do Google Sheets." }); return; }
+    if (!window.GSheetsExport || !window.GSheetsExport.jeNastavljeno()) {
+      setSheetsMsg({ ok: false, text: "Pisanje v Google Sheets še ni nastavljeno – manjka Google Client ID (glej GSHEETS-SETUP.md)." });
+      return;
+    }
+    if (!window.confirm(
+      `To bo prepisalo obstoječe celice s podatki za ${rezultat.mesec} v zavihku, na katerega kaže zgornja povezava, s TRENUTNIM PREDOGLEDOM (vključno z ročnimi popravki) - razpored za ${rezultat.naziv} ŠE NI objavljen v Supabase.\n\n` +
+      "Imena/nazivi stolpcev, oblika in podpisni blok ostanejo nedotaknjeni - spremenijo se samo celice s podatki. To dejanje ni mogoče razveljaviti (razen ročno, v Google Sheets prek Zgodovina različic).\n\nNadaljujem?"
+    )) return;
+    setSheetsBusy(true); setSheetsMsg(null);
+    try {
+      const { naslovLista, vrsteVrstic } = await window.GSheetsExport.preberiVrednosti(sheetsUrl.trim());
+      const staff = rezultat.staff.map(z => ({ ime: z.ime }));
+      const vrednostZa = (ime, datum) => {
+        const z = rezultat.staff.find(s => s.ime === ime);
+        const dn = rezultat.dnevi.find(d => d.datum === datum);
+        return z && dn ? celica(z, dn) : "";
+      };
+      const { posodobitve, najdenDatum, najdenaGlava, neujemanja } =
+        window.SheetsMreza.pripraviPosodobitveOddelkaIzMreze(vrsteVrstic, rezultat.mesec, staff, vrednostZa);
+      if (!posodobitve.length) {
+        if (!najdenDatum) throw new Error(`V zavihku "${naslovLista}" ni najdenih vrstic za ${rezultat.mesec} - preveri, da povezava kaže na pravi zavihek (klikni zavihek za ta oddelek, šele nato kopiraj povezavo).`);
+        if (!najdenaGlava) throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nad njimi ni najti vrstice z imeni oseb.`);
+        throw new Error(`Najdene vrstice za izbrani mesec v zavihku "${naslovLista}", a nobeno ime v listu se ni ujemalo z osebo v predogledu: ` + [...neujemanja].join(", "));
+      }
+      const rez = await window.GSheetsExport.zapisiVObstojeciList(sheetsUrl.trim(), posodobitve);
+      setSheetsMsg({ ok: true, text: `Zapisanih ${rez.stevilo} celic v zavihek "${rez.list}" (predogled, še ni objavljeno v Supabase).`
+        + (neujemanja.size ? ` Brez ujemanja imena (celica v Sheetsu ni bila spremenjena): ${[...neujemanja].join(", ")}.` : "") });
+    } catch (e) {
+      setSheetsMsg({ ok: false, text: e.message || String(e) });
+    } finally {
+      setSheetsBusy(false);
+    }
+  };
+
+  // Delovnopravne kršitve (počitek med izmenama, zaporedne nočne, prost dan v
+  // tednu) – izračunane enkrat tu nad DEJANSKIM razporedom (torej vključno z
+  // ročnimi popravki celic), da isti seznam napaja tako povzetek v
+  // StatusPravil kot obarvanje posameznih celic v mreži spodaj.
+  const krsitve = useMemo(() => {
+    if (!rezultat) return [];
+    const vnosi = [];
+    rezultat.staff.forEach(z => {
+      rezultat.dnevi.forEach(dn => vnosi.push({ oseba: z.ime, datum: dn.datum, sifra: celica(z, dn) }));
+    });
+    return window.DelovniCas.preveriPravila(vnosi);
+  }, [rezultat, celica]);
+  // "oseba|datum" -> najhujša kršitev na tej celici (kritično prekrije opozorilo).
+  const krsitveMap = useMemo(() => {
+    const m = new Map();
+    krsitve.forEach(k => {
+      const key = k.oseba + "|" + k.datum;
+      const obstojeca = m.get(key);
+      if (!obstojeca || (k.resnost === "kriticno" && obstojeca.resnost !== "kriticno")) m.set(key, k);
+    });
+    return m;
+  }, [krsitve]);
+
+  const izvoziCSV = () => {
+    if (!rezultat) return;
+    const glava = ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)];
+    const vrstice = rezultat.staff.map(z => [z.ime, ...rezultat.dnevi.map(dn => celica(z, dn))]);
+    const csv = [glava, ...vrstice]
+      .map(vrsta => vrsta.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `kalup-${rezultat.koda}-${rezultat.mesec}.csv`; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const prenesi = () => {
+    if (!rezultat) return;
+    const data = { mesec: rezultat.mesec, oddelki: [{ koda: rezultat.koda, naziv: rezultat.naziv, zaposleni: rezultat.staff, dnevi: rezultat.dnevi }] };
+    download(`data-${rezultat.koda}-${rezultat.mesec}.json`, JSON.stringify(data, null, 1));
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      const rows = [];
+      rezultat.dnevi.forEach(dn => {
+        Object.keys(dn.izmene).forEach(ime => {
+          const key = ime + "|" + dn.datum;
+          const sifra = popravki[key] != null ? popravki[key] : dn.izmene[ime];
+          rows.push({ ime, datum: dn.datum, sifra });
+        });
+      });
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Nadzorna plošča: oddelek + mesec + generiranje na enem mestu.
+          Vse ostalo (kvote, kalup po zaposlenih) je spodaj v zložljivih
+          razdelkih - generiranje samo po sebi ne potrebuje nobenega od njih,
+          ker želje/dopust/omejitve prebere naravnost iz baze. */}
+      <div className="orodjaVrh no-print">
+        <div className="field">
+          <label htmlFor="odd">Oddelek</label>
+          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k} – {WARDS_META[k].naziv}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="mm">Mesec in leto</label>
+          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+        </div>
+        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
+          {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
+        </button>
+      </div>
+      <p className="hint no-print">
+        Ob kliku se želje, letni dopust in omejitve preberejo naravnost iz baze – vmesnih potrditev ni.
+        Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
+      </p>
+
+      <UvozRazporedaNapotek koda={koda} month={month} />
+
+      {!staffList ? <p className="hint">Nalagam osebje …</p> : (
+      <React.Fragment>
+      <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti – neobvezno">
+      <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite »Predlagaj teden«, da za izbrano osebo označite naslednji prosti teden spodaj – potrdite ali spremenite pred generiranjem.</p>
+      <div className="card no-print" style={{marginBottom:10}}>
+        <RazporedUvozVir ikona="🏖" naziv="Kvote letnega dopusta"
+          opis="CSV / Excel – mat. št. in dnevi"
+          onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()} />
+        <input ref={kvoteFileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziKvote(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={kvoteUvozBusy} onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()}>
+          {kvoteUvozBusy ? "Nalagam …" : "📤 Uvozi letne kvote dopusta (CSV/Excel)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>Oblika: <code>ime,kvota</code> (ime kot spodaj v tabeli).</p>
+        {kvoteUvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{kvoteUvozMsg}</p>}
+      </div>
+      <PrednostniPanel staff={staffList} stanje={tedenskoStanje} tedni={tedni} kvote={kvote} setKvote={setKvote}
+        onPredlagaj={(ime, teden) => predlagajLD(ime, teden)} />
+      </Zlozljivo>
+
+      <Zlozljivo naslov="Kalup in dopust po zaposlenih"
+        opis={samodejnoLdSt > 0 ? `Iz baze samodejno prebran dopust: ${tedniBesedilo(samodejnoLdSt)} – po potrebi popravi` : "Ročni popravki rotacije in dopusta – neobvezno"}>
+      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da med LD (letni dopust), POM (začasna pomoč drugemu oddelku – cilj oddelek osebo za ta teden doda ročno) in navadno rotacijo kroži. Rumene omejitve (Razpredelnica Želje) generator samodejno pokrije z nadomestilom, če je kdo na oddelku ta dan prost – sicer opozori spodaj.</p>
+      <div className="card" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead>
+            <tr>
+              <th>Zaposleni</th>
+              <th>Kalup</th>
+              {tedni.map(mo => <th key={mo}>Teden {fmtShort(mo)}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {staffList.map(([ime, defLetter, manjka]) => (
+              <tr key={ime}>
+                <td>{ime}{manjka && <span className="hint" style={{color:"var(--danger)", marginLeft:6}} title="Rotacijska črka ni nastavljena v Imeniku – privzeto A">⚠</span>}</td>
+                <td>
+                  <select value={letters[ime] || defLetter} onChange={e => setLetters(l => ({...l, [ime]: e.target.value}))}>
+                    {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </td>
+                {tedni.map(mo => (
+                  <td key={mo}>
+                    <button className="weekToggle" aria-pressed={!!tedenskoStanje[ime+"|"+mo]} onClick={() => cikliTeden(ime, mo)}>
+                      {tedenskoStanje[ime+"|"+mo] === "LD" ? "LD" : "–"}
+                    </button>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      </Zlozljivo>
+
+      <button className="genBtn no-print" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "⚡ Generiraj takoj"}</button>
+      </React.Fragment>
+      )}
+
+      {rezultat && (
+        <React.Fragment>
+          <h2 className="section">4 · Rezultat – {rezultat.naziv}, {rezultat.mesec}</h2>
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} />
+          {rezultat.opozorila && rezultat.opozorila.length > 0 && (
+            <div className="warnBox no-print">
+              <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
+              <ul>{rezultat.opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
+            </div>
+          )}
+          <p className="hint no-print">
+            Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) – sprememba se upošteva povsod: v prikazu,
+            izvozu (PDF/CSV) IN ob objavi v Supabase (vsaka celica je ena oseba/en dan, zato se popravek zanesljivo
+            preslika nazaj na eno izmeno).
+          </p>
+
+          <h2 className="section no-print">4b · Pokritost po dnevih</h2>
+          <p className="hint no-print">Minimum po izmeni (spodaj) je osnutek, ročno urejaj po potrebi – ko je nastavljen za ta oddelek, se uporabi za natančno zaznavo primanjkljaja po izmeni namesto grobe primerjave z osnovnim kalupom.</p>
+          <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
+          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} />
+
+          {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
+              vrzel najde in za vsako predlaga osebo, v razpored pa se
+              vpiše šele po potrditvi. */}
+          <div className="card no-print">
+            <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
+              Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
+              in če drugega ni, ga označi. Predlogi se vpišejo <b>šele, ko jih potrdiš</b>.
+            </p>
+            {predlogiVrzeli && predlogiVrzeli.napaka && (
+              <p className="hint" style={{marginBottom:0, color:"var(--danger)"}}>{predlogiVrzeli.napaka}</p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.prazno && (
+              <p className="hint" style={{marginBottom:0}}>Ni vrzeli – vsaka izmena dosega nastavljeni minimum.</p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.vneseno > 0 && (
+              <p className="hint" style={{marginBottom:0, color:"var(--ok)"}}>
+                Vnesenih v razpored: {predlogiVrzeli.vneseno}. Vidne so v mreži spodaj in jih lahko še popraviš.
+              </p>
+            )}
+            {predlogiVrzeli && predlogiVrzeli.seznam && predlogiVrzeli.seznam.length > 0 && (
+              <div style={{marginTop:10}}>
+                <div style={{display:"flex", gap:8, marginBottom:8, flexWrap:"wrap"}}>
+                  <button className="btn btn-sm" onClick={() => {
+                    const vsi = {};
+                    predlogiVrzeli.seznam.forEach(pr => { vsi[kljucPredloga(pr)] = true; });
+                    setPotrjeneVrzeli(vsi);
+                  }}>Potrdi vse</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setPotrjeneVrzeli({})}>Počisti</button>
+                  <button className="btn btn-sm" onClick={vnesiPotrjeneVrzeli}
+                    disabled={!Object.values(potrjeneVrzeli).some(Boolean)}>
+                    Vnesi potrjene v razpored
+                  </button>
+                </div>
+                <div style={{maxHeight:240, overflowY:"auto"}}>
+                  {predlogiVrzeli.seznam.map(pr => (
+                    <label key={kljucPredloga(pr)} style={{display:"flex", alignItems:"flex-start", gap:8, fontSize:12, padding:"3px 0"}}>
+                      <input type="checkbox" checked={!!potrjeneVrzeli[kljucPredloga(pr)]}
+                        onChange={e => setPotrjeneVrzeli(t => ({ ...t, [kljucPredloga(pr)]: e.target.checked }))} />
+                      <span>
+                        <b>{window.Datum.slo(pr.datum)}</b> · {IZMENA_LABEL[pr.bucket] || pr.bucket} · {pr.oseba} → <b>{pr.sifra}</b>
+                        {pr.opozorilo && <span className="hint" style={{display:"block", margin:0, color:"var(--danger)"}}>{pr.opozorilo}</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="wardScroller" ref={wardRef}>
+            <table className="wardTable">
+              <thead>
+                <tr>
+                  <th className="name">Zaposleni</th>
+                  {rezultat.dnevi.map(dn => (
+                    <th key={dn.datum} style={dn.dan==="SO"||dn.dan==="NE" ? {color:"var(--pop)"} : null}>
+                      {Number(dn.datum.slice(8, 10))}<br/>{dn.dan}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rezultat.staff.map(z => (
+                  <tr key={z.ime}>
+                    <td className="name"><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
+                    {rezultat.dnevi.map(dn => {
+                      const sifra = celica(z, dn); const cls = classify(sifra);
+                      const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
+                      const obroba = krsitev
+                        ? (krsitev.resnost === "kriticno" ? "2px solid var(--danger)" : "2px solid #C9713F")
+                        : "1px solid var(--line)";
+                      const naslov = krsitev ? `${sifra} – ${krsitev.sporocilo}` : sifra;
+                      return (
+                        <td key={dn.datum}>
+                          <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
+                            title={naslov}
+                            style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
+                              border:obroba, borderRadius:6, fontSize:13, padding:"3px 2px"}} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Vsi izvozi so v meniju ikone ⬇ zgoraj desno. */}
+          <RazporedIzvozVir
+            naziv="Kalup"
+            pdf={{ label: "Izvozi v PDF (A4 ležeče, 1 stran)",
+                   onClick: () => PrintFit.natisni(wardRef.current, { orientacija:"landscape" }) }}
+            dodatno={[
+              { label: "Izvozi CSV", onClick: izvoziCSV },
+              { label: "Prenesi JSON za mobilno aplikacijo", onClick: prenesi },
+            ]}
+            naslov={rezultat ? `kalup-${rezultat.koda}-${rezultat.mesec}` : "kalup"}
+            pripravi={() => {
+              if (!rezultat) throw new Error("Najprej ustvari kalup.");
+              return [{
+                ime: rezultat.koda,
+                glave: ["Zaposleni", ...rezultat.dnevi.map(dn => window.Datum.slo(dn.datum))],
+                vrstice: rezultat.staff.map(z => [z.ime, ...rezultat.dnevi.map(dn => celica(z, dn))]),
+              }];
+            }}
+          />
+
+          <h2 className="section no-print">4c · Zapiši predogled v Google Sheets</h2>
+          <p className="hint no-print">
+            Predogled zgoraj (z vsemi ročnimi popravki) lahko zapišeš nazaj v obstoječi, deljeni dokument (npr. "2026
+            SMS RAZPORED") - ŠE PRED objavo v Supabase, da ga lahko sproti pregledaš/popraviš v pravi obliki, ki jo
+            uporabljajo drugi. Odpri zavihek ZA TA ODDELEK v Google Sheets in šele nato kopiraj povezavo iz naslovne
+            vrstice (mora vsebovati "#gid=…") - piše samo v obstoječe celice, nikoli ne doda vrstice/stolpca.
+          </p>
+          <div className="field no-print" style={{ marginTop: 8, marginBottom: 8 }}>
+            <label htmlFor="kalupSheetsUrl">Povezava do Google Sheets za oddelek {koda}</label>
+            <input id="kalupSheetsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..."
+              value={sheetsUrl} onChange={e => spremeniSheetsUrl(e.target.value)} />
+          </div>
+          <button className="dlBtn no-print" type="button" onClick={zapisiPredogledVSheets} disabled={sheetsBusy}>
+            {sheetsBusy ? "Zapisujem …" : "📤 Zapiši predogled v Sheets"}
+          </button>
+          {sheetsMsg && <p className="hint no-print" style={{color: sheetsMsg.ok ? "var(--ok)" : "var(--danger)"}}>{sheetsMsg.text}</p>}
+
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+          </button>
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// Pravičnost dežurstev – kontrolni seznam, razdelek 7: doslej je bilo
+// skupno število dežurstev vidno samo znotraj rezultata generiranja
+// ("4 · Pravičnost – novo stanje" spodaj), ne pa kadarkoli, brez generiranja.
+// Uporabi isti roster.stevilo, ki ga nalozizDezurniKader že računa živo.
+// Dežurni krog šteje 14 ljudi (zaprta zgodovina jan.-avg. 2026). Če jih
+// je na seznamu manj, je vzrok vedno isti: manjka jim članstvo "DEZ" v
+// Imeniku. Brez tega opozorila je to tiha napaka – generator pravičnosti
+// in razporeda bi delal videti pravilno, le nad premajhnim krogom, zato
+// bi prisotni dobili preveč dežurstev.
+function ManjkajociDezurni({ roster }){
+  // Prav tako po vreči besed, ne po točnem zapisu – sicer bi vsak, ki je v
+  // Imeniku zapisan kot "Ime Priimek", padel med "manjkajoče".
+  const naSeznamu = new Set((roster || []).map(r => kljucImena(r.ime)));
+  const manjkajo = Object.keys(DEZURNI_OSNOVA_DO_31_8_2026).filter(ime => !naSeznamu.has(kljucImena(ime)));
+  if (!manjkajo.length) return null;
+  return (
+    <div className="card no-print" style={{marginBottom:12, borderLeft:"4px solid #C9713F"}}>
+      <p style={{marginTop:0, fontWeight:600}}>
+        ⚠ Na seznamu je {(roster || []).length} od 14 dežurnih – manjka {manjkajo.length}
+      </p>
+      <p className="hint" style={{marginTop:0}}>{manjkajo.join(" · ")}</p>
+      <p className="hint" style={{marginBottom:0}}>
+        Tem osebam v <b>Imeniku</b> med oddelke dodajte še »Dežurni kader (DMS/DZN)« – <b>poleg</b> domačega
+        oddelka, ne namesto njega. Za vseh 14 naenkrat poženite <code>supabase/dezurni-kader.sql</code>.
+        Dokler manjkajo, generator razdeli dežurstva samo med prisotne in jim jih naloži preveč.
+      </p>
+    </div>
+  );
+}
+
+function PravicnostPregled({ roster }){
+  const povprecje = roster.length ? roster.reduce((s, z) => s + (Number(z.stevilo) || 0), 0) / roster.length : 0;
+  const maxStevilo = Math.max(1, ...roster.map(z => Number(z.stevilo) || 0));
+  const sortirano = roster.slice().sort((a, b) => (Number(b.stevilo) || 0) - (Number(a.stevilo) || 0));
+  return (
+    <div className="card no-print" style={{marginBottom:12}}>
+      <div style={{fontWeight:800, marginBottom:4}}>⚖ Pravičnost dežurstev – trenutno stanje</div>
+      <p className="hint" style={{marginTop:0}}>
+        Skupno število dežurstev doslej (zaprta zgodovina do 31. 8. 2026 + živo objavljeno), povprečje
+        oddelka: <b>{povprecje.toFixed(1)}</b>. Kdor ima bistveno več od povprečja, je kandidat za manj
+        naslednjih dežurstev; kdor ima manj, za več.
+      </p>
+      <table className="fairTable">
+        <thead><tr><th>Zaposleni</th><th>Skupaj</th><th>Odstopanje od povprečja</th></tr></thead>
+        <tbody>
+          {sortirano.map(z => {
+            const st = Number(z.stevilo) || 0;
+            const odstopanje = st - povprecje;
+            return (
+              <tr key={z.ime}>
+                <td><ImeOsebe id={z.id}>{z.ime}</ImeOsebe></td>
+                <td><b>{st}</b><div className="bar"><i style={{width:(100*st/maxStevilo)+"%"}}></i></div></td>
+                <td style={{color: odstopanje > 0.5 ? "var(--danger)" : odstopanje < -0.5 ? "var(--ok)" : "var(--muted)"}}>
+                  {odstopanje > 0 ? "+" : ""}{odstopanje.toFixed(1)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function DezurstvaTab({ zacetniMesec }){
+  const [roster, setRoster] = useState(null);
+  const [month, setMonth] = useState(zacetniMesec || "2026-09");
+  const [minRazmik, setMinRazmik] = useState(3);
+  const [prostDan, setProstDan] = useState(true);
+  const [maxVikend, setMaxVikend] = useState(true);
+  const [rezultat, setRezultat] = useState(null);
+  // Že objavljeni dnevi se ob ponovnem generiranju ne premešajo.
+  const [zakleniObjavljeno, setZakleniObjavljeno] = useState(true);
+  const [zaklenjeni, setZaklenjeni] = useState({});
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [gsheetUrl, setGsheetUrl] = useState("");
+  const [pdfBesedilo, setPdfBesedilo] = useState(null);
+  const uvozRef = useRef();
+  const printRef = useRef();
+
+  const { startISO, endISO } = monthRange(month);
+
+  const updateField = (ime, field, value) => {
+    setRoster(r => r.map(z => z.ime===ime ? {...z, [field]: value} : z));
+  };
+
+  // Prebere barvno razpredelnico "Želje" (leave_entries) za izbrani mesec in
+  // vrne { IME: { dopust:[iso,...], omejitve:[iso,...] } }. "bs"/"sti" se
+  // obravnavata kot omejitve (blokiran samo ta dan, brez pravila "dan prej").
+  const nalozitIzZelja = async (mesec) => {
+    const { startISO: s, endISO: e } = monthRange(mesec);
+    const { data, error } = await client.from("leave_entries").select("full_name, work_date, kind")
+      .gte("work_date", s).lte("work_date", e);
+    if (error || !data) return null;
+    // Ključ prek imena.js in NE surovega imena z velikimi črkami: v
+    // leave_entries so imena zapisana različno - ročni vnos v Razpredelnici
+    // jih shrani tako, kot so v Imeniku ("Bojić Matej"), uvoz iz CSV pa z
+    // VELIKIMI ("BOJIĆ MATEJ"). Prej se je iskalo z izZelja[z.ime], torej
+    // surovo ime proti velikim črkam - ujemanja ni bilo NIKOLI in dopusti
+    // ter omejitve se v razpored dežurstev sploh niso prenesli.
+    const grouped = {};
+    data.forEach(row => {
+      const key = kljucImena(row.full_name);
+      if (!key) return;
+      if (!grouped[key]) grouped[key] = { dopust: [], omejitve: [] };
+      if (row.kind === "ld") grouped[key].dopust.push(row.work_date);
+      else grouped[key].omejitve.push(row.work_date);
+    });
+    return grouped;
+  };
+
+  const uporabiVZelja = (izZelja) => {
+    setRoster(r => r.map(z => {
+      let dopust = "", omejitve = "";
+      const zadetek = izZelja && izZelja[kljucImena(z.ime)];
+      if (zadetek) {
+        dopust = zadetek.dopust.join(",");
+        omejitve = zadetek.omejitve.join(",");
+      }
+      return { ...z, dopust, omejitve, odsotnosti:"" };
+    }));
+  };
+
+  useEffect(() => {
+    nalozizDezurniKader(startISO).then(r => {
+      setRoster(r);
+      nalozitIzZelja(month).then(izZelja => { if (izZelja && Object.keys(izZelja).length) uporabiVZelja(izZelja); });
+    });
+    // eslint-disable-next-line
+  }, []);
+
+  // Skupno za CSV / Excel / Google Sheets / ročno urejeno PDF-besedilo.
+  const uporabiVrsticeOmejitev = (vrsteVrstic, viraOpis) => {
+    const posodobitve = {};
+    vrsteVrstic.forEach(deli => {
+      const ime = (deli[0] || "").trim().toUpperCase();
+      if (!ime || ["IME","FULL_NAME"].includes(ime)) return; // preskoči morebitno glavo
+      const dopust = (deli[1] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+      const omejitve = (deli[2] || "").trim().split(";").map(s => s.trim()).filter(Boolean).join(",");
+      posodobitve[ime] = { dopust, omejitve };
+    });
+    setRoster(r => r.map(z => posodobitve[z.ime] ? { ...z, dopust: posodobitve[z.ime].dopust, omejitve: posodobitve[z.ime].omejitve } : z));
+    const neujemajoci = Object.keys(posodobitve).filter(ime => !roster.some(z => z.ime === ime));
+    setUvozMsg(`Uvoženo ${Object.keys(posodobitve).length} vrstic iz ${viraOpis}.` + (neujemajoci.length ? ` Neprepoznana imena (preskočeno): ${neujemajoci.join(", ")}.` : ""));
+  };
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null); setPdfBesedilo(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") {
+        setPdfBesedilo(vrsteVrstic.map(v => v[0]).join("\n"));
+        setUvozMsg(`Iz PDF-ja izvlečenih ${vrsteVrstic.length} vrstic golega besedila – preveri/uredi spodaj v obliko "ime,dopust,omejitve" pred uvozom. Če je PDF povsem barvna preglednica brez besedilnih datumov (kot "Letni dopusti in omejitve"), to ne bo delovalo – pošlji jo Claude Code seji.`);
+      } else {
+        uporabiVrsticeOmejitev(vrsteVrstic, `datoteke "${file.name}"`);
+      }
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziIzGoogleSheet = async () => {
+    if (!gsheetUrl.trim()) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(gsheetUrl.trim());
+      uporabiVrsticeOmejitev(vrsteVrstic, "Google Sheets");
+    } catch (e) {
+      setUvozMsg("Napaka pri branju Google Sheets: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const uvoziUrejenoPdfBesedilo = () => {
+    if (!pdfBesedilo) return;
+    const vrsteVrstic = window.ImportUtils.csvBesedilaVVrstice(pdfBesedilo);
+    uporabiVrsticeOmejitev(vrsteVrstic, "urejenega PDF besedila");
+    setPdfBesedilo(null);
+  };
+
+  // Kaj je za ta mesec ŽE objavljeno - te dneve generator ne premeša.
+  // Brez tega je ponovno generiranje sredi meseca prerazporedilo tudi
+  // tisti del, ki je bil že potrjen in sporočen ljudem.
+  const nalozitObjavljena = async (mesec) => {
+    const { startISO: s2, endISO: e2 } = monthRange(mesec);
+    const { data } = await client.from("schedule_entries")
+      .select("work_date, shift_code, profiles!employee_id(full_name)")
+      .eq("department_code", "DEZ").gte("work_date", s2).lte("work_date", e2);
+    const m = {};
+    (data || []).forEach(r => {
+      if (!r.profiles || !jeDezurstvoSifra(r.shift_code)) return;
+      m[r.work_date] = (r.profiles.full_name || "").toUpperCase();
+    });
+    return m;
+  };
+
+  const generiraj = async () => {
+    const staff = roster.map(z => ({
+      ime: z.ime,
+      obstojeceStevilo: Number(z.stevilo) || 0,
+      zadnjeDezurstvo: z.zadnje || null,
+      odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
+      dopust: z.dopust.split(",").map(s => s.trim()).filter(Boolean),
+      omejitve: z.omejitve.split(",").map(s => s.trim()).filter(Boolean),
+      prostDanVTednu: z.prostDanVTednu || null,
+      minMesecno: z.minMesecno === "" ? null : Number(z.minMesecno),
+      maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
+      samoMedTednom: !!z.samoMedTednom,
+    }));
+    const zakleni = zakleniObjavljeno ? await nalozitObjavljena(month) : {};
+    setZaklenjeni(zakleni);
+    const res = Generator.generirajDezurstva({
+      startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
+      maxVikendMesecno: maxVikend, staff, zaklenjeni: zakleni,
+    });
+    setRezultat({ mesec: month, staff, ...res });
+  };
+
+  // Ročni popravek posameznega dne. Kršitve se preračunajo za CEL mesec -
+  // ena zamenjava spremeni razmike tudi pri drugih dnevih iste osebe.
+  const nastaviDezurnega = (datum, ime) => {
+    setRezultat(r => {
+      if (!r) return r;
+      const razpored = r.razpored.map(x => x.datum === datum
+        ? Object.assign({}, x, { zaposleni: ime || null, rocno: true, sila: false }) : x);
+      const preverba = {};
+      Generator.preveriDezurstva({
+        razpored, staff: r.staff, minRazmikDni: Number(minRazmik), maxVikendMesecno: maxVikend,
+      }).forEach(p => { preverba[p.datum] = p.krsitve; });
+      return Object.assign({}, r, {
+        razpored: razpored.map(x => Object.assign({}, x, { krsitve: preverba[x.datum] || [] })),
+      });
+    });
+    setPublishMsg(null);
+  };
+
+  const prenesi = () => {
+    if (!rezultat) return;
+    download(`dezurstva-${rezultat.mesec}.json`, JSON.stringify(rezultat, null, 1));
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      // Objavi se UREJEN razpored (r.zaposleni je lahko ročno popravljen).
+      const brezDezurnega = rezultat.razpored.filter(r => !r.zaposleni).length;
+      const rows = rezultat.razpored.filter(r => r.zaposleni).map(r => ({ ime: r.zaposleni, datum: r.datum, sifra: "DEŽURSTVO" }));
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows("DEZ", rows);
+      setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} dežurstev v Supabase.`
+        + (brezDezurnega ? ` Pozor: ${brezDezurnega} dni je ostalo brez dežurnega.` : "") + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  const maxNovih = rezultat ? Math.max(1, ...rezultat.stanje.map(s => s.novih)) : 1;
+
+  return (
+    <div>
+      <h2 className="section no-print">1 · Dežurni kader – stanje ob začetku meseca</h2>
+      <p className="hint no-print">Članstvo (kdo je dežurni kader) pride živo iz Imenika (oddelek »DEZ«). Število in datum zadnjega dežurstva se izračunata samodejno: zaprta zgodovina do 31. 8. 2026 + vse, kar je od takrat objavljeno v Supabase – po potrebi ju spodaj ročno popravite samo za to generiranje. Dopust/omejitve pridejo iz razpredelnice Želje in se ob spremembi meseca samodejno znova naložijo. "Enota" z vrednostjo "?" pomeni, da domači oddelek osebe ni nastavljen v Imeniku. Ločite "Dopust (rdeče)" od "Omejitve (rumeno)": pri dopustu generator samodejno blokira tudi dan pred začetkom vsakega strnjenega bloka (in petek, če se blok začne v ponedeljek – sobota vmes ostane prosta), pri navadnih omejitvah pa samo naveden dan. "Min/Maks na mesec" in "Prost dan"/"Samo med tednom" so privzeto iz Imenika (HR podatki), tu jih lahko za to generiranje spremenite.</p>
+      {!roster ? <p className="hint no-print">Nalagam dežurni kader …</p> : (
+      <React.Fragment>
+      <ManjkajociDezurni roster={roster} />
+      <PravicnostPregled roster={roster} />
+      <div className="card no-print" style={{marginBottom:12}}>
+        <RazporedUvozVir ikona="📄" naziv="Omejitve za dežurstva"
+          opis="CSV / Excel / PDF – ime, dopust, omejitve"
+          onClick={() => uvozRef.current && uvozRef.current.click()} />
+        <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz omejitev iz datoteke (CSV / Excel / PDF)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Oblika CSV/Excel: vsaka vrstica <code>ime,dopust,omejitve</code> (ime kot v tabeli spodaj; več datumov v enem
+          polju ločenih s podpičjem, npr. <code>2026-09-01;2026-09-02</code>). Primer:
+          roster/omejitve-september-2026.csv. PDF z besedilnimi datumi se da uvoziti prek spodnjega pregleda; povsem
+          barvna preglednica brez besedila (kot "Letni dopusti in omejitve") žal še vedno ni samodejno berljiva –
+          pošlji jo Claude Code seji.
+        </p>
+        <div className="field" style={{marginTop:10}}>
+          <label>… ali povezava do Google Sheets (deljeno kot »vsak, ki ima povezavo, lahko ogleda«)</label>
+          <div style={{display:"flex", gap:8}}>
+            <input type="url" value={gsheetUrl} onChange={e => setGsheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..." style={{flex:1}} />
+            <button className="dlBtn" disabled={uvozBusy || !gsheetUrl.trim()} onClick={uvoziIzGoogleSheet}>Uvozi</button>
+          </div>
+        </div>
+        {pdfBesedilo !== null && (
+          <div className="field" style={{marginTop:10}}>
+            <label>Golo besedilo iz PDF – preoblikuj v vrstice »ime,dopust,omejitve« (ena oseba na vrstico)</label>
+            <textarea rows={10} value={pdfBesedilo} onChange={e => setPdfBesedilo(e.target.value)} style={{width:"100%", fontFamily:"monospace"}} />
+            <button className="dlBtn" style={{marginTop:8}} disabled={uvozBusy} onClick={uvoziUrejenoPdfBesedilo}>Uvozi urejeno besedilo</button>
+          </div>
+        )}
+        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+      <div className="card no-print" style={{overflowX:"auto"}}>
+        <table className="roster">
+          <thead><tr><th>Zaposleni</th><th>Enota</th><th>Št. dežurstev</th><th>Zadnje</th><th>Odsotnosti</th><th>Dopust (rdeče)</th><th>Omejitve (rumeno)</th><th>Prost dan v tednu</th><th>Min/mes</th><th>Maks/mes</th><th>Samo med tednom</th></tr></thead>
+          <tbody>
+            {roster.map(z => (
+              <tr key={z.ime}>
+                <td><ImeOsebe id={z.id}>{z.ime}</ImeOsebe></td>
+                <td>{z.enota}</td>
+                <td><input type="number" style={{width:56}} value={z.stevilo} onChange={e => updateField(z.ime,"stevilo",e.target.value)} /></td>
+                <td><input type="text" style={{width:110}} value={z.zadnje} onChange={e => updateField(z.ime,"zadnje",e.target.value)} placeholder="LLLL-MM-DD" /></td>
+                <td><input type="text" style={{width:150}} value={z.odsotnosti} onChange={e => updateField(z.ime,"odsotnosti",e.target.value)} placeholder="2026-08-10, 2026-08-11" /></td>
+                <td><input type="text" style={{width:150}} value={z.dopust} onChange={e => updateField(z.ime,"dopust",e.target.value)} placeholder="2026-10-14, 2026-10-15" /></td>
+                <td><input type="text" style={{width:150}} value={z.omejitve} onChange={e => updateField(z.ime,"omejitve",e.target.value)} placeholder="2026-10-22, 2026-10-23" /></td>
+                <td>
+                  <select value={z.prostDanVTednu} onChange={e => updateField(z.ime,"prostDanVTednu",e.target.value)}>
+                    <option value="">–</option>
+                    {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </td>
+                <td><input type="number" min="0" style={{width:50}} value={z.minMesecno} onChange={e => updateField(z.ime,"minMesecno",e.target.value)} /></td>
+                <td><input type="number" min="0" style={{width:50}} value={z.maxMesecno} onChange={e => updateField(z.ime,"maxMesecno",e.target.value)} /></td>
+                <td style={{textAlign:"center"}}><input type="checkbox" checked={!!z.samoMedTednom} onChange={e => updateField(z.ime,"samoMedTednom",e.target.checked)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="section no-print">2 · Mesec in pravila</h2>
+      <div className="card no-print">
+        <div className="row">
+          <div className="field"><label htmlFor="dmonth">Mesec</label>
+            <input id="dmonth" type="month" value={month} onChange={async e => {
+              const noviMesec = e.target.value;
+              setMonth(noviMesec); setRezultat(null); setRoster(null);
+              const { startISO: noviStart } = monthRange(noviMesec);
+              setRoster(await nalozizDezurniKader(noviStart));
+              const izZelja = await nalozitIzZelja(noviMesec);
+              uporabiVZelja(izZelja);
+            }} />
+          </div>
+          <div className="field"><label>&nbsp;</label>
+            <button className="dlBtn" type="button" onClick={async () => {
+              const izZelja = await nalozitIzZelja(month);
+              uporabiVZelja(izZelja);
+              setUvozMsg("Osveženo iz razpredelnice Želje.");
+            }}>🔄 Osveži iz Želje</button>
+          </div>
+          <div className="field"><label htmlFor="mr">Min. razmik (dni)</label>
+            <input id="mr" type="number" min="0" style={{width:70}} value={minRazmik} onChange={e => setMinRazmik(e.target.value)} />
+          </div>
+        </div>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="pd" type="checkbox" checked={prostDan} onChange={e => setProstDan(e.target.checked)} />
+          <label htmlFor="pd">Dan takoj po dežurstvu naj se ne razporeja na redno izmeno</label>
+        </div>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          To neposredno naslavlja ugotovitev iz analize: doslej je 65&nbsp;% dežurstev takoj sledila redna izmena brez počitka.
+        </p>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="mv" type="checkbox" checked={maxVikend} onChange={e => setMaxVikend(e.target.checked)} />
+          <label htmlFor="mv">Največ 1 sobota/nedelja na osebo na koledarski mesec</label>
+        </div>
+        <div className="chk" style={{marginTop:12}}>
+          <input id="zo" type="checkbox" checked={zakleniObjavljeno}
+            onChange={e => setZakleniObjavljeno(e.target.checked)} />
+          <label htmlFor="zo">Ne premeščaj že objavljenih dežurstev tega meseca</label>
+        </div>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Če je pol meseca že objavljenega in sporočenega ljudem, ponovno generiranje brez tega
+          prerazporedi tudi tisti del. Zaklenjeni dnevi so v razporedu spodaj označeni s ključavnico
+          in se ne dajo spremeniti; ostale lahko popraviš v spustnem seznamu.
+        </p>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Pravilo iz analize "Dežurstva 2026" (uporabljeno za september): noben zaposleni naj nima obeh vikend dni
+          (sobote in nedelje) v istem mesecu. Stolpec "Prost dan v tednu" zgoraj je stalna omejitev osebe (npr. Matej
+          Bojić nikoli ne dežura ob ponedeljkih) – ni vezan na posamezen mesec.
+        </p>
+      </div>
+
+      <button className="genBtn no-print" onClick={generiraj}>Generiraj razpored dežurstev</button>
+      </React.Fragment>
+      )}
+
+      {rezultat && (
+        <React.Fragment>
+          {rezultat.opozorila.length > 0 && (
+            <div className="warnBox no-print">
+              <div className="t">⚠ {rezultat.opozorila.length} dni brez samodejne rešitve</div>
+              <ul>{rezultat.opozorila.map(o => <li key={o.datum}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
+            </div>
+          )}
+
+          <div className="printBlok" ref={printRef}>
+            <h2 className="section">3 · Predlagan razpored – {rezultat.mesec}</h2>
+            <table className="dutyTable">
+              <thead><tr><th>Datum</th><th>Dan</th><th>Zaposleni</th><th>Opomba</th></tr></thead>
+              <tbody>
+                {rezultat.razpored.map(r => {
+                  const krsi = (r.krsitve || []).length > 0;
+                  return (
+                  <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni || krsi ? "warn" : "")}>
+                    <td>{window.Datum.slo(r.datum)}</td><td>{r.dan}</td>
+                    <td>
+                      {r.zaklenjeno ? (
+                        <span title="Že objavljeno – generator tega dne ne premeša">🔒 {r.zaposleni}</span>
+                      ) : (
+                        <select value={r.zaposleni || ""} onChange={e => nastaviDezurnega(r.datum, e.target.value)}
+                          aria-label={"Dežurni " + window.Datum.slo(r.datum)} style={{minWidth:170}}>
+                          <option value="">– nihče –</option>
+                          {(roster || []).map(z => <option key={z.ime} value={z.ime}>{z.ime}</option>)}
+                        </select>
+                      )}
+                    </td>
+                    <td className="hint" style={{whiteSpace:"normal"}}>
+                      {!r.zaposleni && <span>dan je brez dežurnega</span>}
+                      {krsi && (
+                        <span>{(r.sila ? "predlagan kljub pravilom: " : "")
+                          + r.krsitve.map(k => Generator.KRSITVE_OPIS[k] || k).join(", ")}</span>
+                      )}
+                      {r.zaklenjeno && <span>že objavljeno</span>}
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="section no-print">4 · Pravičnost – novo stanje</h2>
+          <table className="fairTable no-print">
+            <thead><tr><th>Zaposleni</th><th>Prej</th><th>Novih</th><th>Skupaj</th></tr></thead>
+            <tbody>
+              {rezultat.stanje.map(s => (
+                <tr key={s.ime}>
+                  <td>{s.ime}</td><td>{s.steviloPrej}</td><td><b>{s.novih}</b></td><td>{s.steviloZdaj}
+                    <div className="bar"><i style={{width:(100*s.novih/maxNovih)+"%"}}></i></div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Brez razpredelnice za Excel/Sheets – v meniju sta samo ta dva. */}
+          <RazporedIzvozVir
+            naziv="Dežurstva"
+            pdf={{ label: "Izvozi v PDF (A4 pokončno, 1 stran)",
+                   onClick: () => PrintFit.natisni(printRef.current, { orientacija:"portrait" }) }}
+            dodatno={[{ label: "Prenesi JSON", onClick: prenesi }]}
+          />
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+          </button>
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// VodjeTab – mesečna zasedenost 22 vodij/nosilcev oddelkov (iz "Predloga
+// razporeda vodje NZV"). Za razliko od Kalupa/Dežurstev to ni rotacijski
+// generator: vsak vodja je vsak delavnik privzeto na SVOJIH ENOTAH
+// (stolpec lead_departments.enote, ki je lahko sestavljen: "UA/SA/B2"),
+// razen če ima za ta dan LD/BS/STI vnos v razpredelnici "Želje"
+// (leave_entries) – takrat se to prikaže v ustreznem stolpcu namesto
+// oddelka. Stolpec DEŽURSTVO se prekriva z generatorjem dežurstev (če je
+// bil za ta mesec že objavljen v Supabase, se prebere od tam).
+function kratica(imePolno){
+  const prvaBeseda = (imePolno || "").trim().split(/\s+/)[0] || "";
+  return prvaBeseda.slice(0, 3).toUpperCase();
+}
+const LEAVE_KOLONA = { ld: "LD", bs: "BS", sti: "IZOB" }; // "omejitev" nima lastnega stolpca (glej opombo v UI)
+// Isti trije stolpci, gledani z druge strani: kateri stolpec v mreži NI
+// enota, ampak odsotnost. Pri ročnem popravku odloči, ali gre oseba na
+// enoto ("PRISOTEN" + oddelek stolpca) ali v odsotnost (šifra = stolpec).
+const ODSOTNOSTNI_STOLPCI = Object.fromEntries(Object.values(LEAVE_KOLONA).map(k => [k, true]));
+
+// Ročno prepisane celice mreže NZV -> zapisi za objavo.
+//
+// Koordinator v mreži celico prepiše na roko (tako je delal v Sheets in tako
+// dela naprej). Doslej je tak popravek spremenil samo prikaz in izvoz, objava
+// pa je šla po IZRAČUNANEM - na zaslonu si torej videl eno, zaposleni pa je
+// dobil drugo. Da se popravek lahko objavi, ga je treba prebrati nazaj v
+// konkretne osebe (skupni NzvZasedba.razberiCelico: kratica "BOJ" ali celo
+// ime "Bojić Matej").
+//
+// Vrne:
+//   spremenjene  ključi "datum|stolpec", ki jih je človek prepisal - za te
+//                se IZRAČUNANI zapisi umaknejo (tudi kadar je celico
+//                izpraznil: prazno pomeni "tu ni nikogar", ne "pusti staro"),
+//   vrstice      zapisi, prebrani iz prepisanega besedila,
+//   tezave       kar ni bilo ENOLIČNO prepoznano; to se NE objavi in se
+//                izrecno pove - tiho ugibanje, kdo je "BOJ", je pri
+//                razporedu nevarnejše od jasnega opozorila.
+function rocniPopravkiVMrezi(opts){
+  const dnevi = opts.dnevi || [], stolpci = opts.stolpci || [];
+  const popravki = opts.popravki || {}, nosilci = opts.nosilci || [];
+  const spremenjene = new Set();
+  const vrstice = [];
+  const tezave = [];
+  const kljuc = window.Imena.kljuc;
+  const lastniOddelek = {};
+  nosilci.forEach(v => { lastniOddelek[kljuc(v.full_name)] = v.department_code; });
+
+  dnevi.forEach(dn => {
+    stolpci.forEach(stolpec => {
+      const key = dn.datum + "|" + stolpec;
+      if (popravki[key] == null) return;
+      const besedilo = String(popravki[key]).trim();
+      if (besedilo === String(dn.celice[stolpec] || "").trim()) return;
+      spremenjene.add(key);
+      if (!besedilo) return;                     // izpraznjena celica: samo umik
+      if (stolpec === "DEZURSTVO") {
+        tezave.push(window.Datum.slo(dn.datum) + " · DEŽURSTVO: dežurstva se objavijo v zavihku »Dežurstva«, tu ne");
+        return;
+      }
+      const razbrano = window.NzvZasedba.razberiCelico({ besedilo, nosilci, kljuc, kratica });
+      razbrano.neznani.forEach(t => tezave.push(window.Datum.slo(dn.datum) + " · " + stolpec + ": »" + t + "« – ni prepoznano ime ali kratica"));
+      razbrano.dvoumni.forEach(t => tezave.push(window.Datum.slo(dn.datum) + " · " + stolpec + ": »" + t + "« – kratica ustreza več osebam"));
+      razbrano.osebe.forEach(ime => {
+        vrstice.push(ODSOTNOSTNI_STOLPCI[stolpec]
+          ? { ime, datum: dn.datum, sifra: stolpec, department_code: lastniOddelek[kljuc(ime)], predlog: false, stolpec }
+          : { ime, datum: dn.datum, sifra: "PRISOTEN", department_code: stolpec, predlog: false, stolpec, jeEnota: true });
+      });
+    });
+  });
+  return { spremenjene, vrstice, tezave };
+}
+
+function VodjeTab({ zacetniMesec }){
+  const [month, setMonth] = useState(zacetniMesec || "2026-09");
+  const [vodje, setVodje] = useState(null);
+  const [oddelki, setOddelki] = useState([]);
+  const [rezultat, setRezultat] = useState(null);
+  const [nalagam, setNalagam] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
+  const [publishMsg, setPublishMsg] = useState(null);
+  // Ročni popravki po izračunu: "datum|stolpec" -> besedilo (prepiše prikaz
+  // in izvoz, NE pa objave v Supabase, ker se poljubnega besedila ne da
+  // zanesljivo preslikati nazaj na eno osebo/employee_id).
+  const [popravki, setPopravki] = useState({});
+  // Prosto besedilo "Izjeme in opombe" na dan (ne na osebo/stolpec).
+  const [izjeme, setIzjeme] = useState({});
+  // Nadomeščanja, ki jih je izračunal generator, so PREDLOGI: v mrežo se
+  // izpišejo (z vprašajem in rumeno), objavijo pa se šele, ko jih
+  // koordinator potrdi. Tako je razpored povsod izračunan po istih
+  // pravilih, v bazo pa nič ne gre mimo človeka.
+  const [potrjeni, setPotrjeni] = useState({});
+  const [vrzeliMsg, setVrzeliMsg] = useState(null);
+  const wardRef = useRef();
+
+  useEffect(() => {
+    client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+  }, []);
+
+  const imeOddelka = {};
+  oddelki.forEach(o => { imeOddelka[o.code] = o.name; });
+
+  const generiraj = async () => {
+    if (!vodje) return;
+    setNalagam(true);
+    const { startISO, endISO } = monthRange(month);
+    const [{ data: leaveRows }, { data: dezRows }, { data: pariRows }, { data: nastRows }] = await Promise.all([
+      client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
+      // "profiles!employee_id(...)": schedule_entries ima tri tuje ključe na
+      // profiles (employee_id, created_by, updated_by), zato nedoločen
+      // vgnezden zapis PostgREST zavrne kot dvoumen in vrne napako namesto
+      // vrstic - dežurstva v razporedu vodij so zato ostala prazna. Isti
+      // popravek kot v nalozizPodatkeNzv (index.html).
+      client.from("schedule_entries").select("work_date, profiles!employee_id(full_name)").eq("department_code", "DEZ")
+        .gte("work_date", startISO).lte("work_date", endISO),
+      // Nadomeščanja in nastavitve SA: doslej ju generator NI bral, zato je
+      // delal po drugih pravilih kot prikaz v Imeniku/Razporedu.
+      client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
+      client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
+    ]);
+    // Ključ prek imena.js in NE surovega imena: lead_departments ima imena
+    // z VELIKIMI črkami ("ALUKIĆ DINO"), leave_entries pa tako, kot so v
+    // Imeniku ("Alukić Dino"). Iskalo se je z leaveMap[v.full_name + "|" +
+    // iso], torej ime iz ene tabele proti ključu iz druge - zadetka ni bilo
+    // NIKOLI in generator NZV je osebo na dopustu vseeno razporedil na
+    // enoto. Uporabnik je to opazil na oktobru 2026: Alukić, Arnež in
+    // Džamastagić so bili 1. in 2. 10. rdeči (LD), v razporedu pa na
+    // svojih enotah.
+    const leaveMap = {};
+    (leaveRows || []).forEach(r => {
+      leaveMap[window.Imena.kljuc(r.full_name) + "|" + r.work_date] = r.kind;
+    });
+    const dezMap = {};
+    (dezRows || []).forEach(r => { if (r.profiles) dezMap[r.work_date] = r.profiles.full_name; });
+    const saNast = window.NzvZasedba.saNastavitveIz(nastRows || []);
+
+    const kljucIme = window.Imena.kljuc;
+    const NZ = window.NzvZasedba;
+    const veljavne = NZ.KODE_STOLPCEV;
+
+    // Odsotnost za izračun: enodnevni LD/BS/STI iz Želja + daljša
+    // odsotnost (porodniška …) iz lead_departments. "Omejitev" (rumena)
+    // NI odsotnost - tisti dan oseba dela, koordinator le presodi obseg.
+    const poImenu = {};
+    vodje.forEach(v => { poImenu[kljucIme(v.full_name)] = v; });
+    const jeOdsotenNa = (ime, iso) => {
+      const v = poImenu[kljucIme(ime)];
+      if (v && NZ.trajnoOdsoten(v, iso)) return true;
+      const kind = leaveMap[kljucIme(ime) + "|" + iso];
+      return !!(kind && LEAVE_KOLONA[kind]);
+    };
+
+    // Stalna (nemotena) zasedba istega dne - potrebujemo jo, da vemo, KAJ
+    // je predlog: enota, na kateri oseba tisti dan ne bi bila, če ne bi
+    // nihče manjkal.
+    const lastneKode = {};
+    vodje.forEach(v => { lastneKode[kljucIme(v.full_name)] = new Set(NZ.enoteVKode(v.enote, null, veljavne)); });
+
+    const nd = danovVMesecu2(month);
+    const dnevi = [];
+    const objavaVrstice = [];
+    const predlogi = [];
+    for (let d = 1; d <= nd; d++) {
+      const iso = isoZaMesec(month, d);
+      const isVikend = window.Prazniki.jeVikend(iso);
+      const isPraznik = window.Prazniki.jePraznik(iso);
+      const vrstica = { datum: iso, dan: window.Datum.dan3(iso), celice: {}, predlogCelice: {} };
+      const dodaj = (kol, besedilo) => {
+        vrstica.celice[kol] = ((vrstica.celice[kol] || "") + " " + besedilo).trim();
+      };
+
+      // Odsotnosti gredo v svoje stolpce (LD/IZOB/BS) ne glede na vikend.
+      vodje.forEach(v => {
+        if (NZ.trajnoOdsoten(v, iso)) {
+          const kol = NZ.dolgaOdsotnostKratica(v) || "LD";
+          dodaj(kol, kratica(v.full_name) + "*");
+          return;
+        }
+        if (isVikend || isPraznik) return;
+        const kind = leaveMap[window.Imena.kljuc(v.full_name) + "|" + iso];
+        if (kind && LEAVE_KOLONA[kind]) {
+          const kol = LEAVE_KOLONA[kind];
+          dodaj(kol, kratica(v.full_name));
+          objavaVrstice.push({ ime: v.full_name, datum: iso, sifra: kol, department_code: v.department_code, predlog: false, stolpec: kol });
+        }
+      });
+
+      // Zasedenost enot: ISTO pravilo kot v Imeniku in na Razporedu.
+      if (!isVikend && !isPraznik) {
+        NZ.razporedDneva({
+          nosilci: vodje,
+          pari: pariRows || [],
+          kljuc: kljucIme,
+          jeOdsoten: ime => jeOdsotenNa(ime, iso),
+          saKoda: NZ.saStolpec(iso, saNast),
+          veljavne,
+        }).forEach(({ nosilec, kode }) => {
+          const svoje = lastneKode[kljucIme(nosilec.full_name)] || new Set();
+          kode.forEach(kol => {
+            // Enota, ki ni njegova, je posledica nadomeščanja - to je
+            // PREDLOG in se objavi šele, ko ga koordinator potrdi.
+            const jePredlog = !svoje.has(kol);
+            dodaj(kol, kratica(nosilec.full_name) + (jePredlog ? "?" : ""));
+            const kljucCelice = iso + "|" + kol + "|" + nosilec.full_name;
+            if (jePredlog) {
+              vrstica.predlogCelice[kol] = true;
+              predlogi.push({ kljuc: kljucCelice, datum: iso, stolpec: kol, ime: nosilec.full_name });
+            }
+            objavaVrstice.push({
+              ime: nosilec.full_name, datum: iso, sifra: "PRISOTEN",
+              department_code: kol, predlog: jePredlog, kljuc: kljucCelice, stolpec: kol, jeEnota: true,
+            });
+          });
+        });
+      }
+
+      const dezOseba = dezMap[iso];
+      if (dezOseba) vrstica.celice["DEZURSTVO"] = kratica(dezOseba);
+      dnevi.push(vrstica);
+    }
+    // Stolpci: vsi iz uradne predloge, ki so ta mesec dejansko v uporabi.
+    const uporabljeni = new Set();
+    dnevi.forEach(dn => Object.keys(dn.celice).forEach(k => uporabljeni.add(k)));
+    const stolpciOddelkov = veljavne.filter(k => uporabljeni.has(k));
+
+    setRezultat({ mesec: month, stolpci: stolpciOddelkov, dnevi, objavaVrstice, predlogi, saNast, jeOdsotenNa });
+    setPotrjeni({});
+    setPopravki({});
+    setIzjeme({});
+    setVrzeliMsg(null);
+    setNalagam(false);
+  };
+
+  const celica = (dn, k) => {
+    const key = dn.datum + "|" + k;
+    return popravki[key] != null ? popravki[key] : (dn.celice[k] || "");
+  };
+  const nastaviPopravek = (dn, k, vrednost) => {
+    setPopravki(p => ({ ...p, [dn.datum + "|" + k]: vrednost }));
+  };
+
+  // Ročni popravki: preračun je v rocniPopravkiVMrezi (nad komponento),
+  // da se ga da preizkusiti brez brskalnika.
+  const spremenjeneCelice = () => rezultat
+    ? rocniPopravkiVMrezi({ dnevi: rezultat.dnevi, stolpci: stolpciPrikaz, popravki, nosilci: vodje }).spremenjene
+    : new Set();
+  const vrsticeIzPopravkov = () => rezultat
+    ? rocniPopravkiVMrezi({ dnevi: rezultat.dnevi, stolpci: stolpciPrikaz, popravki, nosilci: vodje })
+    : { vrstice: [], tezave: [], spremenjene: new Set() };
+
+  // "Predlagaj mesec": poišče vrzeli (enota, ki je ta mesec v uporabi, a je
+  // tisti delovni dan nihče ne pokriva) in za vsako predlaga osebo. Uporabnik:
+  // "načeloma je tako, da se na koncu Denis Džamastagić odloči in izpolni
+  // manjkajoče vrzeli" - zato ostane odločitev njegova: predlogi se izpišejo
+  // v mrežo z vprašajem in rumeno ter se objavijo šele po potrditvi.
+  const predlagajVrzeli = () => {
+    if (!rezultat) return;
+    const noviPredlogi = window.NzvZasedba.predlagajZapolnitev({
+      dnevi: rezultat.dnevi,
+      stolpci: stolpciPrikaz,
+      nosilci: vodje,
+      kljuc: window.Imena.kljuc,
+      kratica,
+      jeOdsoten: rezultat.jeOdsotenNa,
+      saKodaZa: (iso) => window.NzvZasedba.saStolpec(iso, rezultat.saNast),
+      jeProstDan: (iso) => window.Prazniki.jeVikend(iso) || window.Prazniki.jePraznik(iso),
+    });
+    if (!noviPredlogi.length) { setVrzeliMsg("Ni vrzeli – vsaka enota ima ta mesec vsak delovni dan pokritje."); return; }
+    // Predlogi gredo po ISTI poti kot predlogi nadomeščanja: v mrežo, v
+    // seznam za potrditev in šele od tam v objavo.
+    setRezultat(r => {
+      const poDatumu = {};
+      r.dnevi.forEach(dn => { poDatumu[dn.datum] = dn; });
+      const dodaniPredlogi = [];
+      const dodaneVrstice = [];
+      noviPredlogi.forEach(pr => {
+        const dn = poDatumu[pr.datum];
+        if (!dn) return;
+        const kljucCelice = pr.datum + "|" + pr.stolpec + "|" + pr.ime;
+        dn.celice[pr.stolpec] = kratica(pr.ime) + "?";
+        dn.predlogCelice[pr.stolpec] = true;
+        dodaniPredlogi.push({ kljuc: kljucCelice, datum: pr.datum, stolpec: pr.stolpec, ime: pr.ime, vrzel: true });
+        dodaneVrstice.push({ ime: pr.ime, datum: pr.datum, sifra: "PRISOTEN", department_code: pr.stolpec,
+                             predlog: true, kljuc: kljucCelice, stolpec: pr.stolpec, jeEnota: true });
+      });
+      return { ...r,
+        dnevi: r.dnevi.map(dn => ({ ...dn })),
+        predlogi: [...r.predlogi, ...dodaniPredlogi],
+        objavaVrstice: [...r.objavaVrstice, ...dodaneVrstice] };
+    });
+    setVrzeliMsg(`Predlaganih zapolnitev: ${noviPredlogi.length}. V mreži so rumene z vprašajem – potrdi tiste, ki jih želiš objaviti.`);
+  };
+
+  const izvoziCSV = () => {
+    if (!rezultat) return;
+    const glava = ["Datum", "Dan", ...stolpciPrikaz, "Izjeme in opombe"];
+    const vrstice = rezultat.dnevi.map(dn => [
+      dn.datum, dn.dan,
+      ...stolpciPrikaz.map(k => celica(dn, k)),
+      izjeme[dn.datum] || "",
+    ]);
+    const csv = [glava, ...vrstice]
+      .map(vrsta => vrsta.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(","))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `vodje-${rezultat.mesec}.csv`; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const objavi = async () => {
+    if (!rezultat) return;
+    setPublishBusy(true); setPublishMsg(null);
+    try {
+      // Kar je človek prepisal na roko, prevlada nad izračunanim za TISTO
+      // celico - izračunani zapisi zanjo se umaknejo, na njihovo mesto
+      // stopi prebrano besedilo. Ostale celice ostanejo izračunane.
+      const spremenjene = spremenjeneCelice();
+      const { vrstice: rocne, tezave } = vrsticeIzPopravkov();
+      const izracunane = rezultat.objavaVrstice
+        .filter(v => !spremenjene.has(v.datum + "|" + v.stolpec))
+        // Nepotrjeni predlogi (nadomeščanja in zapolnitve vrzeli) se NE objavijo.
+        .filter(v => !v.predlog || potrjeni[v.kljuc]);
+      const preskoceniPredlogi = rezultat.objavaVrstice
+        .filter(v => v.predlog && !potrjeni[v.kljuc] && !spremenjene.has(v.datum + "|" + v.stolpec)).length;
+      const zaObjavo = [...izracunane, ...rocne];
+      const { objavljeno, manjkajo, obvestilaNapaka } = await publishLeadScheduleRows(zaObjavo);
+      setPublishMsg({ ok: tezave.length === 0, text: `Objavljeno ${objavljeno} vnosov v Supabase.`
+        + (rocne.length ? ` Od tega iz ročnih popravkov: ${rocne.length}.` : "")
+        + (preskoceniPredlogi ? ` Nepotrjenih predlogov (neobjavljenih): ${preskoceniPredlogi}.` : "")
+        + (manjkajo.length ? ` Brez profila (preskočeno): ${manjkajo.join(", ")}.` : "")
+        + (tezave.length ? ` Neobjavljeni ročni popravki – ${tezave.join("; ")}.` : "")
+        + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
+    } catch (e) {
+      setPublishMsg({ ok:false, text: e.message || String(e) });
+    } finally {
+      setPublishBusy(false);
+    }
+  };
+
+  if (vodje === null) return <p className="hint">Nalagam …</p>;
+
+  const stolpciPrikaz = rezultat ? [...rezultat.stolpci, "LD", "IZOB", "BS", "DEZURSTVO"] : [];
+
+  return (
+    <div>
+      <h2 className="section">Vodje / nosilci oddelkov – mesečna zasedenost</h2>
+      <p className="hint">
+        22 vodij/nosilcev oddelkov (iz »Predloga razporeda vodje NZV«). Vsak je ob delavnikih privzeto na svojih
+        enotah; LD/BS/STI vnosi iz razpredelnice »Želje« ga premaknejo v ustrezen stolpec namesto enote
+        (STI je prikazan pod »IZOB«). »Omejitev« (rumena) nima lastnega stolpca v izvirni predlogi – te dni presodi
+        koordinator ročno. Ob odsotnosti se nadomeščanje izračuna po istih pravilih kot v Imeniku → Razpredelnica:
+        nadomeščevalec prevzame enoto odsotnega, in če njegove lastne enote nima kdo prevzeti, jo obdrži poleg
+        prevzete. Taka celica je označena z vprašajem in rumeno – to je PREDLOG in se objavi šele, ko ga potrdiš
+        v seznamu nad mrežo. Zvezdica (*) ob kratici pomeni daljšo odsotnost (npr. porodniška), ne enodnevno LD/BS.
+        Stolpec DEŽURSTVO se prekriva z dežurnim generatorjem, če je ta mesec že objavljen. Po izračunu lahko
+        katero koli celico ročno prepišeš (npr. za nadomeščanje) – <b>tak popravek se tudi objavi</b>. Vpišeš lahko
+        kratico (»BOJ«) ali celo ime (»Bojić Matej«), več oseb v isti celici loči presledek ali vejica; prazna celica
+        pomeni, da tam ni nikogar. Česar ni mogoče enolično prepoznati, se ne objavi in ti to piše po objavi. Stolpec "Izjeme in opombe" je za splošne dnevne opombe.
+      </p>
+      <div className="card no-print">
+        <div className="row">
+          <div className="field"><label htmlFor="vmonth">Mesec</label>
+            <input id="vmonth" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+          </div>
+        </div>
+        <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "Izračunaj zasedenost"}</button>
+      </div>
+
+      {rezultat && (
+        <div className="card no-print">
+          <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+          <p className="hint" style={{margin:"8px 0 0"}}>
+            Poišče enote, ki jih ta mesec kak delovni dan nihče ne pokriva, in za vsako predlaga osebo, ki je
+            tisti dan prisotna in ima najmanj enot. Predlogi se izpišejo rumeno z vprašajem in se objavijo
+            <b> šele, ko jih potrdiš</b> – zadnja beseda ostane tvoja.
+          </p>
+          {vrzeliMsg && <p className="hint" style={{marginBottom:0}}>{vrzeliMsg}</p>}
+        </div>
+      )}
+
+      {rezultat && rezultat.predlogi.length > 0 && (
+        <div className="card no-print" style={{borderColor:"var(--accent)"}}>
+          <h3 style={{margin:"0 0 6px", fontSize:15}}>
+            Predlogi nadomeščanja ({rezultat.predlogi.filter(pr => potrjeni[pr.kljuc]).length}/{rezultat.predlogi.length} potrjenih)
+          </h3>
+          <p className="hint" style={{marginTop:0}}>
+            Te enote so izračunane po pravilih nadomeščanja (ista, kot jih kaže Imenik → Razpredelnica).
+            V mreži so označene z vprašajem in rumeno. <b>Objavijo se šele, ko jih potrdiš.</b>
+          </p>
+          <div style={{display:"flex", gap:8, marginBottom:8}}>
+            <button className="btn btn-sm" onClick={() => {
+              const vsi = {}; rezultat.predlogi.forEach(pr => { vsi[pr.kljuc] = true; }); setPotrjeni(vsi);
+            }}>Potrdi vse</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPotrjeni({})}>Počisti</button>
+          </div>
+          <div style={{maxHeight:220, overflowY:"auto"}}>
+            {rezultat.predlogi.map(pr => (
+              <label key={pr.kljuc} style={{display:"flex", alignItems:"center", gap:8, fontSize:12, padding:"3px 0"}}>
+                <input type="checkbox" checked={!!potrjeni[pr.kljuc]}
+                  onChange={e => setPotrjeni(t => ({ ...t, [pr.kljuc]: e.target.checked }))} />
+                <span><b>{window.Datum.slo(pr.datum)}</b> · {pr.stolpec} · {pr.ime}
+                  {pr.vrzel && <span className="hint" style={{marginLeft:6}}>(vrzel)</span>}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {rezultat && (
+        <React.Fragment>
+          <div className="wardScroller" ref={wardRef}>
+            <table className="wardTable">
+              <thead>
+                <tr>
+                  <th className="name">Datum</th>
+                  {stolpciPrikaz.map(k => <th key={k}>{imeOddelka[k] ? k : k}</th>)}
+                  <th>Izjeme in opombe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rezultat.dnevi.map(dn => (
+                  <tr key={dn.datum}>
+                    <td className="name">{window.Datum.slo(dn.datum)} {dn.dan}</td>
+                    {stolpciPrikaz.map(k => (
+                      <td key={k}>
+                        <input type="text" value={celica(dn, k)} onChange={e => nastaviPopravek(dn, k, e.target.value)}
+                          title={dn.predlogCelice[k] ? "Predlog nadomeščanja – objavi se šele po potrditvi zgoraj" : undefined}
+                          style={{width:44, textAlign:"center",
+                            background: dn.predlogCelice[k] ? "rgba(var(--predlog-rgb),.55)"
+                              : (celica(dn,k) ? "rgba(var(--accent-rgb),.18)" : "transparent"),
+                            border: dn.predlogCelice[k] ? "1px solid var(--accent)" : "1px solid var(--line)",
+                            borderRadius:6, fontSize:11, padding:"3px 2px"}} />
+                      </td>
+                    ))}
+                    <td>
+                      <input type="text" value={izjeme[dn.datum] || ""} onChange={e => setIzjeme(iz => ({...iz, [dn.datum]: e.target.value}))}
+                        placeholder="–" style={{width:150, background:"transparent", border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 6px"}} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <RazporedIzvozVir
+            naziv="NZV / vodje"
+            pdf={{ label: "Izvozi v PDF (A4 ležeče, 1 stran)",
+                   onClick: () => PrintFit.natisni(wardRef.current, { orientacija:"landscape" }) }}
+            dodatno={[{ label: "Izvozi CSV", onClick: izvoziCSV }]}
+            naslov={rezultat ? `vodje-${rezultat.mesec}` : "vodje"}
+            pripravi={() => {
+              if (!rezultat) throw new Error("Najprej ustvari razpored.");
+              return [{
+                ime: "Vodje",
+                glave: ["Datum", "Dan", ...stolpciPrikaz, "Izjeme in opombe"],
+                vrstice: rezultat.dnevi.map(dn => [
+                  window.Datum.slo(dn.datum), dn.dan,
+                  ...stolpciPrikaz.map(k => celica(dn, k)),
+                  izjeme[dn.datum] || "",
+                ]),
+              }];
+            }}
+          />
+          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
+            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase (z ročnimi popravki)"}
+          </button>
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone. Ta
+// različica je bila najbolj stroga od štirih (ni prenesla ne izgubljenih
+// strešic ne potrjenih tipkarskih napak iz uradnih predlog), zato je tu
+// kdo ostal nepovezan, čeprav se je na drugih zaslonih našel.
+const imenaSeUjemataAdmin = window.Imena.seUjemata;
+
+// Trije stalni administratorji (na izrecno, trajno navodilo) – nikoli se ne
+// ponastavijo na "Zaposleni", tudi ne pri množičnem ponastavljanju spodaj.
+const STALNI_ADMINI = ["ALUKIĆ DINO", "BOJIĆ MATEJ", "DŽAMASTAGIĆ DENIS"];
+
+// Barvne značke vlog: administrator izstopa (rdeče), vodja poudarjeno
+// (zlato), zaposleni nevtralno - da je v dolgem seznamu na prvi pogled
+// vidno, kdo ima povišane pravice.
+const VLOGA_NAZIV = { user: "Zaposleni", vodja: "Vodja", admin: "Administrator" };
+
+function UporabnikiTab(){
+  const [profili, setProfili] = useState(null);
+  const [oddelki, setOddelki] = useState([]);
+  const [status, setStatus] = useState({});
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [ponastaviBusy, setPonastaviBusy] = useState(false);
+  const [ponastaviMsg, setPonastaviMsg] = useState(null);
+  const uvozRef = useRef();
+
+  const reload = () => {
+    client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
+    client.from("departments").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
+      .then(({ data }) => setOddelki(data || []));
+  };
+  useEffect(() => { reload(); }, []);
+
+  const posodobi = async (id, patch) => {
+    setStatus(s => ({ ...s, [id]: "shranjujem …" }));
+    const { error } = await client.from("profiles").update(patch).eq("id", id);
+    setStatus(s => ({ ...s, [id]: error ? ("napaka: " + error.message) : "shranjeno" }));
+    setProfili(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
+    return error;
+  };
+
+  // Množično ponastavi vlogo/oddelek vsem RAZEN treh stalnih administratorjev
+  // (na izrecno željo). Prijava (e-pošta/geslo) ostane nedotaknjena – ureja se
+  // samo public.profiles prek te iste, že delujoče prijavljene povezave, zato
+  // ni tveganja napačnega Supabase projekta kot pri ročnem SQL.
+  const ponastaviVse = async () => {
+    if (profili === null) return;
+    const cilj = profili.filter(p => !STALNI_ADMINI.some(a => imenaSeUjemataAdmin(p.full_name, a)));
+    if (!cilj.length) { setPonastaviMsg("Ni koga ponastaviti."); return; }
+    if (!confirm(`Vsem uporabnikom RAZEN treh stalnih administratorjev (${cilj.length} oseb) bo vloga ponastavljena na "Zaposleni" in oddelek izbrisan. Prijava (e-pošta/geslo) ostane nespremenjena. Nadaljuj?`)) return;
+    setPonastaviBusy(true); setPonastaviMsg(null);
+    let ok = 0, napak = 0;
+    for (const p of cilj) {
+      const err = await posodobi(p.id, { role: "user", department_code: null });
+      if (err) napak++; else ok++;
+    }
+    setPonastaviBusy(false);
+    setPonastaviMsg(`Ponastavljenih ${ok} uporabnikov.` + (napak ? ` ${napak} napak.` : ""));
+  };
+
+  const uvoziVlogeOddelke = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
+      const objekti = window.ImportUtils.vVrsticeObjekte(vrsteVrstic, ["full_name","role","department_code"], ["full_name","ime"]);
+      let ok = 0, neujemajoci = [];
+      for (const o of objekti) {
+        if (!o.full_name) continue;
+        const p = profili.find(pr => imenaSeUjemataAdmin(pr.full_name, o.full_name));
+        if (!p) { neujemajoci.push(o.full_name); continue; }
+        const patch = {};
+        if (o.role && ["admin","vodja","user"].includes(o.role)) patch.role = o.role;
+        if (o.department_code !== undefined && o.department_code !== "") patch.department_code = o.department_code;
+        if (Object.keys(patch).length) { await posodobi(p.id, patch); ok++; }
+      }
+      setUvozMsg(`Posodobljenih ${ok} obstoječih uporabnikov.` + (neujemajoci.length ? ` Ni najdenih (oseba se še ni registrirala – uporabi Imenik): ${neujemajoci.join(", ")}.` : ""));
+    } catch (e) {
+      setUvozMsg("Napaka: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  if (profili === null) return <p className="hint">Nalagam …</p>;
+
+  // Razvrsti po trenutnem (primarnem) oddelku, tako da premik nekoga v drug
+  // oddelek spodaj takoj premakne njegovo vrstico v pravo skupino.
+  const imeOddelka = { "": "Brez dodeljenega oddelka" };
+  oddelki.forEach(o => { imeOddelka[o.code] = o.name; });
+  const skupine = {};
+  profili.forEach(p => {
+    const k = p.department_code || "";
+    (skupine[k] = skupine[k] || []).push(p);
+  });
+  const vrstniRedKod = [""].concat(oddelki.map(o => o.code)).filter((k, i, arr) => arr.indexOf(k) === i);
+  const vseKode = Object.keys(skupine).sort((a, b) => vrstniRedKod.indexOf(a) - vrstniRedKod.indexOf(b));
+
+  // Trenutna koda je lahko ena od starih, ki jih spodaj ne ponujamo več za
+  // novo dodeljevanje (glej RAZPORED_ODDELKI) – če je oseba še ni ročno
+  // popravila, jo prikažemo kot dodatno možnost, da izbirnik ne pade na
+  // prazno/napačno vrednost.
+  const OddelekSelect = ({ p }) => {
+    const trenutnaZunaj = p.department_code && !oddelki.some(o => o.code === p.department_code);
+    return (
+      <select value={p.department_code || ""} onChange={e => posodobi(p.id, { department_code: e.target.value || null })}>
+        <option value="">– brez oddelka –</option>
+        {trenutnaZunaj && <option value={p.department_code}>{p.department_code} (opuščen – izberi nov oddelek)</option>}
+        {oddelki.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
+      </select>
+    );
+  };
+
+  return (
+    <div>
+      <h2 className="section">Uporabniki in vloge</h2>
+      <p className="hint">
+        Zaposleni se najprej sam registrira na login.html (dobi vlogo "Zaposleni"). Tukaj mu dodeliš pravo vlogo in
+        oddelek/ekipo. Ime naj se ujema s tistim v
+        generatorju razporeda, sicer objava v Supabase tega zaposlenega preskoči. Zaposleni so spodaj razvrščeni po
+        trenutnem (primarnem) oddelku – premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
+      </p>
+      <div className="card" style={{marginBottom:14}}>
+        <RazporedUvozVir ikona="📄" naziv="Omejitve za NZV"
+          opis="CSV / Excel – ime, dopust, omejitve"
+          onClick={() => uvozRef.current && uvozRef.current.click()} />
+        <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziVlogeOddelke(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => uvozRef.current && uvozRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvozi vloge/oddelke iz datoteke (CSV/Excel)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Oblika: <code>full_name,role,department_code</code> – velja samo za osebe, ki so se že same registrirale
+          (ujemanje po imenu, vrstni red besed ni pomemben). Za še neregistrirane osebe uporabi Imenik.
+        </p>
+        {uvozMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+      <div className="card" style={{marginBottom:14, borderColor:"var(--danger)"}}>
+        <button className="dangerBtn" disabled={ponastaviBusy || profili === null} onClick={ponastaviVse}>
+          {ponastaviBusy ? "Ponastavljam …" : "⚠ Ponastavi vse vloge/oddelke (razen 3 stalnih administratorjev)"}
+        </button>
+        <p className="hint" style={{marginTop:8, marginBottom:0}}>
+          Vsem RAZEN Alukić Dino, Bojić Matej in Džamastagić Denis ponastavi vlogo na "Zaposleni" in izbriše oddelek –
+          kot da jih admin še ni uredil. Prijava (e-pošta/geslo) ostane nespremenjena.
+        </p>
+        {ponastaviMsg && <p className="hint" style={{marginTop:6, marginBottom:0}}>{ponastaviMsg}</p>}
+      </div>
+      {vseKode.map(k => (
+        <div key={k || "brez"} style={{marginTop:14}}>
+          <h3 style={{fontSize:13, fontWeight:800, color:"var(--muted)", textTransform:"uppercase", letterSpacing:".03em", margin:"0 0 6px"}}>
+            {imeOddelka[k] || k} <span style={{fontWeight:400, textTransform:"none"}}>({skupine[k].length})</span>
+          </h3>
+          <div className="card">
+            {skupine[k].map(p => (
+              <RazporedOsebaVrstica
+                key={p.id}
+                ime={p.full_name}
+                naProfil={() => { window.location.href = "imenik.html?id=" + p.id; }}
+                otroci={
+                  <React.Fragment>
+                    <div className="ovMeta">
+                      <span className={"pill " + (p.role === "admin" ? "danger" : p.role === "vodja" ? "warn" : "muted")}>
+                        {VLOGA_NAZIV[p.role] || p.role}
+                      </span>
+                      {status[p.id] && <span>{status[p.id]}</span>}
+                    </div>
+                    <div className="uporabnikPolja">
+                      <div className="field">
+                        <label>Vloga</label>
+                        <select value={p.role} onChange={e => posodobi(p.id, { role: e.target.value })}>
+                          <option value="user">Zaposleni</option>
+                          <option value="vodja">Vodja ekipe</option>
+                          <option value="admin">Administrator</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Oddelek / ekipa</label>
+                        <OddelekSelect p={p} />
+                      </div>
+                    </div>
+                  </React.Fragment>
+                }
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Dopust: mesečni uvoz stanja dopusta iz Kadrisa (ime, šifra zaposlenega/
+// "Mat.št", leto, mesec, DOPUST) + pregled z mesečnim trendom. employee_code
+// je edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
+// včasih zapišejo drugače) - povezuje se s profile_hr_details.employee_code,
+// če je znan, sicer poskusi ujemanje po imenu (vreča besed). Ob vsakem uvozu
+// sprožilec v shemi drži profile_hr_details.leave_balance_days/asof
+// usklajena z najnovejšim mesecem (Imenik torej vedno kaže isto stanje).
+// ---------------------------------------------------------------------
+const DOPUST_GLAVE_MAPA = {
+  full_name: ["full_name", "priimek in ime", "ime in priimek", "ime"],
+  employee_code: ["employee_code", "mat.št", "mat št", "mat.st", "mat st", "šifra zaposlenega", "sifra zaposlenega"],
+  leto: ["leto", "year"],
+  mesec: ["mesec", "month"],
+  dnevi: ["dnevi", "dopust", "stanje", "stanje dopusta"],
+};
+const MESECI_SL2 = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
+
+function DopustTab(){
+  const [obdobja, setObdobja] = useState(null);
+  const [obdobje, setObdobje] = useState("");
+  const [vrstice, setVrstice] = useState([]);
+  const [iskanje, setIskanje] = useState("");
+  const [sort, setSort] = useState({ polje: "full_name", smer: 1 });
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [predogled, setPredogled] = useState(null); // { zapisi, leto, mesec, novih, spremenjenih, enakih, manjkajoci }
+  const fileRef = useRef();
+
+  const nalozi = async () => {
+    const { data } = await client.from("leave_balance_obdobja").select("*");
+    setObdobja(data || []);
+    if (data && data.length && !obdobje) setObdobje(data[0].leto + "-" + data[0].mesec);
+  };
+  useEffect(() => { nalozi(); }, []);
+
+  useEffect(() => {
+    if (!obdobje) { setVrstice([]); return; }
+    const [leto, mesec] = obdobje.split("-").map(Number);
+    client.from("leave_balance_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
+      .then(({ data }) => setVrstice(data || []));
+  }, [obdobje]);
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null); setPredogled(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
+      const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, DOPUST_GLAVE_MAPA);
+      if (!najdeniStolpci.includes("employee_code") || !najdeniStolpci.includes("dnevi")) {
+        setUvozMsg("V datoteki ni bilo mogoče najti stolpcev za šifro zaposlenega (Mat.št) in DOPUST.");
+        return;
+      }
+      const zapisi = objekti
+        .map(o => ({
+          full_name: (o.full_name || "").trim().toUpperCase(),
+          employee_code: (o.employee_code || "").trim(),
+          leto: Number(o.leto) || null,
+          mesec: Number(o.mesec) || null,
+          dnevi: o.dnevi !== "" && !isNaN(Number(o.dnevi)) ? Number(o.dnevi) : null,
+        }))
+        .filter(z => z.employee_code && z.dnevi != null);
+      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic."); return; }
+
+      // Obdobje: iz datoteke, če ga ima; sicer trenutni mesec (admin lahko
+      // pred potrditvijo popravi spodaj).
+      const zdaj = new Date();
+      const leto = zapisi.find(z => z.leto)?.leto || zdaj.getFullYear();
+      const mesec = zapisi.find(z => z.mesec)?.mesec || (zdaj.getMonth() + 1);
+
+      // Zadnje znano stanje vsake osebe (za primerjavo novo/spremenjeno/enako).
+      const { data: zgodovina } = await client.from("leave_balance_history")
+        .select("employee_code, leto, mesec, dnevi")
+        .order("leto", { ascending: false }).order("mesec", { ascending: false });
+      const zadnje = new Map();
+      (zgodovina || []).forEach(r => { if (!zadnje.has(r.employee_code)) zadnje.set(r.employee_code, Number(r.dnevi)); });
+
+      // Poveži z obstoječimi profili: najprej po employee_code
+      // (profile_hr_details), sicer po imenu (vreča besed).
+      const { data: hrPodatki } = await client.from("profile_hr_details").select("profile_id, employee_code");
+      const { data: profili } = await client.from("profiles").select("id, full_name");
+      const poEmployeeCode = new Map((hrPodatki || []).filter(h => h.employee_code).map(h => [h.employee_code, h.profile_id]));
+
+      const zVsebino = zapisi.map(z => {
+        let profile_id = poEmployeeCode.get(z.employee_code) || null;
+        if (!profile_id) {
+          const ujemanje = (profili || []).find(p => imenaSeUjemataAdmin(p.full_name, z.full_name));
+          if (ujemanje) profile_id = ujemanje.id;
+        }
+        const prej = zadnje.has(z.employee_code) ? zadnje.get(z.employee_code) : undefined;
+        const vrsta = prej === undefined ? "nov" : (prej !== z.dnevi ? "sprem" : "enako");
+        return { ...z, leto, mesec, profile_id, prej, vrsta };
+      });
+
+      const obstojeci = await client.from("leave_balance_history").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
+      const vNovem = new Set(zVsebino.map(z => z.employee_code));
+      const { data: vsiZgodovina } = await client.from("leave_balance_history").select("employee_code, full_name").order("full_name");
+      const znaniZaEnkrat = new Map();
+      (vsiZgodovina || []).forEach(r => { if (!znaniZaEnkrat.has(r.employee_code)) znaniZaEnkrat.set(r.employee_code, r.full_name); });
+      const manjkajoci = [...znaniZaEnkrat.entries()].filter(([koda]) => !vNovem.has(koda)).map(([, ime]) => ime);
+
+      setPredogled({
+        zapisi: zVsebino, leto, mesec,
+        novih: zVsebino.filter(z => z.vrsta === "nov").length,
+        spremenjenih: zVsebino.filter(z => z.vrsta === "sprem").length,
+        enakih: zVsebino.filter(z => z.vrsta === "enako").length,
+        manjkajoci,
+      });
+      setUvozMsg(`Prebranih ${zVsebino.length} vrstic iz "${file.name}" – preveri predogled spodaj pred potrditvijo.`);
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const potrdiUvoz = async () => {
+    if (!predogled) return;
+    setUvozBusy(true);
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      const zapisi = predogled.zapisi.map(z => ({
+        employee_code: z.employee_code, full_name: z.full_name, leto: predogled.leto, mesec: predogled.mesec,
+        dnevi: z.dnevi, profile_id: z.profile_id, uvozeno: new Date().toISOString(), uvozil: user ? user.id : null,
+      }));
+      for (let i = 0; i < zapisi.length; i += 200) {
+        const { error } = await client.from("leave_balance_history").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
+        if (error) throw error;
+      }
+      setUvozMsg(`Uvoženih ${zapisi.length} vrstic za ${MESECI_SL2[predogled.mesec - 1]} ${predogled.leto}.`);
+      setPredogled(null);
+      await nalozi();
+      setObdobje(predogled.leto + "-" + predogled.mesec);
+    } catch (e) {
+      setUvozMsg("Uvoz ni uspel: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const razvrsti = (polje) => setSort(s => ({ polje, smer: s.polje === polje ? -s.smer : 1 }));
+
+  const filtrirano = useMemo(() => {
+    const s = iskanje.trim().toLowerCase();
+    let v = !s ? vrstice : vrstice.filter(r =>
+      (r.full_name || "").toLowerCase().includes(s) || String(r.employee_code).includes(s)
+    );
+    v = v.slice().sort((a, b) => {
+      const x = a[sort.polje], y = b[sort.polje];
+      if (typeof x === "string") return sort.smer * String(x).localeCompare(String(y), "sl");
+      return sort.smer * ((x == null ? -1e9 : Number(x)) - (y == null ? -1e9 : Number(y)));
+    });
+    return v;
+  }, [vrstice, iskanje, sort]);
+
+  const izvoziCSV = () => {
+    if (!filtrirano.length) return;
+    const [leto, mesec] = obdobje.split("-");
+    const csv = "full_name,employee_code,dnevi,sprememba\n" + filtrirano.map(r =>
+      [`"${(r.full_name||"").replace(/"/g,'""')}"`, r.employee_code, r.dnevi, r.sprememba ?? ""].join(",")
+    ).join("\n") + "\n";
+    download(`dopust-${leto}-${String(mesec).padStart(2,"0")}.csv`, csv);
+  };
+
+  const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
+  const maxDnevi = Math.max(1, ...filtrirano.map(r => Number(r.dnevi) || 0));
+  const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
+  const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
+
+  return (
+    <div>
+      <h2 className="section no-print">Mesečno stanje dopusta (Kadris)</h2>
+      <p className="hint no-print">
+        Vsak mesec naloži izvoz iz Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec, DOPUST).
+        Šifra zaposlenega je edini stabilen ključ med meseci – ista oseba se ne podvoji, tudi če se ime kdaj zapiše
+        drugače. Ponoven uvoz istega meseca obstoječo vrstico posodobi, ne podvoji. Stanje se samodejno prikaže tudi
+        v Imeniku pri posamezni osebi (najnovejši mesec).
+      </p>
+      <div className="card no-print">
+        <RazporedUvozVir ikona="🏖" naziv="Stanje dopusta (Kadris)"
+          opis="CSV / Excel – mat. št., leto, mesec, dnevi"
+          onClick={() => fileRef.current && fileRef.current.click()} />
+        <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz mesečnega stanja iz datoteke"}
+        </button>
+        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+
+      {predogled && (
+        <div className="card no-print">
+          <h3 style={{marginTop:0}}>Predogled – {MESECI_SL2[predogled.mesec - 1]} {predogled.leto}</h3>
+          <p className="hint">{predogled.novih} novih · {predogled.spremenjenih} spremenjenih · {predogled.enakih} nespremenjenih</p>
+          {predogled.manjkajoci.length > 0 && (
+            <p className="hint">V tem izvozu jih ni (bodo iz prejšnjih uvozov, podatki ostanejo): {predogled.manjkajoci.join(", ")}</p>
+          )}
+          <button className="genBtn" onClick={potrdiUvoz} disabled={uvozBusy}>{uvozBusy ? "Uvažam …" : "Potrdi uvoz"}</button>
+          <button className="dlBtn" style={{marginLeft:8}} onClick={() => setPredogled(null)}>Prekliči</button>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="dobd">Obdobje</label>
+            <select id="dobd" value={obdobje} onChange={e => setObdobje(e.target.value)}>
+              {(obdobja || []).length === 0 && <option value="">– ni podatkov –</option>}
+              {(obdobja || []).map(o => (
+                <option key={o.leto+"-"+o.mesec} value={o.leto+"-"+o.mesec}>{MESECI_SL2[o.mesec-1]} {o.leto} – {o.stevilo_oseb} oseb</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{flex:1, minWidth:180}}>
+            <label htmlFor="disc">Iskanje</label>
+            <input id="disc" type="text" placeholder="Ime ali šifra zaposlenega …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
+          </div>
+        </div>
+        <RazporedIzvozVir
+          naziv="Stanje dopusta"
+          dodatno={[{ label: "Izvozi CSV", onClick: izvoziCSV }]}
+          naslov={(() => { const [leto, mesec] = obdobje.split("-"); return `dopust-${leto}-${String(mesec).padStart(2,"0")}`; })()}
+          pripravi={() => {
+            if (!filtrirano.length) throw new Error("Ni podatkov za izvoz.");
+            return [{
+              ime: "Dopust",
+              glave: ["Priimek in ime", "Šifra zaposlenega", "Dnevi", "Sprememba"],
+              vrstice: filtrirano.map(r => [r.full_name || "", r.employee_code || "", r.dnevi, r.sprememba ?? ""]),
+            }];
+          }}
+        />
+
+        {vrstice.length > 0 && (
+          <p className="hint" style={{marginTop:10}}>
+            {filtrirano.length} zaposlenih · skupaj {Math.round(skupaj*10)/10} dni ·
+            povprečje {(skupaj/(filtrirano.length||1)).toFixed(1)} · brez dopusta {brezDopusta} · brez računa {brezRacuna}
+          </p>
+        )}
+
+        {vrstice.length === 0 ? (
+          <p className="hint">Za to obdobje ni podatkov.</p>
+        ) : (
+          <div style={{overflowX:"auto"}}>
+            <table className="roster">
+              <thead>
+                <tr>
+                  <th className="weekToggle" style={{cursor:"pointer"}} onClick={() => razvrsti("full_name")}>Priimek in ime</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("employee_code")}>Šifra</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("dnevi")}>Dnevi</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("sprememba")}>Sprememba</th>
+                  <th>Račun</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrirano.map(r => {
+                  const s = r.sprememba == null ? null : Number(r.sprememba);
+                  const barva = s == null || s === 0 ? "var(--muted)" : (s > 0 ? "var(--ok)" : "var(--danger)");
+                  const besedilo = s == null ? "–" : (s > 0 ? "+" : "") + s;
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.full_name}</td>
+                      <td>{r.employee_code}</td>
+                      <td style={{minWidth:120}}>
+                        <strong>{r.dnevi}</strong>
+                        {/* Vrstica napredka je relativna glede na NAJVEČJE stanje v
+                            tem mesecu - kvota po osebi (annual_leave_total) v tem
+                            izvozu ni na voljo, zato bi bil odstotek izmišljen. */}
+                        <div className="bar" title={`${r.dnevi} dni · najvišje stanje ta mesec: ${maxDnevi}`}>
+                          <i style={{width: (maxDnevi > 0 ? 100 * Number(r.dnevi) / maxDnevi : 0) + "%"}}></i>
+                        </div>
+                      </td>
+                      <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
+                      <td>{r.profile_id ? "povezan" : "ni računa"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// NZV – oddelek za vodje in administratorje (glej supabase/schema.sql
+// sekcija 23). Na izrecno željo združuje vodstveno pokritost in dežurstva
+// na enem mestu ("bo skupaj naredi da bo pregledno in razumljivo") – sama
+// logika generiranja obeh (VodjeTab/DezurstvaTab) ostaja nespremenjena,
+// samo dostop je zdaj pod enim skupnim zavihkom namesto dveh ločenih.
+function NzvTab({ zacetniPod, zacetniMesec }){
+  const [pod, setPod] = useState(zacetniPod || "vodje"); // "vodje" | "dez"
+  return (
+    <div>
+      <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
+        <button role="tab" aria-selected={pod==="vodje"} onClick={() => setPod("vodje")}>Vodstvena pokritost</button>
+        <button role="tab" aria-selected={pod==="dez"} onClick={() => setPod("dez")}>Dežurstva</button>
+      </div>
+      {pod==="vodje" && <VodjeTab zacetniMesec={zacetniMesec}/>}
+      {pod==="dez" && <DezurstvaTab zacetniMesec={zacetniMesec}/>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Plače: zbirni izvoz ur za obračun (redno delo/nočne ure/nedelje/
+// prazniki/dežurstva), po vzoru urne legende iz uradnega delovnika (glej
+// DELOVNI_ČAS v index.html). NAMENOMA konzervativen pri dežurstvih: samo
+// ŠTEVILO dežurstev, ne ur - uradna shema dežurstvenih ur je odvisna od
+// dneva v tednu/praznika (delavnik 15.30-07.00, vikend/praznik 24h) in te
+// aplikacija (še) ne modelira natančno, zato bi izmišljena ura pomenila
+// napačen podatek pri obračunu plač - raje jasna vrzel kot tiha napaka.
+// Prazniki se NE prepišejo ročno, ampak izračunajo (velika noč po Meeus/
+// Jones/Butcher algoritmu), da se izognemo napaki pri ročno vtipkanem
+// datumu premičnega praznika.
+// ---------------------------------------------------------------------
+// Trajanje in vrsta izmene prideta iz skupnega delovni-cas.js (edini vir
+// resnice) – prej je bila ista tabela zapisana še enkrat tu in še enkrat v
+// index.html, kar bi se ob spremembi urnika zlahka razšlo.
+const TRAJANJE_UR = Object.fromEntries(
+  Object.entries(window.DelovniCas.IZMENE)
+    .filter(([, v]) => v.ure != null)
+    .map(([k, v]) => [k, v.ure])
+);
+function jeNocnaSifra(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return !!(i && i.nocna); }
+function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
+
+function velikaNoc(leto){
+  const a = leto % 19, b = Math.floor(leto / 100), c = leto % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mesec = Math.floor((h + l - 7 * m + 114) / 31), dan = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(leto, mesec - 1, dan));
+}
+function slovenskiPrazniki(leto){
+  const vn = velikaNoc(leto);
+  const vnPon = new Date(vn); vnPon.setUTCDate(vn.getUTCDate() + 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const p = String(leto);
+  return new Set([
+    p + "-01-01", p + "-01-02", p + "-02-08", iso(vnPon), p + "-04-27",
+    p + "-05-01", p + "-05-02", p + "-06-25", p + "-08-15", p + "-10-31",
+    p + "-11-01", p + "-12-25", p + "-12-26",
+  ]);
+}
+function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; }
+
+function PlaceTab(){
+  const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
+  const [vrstice, setVrstice] = useState(null); // null = ni naloženo
+  const [neznane, setNeznane] = useState([]); // šifre izmen, ki jih obračun ne pozna
+  const [busy, setBusy] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  const nalozi = async () => {
+    setBusy(true); setNapaka(null); setVrstice(null); setNeznane([]);
+    try {
+      const [leto, mesec] = obdobje.split("-").map(Number);
+      const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
+      const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
+      const prazniki = slovenskiPrazniki(leto);
+      const [{ data: entries, error }, { data: profili }] = await Promise.all([
+        client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
+        // Matična številka je ključ, po katerem osebo prepozna računovodstvo
+        // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
+        client.from("profiles").select("id, full_name, profile_hr_details(employee_code)"),
+      ]);
+      if (error) throw error;
+      const imePoId = {}, matPoId = {};
+      (profili || []).forEach(p => {
+        imePoId[p.id] = p.full_name;
+        const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+        matPoId[p.id] = (hr && hr.employee_code) || "";
+      });
+      const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
+      const neznaneKode = {}; // koda -> [imena], glej razlago v zanki spodaj
+      const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
+      (entries || []).forEach(r => {
+        if (jeDezurstvoSifra(r.shift_code)) {
+          const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+          z.dezurstva += 1;
+          return;
+        }
+        const ure = TRAJANJE_UR[r.shift_code];
+        if (!ure) {
+          // LD/KPU/BS/prosto pravilno NE štejejo kot delo. NEZNANE kode pa so
+          // druga stvar: doslej so tiho izpadle iz obračuna, kar pomeni
+          // neplačano izmeno, ki je nihče ne opazi. Zbiramo jih, da se
+          // izpišejo - tiho izgubljanje ur je hujše od napačnega seštevka,
+          // ker se ne pozna nikjer.
+          const s = (r.shift_code || "").trim();
+          if (s && !window.DelovniCas.NI_DELO.includes(s)) {
+            (neznaneKode[s] = neznaneKode[s] || []).push(imePoId[r.employee_id] || r.employee_id);
+          }
+          return;
+        }
+        const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
+        if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
+        if (jeNedelja(r.work_date)) z.nedelje += ure;
+        if (prazniki.has(r.work_date)) z.prazniki += ure;
+      });
+      const zaokrozi = (n) => Math.round(n * 10) / 10;
+      const rezultat = Object.keys(zbir).map(id => ({
+        employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
+        employee_code: matPoId[id] || "",
+        redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
+        nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
+        dezurstva: zbir[id].dezurstva,
+      })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
+      setVrstice(rezultat);
+      setNeznane(Object.keys(neznaneKode).sort().map(k => ({
+        koda: k,
+        koliko: neznaneKode[k].length,
+        osebe: Array.from(new Set(neznaneKode[k])).sort((a, b) => a.localeCompare(b, "sl")),
+      })));
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="section">Zbirni izvoz ur za obračun plač</h2>
+      <p className="hint">
+        Osnutek za računovodstvo - preveri pred oddajo. "Dežurstva" je namenoma prikazano kot ŠTEVILO (ne ur), ker
+        se dežurstvene ure razlikujejo glede na dan v tednu/praznik in tega izvoz (še) ne izračunava natančno.
+        Nočne/nedeljske/praznične ure se lahko prekrivajo (isto uro lahko šteje v več stolpcih hkrati, kot ločeni
+        dodatki) - to je namerno, ne napaka seštevanja.
+      </p>
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="placeObdobje">Mesec</label>
+            <input id="placeObdobje" type="month" value={obdobje} onChange={e => setObdobje(e.target.value)} />
+          </div>
+          <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
+        </div>
+        {napaka && <p className="err">{napaka}</p>}
+        {neznane.length > 0 && (
+          <div className="warnBox" style={{marginTop:10, borderColor:"var(--danger)"}}>
+            <div className="t">
+              ⚠ Neprepoznane šifre izmen: {neznane.length} – te ure NISO v obračunu
+            </div>
+            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
+              {neznane.map(n => (
+                <li key={n.koda} style={{fontSize:12.5, marginBottom:3}}>
+                  <b>{n.koda}</b> – {n.koliko}× ({n.osebe.slice(0, 4).join(", ")}
+                  {n.osebe.length > 4 ? " in še " + (n.osebe.length - 4) : ""})
+                </li>
+              ))}
+            </ul>
+            <p className="hint" style={{margin:"8px 0 0"}}>
+              Obračun pozna samo šifre iz <code>delovni-cas.js</code>. Zgornje niso med njimi, zato se
+              ne štejejo nikamor – če gre za resnično delo, je izmena neplačana. Preveri, ali je šifra
+              napačno zapisana (npr. presledek ali velika/mala črka), ali pa je treba dodati nov tip izmene.
+            </p>
+          </div>
+        )}
+        {vrstice && vrstice.some(r => !r.employee_code) && (
+          <div className="warnBox" style={{marginTop:10}}>
+            <div className="t">
+              ⚠ Brez matične številke: {vrstice.filter(r => !r.employee_code).length} oseb
+            </div>
+            <p className="hint" style={{margin:"6px 0 0"}}>
+              Računovodstvo in Kadris osebo prepoznata po matični številki, ne po imenu. Te vrstice bo treba
+              povezati ročno. Številko vpiši v Imeniku (klikni "manjka" v razpredelnici spodaj), nato znova
+              pritisni "Izračunaj".
+            </p>
+          </div>
+        )}
+        {vrstice && vrstice.length > 0 && (
+          <RazporedIzvozVir
+            naziv="Plače"
+            naslov={"place-" + obdobje}
+            pripravi={() => [{
+              ime: "Plače",
+              glave: ["Matična številka", "Priimek in ime", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
+              vrstice: vrstice.map(r => [r.employee_code, r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
+            }]}
+          />
+        )}
+        {vrstice && vrstice.length === 0 && <p className="hint">Za ta mesec ni objavljenega razporeda.</p>}
+        {vrstice && vrstice.length > 0 && (
+          <div className="tableScroller" style={{marginTop:10}}>
+            <table className="fairTable">
+              <thead>
+                <tr><th>Mat. št.</th><th>Priimek in ime</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
+              </thead>
+              <tbody>
+                {vrstice.map(r => (
+                  <tr key={r.employee_id}>
+                    <td>{r.employee_code
+                      ? r.employee_code
+                      : <a href={"imenik.html?id=" + r.employee_id} className="pill danger" style={{textDecoration:"none"}}>manjka</a>}</td>
+                    <td style={{textAlign:"left"}}>{r.full_name}</td>
+                    <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Revizijska sled sprememb PRAVIC (profiles_log - schema.sql sekcija 28).
+// Ločena od revizije razporeda spodaj, ker odgovarja na drugo vprašanje:
+// ne "kdo je komu spremenil izmeno", ampak "kdo je komu podelil ali
+// odvzel dostop". Tudi tu piše izključno sprožilec v bazi.
+// ---------------------------------------------------------------------
+const POLJE_NAZIV = {
+  role: "Vloga",
+  department_code: "Oddelek",
+  vodja_id: "Nadrejeni",
+  is_koordinator: "Koordinator menjav",
+};
+// Povišanje pravic je varnostno pomembnejše od znižanja - v dolgem
+// seznamu mora izstopati.
+const VLOGA_MOC = { user: 0, vodja: 1, admin: 2 };
+function jePovisanje(v){
+  if (v.polje === "role") return (VLOGA_MOC[v.nova_vrednost] ?? -1) > (VLOGA_MOC[v.stara_vrednost] ?? -1);
+  if (v.polje === "is_koordinator") return v.nova_vrednost === "true";
+  return false;
+}
+
+function RevizijaPravic(){
+  const [vnosi, setVnosi] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [iskanje, setIskanje] = useState("");
+  const [samoPovisanja, setSamoPovisanja] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("profiles_log").select("*").order("changed_at", { ascending: false }).limit(300)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { setNapaka(error.message); setVnosi([]); return; }
+        setVnosi(data || []);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtrirani = useMemo(() => {
+    if (!vnosi) return [];
+    const s = iskanje.trim().toLowerCase();
+    return vnosi.filter(v => {
+      if (samoPovisanja && !jePovisanje(v)) return false;
+      if (!s) return true;
+      return (v.profile_name || "").toLowerCase().includes(s)
+        || (v.changed_by_name || "").toLowerCase().includes(s);
+    });
+  }, [vnosi, iskanje, samoPovisanja]);
+
+  const povisanjSkupaj = useMemo(() => (vnosi || []).filter(jePovisanje).length, [vnosi]);
+  const AKCIJA_NAZIV = { insert: "Nov račun", update: "Sprememba", delete: "Izbris računa" };
+  const prikaz = (x) => (x === null || x === undefined || x === "") ? "–" : (x === "true" ? "da" : x === "false" ? "ne" : x);
+
+  return (
+    <div>
+      <p className="hint">
+        Zadnjih 300 sprememb pravic (vloga, oddelek, nadrejeni, koordinator). Piše samodejno sprožilec v bazi –
+        iz aplikacije tega ni mogoče izklopiti ali popraviti za nazaj. Vpisi o razporedu so v drugem pogledu zgoraj.
+      </p>
+      <div style={{display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap", marginBottom:10}}>
+        <div className="field" style={{flex:1, minWidth:200}}>
+          <input type="text" placeholder="Išči po osebi ali uredniku …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
+        </div>
+        <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, paddingBottom:8}}>
+          <input type="checkbox" checked={samoPovisanja} onChange={e => setSamoPovisanja(e.target.checked)} />
+          Samo povišanja pravic{povisanjSkupaj ? " (" + povisanjSkupaj + ")" : ""}
+        </label>
+      </div>
+      {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
+      {vnosi === null ? <p className="hint">Nalagam …</p> : (
+        <div className="card">
+          {filtrirani.length === 0 && <p className="hint" style={{margin:0}}>Brez rezultatov.</p>}
+          {filtrirani.map(v => (
+            <div className="revVnos" key={v.id}>
+              <div className="revGlava">
+                <b>{v.profile_name || v.profile_id}</b>
+                {jePovisanje(v) && <span className="pill danger">povišanje</span>}
+                {v.action !== "update" && <span className="pill muted">{AKCIJA_NAZIV[v.action] || v.action}</span>}
+              </div>
+              <div className="revSprememba">
+                {POLJE_NAZIV[v.polje] || v.polje}: {prikaz(v.stara_vrednost)} → <b>{prikaz(v.nova_vrednost)}</b>
+              </div>
+              <div className="revNoga">
+                {window.Datum.sloSCasom(v.changed_at)} · spremenil: {v.changed_by_name || "(sistem)"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Revizijska sled: kdo, kdaj in kaj je spremenil v razporedu
+// (schedule_entries_log - glej schema.sql sekcija 26, piše ga izključno
+// sprožilec ob vsakem vpisu/spremembi/izbrisu shift_code/department_code,
+// ne aplikacijska koda - velja za VSE poti pisanja).
+// ---------------------------------------------------------------------
+function AuditLogTab(){
+  const [pogled, setPogled] = useState("razpored");
+  return (
+    <div>
+      <h2 className="section">Revizijska sled</h2>
+      <div className="tabs no-print" role="tablist" style={{marginBottom:12}}>
+        <button role="tab" aria-selected={pogled==="razpored"} onClick={() => setPogled("razpored")}>Razpored</button>
+        <button role="tab" aria-selected={pogled==="pravice"} onClick={() => setPogled("pravice")}>Pravice in dostopi</button>
+      </div>
+      {pogled === "razpored" ? <RevizijaRazporeda/> : <RevizijaPravic/>}
+    </div>
+  );
+}
+
+function RevizijaRazporeda(){
+  const [vnosi, setVnosi] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [iskanje, setIskanje] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    client.from("schedule_entries_log").select("*").order("changed_at", { ascending: false }).limit(300)
+      .then(async ({ data, error }) => {
+        if (cancelled) return;
+        if (error) { setNapaka(error.message); setVnosi([]); return; }
+        const { data: profili } = await client.from("profiles").select("id, full_name");
+        const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
+        setVnosi((data || []).map(v => ({
+          ...v,
+          zaposleni: imePoId[v.employee_id] || v.employee_id,
+          urednik: imePoId[v.changed_by] || "(neznano)",
+        })));
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtrirani = useMemo(() => {
+    if (!vnosi) return [];
+    const s = iskanje.trim().toLowerCase();
+    if (!s) return vnosi;
+    return vnosi.filter(v => (v.zaposleni || "").toLowerCase().includes(s) || (v.urednik || "").toLowerCase().includes(s) || (v.department_code || "").toLowerCase().includes(s));
+  }, [vnosi, iskanje]);
+
+  const AKCIJA_NAZIV = { insert: "Nov vnos", update: "Sprememba", delete: "Izbris" };
+
+  return (
+    <div>
+      <p className="hint">Zadnjih 300 sprememb v razporedu (schedule_entries) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
+      <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
+      {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
+      {vnosi === null ? <p className="hint">Nalagam …</p> : (
+        <div className="tableScroller" style={{marginTop:10}}>
+          <table className="fairTable">
+            <thead>
+              <tr><th>Ko</th><th>Kdo</th><th>Kaj</th><th>Zaposleni</th><th>Oddelek</th><th>Datum</th><th>Iz → V</th></tr>
+            </thead>
+            <tbody>
+              {filtrirani.map(v => (
+                <tr key={v.id}>
+                  <td style={{whiteSpace:"nowrap"}}>{window.Datum.sloSCasom(v.changed_at)}</td>
+                  <td>{v.urednik}</td>
+                  <td>{AKCIJA_NAZIV[v.action] || v.action}</td>
+                  <td style={{textAlign:"left"}}>{v.zaposleni}</td>
+                  <td>{v.department_code}</td>
+                  <td>{window.Datum.slo(v.work_date)}</td>
+                  <td>{(v.old_shift_code || "prosto") + " → " + (v.new_shift_code || "prosto")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtrirani.length === 0 && <p className="hint">Brez rezultatov.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App({ ogled, profil }){
+  // Napotilo iz Želja (glej preberiNapotiloIzNaslova) - prebere se enkrat,
+  // ob odprtju; poznejši kliki po zavihkih ga ne vlečejo več za sabo.
+  const napotilo = useMemo(() => {
+    try { return preberiNapotiloIzNaslova(window.location.search); } catch (e) { return null; }
+  }, []);
+  const [tab, setTab] = useState((napotilo && napotilo.tab) || "kalup");
+  return (
+    <div className="wrap wide">
+      <RazporedOgledTrak aktivno={ogled} profil={profil}/>
+      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
+      <header className="top">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
+        <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>
+        <div className="tabs no-print" role="tablist">
+          {/* Zavihek se je prej imenoval "Kalup (SMS/TZN)" - preimenovan na
+              izrecno željo uporabnika. "Kalup" ostaja ime ROTACIJSKEGA
+              VZORCA (5-tedenska rotacija A-E, stolpec "Kalup" v tabeli
+              spodaj), zavihek pa se odslej imenuje po tem, kar ureja. */}
+          <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Oddelki</button>
+          <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
+          <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
+          <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
+          <button role="tab" aria-selected={tab==="place"} onClick={() => setTab("place")}>Plače</button>
+          <button role="tab" aria-selected={tab==="revizija"} onClick={() => setTab("revizija")}>Revizija</button>
+        </div>
+      </header>
+
+      {tab==="kalup" && <KalupTab zacetniOddelek={napotilo && napotilo.oddelek} zacetniMesec={napotilo && napotilo.mesec}/>}
+      {tab==="nzv" && <NzvTab zacetniPod={napotilo && napotilo.pod} zacetniMesec={napotilo && napotilo.mesec}/>}
+      {tab==="dopust" && <DopustTab/>}
+      {tab==="uporabniki" && <UporabnikiTab/>}
+      {tab==="place" && <PlaceTab/>}
+      {tab==="revizija" && <AuditLogTab/>}
+
+      <footer className="foot no-print">
+        <p><b>Modul 2 – generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
+        <p>Poleg ročnega prenosa JSON lahko rezultat objaviš neposredno v Supabase – to je edini vir podatkov, ki ga bere index.html.</p>
+      </footer>
+
+      <RazporedNav active="admin" role="admin" unread={0} />
+    </div>
+  );
+}
+
+function Gate(){
+  const [ok, setOk] = useState(false);
+  const [ogled, setOgled] = useState(false);
+  const [profil, setProfil] = useState(null);
+  useEffect(() => {
+    RazporedAuth.requireRole(["admin"]).then(res => {
+      if (res) { setOgled(!!res.ogled); setProfil(res.profile); setOk(true); }
+    });
+  }, []);
+  return ok ? <App ogled={ogled} profil={profil}/> : null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
+</script>
+</body>
+</html>

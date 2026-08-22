@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Statistika · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+
+<style>
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. Prej je imela vsaka stran svojo kopijo in te so se
+     razšle: --ok je bil tu #4C8C63, v theme.css #4F9B6B, --ok-rgb pa
+     se ni podvajal - zato sta imeli znački .pill.ok ozadje iz ene
+     zelene in besedilo iz druge. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* širina: theme.css (.wrap / .wrap.wide / .wrap.polna) */
+  .wrap{ padding-bottom: 60px; }
+  header.top{ position:sticky; top:0; z-index:20; background: linear-gradient(180deg, var(--bg) 75%, transparent);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  .wordmark .tag{ font-size:11.5px; color:var(--accent-ink); background:var(--accent); font-weight:800;
+    padding:2px 8px; border-radius:999px; }
+  .backlink{ display:inline-block; margin: 4px 14px 0 0; font-size:12.5px; color:var(--muted); text-decoration:underline;
+    text-underline-offset:3px; text-decoration-color:var(--line); }
+
+  .tabs{ display:flex; gap:4px; background:var(--surface); border:1px solid var(--line); padding:4px;
+    border-radius:999px; margin-top:14px; overflow-x:auto; }
+  .tabs button{ flex:0 0 auto; border:0; background:transparent; color:var(--muted); padding:9px 14px;
+    border-radius:999px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .tabs button[aria-selected="true"]{ background:var(--accent); color:var(--accent-ink); }
+  .uploadRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .fileBtn{ background: var(--surface-2); border:1px solid var(--line); color:var(--text); font-weight:700;
+    padding:9px 14px; border-radius: var(--radius-sm); font-size:13px; cursor:pointer; }
+  .fileBtn input{ display:none; }
+  .statusMsg{ font-size:12.5px; color: var(--ok); }
+  .statusMsg.err{ color: var(--danger); }
+
+  table.fair{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
+  table.fair th{ text-align:left; color:var(--muted); font-weight:700; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.03em; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; white-space:nowrap; }
+  table.fair th.active{ color: var(--accent-2); }
+  table.fair td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.fair tr.top td{ background: rgba(var(--danger-rgb),0.08); }
+  table.fair tr.bottom td{ background: rgba(var(--ok-rgb),0.08); }
+  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; min-width:60px; }
+  .bar i{ display:block; height:100%; background: var(--accent); }
+  .bar.cool i{ background: var(--cool); }
+  .num{ font-variant-numeric: tabular-nums; font-weight:700; }
+  .rank{ display:inline-block; width:20px; color:var(--muted); font-size:11px; }
+
+  .legend2{ display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:10px; }
+  .legend2 .li{ display:flex; align-items:center; gap:6px; }
+  .sw{ width:10px; height:10px; border-radius:3px; }
+
+  .dlBtn{ margin-top:16px; width:100%; background: transparent; color: var(--text); border:1px solid var(--line);
+    padding:11px; border-radius: var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } }
+
+  @media print{
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    html, body{ margin:0; padding:0; }
+    .no-print{ display:none !important; }
+    .wrap{ max-width:100% !important; }
+    table.fair tr{ break-inside:avoid; page-break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="react.production.min.js"></script>
+<script src="react-dom.production.min.js"></script>
+<script src="babel.min.js"></script>
+<script src="dashboard-core.js"></script>
+<script src="supabase-js.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+<script src="xlsx.core.min.js"></script>
+<script src="export-utils.js"></script>
+<script src="gsheets-client.js"></script>
+<script src="export-buttons.js"></script>
+<script src="print-fit.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+
+const PODSKUPINA_NAZIV = { A:"A · rotacijski izmenski kader", B:"B · dnevni z občasnim REDI", C:"C · izključno dnevni", D:"D · dolgotrajna odsotnost" };
+
+function download(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 1)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function useSort(data, defaultKey){
+  const [key, setKey] = useState(defaultKey);
+  const [dir, setDir] = useState(-1);
+  const sorted = useMemo(() => {
+    const arr = data.slice();
+    arr.sort((a,b) => (a[key]-b[key]) * dir);
+    return arr;
+  }, [data, key, dir]);
+  const onSort = (k) => { if (k===key) setDir(d=>-d); else { setKey(k); setDir(-1); } };
+  return { sorted, key, dir, onSort };
+}
+
+function Th({ label, k, sortKey, onSort }){
+  return <th className={k===sortKey ? "active" : ""} onClick={() => onSort(k)}>{label}{k===sortKey ? " ▾" : ""}</th>;
+}
+
+function FairBar({ value, max, cool }){
+  return <div className={"bar" + (cool ? " cool" : "")}><i style={{width: (max>0 ? 100*value/max : 0)+"%"}}></i></div>;
+}
+
+// ---------------------------------------------------------------------
+// Vizualni gradniki za analitiko. Namenoma BREZ zunanje knjižnice za
+// grafe: potrebujemo vodoravne stolpce in toplotno karto, kar je nekaj
+// deset vrstic CSS-a - vendorirana knjižnica (~200 kB) bi bila v tem
+// projektu (brez build koraka, ročno vendorirane odvisnosti) nesorazmerna,
+// poleg tega se barve tako brez ovinkov ujemajo z bolnišnično paleto.
+// ---------------------------------------------------------------------
+function KpiKartice({ postavke }){
+  return (
+    <div className="kpiMreza">
+      {postavke.map(p => (
+        <div className="kpiKarta" key={p.oznaka}>
+          <div className="oznaka">{p.oznaka}</div>
+          <div className="vrednost">{p.vrednost}</div>
+          {p.pod && <div className="pod">{p.pod}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Vodoravni stolpčni graf s poudarkom na ODSTOPANJU od povprečja:
+// nad povprečjem rdeče (preobremenjen), pod povprečjem modro (premalo),
+// v okviru ±10 % olivno (v redu). Prav to je vprašanje pravičnosti.
+function StolpcniGraf({ podatki, kljuc, naslov, enota }){
+  const vrednosti = podatki.map(z => z[kljuc] || 0);
+  const max = Math.max(1, ...vrednosti);
+  const povprecje = vrednosti.length ? vrednosti.reduce((a, b) => a + b, 0) / vrednosti.length : 0;
+  const razvrsceni = podatki.slice().sort((a, b) => (b[kljuc] || 0) - (a[kljuc] || 0));
+
+  return (
+    <div className="card" style={{marginTop:12}}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, flexWrap:"wrap"}}>
+        <b style={{fontSize:14}}>{naslov}</b>
+        <span className="hint" style={{margin:0}}>povprečje {povprecje.toFixed(1)} {enota}</span>
+      </div>
+      <div style={{marginTop:8}}>
+        {razvrsceni.map(z => {
+          const v = z[kljuc] || 0;
+          const odstopanje = povprecje > 0 ? (v - povprecje) / povprecje : 0;
+          const razred = odstopanje > 0.10 ? "nad" : (odstopanje < -0.10 ? "pod" : "");
+          return (
+            <div className="grafVrstica" key={z.ime}>
+              <span className="ime" title={z.ime}>{z.ime}</span>
+              <span className="stolpec"><i className={razred} style={{width: (100 * v / max) + "%"}}></i></span>
+              <span className="st">{v}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="legend" style={{marginTop:10}}>
+        <span className="li"><span className="dot" style={{background:"var(--danger)"}}></span>nad povprečjem (&gt;10 %)</span>
+        <span className="li"><span className="dot" style={{background:"var(--accent)"}}></span>v okviru</span>
+        <span className="li"><span className="dot" style={{background:"var(--noc)"}}></span>pod povprečjem</span>
+      </div>
+    </div>
+  );
+}
+
+// Toplotna karta: vrstica = zaposleni, celica = ena mera obremenitve,
+// intenzivnost = koliko odstopa od NAJVEČJE vrednosti v tem stolpcu.
+// Namen je hitro najti vrstico, ki je "povsod temna" = preobremenjen.
+function ToplotnaKarta({ podatki, mere }){
+  const maxi = {};
+  mere.forEach(m => { maxi[m.kljuc] = Math.max(1, ...podatki.map(z => z[m.kljuc] || 0)); });
+
+  // Vsota normaliziranih mer = groba skupna obremenitev, po njej razvrstimo.
+  const zSkupno = podatki.map(z => ({
+    ...z,
+    _skupno: mere.reduce((v, m) => v + (z[m.kljuc] || 0) / maxi[m.kljuc], 0),
+  })).sort((a, b) => b._skupno - a._skupno);
+
+  return (
+    <div className="card" style={{marginTop:12}}>
+      <b style={{fontSize:14}}>Toplotna karta obremenjenosti</b>
+      <p className="hint" style={{marginTop:4}}>
+        Temnejša celica = višja vrednost glede na najbolj obremenjenega pri tej meri. Vrstice so razvrščene
+        po skupni obremenitvi, zato so najbolj obremenjeni zgoraj.
+      </p>
+      <div className="heatVrstica" style={{marginTop:8, fontWeight:800}}>
+        <span className="ime"></span>
+        <span className="heatCelice" style={{gap:6}}>
+          {mere.map(m => (
+            <span key={m.kljuc} style={{fontSize:10, color:"var(--muted)", width:44, textTransform:"uppercase", letterSpacing:".04em"}}>
+              {m.kratko}
+            </span>
+          ))}
+        </span>
+      </div>
+      {zSkupno.map(z => (
+        <div className="heatVrstica" key={z.ime}>
+          <span className="ime" title={z.ime}>{z.ime}</span>
+          <span className="heatCelice" style={{gap:6}}>
+            {mere.map(m => {
+              const v = z[m.kljuc] || 0;
+              const delez = v / maxi[m.kljuc];
+              return (
+                <span key={m.kljuc} className="heatCelica"
+                  style={{
+                    width:44,
+                    background: delez > 0 ? `rgba(var(--danger-rgb), ${(0.12 + 0.78 * delez).toFixed(3)})` : "var(--surface-2)",
+                    color: delez > 0.55 ? "#fff" : "var(--text)",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:10.5, fontWeight:700,
+                  }}
+                  title={`${z.ime} – ${m.naziv}: ${v}`}>
+                  {v}
+                </span>
+              );
+            })}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function SmsTab({ baseline, onUpdate }){
+  const [status, setStatus] = useState(null);
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "nedpraz");
+  const maxNedpraz = Math.max(1, ...baseline.podatki.map(z => z.nedpraz));
+  const maxNocne = Math.max(1, ...baseline.podatki.map(z => z.nocne));
+
+  // Razpon (najvec - najmanj) je pri pravicnosti povednejsi od povprecja:
+  // pove, kako velika je razlika med najbolj in najmanj obremenjenim.
+  const kpi = useMemo(() => {
+    const p = baseline.podatki;
+    if (!p.length) return [];
+    const povp = (k) => p.reduce((a, z) => a + (z[k] || 0), 0) / p.length;
+    const nocne = p.map(z => z.nocne || 0);
+    return [
+      { oznaka: "Zaposlenih", vrednost: p.length },
+      { oznaka: "Povpr. nočnih", vrednost: povp("nocne").toFixed(1) },
+      { oznaka: "Razpon nočnih", vrednost: (Math.max(...nocne) - Math.min(...nocne)), pod: "največ − najmanj" },
+      { oznaka: "Povpr. ned./praz.", vrednost: povp("nedpraz").toFixed(1) },
+    ];
+  }, [baseline.podatki]);
+
+  const onFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result);
+        const delta = Dashboard.deltaFromKalupExport(json);
+        const n = Object.keys(delta).length;
+        onUpdate(Dashboard.mergeSmsBaseline(baseline.podatki, delta));
+        setStatus({ ok:true, msg: `Dodano: ${n} zaposlenih iz naloženega izvoza.` });
+      } catch (err) {
+        setStatus({ ok:false, msg: "Datoteka ni veljaven izvoz iz generatorja kalupa: " + err.message });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div>
+      <h2 className="section no-print">Dodaj mesec</h2>
+      <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → »Prenesi JSON«). Prišteje se k spodnji osnovi.</p>
+      <div className="card">
+        <div className="uploadRow">
+          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+        </div>
+      </div>
+
+      <h2 className="section">Pregled – {baseline.obdobje}</h2>
+      <KpiKartice postavke={kpi} />
+      <StolpcniGraf podatki={baseline.podatki} kljuc="nocne" naslov="Nočne izmene po zaposlenih" enota="nočnih" />
+      <StolpcniGraf podatki={baseline.podatki} kljuc="nedpraz" naslov="Nedelje in prazniki po zaposlenih" enota="dni" />
+      <ToplotnaKarta podatki={baseline.podatki} mere={[
+        { kljuc:"nocne", kratko:"Nočne", naziv:"nočne izmene" },
+        { kljuc:"nedpraz", kratko:"Ned/pr", naziv:"nedelje in prazniki" },
+        { kljuc:"vikend", kratko:"Vikend", naziv:"vikendi" },
+        { kljuc:"delo", kratko:"Dnevi", naziv:"delovni dnevi" },
+      ]} />
+
+      <h2 className="section">Podrobna razpredelnica</h2>
+      <p className="hint">Kliknite naslov stolpca za razvrstitev. Obarvane vrstice: zgoraj (oranžno) največ nedelj/praznikov, spodaj (zeleno) najmanj.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th>
+            <Th label="Delovni dnevi" k="delo" sortKey={key} onSort={onSort} />
+            <Th label="Nočne izmene" k="nocne" sortKey={key} onSort={onSort} />
+            <Th label="Ned. + prazniki" k="nedpraz" sortKey={key} onSort={onSort} />
+            <Th label="Vikend" k="vikend" sortKey={key} onSort={onSort} />
+            <Th label="LD" k="ld" sortKey={key} onSort={onSort} />
+            <Th label="KPU" k="kpu" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime} className={i<3 ? "top" : (i>=sorted.length-3 ? "bottom" : "")}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td className="num">{z.delo}</td>
+                <td className="num">{z.nocne}<FairBar value={z.nocne} max={maxNocne} cool/></td>
+                <td className="num">{z.nedpraz}<FairBar value={z.nedpraz} max={maxNedpraz}/></td>
+                <td className="num">{z.vikend}</td>
+                <td className="num">{z.ld}</td>
+                <td className="num">{z.kpu}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <RazporedIzvozVir
+        naziv="SMS / TZN"
+        dodatno={[{ label: "Prenesi posodobljeno osnovo (JSON)",
+                    onClick: () => download("osnova-sms-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki }) }]}
+        naslov={`pravicnost-sms-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "SMS-TZN",
+          glave: ["#", "Zaposleni", "Enota", "Delovni dnevi", "Nočne izmene", "Ned. + prazniki", "Vikend", "LD", "KPU"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.delo, z.nocne, z.nedpraz, z.vikend, z.ld, z.kpu]),
+        }]}
+      />
+      {/* Izvozi so v meniju ikone ⬇ zgoraj desno. */}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function DezTab({ baseline, onUpdate }){
+  const [status, setStatus] = useState(null);
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "dezurstva");
+  const maxDez = Math.max(1, ...baseline.podatki.map(z => z.dezurstva));
+
+  const kpi = useMemo(() => {
+    const p = baseline.podatki;
+    if (!p.length) return [];
+    const dez = p.map(z => z.dezurstva || 0);
+    const skupaj = dez.reduce((a, b) => a + b, 0);
+    return [
+      { oznaka: "V obtoku", vrednost: p.length, pod: "zaposlenih" },
+      { oznaka: "Skupaj dežurstev", vrednost: skupaj },
+      { oznaka: "Povprečje", vrednost: (skupaj / p.length).toFixed(1) },
+      { oznaka: "Razpon", vrednost: (Math.max(...dez) - Math.min(...dez)), pod: "največ − najmanj" },
+    ];
+  }, [baseline.podatki]);
+
+  const onFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(reader.result);
+        if (!json.stanje) throw new Error("manjka polje 'stanje'");
+        onUpdate(Dashboard.mergeDezBaseline(baseline.podatki, json.stanje));
+        setStatus({ ok:true, msg: `Dodano: ${json.stanje.length} zaposlenih iz naloženega izvoza dežurstev.` });
+      } catch (err) {
+        setStatus({ ok:false, msg: "Datoteka ni veljaven izvoz generatorja dežurstev: " + err.message });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div>
+      <h2 className="section no-print">Dodaj mesec</h2>
+      <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → »Prenesi JSON«). Posodobi se samo število dežurstev – ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
+      <div className="card">
+        <div className="uploadRow">
+          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+        </div>
+      </div>
+
+      <h2 className="section">Pregled – {baseline.obdobje}</h2>
+      <KpiKartice postavke={kpi} />
+      <StolpcniGraf podatki={baseline.podatki} kljuc="dezurstva" naslov="Dežurstva po zaposlenih" enota="dežurstev" />
+
+      <h2 className="section">Podrobna razpredelnica</h2>
+      <p className="hint">To je isti seznam, ki ga admin.html uporabi kot izhodišče za naslednji generiran mesec – po nalaganju novega meseca tu prenesite posodobljeno osnovo in jo ročno vnesite v generator.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th>
+            <Th label="Dežurstva" k="dezurstva" sortKey={key} onSort={onSort} />
+            <Th label="Delovnih ur" k="ure" sortKey={key} onSort={onSort} />
+            <Th label="REDI ur" k="redi" sortKey={key} onSort={onSort} />
+            <Th label="NZV ur" k="nzv" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime} className={i<3 ? "top" : (i>=sorted.length-3 ? "bottom" : "")}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td className="num">{z.dezurstva}<FairBar value={z.dezurstva} max={maxDez}/></td>
+                <td className="num">{z.ure}</td>
+                <td className="num">{z.redi}</td>
+                <td className="num">{z.nzv}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint" style={{marginTop:14}}>Najmanj dežurstev (spodaj, zeleno) naj generator prednostno razporedi naslednji mesec – to že počne samodejno, če tu prenešeno osnovo prepišete v admin.html.</p>
+      <RazporedIzvozVir
+        naziv="Dežurstva"
+        dodatno={[{ label: "Prenesi posodobljeno osnovo (JSON)",
+                    onClick: () => download("osnova-dezurstva-posodobljeno.json", { obdobje: baseline.obdobje, podatki: baseline.podatki }) }]}
+        naslov={`pravicnost-dezurstva-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "Dežurstva",
+          glave: ["#", "Zaposleni", "Enota", "Dežurstva", "Delovnih ur", "REDI ur", "NZV ur"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, z.dezurstva, z.ure, z.redi, z.nzv]),
+        }]}
+      />
+
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+function NedezTab({ baseline }){
+  const { sorted, key, dir, onSort } = useSort(baseline.podatki, "noc");
+  const maxNoc = Math.max(1, ...baseline.podatki.map(z => z.noc));
+  return (
+    <div>
+      <h2 className="section">Stanje – {baseline.obdobje}</h2>
+      <p className="hint">Za to skupino (zaposleni brez 24-urnega dežurstva) generator še ne obstaja, zato tu ni nalaganja novih mesecev – samo pregled zadnjega znanega stanja iz analize Kadrisa.</p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead><tr>
+            <th></th><th>Zaposleni</th><th>Enota</th><th>Podskupina</th>
+            <Th label="Delovnih ur" k="ure" sortKey={key} onSort={onSort} />
+            <Th label="REDI ur" k="redi" sortKey={key} onSort={onSort} />
+            <Th label="Nočnih ur" k="noc" sortKey={key} onSort={onSort} />
+            <Th label="Nedelj" k="ned" sortKey={key} onSort={onSort} />
+          </tr></thead>
+          <tbody>
+            {sorted.map((z, i) => (
+              <tr key={z.ime}>
+                <td className="rank">{i+1}</td>
+                <td>{z.ime}</td>
+                <td>{z.enota}</td>
+                <td style={{fontSize:11, color:"var(--muted)"}}>{PODSKUPINA_NAZIV[z.podskupina] || z.podskupina}</td>
+                <td className="num">{z.ure}</td>
+                <td className="num">{z.redi}</td>
+                <td className="num">{z.noc}<FairBar value={z.noc} max={maxNoc} cool/></td>
+                <td className="num">{z.ned}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <RazporedIzvozVir
+        naziv="Nedežurni"
+        naslov={`pravicnost-nedezurni-${baseline.obdobje}`}
+        pripravi={() => [{
+          ime: "Nedežurni",
+          glave: ["#", "Zaposleni", "Enota", "Podskupina", "Delovnih ur", "REDI ur", "Nočnih ur", "Nedelj"],
+          vrstice: sorted.map((z, i) => [i+1, z.ime, z.enota, PODSKUPINA_NAZIV[z.podskupina] || z.podskupina, z.ure, z.redi, z.noc, z.ned]),
+        }]}
+      />
+    </div>
+  );
+}
+
+function App({ role, ogled, profil }){
+  const [data, setData] = useState(null);
+  const [tab, setTab] = useState("sms");
+
+  React.useEffect(() => {
+    fetch("dashboard-baseline.json").then(r => r.json()).then(setData).catch(() => {});
+  }, []);
+
+  const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));
+
+  return (
+    <div className="wrap wide">
+      <RazporedOgledTrak aktivno={ogled} profil={profil}/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
+      <header className="top">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Statistika</span><span className="tag">za koordinatorje</span></div>
+        <p className="sub">Psihiatrična bolnišnica Begunje · kumulativno spremljanje obremenitev</p>
+        <div className="tabs no-print" role="tablist">
+          <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
+          <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
+          <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
+        </div>
+        <RazporedIzvozVir
+          naziv="Cela stran"
+          pdf={{ label: "Izvozi v PDF (A4 pokončno)",
+                 onClick: () => PrintFit.natisni(null, { orientacija:"portrait" }) }}
+        />
+      </header>
+
+      {!data && <p className="hint">Nalagam osnovne podatke …</p>}
+      {data && tab==="sms" && <SmsTab baseline={data.osnova_sms} onUpdate={(n) => update("osnova_sms", n)} />}
+      {data && tab==="dez" && <DezTab baseline={data.osnova_dez} onUpdate={(n) => update("osnova_dez", n)} />}
+      {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
+
+      <footer className="foot no-print">
+        <p><b>Modul 3 – nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) – vse iz analiz Kadrisa.</p>
+        <p>Nalaganje novega meseca posodobi samo v tej seji odprtega brskalnika. Za trajno shrambo prenesite posodobljeno osnovo in jo shranite namesto te datoteke, ali počakajte na fazo 4 (skupna baza).</p>
+      </footer>
+
+      <RazporedNav active="dashboard" role={role} unread={0} />
+    </div>
+  );
+}
+function Gate(){
+  const [ok, setOk] = useState(false);
+  const [role, setRole] = useState("vodja");
+  const [ogled, setOgled] = useState(false);
+  const [profil, setProfil] = useState(null);
+  useEffect(() => {
+    RazporedAuth.requireRole(["admin","vodja"]).then(res => {
+      if (res) { setRole(res.profile.role); setOgled(!!res.ogled); setProfil(res.profile); setOk(true); }
+    });
+  }, []);
+  return ok ? <App role={role} ogled={ogled} profil={profil}/> : null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Gate/>);
+</script>
+</body>
+</html>

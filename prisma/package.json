@@ -1,0 +1,19 @@
+{
+  "name": "razpored-pbb-prisma",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prisma kot orodje za shemo, tipe in migracijski SQL. Aplikacija sama tega paketa NE uporablja — glej README.md.",
+  "scripts": {
+    "validate": "prisma validate --schema=./schema.prisma",
+    "format": "prisma format --schema=./schema.prisma",
+    "generate": "prisma generate --schema=./schema.prisma",
+    "db:pull": "prisma db pull --schema=./schema.prisma",
+    "db:diff": "prisma migrate diff --from-url \"$DIRECT_URL\" --to-schema-datamodel ./schema.prisma --script"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.1"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}
