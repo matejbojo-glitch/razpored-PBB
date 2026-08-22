@@ -127,6 +127,80 @@ function FairBar({ value, max, cool }){
   return <div className={"bar" + (cool ? " cool" : "")}><i style={{width: (max>0 ? 100*value/max : 0)+"%"}}></i></div>;
 }
 
+function DopustPregled({ oddelki }){
+  const [vrstice, setVrstice] = useState(null);
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    client.from("profiles")
+      .select("id, full_name, department_code, profile_hr_details(annual_leave_total, leave_balance_days, leave_balance_asof)")
+      .order("full_name")
+      .then(({ data }) => {
+        setVrstice((data || []).map(p => {
+          const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+          return {
+            id: p.id,
+            full_name: p.full_name,
+            department_code: p.department_code,
+            annual_leave_total: hr ? hr.annual_leave_total : null,
+            leave_balance_days: hr ? hr.leave_balance_days : null,
+            leave_balance_asof: hr ? hr.leave_balance_asof : null,
+          };
+        }));
+      });
+  }, []);
+
+  const imeOddelka = useMemo(() => {
+    const m = {};
+    (oddelki || []).forEach(o => { m[o.code] = o.name; });
+    return m;
+  }, [oddelki]);
+
+  const filtrirano = useMemo(() => {
+    if (!vrstice) return [];
+    const s = q.trim().toLowerCase();
+    if (!s) return vrstice;
+    return vrstice.filter(v =>
+      (v.full_name || "").toLowerCase().includes(s) ||
+      (imeOddelka[v.department_code] || "").toLowerCase().includes(s)
+    );
+  }, [vrstice, q, imeOddelka]);
+
+  const manjkaPodatek = filtrirano.filter(v => v.leave_balance_days == null).length;
+
+  if (!vrstice) return <p className="hint">Nalagam …</p>;
+
+  return (
+    <div className="card" style={{marginTop:12}}>
+      <div className="searchWrap no-print" style={{marginBottom:8}}>
+        <span className="ic">🔍</span>
+        <input type="search" placeholder="Išči po imenu ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
+      </div>
+      <p className="hint no-print" style={{marginTop:0}}>
+        {filtrirano.length} oseb{manjkaPodatek > 0 ? ` – ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
+      </p>
+      <div style={{overflowX:"auto"}}>
+        <table className="fair">
+          <thead>
+            <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
+          </thead>
+          <tbody>
+            {filtrirano.map(v => (
+              <tr key={v.id}>
+                <td>{v.full_name}</td>
+                <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
+                <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
+                <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
+                <td>{window.Datum.slo(v.leave_balance_asof) || "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------
 // Vizualni gradniki za analitiko. Namenoma BREZ zunanje knjižnice za
 // grafe: potrebujemo vodoravne stolpce in toplotno karto, kar je nekaj
@@ -497,9 +571,14 @@ function NedezTab({ baseline }){
 function App({ role, ogled, profil }){
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("sms");
+  const [oddelki, setOddelki] = useState([]);
 
   React.useEffect(() => {
     fetch("dashboard-baseline.json").then(r => r.json()).then(setData).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
   }, []);
 
   const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));
@@ -515,6 +594,9 @@ function App({ role, ogled, profil }){
           <button role="tab" aria-selected={tab==="sms"} onClick={() => setTab("sms")}>SMS/TZN</button>
           <button role="tab" aria-selected={tab==="dez"} onClick={() => setTab("dez")}>Dežurni DMS/DZN</button>
           <button role="tab" aria-selected={tab==="nedez"} onClick={() => setTab("nedez")}>Nedežurni DMS/DZN</button>
+          {role === "admin" && (
+            <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Stanje dopusta</button>
+          )}
         </div>
         <RazporedIzvozVir
           naziv="Cela stran"
@@ -527,6 +609,7 @@ function App({ role, ogled, profil }){
       {data && tab==="sms" && <SmsTab baseline={data.osnova_sms} onUpdate={(n) => update("osnova_sms", n)} />}
       {data && tab==="dez" && <DezTab baseline={data.osnova_dez} onUpdate={(n) => update("osnova_dez", n)} />}
       {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
+      {role === "admin" && tab==="dopust" && <DopustPregled oddelki={oddelki} />}
 
       <footer className="foot no-print">
         <p><b>Modul 3 – nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) – vse iz analiz Kadrisa.</p>

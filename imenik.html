@@ -1601,76 +1601,6 @@ const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
 
 
 
-function DopustPregled({ oddelki }){
-  const [vrstice, setVrstice] = useState(null);
-  const [q, setQ] = useState("");
-
-  useEffect(() => {
-    client.from("profiles")
-      .select("id, full_name, department_code, profile_hr_details(annual_leave_total, leave_balance_days, leave_balance_asof)")
-      .order("full_name")
-      .then(({ data }) => {
-        setVrstice((data || []).map(p => {
-          const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
-          return {
-            id: p.id, full_name: p.full_name, department_code: p.department_code,
-            annual_leave_total: hr ? hr.annual_leave_total : null,
-            leave_balance_days: hr ? hr.leave_balance_days : null,
-            leave_balance_asof: hr ? hr.leave_balance_asof : null,
-          };
-        }));
-      });
-  }, []);
-
-  const imeOddelka = useMemo(() => {
-    const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
-  }, [oddelki]);
-
-  const filtrirano = useMemo(() => {
-    if (!vrstice) return [];
-    const s = q.trim().toLowerCase();
-    if (!s) return vrstice;
-    return vrstice.filter(v =>
-      (v.full_name || "").toLowerCase().includes(s) ||
-      (imeOddelka[v.department_code] || "").toLowerCase().includes(s)
-    );
-  }, [vrstice, q, imeOddelka]);
-
-  const manjkaPodatek = filtrirano.filter(v => v.leave_balance_days == null).length;
-
-  if (!vrstice) return <p className="hint">Nalagam …</p>;
-
-  return (
-    <React.Fragment>
-      <div className="searchWrap no-print">
-        <span className="ic">🔍</span>
-        <input type="search" placeholder="Išči po imenu ali oddelku …" value={q} onChange={e => setQ(e.target.value)} />
-      </div>
-      <p className="hint no-print">
-        {filtrirano.length} oseb{manjkaPodatek > 0 ? ` – ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
-      </p>
-      <div className="card" style={{overflowX:"auto"}}>
-        <table className="fairTable">
-          <thead>
-            <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
-          </thead>
-          <tbody>
-            {filtrirano.map(v => (
-              <tr key={v.id}>
-                <td>{v.full_name}</td>
-                <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
-                <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
-                <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
-                <td>{window.Datum.slo(v.leave_balance_asof) || "–"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </React.Fragment>
-  );
-}
-
 // Pregled paraf – viden VSEM prijavljenim (izrecna zahteva uporabnika).
 // Parafa je kratka oznaka, ki jo uradne predloge in NZV razpored
 // uporabljajo namesto polnega imena; doslej jo je bilo mogoče videti samo
@@ -1772,7 +1702,7 @@ function App(){
     return () => window.removeEventListener("popstate", naNazaj);
   }, []);
   const [reloadKey, setReloadKey] = useState(0);
-  const [pogled, setPogled] = useState("seznam"); // "seznam" | "dopust" (slednje samo admin)
+  const [pogled, setPogled] = useState("seznam");
   const [napakaOsebe, setNapakaOsebe] = useState(null);
 
   useEffect(() => {
@@ -1884,16 +1814,10 @@ function App(){
         <div><button className="backlink no-print" onClick={zapri}>‹ Nazaj na imenik</button><p className="empty">Osebe ni bilo mogoče najti.</p></div>
       )}
 
-      {/* Zavihka "Seznam" in "Parafe" sta na voljo VSEM prijavljenim
-          (parafe na izrecno zahtevo uporabnika); "Stanje dopusta" ostaja
-          samo adminu, ker prikazuje kadrovske podatke. */}
       {!odprtId && (
         <div className="tabs no-print" role="tablist" style={{marginBottom:14}}>
           <button role="tab" aria-selected={pogled==="seznam"} onClick={() => setPogled("seznam")}>Seznam</button>
           <button role="tab" aria-selected={pogled==="parafe"} onClick={() => setPogled("parafe")}>Parafe</button>
-          {myRole === "admin" && (
-            <button role="tab" aria-selected={pogled==="dopust"} onClick={() => setPogled("dopust")}>Stanje dopusta</button>
-          )}
         </div>
       )}
 
@@ -1906,11 +1830,6 @@ function App(){
       )}
 
       {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} />}
-
-
-      {!odprtId && pogled === "dopust" && myRole === "admin" && (
-        <DopustPregled oddelki={oddelki} />
-      )}
 
       <footer className="foot no-print">
         <p><b>Imenik.</b> Klik na osebo kjerkoli v aplikaciji te pripelje sem, na njen profil. E-pošto lahko kopiraš z gumbom, na telefonsko številko pa klikneš za klic.</p>
