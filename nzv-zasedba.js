@@ -90,6 +90,26 @@ window.NzvZasedba = (function () {
   // "SOB" in "NOB", se kot neznani oznaki tiho preskočita.
   var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "B1": "B1B2", "B2": "B1B2" };
 
+  // Berljiv zapis enote za prikaz: "ZO" se piše "ŽO", "B1B2" pa "B1,B2".
+  // Vrstni red je primarna enota najprej, dodatne sledijo le, če so različne.
+  function formatirajOddelke(primarni, dodatni) {
+    function norm(value) {
+      var s = String(value || "").trim();
+      if (!s) return "";
+      s = s.replace(/ZO/g, "\u017dO");
+      s = s.replace(/B1B2/g, "B1,B2");
+      return s;
+    }
+
+    var prim = norm(primarni);
+    var dod = norm(dodatni);
+    if (!prim && !dod) return "";
+    if (!prim) return dod;
+    if (!dod) return prim;
+    if (prim === dod) return prim;
+    return prim + ", " + dod;
+  }
+
   // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) – oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v
   // dopoldanskem IN popoldanskem stolpcu, česar v resnici ni.
@@ -350,11 +370,16 @@ window.NzvZasedba = (function () {
       });
       // Berljiv zapis enot za izpis ("C1", "B, C") - kode so namenjene
       // stolpcem mreže in za človeka niso najbolj razumljive ("SADOP",
-      // "B1B2"). Vrstni red je isti kot pri kodah.
-      var besedilo = [preseljen[k] ? preseljenBesedilo[k] : v.enote]
-        .concat(preseljen[k] && !zapuscenoPokrito[k] ? [v.enote] : [])
+      // "B1B2"). Vrstni red je isti kot pri kodah, razen pri prikazu se
+      // ureditev zgradi po primarni enoti in dodatnih enotah.
+      var primarni = preseljen[k] ? preseljenBesedilo[k] : v.enote;
+      var dodatne = (preseljen[k] && !zapuscenoPokrito[k] ? [v.enote] : [])
         .concat(dodatnoBesedilo[k] || [])
-        .filter(Boolean).join(", ");
+        .filter(Boolean);
+      var besedilo = primarni;
+      dodatne.forEach(function (dodatna) {
+        besedilo = formatirajOddelke(besedilo, dodatna);
+      });
       if (kode.length) out.push({ nosilec: v, kode: kode, enote: besedilo });
     });
     return { vrstice: out, enakovredni: enakovredni };
