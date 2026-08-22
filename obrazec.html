@@ -302,6 +302,9 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     }
   };
 
+  const prikazOddelka = profil && profil.department_code ? String(profil.department_code).split(/[\/,+]/)
+    .map(v => String(v).trim()).filter(Boolean).map(v => v.replace(/ZO/gi, "ŽO").replace(/B1B2/gi, "B1,B2")).filter((v, idx, arr) => arr.indexOf(v) === idx).join(", ") : "";
+
   return (
     <div>
       <div className="tabs no-print" role="tablist">
@@ -312,7 +315,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
       <div className="card">
         <div className="field">
           <label htmlFor="ip">Ime, priimek, oddelek</label>
-          <input id="ip" type="text" value={profil ? `${profil.full_name}${profil.department_code ? " · " + profil.department_code : ""}` : "Nalagam …"} disabled />
+          <input id="ip" type="text" value={profil ? `${profil.full_name}${prikazOddelka ? " · " + prikazOddelka : ""}` : "Nalagam …"} disabled />
         </div>
 
         {vrsta === "menjava_sluzbe" && (

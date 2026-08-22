@@ -110,6 +110,22 @@ function download(filename, obj){
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+function normalizirajNazivOddelka(v) {
+  var s = String(v || "").trim();
+  if (!s) return "";
+  return s.split(/[\/,+]/)
+    .map(function (del) {
+      var d = String(del).trim();
+      if (!d) return "";
+      d = d.replace(/ZO/gi, "ŽO");
+      d = d.replace(/B1B2/gi, "B1,B2");
+      return d;
+    })
+    .filter(Boolean)
+    .filter(function (value, idx, arr) { return arr.indexOf(value) === idx; })
+    .join(", ");
+}
+
 function useSort(data, defaultKey){
   const [key, setKey] = useState(defaultKey);
   const [dir, setDir] = useState(-1);
@@ -161,7 +177,7 @@ function DopustPregled({ oddelki }){
 
   const imeOddelka = useMemo(() => {
     const m = {};
-    (oddelki || []).forEach(o => { m[o.code] = o.name; });
+    (oddelki || []).forEach(o => { m[o.code] = normalizirajNazivOddelka(o.name || o.code); });
     return m;
   }, [oddelki]);
 
@@ -199,7 +215,7 @@ function DopustPregled({ oddelki }){
               return (
                 <tr key={v.id}>
                   <td>{v.full_name}</td>
-                  <td>{imeOddelka[v.department_code] || v.department_code || "–"}</td>
+                  <td>{imeOddelka[v.department_code] || normalizirajNazivOddelka(v.department_code) || "–"}</td>
                   <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
                   <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
                   <td>{datum || "–"}</td>

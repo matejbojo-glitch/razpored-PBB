@@ -89,13 +89,29 @@
     document.head.appendChild(style);
   }
 
+  function formatirajKodoOddelka(koda) {
+    var s = String(koda || "").trim();
+    if (!s) return "";
+    return s.split(/[\/,+]/)
+      .map(function (del) {
+        var d = String(del).trim();
+        if (!d) return "";
+        d = d.replace(/ZO/gi, "ŽO");
+        d = d.replace(/B1B2/gi, "B1,B2");
+        return d;
+      })
+      .filter(Boolean)
+      .filter(function (value, idx, arr) { return arr.indexOf(value) === idx; })
+      .join(", ");
+  }
+
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
-    { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
     { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
+    { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
+    { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
     { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
     { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", roles: ["admin", "vodja"] },
-    { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
   ];
 
   // props: active (ključ trenutne strani), role ("admin"|"vodja"|"user"), unread (število za značko na Menjava)
@@ -234,7 +250,7 @@
         "span",
         null,
         "⚠️ Pogled aplikacije kot uporabnik: " + (profil.full_name || "?") +
-          (profil.department_code ? " (" + profil.department_code + ")" : "")
+          (profil.department_code ? " (" + formatirajKodoOddelka(profil.department_code) + ")" : "")
       ),
       e(
         "button",

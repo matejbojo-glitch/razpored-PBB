@@ -94,21 +94,37 @@ window.NzvZasedba = (function () {
   // Vrstni red je primarna enota najprej, dodatne sledijo le, če so različne.
   function formatirajOddelke(primarni, dodatni) {
     function norm(value) {
-      var s = String(value || "").trim();
+      if (value == null) return "";
+      if (Array.isArray(value)) {
+        return value.map(norm).filter(Boolean).join(", ");
+      }
+      var s = String(value).trim();
       if (!s) return "";
-      s = s.replace(/ZO/g, "\u017dO");
-      s = s.replace(/B1B2/g, "B1,B2");
-      return s;
+      return s.split(/[\/,+]/)
+        .map(function (del) {
+          var d = String(del).trim();
+          if (!d) return "";
+          d = d.replace(/ZO/gi, "\u017dO");
+          d = d.replace(/B1B2/gi, "B1,B2");
+          return d;
+        })
+        .filter(Boolean)
+        .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; })
+        .join(", ");
     }
 
     var prim = norm(primarni);
     var dod = norm(dodatni);
-    if (!prim && !dod) return "";
-    if (!prim) return dod;
-    if (!dod) return prim;
-    if (prim === dod) return prim;
-    return prim + ", " + dod;
+    var vsi = [];
+    [prim, dod].forEach(function (del) {
+      String(del || "").split(/,\s*/).forEach(function (part) {
+        var p = part.trim();
+        if (p && vsi.indexOf(p) < 0) vsi.push(p);
+      });
+    });
+    return vsi.join(", ");
   }
+  if (typeof window !== "undefined") window.formatirajOddelke = formatirajOddelke;
 
   // "saKoda" je stolpec SA, ki ta dan velja (glej saStolpec) – oznaka
   // "SA" se preslika vanj. Brez nje bi bila ista oseba hkrati v
@@ -689,5 +705,6 @@ window.NzvZasedba = (function () {
     zdruziNzvZapise: zdruziNzvZapise,
     zasedbaEnot: zasedbaEnot,
     enoteIzZapisa: enoteIzZapisa,
+    formatirajOddelke: formatirajOddelke,
   };
 })();

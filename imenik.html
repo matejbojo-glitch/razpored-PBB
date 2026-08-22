@@ -215,6 +215,34 @@ function statusPrisotnosti(sifra){
   return { koda: "delo", naziv: sifra };
 }
 
+function normalizirajNazivOddelka(v) {
+  var s = String(v || "").trim();
+  if (!s) return "";
+  return s.split(/[\/,+]/)
+    .map(function (del) {
+      var d = String(del).trim();
+      if (!d) return "";
+      d = d.replace(/ZO/gi, "ŽO");
+      d = d.replace(/B1B2/gi, "B1,B2");
+      return d;
+    })
+    .filter(Boolean)
+    .filter(function (value, idx, arr) { return arr.indexOf(value) === idx; })
+    .join(", ");
+}
+
+function formatirajOddelkeIzKod(kode) {
+  var vsi = [];
+  (Array.isArray(kode) ? kode : [kode]).forEach(function (v) {
+    if (v == null) return;
+    String(v).split(/[\/,+]/).forEach(function (del) {
+      var s = normalizirajNazivOddelka(del);
+      if (s && vsi.indexOf(s) < 0) vsi.push(s);
+    });
+  });
+  return vsi.join(", ");
+}
+
 function Seznam({ osebe, oddelki, onOdpri }){
   // Današnje izmene za barvni status ob avatarju.
   const [danes, setDanes] = useState({});
@@ -237,7 +265,7 @@ function Seznam({ osebe, oddelki, onOdpri }){
   // ena dolga, nerazčlenjena vrsta, ki jo je težko pregledati.
   const [oddelekFiltr, setOddelekFiltr] = useState("");
   const imeOddelka = useMemo(() => {
-    const m = {}; oddelki.forEach(o => { m[o.code] = o.name; }); return m;
+    const m = {}; oddelki.forEach(o => { m[o.code] = normalizirajNazivOddelka(o.name || o.code); }); return m;
   }, [oddelki]);
   const oddelkiUrejeni = useMemo(
     () => oddelki.slice().sort((a, b) => (a.name || "").localeCompare(b.name || "", "sl")),
@@ -277,8 +305,8 @@ function Seznam({ osebe, oddelki, onOdpri }){
           vrstice: filtrirano.map(o => [
             o.full_name || "",
             o.pending ? "še ni registriran" : (RazporedAuth.ROLE_LABEL[o.role] || o.role),
-            (o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []))
-              .map(k => imeOddelka[k] || k).join(", "),
+            formatirajOddelkeIzKod((o.dept_codes && o.dept_codes.length ? o.dept_codes : (o.department_code ? [o.department_code] : []))
+              .map(k => imeOddelka[k] || normalizirajNazivOddelka(k))),
             o.email || "",
             o.phone || "",
           ]),
@@ -315,7 +343,7 @@ function Seznam({ osebe, oddelki, onOdpri }){
                     {kode.length === 0
                       ? <span>Brez oddelka</span>
                       : kode.map((k, i) => (
-                          <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || k}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
+                          <span key={k}>{i > 0 ? " · " : ""}{imeOddelka[k] || normalizirajNazivOddelka(k)}{i === 0 && (o.dept_codes || []).length > 1 ? " ★" : ""}</span>
                         ))}
                   </div>
                   {o.email && <div className="ovMeta"><a className="mail" href={"mailto:" + o.email}>{o.email}</a></div>}
@@ -1051,7 +1079,7 @@ function PendingProfil({ oseba, myRole, oddelki, onNazaj }){
         {oseba.dept_codes.length > 0 && (
           <div className="rowline">
             <div className="lbl">Oddelek</div>
-            <div className="val">{oseba.dept_codes.map(k => (oddelki.find(o => o.code === k) || {}).name || k).join(" · ")}</div>
+            <div className="val">{formatirajOddelkeIzKod(oseba.dept_codes.map(k => (oddelki.find(o => o.code === k) || {}).name || k))}</div>
           </div>
         )}
         {!oseba.phone && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
