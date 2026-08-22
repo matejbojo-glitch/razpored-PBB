@@ -49,7 +49,7 @@
       "  body{ padding-bottom:0 !important; padding-top:" + NAV_DESKTOP_H + "px; }" +
       "  .rpNav{ top:var(--ogled-h,0px); bottom:auto; height:" + NAV_DESKTOP_H + "px;" +
       "    border-top:0; border-bottom:1px solid #E1D9C2; padding-bottom:0; display:flex; align-items:center; }" +
-      "  .rpNav .inner{ max-width:1040px; padding:0 24px; height:100%; align-items:center; justify-content:center; gap:6px; }" +
+      "  .rpNav .inner{ max-width:1040px; padding:0 24px; height:100%; align-items:center; justify-content:flex-start; gap:6px; }" +
       "  .rpNav a{ flex:0 0 auto; flex-direction:row; gap:7px; padding:9px 16px; font-size:13.5px;" +
       "    min-height:auto; border-radius:999px; }" +
       "  .rpNav a:hover{ background:#F2EEDF; }" +
