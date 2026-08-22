@@ -93,6 +93,23 @@ window.NzvZasedba = (function () {
   // Berljiv zapis enote za prikaz: "ZO" se piše "ŽO", "B1B2" pa "B1,B2".
   // Vrstni red je primarna enota najprej, dodatne sledijo le, če so različne.
   function formatirajOddelke(primarni, dodatni) {
+    function key(value) {
+      return String(value || "")
+        .trim()
+        .toUpperCase()
+        .replace(/Ž/g, "Z")
+        .replace(/Š/g, "S")
+        .replace(/Č/g, "C")
+        .replace(/Ć/g, "C");
+    }
+    function display(value) {
+      var v = String(value || "").trim();
+      if (!v) return "";
+      return v
+        .replace(/ZO/gi, "ŽO")
+        .replace(/B1B2/gi, "B1,B2")
+        .replace(/\s*,\s*/g, ", ");
+    }
     function norm(value) {
       if (value == null) return [];
       if (Array.isArray(value)) {
@@ -101,56 +118,70 @@ window.NzvZasedba = (function () {
         }, []);
       }
       return String(value).split(/[\/,+]/)
-        .map(function (del) {
-          var d = String(del).trim();
-          if (!d) return "";
-          d = d.replace(/ZO/gi, "\u017dO");
-          d = d.replace(/B1B2/gi, "B1,B2");
-          return d;
-        })
+        .map(function (del) { return display(del); })
         .filter(function (v) { return !!v; })
         .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
     }
 
     var prim = norm(primarni);
     var dod = norm(dodatni);
+    var pri = prim.length ? key(prim[0]) : "";
     var vsi = prim.concat(dod);
     var out = [];
     var dodano = {};
 
     function dodaj(v) {
-      if (!v || dodano[v]) return;
-      dodano[v] = true;
-      out.push(v);
+      if (!v || dodano[key(v)]) return;
+      dodano[key(v)] = true;
+      out.push(display(v));
     }
 
-    var imaMo = vsi.indexOf("MO") >= 0;
-    var imaZo = vsi.indexOf("\u017dO") >= 0;
-
-    if (prim.length === 1 && prim[0]) {
+    if (prim.length) {
       dodaj(prim[0]);
     }
-    if (imaMo && imaZo) {
-      if (prim.length === 1 && (prim[0] === "MO" || prim[0] === "\u017dO")) {
-        dodaj((prim[0] === "MO") ? "\u017dO" : "MO");
+    var mo = vsi.filter(function (v) { return key(v) === "MO"; });
+    var zo = vsi.filter(function (v) { return key(v) === "ZO"; });
+    var ostalo = vsi.filter(function (v) {
+      var k = key(v);
+      return k !== "MO" && k !== "ZO";
+    });
+
+    if (mo.length && zo.length) {
+      if (pri === "MO") {
+        dodaj("ŽO");
+      } else if (pri === "ZO") {
+        dodaj("MO");
       } else {
         dodaj("MO");
-        dodaj("\u017dO");
+        dodaj("ŽO");
       }
     }
-
-    vsi.filter(function (v) { return v !== "MO" && v !== "\u017dO"; })
-      .forEach(dodaj);
+    ostalo.forEach(dodaj);
 
     if (!out.length) {
       var preostali = (prim.length ? prim : dod).filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
       preostali.forEach(dodaj);
     }
 
-    return out.join(", ");
+    return out.filter(Boolean).join(", ");
   }
 
   function normalizirajNazivOddelka(value) {
+    var deli = String(value || "")
+      .split(/[\/,+]/)
+      .map(function (v) { return String(v).trim(); })
+      .filter(Boolean)
+      .map(function (v) { return v.replace(/ZO/gi, "ŽO"); })
+      .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
+    var imaMo = deli.some(function (v) { return String(v).replace(/Ž/g, "Z").toUpperCase() === "MO" || String(v).toUpperCase() === "MO"; });
+    var imaZo = deli.some(function (v) { return String(v).replace(/Ž/g, "Z").toUpperCase() === "ZO" || String(v).toUpperCase() === "ZO"; });
+    if (imaMo && imaZo) {
+      return ["MO", "ŽO"].filter(function (part) {
+        return deli.some(function (v) {
+          return String(v).replace(/Ž/g, "Z").toUpperCase() === (part === "MO" ? "MO" : "ZO");
+        });
+      }).join(", ");
+    }
     return formatirajOddelke(value, null);
   }
 
