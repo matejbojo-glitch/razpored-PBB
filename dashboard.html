@@ -95,6 +95,14 @@
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
+// Zagotovi, da je 'client' definiran, če koda uporablja 'supabase' ali 'window.supabase'
+const client = (typeof window !== "undefined" && (
+  window.supabase ||
+  window.supabaseClient ||
+  window.sbClient ||
+  null
+)) || (typeof supabase !== "undefined" ? supabase : null) || (typeof supabaseClient !== "undefined" ? supabaseClient : null) || (typeof sbClient !== "undefined" ? sbClient : null) || null;
+
 const { useState, useMemo, useEffect } = React;
 
 const PODSKUPINA_NAZIV = { A:"A · rotacijski izmenski kader", B:"B · dnevni z občasnim REDI", C:"C · izključno dnevni", D:"D · dolgotrajna odsotnost" };
@@ -132,6 +140,11 @@ function DopustPregled({ oddelki }){
   const [q, setQ] = useState("");
 
   useEffect(() => {
+    if (!client) {
+      setVrstice([]);
+      return;
+    }
+
     client.from("profiles")
       .select("id, full_name, department_code, profile_hr_details(annual_leave_total, leave_balance_days, leave_balance_asof)")
       .order("full_name")
