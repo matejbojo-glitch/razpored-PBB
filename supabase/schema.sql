@@ -238,7 +238,6 @@ create table if not exists public.obrazci_dnevnik (
 create table if not exists public.obvestila (
     id bigint NOT NULL,
     user_id uuid NOT NULL,
-    swap_request_id bigint,
     message text NOT NULL,
     read_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -355,26 +354,10 @@ create table if not exists public.uvozi_kontaktov (
     CONSTRAINT uvozi_kontaktov_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'vodja'::text, 'user'::text])))
 );
 
-create table if not exists public.zahtevki_za_menjavo (
-    id bigint NOT NULL,
-    requester_id uuid NOT NULL,
-    requester_date date NOT NULL,
-    target_id uuid NOT NULL,
-    target_date date NOT NULL,
-    note text,
-    status text DEFAULT 'pending_lead'::text NOT NULL,
-    lead_id uuid,
-    lead_decided_at timestamp with time zone,
-    lead_note text,
-    admin_id uuid,
-    admin_decided_at timestamp with time zone,
-    admin_note text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT swap_requests_status_check CHECK ((status = ANY (ARRAY['pending_lead'::text, 'pending_admin'::text, 'pending_koordinator'::text, 'approved'::text, 'rejected_by_lead'::text, 'rejected_by_admin'::text, 'rejected_by_koordinator'::text]))),
-    CONSTRAINT zahtevki_za_menjavo_check CHECK ((requester_id <> target_id)),
-    CONSTRAINT zahtevki_za_menjavo_status_check CHECK ((status = ANY (ARRAY['pending_lead'::text, 'pending_admin'::text, 'approved'::text, 'rejected_by_lead'::text, 'rejected_by_admin'::text])))
-);
+-- zahtevki_za_menjavo (nekdanja swap_requests) je bila odstranjena: menjave
+-- tecejo prek obrazci z vrsta = 'menjava_sluzbe' (sw.js v14, menjave.html
+-- zdruzena v obrazec.html). Za odstranitev iz ze delujoce baze poglej
+-- supabase/odstrani-zahtevki-za-menjavo.sql - ta datoteka tabele ne brise.
 
 create table if not exists public.zelje_zaposlenih (
     id bigint NOT NULL,
@@ -576,25 +559,6 @@ do $$ begin
     select 1 from pg_attribute a
     join pg_class c on c.oid = a.attrelid
     join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relname = 'zahtevki_za_menjavo'
-      and a.attname = 'id' and a.attidentity <> ''
-  ) then
-    execute 'ALTER TABLE public.zahtevki_za_menjavo ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.zahtevki_za_menjavo_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-)';
-  end if;
-end $$;
-
-do $$ begin
-  if not exists (
-    select 1 from pg_attribute a
-    join pg_class c on c.oid = a.attrelid
-    join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relname = 'zelje_zaposlenih'
       and a.attname = 'id' and a.attidentity <> ''
   ) then
@@ -729,7 +693,6 @@ alter table public.obrazci_dnevnik add column if not exists opomba text;
 alter table public.obrazci_dnevnik add column if not exists cas timestamp with time zone default now();
 alter table public.obvestila add column if not exists id bigint;
 alter table public.obvestila add column if not exists user_id uuid;
-alter table public.obvestila add column if not exists swap_request_id bigint;
 alter table public.obvestila add column if not exists message text;
 alter table public.obvestila add column if not exists read_at timestamp with time zone;
 alter table public.obvestila add column if not exists created_at timestamp with time zone default now();
@@ -800,21 +763,6 @@ alter table public.uvozi_kontaktov add column if not exists parental_leave text;
 alter table public.uvozi_kontaktov add column if not exists annual_leave_total integer;
 alter table public.uvozi_kontaktov add column if not exists leave_balance_days integer;
 alter table public.uvozi_kontaktov add column if not exists leave_balance_asof date;
-alter table public.zahtevki_za_menjavo add column if not exists id bigint;
-alter table public.zahtevki_za_menjavo add column if not exists requester_id uuid;
-alter table public.zahtevki_za_menjavo add column if not exists requester_date date;
-alter table public.zahtevki_za_menjavo add column if not exists target_id uuid;
-alter table public.zahtevki_za_menjavo add column if not exists target_date date;
-alter table public.zahtevki_za_menjavo add column if not exists note text;
-alter table public.zahtevki_za_menjavo add column if not exists status text default 'pending_lead'::text;
-alter table public.zahtevki_za_menjavo add column if not exists lead_id uuid;
-alter table public.zahtevki_za_menjavo add column if not exists lead_decided_at timestamp with time zone;
-alter table public.zahtevki_za_menjavo add column if not exists lead_note text;
-alter table public.zahtevki_za_menjavo add column if not exists admin_id uuid;
-alter table public.zahtevki_za_menjavo add column if not exists admin_decided_at timestamp with time zone;
-alter table public.zahtevki_za_menjavo add column if not exists admin_note text;
-alter table public.zahtevki_za_menjavo add column if not exists created_at timestamp with time zone default now();
-alter table public.zahtevki_za_menjavo add column if not exists updated_at timestamp with time zone default now();
 alter table public.zelje_zaposlenih add column if not exists id bigint;
 alter table public.zelje_zaposlenih add column if not exists profile_id uuid;
 alter table public.zelje_zaposlenih add column if not exists full_name text;
@@ -1090,15 +1038,6 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conrelid = 'public.zahtevki_za_menjavo'::regclass and contype = 'p') then
-    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
-    ADD CONSTRAINT zahtevki_za_menjavo_pkey PRIMARY KEY (id)';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.zelje_zaposlenih'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_pkey PRIMARY KEY (id)';
@@ -1287,15 +1226,6 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obvestila_swap_request_id_fkey') then
-    execute 'ALTER TABLE ONLY public.obvestila
-    ADD CONSTRAINT obvestila_swap_request_id_fkey FOREIGN KEY (swap_request_id) REFERENCES public.zahtevki_za_menjavo(id) ON DELETE CASCADE';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'obvestila_user_id_fkey') then
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profili(id) ON DELETE CASCADE';
@@ -1440,42 +1370,6 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_admin_id_fkey') then
-    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
-    ADD CONSTRAINT zahtevki_za_menjavo_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profili(id) ON DELETE SET NULL';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_lead_id_fkey') then
-    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
-    ADD CONSTRAINT zahtevki_za_menjavo_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.profili(id) ON DELETE SET NULL';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_requester_id_fkey') then
-    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
-    ADD CONSTRAINT zahtevki_za_menjavo_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.profili(id)';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_target_id_fkey') then
-    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
-    ADD CONSTRAINT zahtevki_za_menjavo_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.profili(id)';
-  end if;
-exception
-  when duplicate_object or duplicate_table or invalid_table_definition then null;
-end $$;
-
-do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_created_by_fkey') then
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
@@ -1529,6 +1423,11 @@ create index if not exists idx_leave_balance_history_profile ON public.zgodovina
 
 create index if not exists idx_obrazci_dnevnik_obrazec ON public.obrazci_dnevnik USING btree (obrazec_id, cas);
 
+-- Menjave se povsod filtrirajo po polja->>'datum_a' (mesecni pregled v
+-- obrazec.html in politika obrazci_select), zato izrazni indeks - le nad
+-- vrsto menjava_sluzbe, ker drugi obrazci tega kljuca nimajo.
+create index if not exists idx_obrazci_menjava_datum_a ON public.obrazci USING btree (((polja ->> 'datum_a'::text))) WHERE (vrsta = 'menjava_sluzbe'::text);
+
 create index if not exists idx_obrazci_sodelavec ON public.obrazci USING btree (sodelavec_id);
 
 create index if not exists idx_obrazci_status ON public.obrazci USING btree (status);
@@ -1556,12 +1455,6 @@ create index if not exists schedule_entries_dept_idx ON public.razpored USING bt
 create index if not exists schedule_entries_log_date_idx ON public.dnevnik_razporeda USING btree (work_date);
 
 create index if not exists schedule_entries_log_emp_idx ON public.dnevnik_razporeda USING btree (employee_id, work_date);
-
-create index if not exists swap_requests_requester_idx ON public.zahtevki_za_menjavo USING btree (requester_id);
-
-create index if not exists swap_requests_status_idx ON public.zahtevki_za_menjavo USING btree (status);
-
-create index if not exists swap_requests_target_idx ON public.zahtevki_za_menjavo USING btree (target_id);
 
 
 -- =====================================================================
@@ -1632,89 +1525,6 @@ create or replace function public.current_role_is(p_role text) RETURNS boolean
   select exists (
     select 1 from public.profili where id = auth.uid() and role = p_role
   );
-$$;
-
-create or replace function public.decide_swap_admin(p_swap_id bigint, p_approve boolean, p_note text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_req record;
-  v_requester_shift text;
-  v_target_shift text;
-begin
-  if not public.current_role_is('admin') then
-    raise exception 'Samo administrator lahko dokončno odloča.';
-  end if;
-
-  select * into v_req from public.zahtevki_za_menjavo
-  where id = p_swap_id and status = 'pending_admin'
-  for update;
-
-  if v_req.id is null then
-    raise exception 'Predlog ne obstaja ali ni več v čakanju na administratorja.';
-  end if;
-
-  if p_approve then
-    select shift_code into v_requester_shift from public.razpored
-      where employee_id = v_req.requester_id and work_date = v_req.requester_date;
-    select shift_code into v_target_shift from public.razpored
-      where employee_id = v_req.target_id and work_date = v_req.target_date;
-
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.requester_id, department_code, v_req.requester_date, coalesce(v_target_shift, ''), now()
-    from public.profili where id = v_req.requester_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.target_id, department_code, v_req.target_date, coalesce(v_requester_shift, ''), now()
-    from public.profili where id = v_req.target_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-  end if;
-
-  update public.zahtevki_za_menjavo
-  set status = case when p_approve then 'approved' else 'rejected_by_admin' end,
-      admin_id = auth.uid(),
-      admin_decided_at = now(),
-      admin_note = p_note,
-      updated_at = now()
-  where id = p_swap_id;
-end;
-$$;
-
-create or replace function public.decide_swap_lead(p_swap_id bigint, p_approve boolean, p_note text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_req_dept text;
-begin
-  if not public.current_role_is('vodja') then
-    raise exception 'Samo vodja lahko odloča na prvi stopnji.';
-  end if;
-
-  select p.department_code into v_req_dept
-  from public.zahtevki_za_menjavo s join public.profili p on p.id = s.requester_id
-  where s.id = p_swap_id and s.status = 'pending_lead'
-  for update of s;
-
-  if v_req_dept is null then
-    raise exception 'Predlog ne obstaja ali ni več v čakanju na vodjo.';
-  end if;
-  if v_req_dept is distinct from public.current_department() then
-    raise exception 'Ta predlog ni iz tvoje ekipe.';
-  end if;
-
-  update public.zahtevki_za_menjavo
-  set status = case when p_approve then 'pending_admin' else 'rejected_by_lead' end,
-      lead_id = auth.uid(),
-      lead_decided_at = now(),
-      lead_note = p_note,
-      updated_at = now()
-  where id = p_swap_id;
-end;
 $$;
 
 create or replace function public.handle_new_user() RETURNS trigger
@@ -1925,31 +1735,6 @@ begin
     and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
     and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
   order by p.full_name;
-end;
-$$;
-
-create or replace function public.notify_swap_status_change() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  msg text;
-begin
-  if new.status = old.status then
-    return new;
-  end if;
-  msg := case new.status
-    when 'pending_admin'           then 'Vodja je odobril predlog menjave – čaka na administratorja.'
-    when 'pending_koordinator'     then 'Predlog menjave čaka na potrditev koordinatorja.'
-    when 'approved'                then 'Menjava izmene je bila potrjena.'
-    when 'rejected_by_lead'        then 'Vodja je zavrnil predlog menjave.'
-    when 'rejected_by_admin'       then 'Administrator je zavrnil predlog menjave.'
-    when 'rejected_by_koordinator' then 'Koordinator je zavrnil predlog menjave.'
-    else 'Status predloga menjave se je spremenil: ' || new.status
-  end;
-  insert into public.obvestila (user_id, swap_request_id, message)
-  values (new.requester_id, new.id, msg), (new.target_id, new.id, msg);
-  return new;
 end;
 $$;
 
@@ -2387,23 +2172,6 @@ begin
 end;
 $$;
 
-create or replace function public.submit_swap_request(p_target_id uuid, p_requester_date date, p_target_date date, p_note text DEFAULT NULL::text) RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  v_id bigint;
-begin
-  if p_target_id = auth.uid() then
-    raise exception 'Ne moreš predlagati menjave sam s seboj.';
-  end if;
-  insert into public.zahtevki_za_menjavo (requester_id, requester_date, target_id, target_date, note, status)
-  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, 'pending_lead')
-  returning id into v_id;
-  return v_id;
-end;
-$$;
-
 create or replace function public.sync_leave_balance_to_hr_details() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -2501,9 +2269,6 @@ CREATE TRIGGER on_leave_entry_change AFTER INSERT OR DELETE OR UPDATE ON public.
 
 drop trigger if exists on_obrazec_status_change on public.obrazci;
 CREATE TRIGGER on_obrazec_status_change AFTER UPDATE OF status ON public.obrazci FOR EACH ROW EXECUTE FUNCTION public.obvesti_ob_spremembi_obrazca();
-
-drop trigger if exists on_swap_status_change on public.zahtevki_za_menjavo;
-CREATE TRIGGER on_swap_status_change AFTER UPDATE ON public.zahtevki_za_menjavo FOR EACH ROW EXECUTE FUNCTION public.notify_swap_status_change();
 
 drop trigger if exists profiles_audit on public.profili;
 CREATE TRIGGER profiles_audit AFTER INSERT OR DELETE OR UPDATE ON public.profili FOR EACH ROW EXECUTE FUNCTION public.profiles_audit();
@@ -2632,10 +2397,6 @@ create or replace view public.uvozi_kontaktov_javno AS
 
 GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 
-GRANT ALL ON FUNCTION public.decide_swap_admin(p_swap_id bigint, p_approve boolean, p_note text) TO authenticated;
-
-GRANT ALL ON FUNCTION public.decide_swap_lead(p_swap_id bigint, p_approve boolean, p_note text) TO authenticated;
-
 GRANT ALL ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
 
 REVOKE ALL ON FUNCTION public.koledar_razpored(p_token text, p_od date, p_do date) FROM PUBLIC;
@@ -2655,8 +2416,6 @@ GRANT ALL ON FUNCTION public.obrazec_preklici(p_id uuid, p_opomba text) TO authe
 GRANT ALL ON FUNCTION public.obvesti_o_objavi_razporeda(p_start date, p_end date, p_oddelek text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.prejemniki_obvestil(p_ids uuid[]) FROM PUBLIC;
-
-GRANT ALL ON FUNCTION public.submit_swap_request(p_target_id uuid, p_requester_date date, p_target_date date, p_note text) TO authenticated;
 
 REVOKE ALL ON FUNCTION public.zapisi_v_dnevnik(p_obrazec uuid, p_stopnja smallint, p_dejanje text, p_opomba text) FROM PUBLIC;
 
@@ -2716,8 +2475,6 @@ ALTER TABLE public.razpored ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telefoni_kontaktov ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.uvozi_kontaktov ENABLE ROW LEVEL SECURITY;
-
-ALTER TABLE public.zahtevki_za_menjavo ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.zelje_zaposlenih ENABLE ROW LEVEL SECURITY;
 
@@ -2864,11 +2621,6 @@ CREATE POLICY schedule_select ON public.razpored FOR SELECT TO authenticated USI
 
 drop policy if exists schedule_write_admin on public.razpored;
 CREATE POLICY schedule_write_admin ON public.razpored TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
-
-drop policy if exists swap_select on public.zahtevki_za_menjavo;
-CREATE POLICY swap_select ON public.zahtevki_za_menjavo FOR SELECT TO authenticated USING (((requester_id = auth.uid()) OR (target_id = auth.uid()) OR public.current_role_is('admin'::text) OR public.current_is_koordinator() OR (public.current_role_is('vodja'::text) AND (public.current_department() = ( SELECT profili.department_code
-   FROM public.profili
-  WHERE (profili.id = zahtevki_za_menjavo.requester_id))))));
 
 
 -- =====================================================================
@@ -3411,9 +3163,7 @@ begin
         ('public.razpored'::regclass, 'created_by'),
         ('public.razpored'::regclass, 'updated_by'),
         ('public.dnevnik_razporeda'::regclass, 'changed_by'),
-        ('public.dnevnik_profilov'::regclass, 'changed_by'),
-        ('public.zahtevki_za_menjavo'::regclass, 'lead_id'),
-        ('public.zahtevki_za_menjavo'::regclass, 'admin_id')
+        ('public.dnevnik_profilov'::regclass, 'changed_by')
       )
   loop
     execute format('alter table %s drop constraint %I', v.tabela, v.conname);
