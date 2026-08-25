@@ -11,9 +11,16 @@ brez strežnika – samo hiter, zanesljiv pregled na telefonu. Naslednje faze
 
 ## Kaj je v mapi
 
+> **Opomba (avgust 2026):** spodnji seznam je iz prve, najpreprostejše faze
+> projekta – aplikacija je od takrat zrasla na 9 strani in pravo Supabase
+> bazo (glej `SUPABASE-SETUP.md`), avgusta 2026 pa je dobila tudi build
+> korak (Vite) namesto `babel.min.js` v brskalniku. Za dejansko objavo
+> glej `DEPLOY.md` in `netlify.toml` – tu spodaj ostaja samo kot zgodovinski
+> opis prvotne zasnove.
+
 ```
 razpored-app/
-├── index.html              ← cela aplikacija (React, brez potrebe po gradnji/buildu)
+├── index.html              ← cela aplikacija (React)
 ├── manifest.json            ← PWA manifest (ime, ikona, barve)
 ├── sw.js                    ← service worker (deluje tudi brez signala)
 ├── data-oktober-2026.json   ← podatki o razporedu za oktober
@@ -24,16 +31,25 @@ razpored-app/
                                      – poenostavljeno zaradi nalaganja s telefona)
 ```
 
-## Kako namestiti (izberite eno možnost)
+## Kako namestiti
+
+Glej `DEPLOY.md` (trenutna navodila: GitHub + Netlify, z `netlify.toml`,
+ki Netlify pove, naj pred objavo požene `npm run build`).
+
+Spodnja navodila (Netlify Drop, ročno vlečenje mape) so iz faze pred
+uvedbo build koraka in **ne delujejo več brez `npm run build`** – če jih
+res potrebujete (npr. za enkraten lokalen predogled), najprej poganjajte
+`npm install` in `npm run build`, nato povlecite mapo `dist/`, ne korena
+repozitorija:
 
 Najlažje: **Netlify Drop** – https://app.netlify.com/drop
-Povlecite celo mapo `razpored-app` v brskalnik na tej strani. V nekaj sekundah
-dobite javno povezavo (npr. `https://nekaj-ime.netlify.app`), ki jo lahko
-pošljete zaposlenim (SMS, e-pošta, oglasna deska z QR kodo).
+Povlecite mapo `dist` (ne korena repozitorija!) v brskalnik na tej strani.
+V nekaj sekundah dobite javno povezavo (npr. `https://nekaj-ime.netlify.app`),
+ki jo lahko pošljete zaposlenim (SMS, e-pošta, oglasna deska z QR kodo).
 
 Alternativa: **Vercel**, **GitHub Pages** ali kateri koli drug spletni
-gostitelj, ki servira statične datoteke – naložite vsebino mape `razpored-app`
-kot celoto.
+gostitelj, ki servira statične datoteke – po `npm run build` naložite
+vsebino mape `dist` kot celoto.
 
 Pomembno: aplikacije **ne odpirajte kar z dvoklikom na `index.html`**
 (brskalnik jo poskusi odpreti kot `file://`) – takrat podatki o razporedu
@@ -41,10 +57,12 @@ ne bodo naloženi zaradi varnostnih omejitev brskalnikov. Potrebuje pravi
 spletni naslov (http/https), tudi če je to samo lokalni predogled:
 
 ```
-cd razpored-app
-python3 -m http.server 8080
+npm install
+npm run build
+npx vite preview
 ```
-nato v brskalniku odprite `http://localhost:8080`.
+nato v brskalniku odprite naslov, ki ga izpiše `vite preview` (privzeto
+`http://localhost:4173`).
 
 ## Kako zaposleni namestijo na telefon
 

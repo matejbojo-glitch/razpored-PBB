@@ -22,9 +22,22 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, extname } from "node:path";
 import http from "node:http";
 import { chromium } from "playwright";
+import { transformSync } from "esbuild";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
 const VRATA = 4187;
+
+// Od prehoda na Vite babel.min.js ni več v *.html - inline <script
+// type="text/babel"> mora ta strežnik prevesti sam (isti pristop kot
+// vite.config.mjs jsxVBlokihHtml), sicer se stran ne izriše.
+const reBabel = /<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/;
+function prevediJsxVHtmlu(html) {
+  const m = html.match(reBabel);
+  if (!m) return html;
+  const { code } = transformSync(m[1], { loader: "jsx", jsx: "transform",
+    jsxFactory: "React.createElement", jsxFragment: "React.Fragment" });
+  return html.replace(reBabel, () => `<script>\n${code}\n</script>`);
+}
 
 const napake = [];
 function trdi(pogoj, opis) {
@@ -44,8 +57,10 @@ const streznik = http.createServer((req, res) => {
   if (!f.startsWith(koren) || !existsSync(f) || statSync(f).isDirectory()) {
     res.writeHead(404); return res.end("404");
   }
+  let vsebina = readFileSync(f);
+  if (extname(f) === ".html") vsebina = prevediJsxVHtmlu(vsebina.toString("utf8"));
   res.writeHead(200, { "Content-Type": TIP[extname(f)] || "application/octet-stream" });
-  res.end(readFileSync(f));
+  res.end(vsebina);
 });
 await new Promise(r => streznik.listen(VRATA, r));
 

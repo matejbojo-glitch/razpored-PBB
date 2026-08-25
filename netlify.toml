@@ -1,0 +1,18 @@
+# Netlify prebere to datoteko samodejno ob vsakem "git push" v main.
+#
+# Od avgusta 2026 (prehod na Vite, glej DEPLOY.md) stran ni več mogoče
+# streči neposredno iz korena repozitorija - inline JSX blok na dnu vsake
+# *.html datoteke ("<script type=\"text/babel\">") potrebuje prevajanje,
+# ki ga je prej v brskalniku opravil babel.min.js, zdaj pa ga opravi
+# "npm run build" (glej vite.config.mjs). Brez tega bi bila objavljena
+# stran prazna/nedelujoča.
+#
+# Netlify Site configuration -> Build & deploy -> Build settings mora imeti
+# ti dve polji PRAZNI (ne ročno nastavljeni), da velja to, kar piše tu -
+# ročno v vmesniku vpisana vrednost prekrije to datoteko. Če je bilo v
+# preteklosti tam ročno vpisano "prazno" (glej DEPLOY.md, korak 4 pred
+# prehodom na Vite), to NI enako "polje ni nastavljeno" - v dvomu preveri
+# v vmesniku, da se ujema s spodnjim.
+[build]
+  command = "npm run build"
+  publish = "dist"

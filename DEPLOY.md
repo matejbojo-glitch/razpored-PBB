@@ -1,5 +1,16 @@
 # Objava na spletu – z GitHub + Netlify, s telefona
 
+> **Opomba (avgust 2026):** ta dokument je iz zgodnje faze projekta (pred
+> Supabase, pred Claude Code) in ročno nalaganje 18 datotek s telefona ni
+> več, kako se koda dejansko spreminja – to zdaj teče prek Claude Code
+> (veje, PR-ji, `git push`). Kar iz tega dokumenta **še vedno velja** in je
+> pomembno: **4. korak spodaj** (nastavitev Netlify) in datoteka
+> `netlify.toml` v korenu repozitorija – ti dve povesta Netlify, kako
+> zgraditi stran po prehodu na Vite (glej commit "Prehod na Vite"). Če
+> obstoječa povezava (`https://…netlify.app`) že deluje in je povezana z
+> GitHub repozitorijem, ti ni treba ponoviti 1.–3. koraka – preveri le, da
+> se ujemata z opombo pri 4. koraku.
+
 Vidim, da delaš v uradni GitHub aplikaciji. Ta je odlična za pregledovanje
 in odobravanje sprememb, ni pa dobra za nalaganje datotek – tega tam
 praktično ni mogoče narediti priročno. Nalaganje naredimo v **brskalniku**
@@ -52,7 +63,14 @@ Repozitorij zdaj vsebuje vso aplikacijo, brez podmap.
 2. **"Add new site"** → **"Import an existing project"** → **"Deploy with
    GitHub"**.
 3. Potrdi dostop, izberi repozitorij **razpored-PBB**.
-4. Polji "Build command" in "Publish directory" pusti **prazna**.
+4. Polji "Build command" in "Publish directory" pusti **prazna** – Netlify
+   ju od avgusta 2026 (glej razdelek "Prehod na Vite" na dnu tega
+   dokumenta) samodejno prebere iz datoteke `netlify.toml` v repozitoriju
+   (`npm run build`, mapa `dist`). Če je na strani "Site configuration →
+   Build & deploy → Build settings" v teh dveh poljih karkoli ROČNO
+   vpisano (tudi prazno besedilo, ne le "ni nastavljeno"), to prekrije
+   `netlify.toml` in stran se ne bo pravilno zgradila – v dvomu tam klikni
+   "Edit settings" in obe polji dejansko izbriši.
 5. **"Deploy site"**.
 
 Po ~30 sekundah dobiš povezavo, npr. `https://nekaj-ime-123.netlify.app`.
