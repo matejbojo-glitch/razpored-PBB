@@ -153,9 +153,9 @@ console.log("6) STARI zapisi v bazi in v preglednicah delujejo NAPREJ");
   trdi(/startsWith\("popoldne"\)/.test(adm), "in 'popoldne'");
 }
 
-console.log("7) obvezna kopija delovni-cas.js je usklajena");
+console.log("7) obvezna kopija src/shared/delovni-cas.js je usklajena");
 {
-  const a = readFileSync(join(koren, "delovni-cas.js"), "utf8");
+  const a = readFileSync(join(koren, "src", "shared", "delovni-cas.js"), "utf8");
   const b = readFileSync(join(koren, "supabase", "functions", "_shared", "delovni-cas.js"), "utf8");
   trdi(a === b, "koledarska naročnina računa po istem pravilu kot aplikacija");
 }
