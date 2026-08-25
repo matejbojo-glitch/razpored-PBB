@@ -98,6 +98,17 @@ dotakne.
 
 ## Preizkusi
 
+Poleg spodnjih skripte/preveri-*.mjs obstaja tudi `tests/` (Vitest,
+`npm test`) - to je HITER sloj čiste logike (delovni čas, generator,
+prazniki/oblika datuma), brez brskalnika in brez baze, mišljen za pogosto
+poganjanje med razvojem. Ne podvaja spodnjih skript, temveč jih dopolnjuje:
+
+| Kdaj uporabiti | `npm test` (tests/) | `node skripte/preveri-*.mjs` |
+|---|---|---|
+| Kaj preverja | čisto logiko modulov (`delovni-cas.js`, `generator-core.js`, `datum.js`, `prazniki.js`) | tudi pravi izris (Playwright), pravo bazo (PostgreSQL), primerjavo `*.html` datotek med sabo |
+| Hitrost | < 1 s za cel paket | posamezna skripta lahko traja tudi minuto (zažene Chromium) |
+| Kdaj | ob vsaki spremembi teh 4 modulov | pred vsakim `git push`/PR (glej `skripte/README.md` naprej) |
+
 | Skripta | Kaj preveri | Kaj potrebuje |
 |---|---|---|
 | `preveri-delovni-cas.mjs` | `delovni-cas.js` in kopija v `supabase/functions/_shared/` sta identična | nič |
