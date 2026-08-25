@@ -62,7 +62,7 @@ export const NI_DELO = ["LD", "KPU", "BS", "STI", "POR", ""];
 // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih
 // mora potrditi kadrovska – tu so samo izhodiščne vrednosti.
 export const PRIVZETA_PRAVILA = {
-  minPocitekUr: 12,              // najmanj ur med koncem ene in začetkom naslednje izmene
+  minPocitekUr: 10.7,            // najmanj ur med koncem ene in začetkom naslednje izmene
   maxZaporednihNocnih: 2,        // največ zaporednih nočnih izmen
   maxTedenskihUr: 56,            // zgornja meja ur v 7 zaporednih dneh (opozorilo)
   zahtevajProstDanNaTeden: true, // vsaj en dan brez izmene v vsakem oknu 7 dni
