@@ -1466,7 +1466,8 @@ on conflict (profile_id, department_code) do nothing;
 --     obstoječega swap_requests (menjave.html) – ta obrazec je širši
 --     (3 kategorije: ročno evidentiranje / menjava službe / drugo) in za
 --     menjavo dodaja korak "sodelavec mora najprej privoliti" ter
---     preverjanje 11-urnega počitka, česar swap_requests ne počne.
+--     preverjanje najmanjšega počitka (public.min_pocitek(), usklajeno z
+--     delovni-cas.js), česar swap_requests ne počne.
 --
 --     Prilagojeno iz zunanjega referenčnega gradiva (druga aplikacija,
 --     shema profili/zaposleni_kadris) na obstoječo shemo profiles/
@@ -1722,7 +1723,7 @@ from public.obrazci o;
 
 -- ---------------------------------------------------------------------
 -- 19b) Pomožne funkcije za menjavo: kdo je odsoten, kdo je na voljo,
---      preverjanje 11-urnega počitka. Isti nabor kod izmen kot
+--      preverjanje najmanjšega počitka. Isti nabor kod izmen kot
 --      generator-core.js/admin.html classify() – glede na to, da je
 --      shift_code prosto besedilo, ujemanje po predponi (ne po tabeli
 --      točnih vrednosti), da zajame vse dosedanje zapise (npr. "popoldan
@@ -1760,11 +1761,25 @@ begin
 end;
 $$;
 
--- Ali bi oseba p_profile_id na p_datum v izmeni p_sifra ohranila 11 ur
--- počitka pred/po vseh svojih že razporejenih izmenah v okolici (±2 dni)?
+-- EDINA meja počitka na strani baze. Mora se ujemati s
+-- PRIVZETA_PRAVILA.minPocitekUr v src/shared/delovni-cas.js (10,7 h =
+-- 10 h 42 min) - do avgusta 2026 je tu pisalo 11 h, kar je bilo prevzeto
+-- iz zunanjega referenčnega gradiva (druga aplikacija), ne iz pravila te
+-- aplikacije. Razlika je bila resnična: obrazec.html je menjavo preverjal
+-- po 10,7 h (window.DelovniCas), baza pa jo je po 11 h zavrnila oz.
+-- sodelavca sploh ni ponudila. skripte/preveri-meja-pocitka.mjs zaklene,
+-- da obe številki ostaneta enaki.
+create or replace function public.min_pocitek()
+returns interval language sql immutable as $$ select interval '10 hours 42 minutes' $$;
+
+-- Ali bi oseba p_profile_id na p_datum v izmeni p_sifra ohranila najmanjši
+-- počitek (glej min_pocitek() zgoraj) pred/po vseh svojih že razporejenih
+-- izmenah v okolici (±2 dni)?
 -- Izjema (interno pravilo PB Begunje, glej PROMPTmenjavasluzbe.md): iz
 -- "popoldan do 19" (konec 19.00) na "dopoldan"/"dnevna12" naslednji dan
--- (začetek 05.50/07.00) je dovoljeno kljub <11h, ker traja le ~10h50m/11h10m.
+-- (začetek 05.50/07.00) je dovoljeno, ker traja le ~10h50m/11h10m. Pri
+-- meji 10,7 h je 10h50m že sam po sebi dovolj, izjema pa ostaja zapisana,
+-- ker meja ostaja nastavljiva (kadrovska jo lahko dvigne nazaj na 11 h).
 create or replace function public.pocitek_ustreza(p_profile_id uuid, p_datum date, p_sifra text)
 returns boolean language plpgsql stable as $$
 declare
@@ -1791,7 +1806,7 @@ begin
       continue; -- interna izjema, glej komentar zgoraj
     end if;
 
-    if nova_od < do_ + interval '11 hours' and od < nova_do + interval '11 hours' then
+    if nova_od < do_ + public.min_pocitek() and od < nova_do + public.min_pocitek() then
       return false;
     end if;
   end loop;
