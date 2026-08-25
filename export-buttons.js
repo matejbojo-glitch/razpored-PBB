@@ -6,10 +6,13 @@
  * Brez JSX (navaden React.createElement), da se naloži kot <script> pred
  * babel skriptami vsake strani.
  *
- * "compact" način (nova ikona + spustni meni namesto dveh gumbov v vrsti) je
- * namenjen ozkim mobilnim zaslonom, kjer poln gumb zavzame preveč prostora –
- * glej index.html. Neobvezen "pdf" prop doda tretjo postavko v meni (stran
- * sama poskrbi za PDF izvoz prek PrintFit, ki ni del tega skripta).
+ * "compact" način (ena ikona + spustni meni namesto ločenih gumbov v vrsti)
+ * je zdaj EDINA orodna vrstica za izvoz – glej index.html. Neobvezen "pdf"
+ * prop doda eno (ali, kot seznam, več – npr. "Trenutni oddelek" + "Celotna
+ * bolnišnica") postavko na vrhu menija; stran sama poskrbi za PDF izvoz
+ * prek PrintFit, ki ni del tega skripta. Excel (ExcelJS, glej
+ * export-utils.js) in Google Sheets sledita v istem meniju, brez podvajanja
+ * kode med stranmi.
  */
 (function (root) {
   "use strict";
@@ -159,8 +162,11 @@
   //              namesto branja `listi` neposredno (za strani, kjer je
   //              sestavljanje podatkov cenejše storiti šele ob kliku)
   //   compact – (neobvezno) true = ikona + spustni meni namesto dveh gumbov
-  //   pdf     – (neobvezno, samo v compact načinu) { label, onClick } – dodatna
-  //             prva postavka v meniju za PDF izvoz (stran sama pokliče PrintFit)
+  //   pdf     – (neobvezno, samo v compact načinu) { label, onClick } ALI
+  //             [{ label, onClick }, ...] – ena ali več postavk na vrhu
+  //             menija za PDF izvoz (stran sama pokliče PrintFit), npr.
+  //             [{ label: "Izvozi PDF (Trenutni oddelek)", onClick: ... },
+  //              { label: "Izvozi PDF (Celotna bolnišnica)", onClick: ... }]
   function RazporedIzvoz(props) {
     var busyState = useState(null); // "xlsx" | "sheets" | null
     var busy = busyState[0], setBusy = busyState[1];
@@ -237,12 +243,15 @@
         if (viri.length > 1) {
           postavke.push(e("p", { key: "n" + i, className: "dlMenuNaslov" }, vir.naziv || "Izvoz"));
         }
-        if (vir.pdf) {
+        // "pdf" je lahko en {label, onClick} (kot doslej) ali seznam več
+        // variant (npr. "Trenutni oddelek" + "Celotna bolnišnica") – stran
+        // poda toliko variant, kolikor jih ponuja, brez podvajanja te zanke.
+        (vir.pdf ? (Array.isArray(vir.pdf) ? vir.pdf : [vir.pdf]) : []).forEach(function (p, k) {
           postavke.push(e("button", {
-            key: "pdf" + i, className: "dlMenuItem", type: "button",
-            onClick: function () { setOdprto(false); vir.pdf.onClick(); },
-          }, "📄 " + (vir.pdf.label || "Izvozi v PDF")));
-        }
+            key: "pdf" + i + "_" + k, className: "dlMenuItem", type: "button",
+            onClick: function () { setOdprto(false); p.onClick(); },
+          }, "📄 " + (p.label || "Izvozi v PDF")));
+        });
         // Vir brez razpredelnice (samo PDF ali JSON) Excela/Sheets ne ponudi –
         // sicer bi izvoz odpovedal z "ni podatkov" na postavki, ki je za tak
         // vir sploh nima smisla ponujati.
@@ -250,11 +259,11 @@
           postavke.push(e("button", {
             key: "xlsx" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
             onClick: function () { izvoziExcel(vir); },
-          }, busy === "xlsx" ? "Izvažam …" : "⬇ Izvozi v Excel"));
+          }, busy === "xlsx" ? "Izvažam …" : "⬇ Izvozi Excel (.xlsx)"));
           postavke.push(e("button", {
             key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
             onClick: function () { izvoziSheets(vir); },
-          }, busy === "sheets" ? "Izvažam …" : "📗 Izvozi v Google Sheets"));
+          }, busy === "sheets" ? "Sinhroniziram …" : "📗 Sinhroniziraj z Google Sheets"));
         }
         if (vir.ical) {
           postavke.push(e("button", {

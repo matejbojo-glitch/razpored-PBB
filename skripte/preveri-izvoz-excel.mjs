@@ -5,8 +5,8 @@
  *  1. export-utils.js je zdaj ZGRAJEN iz export-utils.entry.js (glej
  *     build-export.mjs) - `node build-export.mjs` mora biti pognan PRED
  *     tem preizkusom (enako kot build-vendor.mjs pred ostalimi).
- *  2. Pisanje je asinhrono (workbook.xlsx.writeBuffer()) - gumb "Izvozi v
- *     Excel" se med izvozom onemogoči in prikaže "Izvažam …", enako kot
+ *  2. Pisanje je asinhrono (workbook.xlsx.writeBuffer()) - gumb "Izvozi
+ *     Excel (.xlsx)" se med izvozom onemogoči in prikaže "Izvažam …", enako kot
  *     je od nekdaj veljalo za Google Sheets.
  *  3. Pri velikem mesečnem razporedu (stotine vrstic) se vrstice dodajajo
  *     po kosih z vmesnim vrniNadzoruBrskalniku() - zaslon zato med izvozom
@@ -113,8 +113,8 @@ try {
   console.log("1) gumb za izvoz ponudi oba vira (majhen in velik)");
   await stran2.click(".dlIconBtn");
   await stran2.waitForTimeout(200);
-  const postavkeXlsx = await stran2.$$("button.dlMenuItem:has-text('Izvozi v Excel')");
-  trdi(postavkeXlsx.length === 2, "dve postavki 'Izvozi v Excel' (majhen-test, velik-test)");
+  const postavkeXlsx = await stran2.$$("button.dlMenuItem:has-text('Izvozi Excel')");
+  trdi(postavkeXlsx.length === 2, "dve postavki 'Izvozi Excel' (majhen-test, velik-test)");
 
   console.log("2) izvoz MAJHNEGA vira: prava, veljavna .xlsx datoteka");
   const [prenos1] = await Promise.all([
@@ -141,7 +141,7 @@ try {
   await stran2.waitForTimeout(200);
   await stran2.click(".dlIconBtn");
   await stran2.waitForTimeout(200);
-  const postavkeXlsx2 = await stran2.$$("button.dlMenuItem:has-text('Izvozi v Excel')");
+  const postavkeXlsx2 = await stran2.$$("button.dlMenuItem:has-text('Izvozi Excel')");
   trdi(postavkeXlsx2.length === 2, "meni se je znova odprl z obema postavkama");
 
   console.log("4) izvoz VELIKEGA vira (6000 vrstic): ne zamrzne zaslona, gumb se pravilno zaklene/odklene");
@@ -179,7 +179,7 @@ try {
   await stran2.waitForTimeout(200);
   await stran2.click(".dlIconBtn");
   await stran2.waitForTimeout(200);
-  const gumbPoIzvozu = (await stran2.$$("button.dlMenuItem:has-text('Izvozi v Excel')"))[1];
+  const gumbPoIzvozu = (await stran2.$$("button.dlMenuItem:has-text('Izvozi Excel')"))[1];
   trdi(!!gumbPoIzvozu, "gumb je po ponovnem odprtju spet na voljo");
   trdi(!!gumbPoIzvozu && !(await gumbPoIzvozu.isDisabled()), "in ni več onemogočen");
 
