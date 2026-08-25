@@ -34,11 +34,23 @@ function trdi(pogoj, opis) {
 
 // 1) Iz sheme ugotovi, katere tabele imajo VEČ tujih ključev na isto ciljno
 //    tabelo - samo pri teh je vgnezden zapis brez namiga dvoumen.
-//    Pokrivamo oba zapisa: stolpec v "create table" in poznejši
-//    "alter table … add column … references …".
+//    Pokrivamo TRI zapise: stolpec v "create table", poznejši
+//    "alter table … add column … references …" IN samostojni
+//    "alter table only … add constraint … foreign key (…) references …".
+//    Tretjega je prinesla konsolidacija sheme (avgust 2026): tuji ključi so
+//    zdaj svoj razdelek, da ni krožnih odvisnosti med profili in oddelki.
+//    Ta zapis se razteza čez DVE vrstici (ime tabele je na prvi, stolpec in
+//    cilj na drugi), zato ga poiščemo v celotnem besedilu, ne po vrsticah.
 function preberiVeckratneKljuce(sql) {
   const povezave = {}; // "izvor->cilj" -> [stolpci]
   let trenutnaTabela = null;
+
+  const reOmejitev = /alter table\s+(?:only\s+)?public\.(\w+)\s+add constraint\s+\w+\s+foreign key\s*\(\s*(\w+)\s*\)\s*references\s+public\.(\w+)/gi;
+  for (const m of sql.matchAll(reOmejitev)) {
+    const k = m[1] + "->" + m[3];
+    (povezave[k] = povezave[k] || []).push(m[2]);
+  }
+
   sql.split("\n").forEach(vrstica => {
     const ct = vrstica.match(/create table if not exists\s+public\.(\w+)/i) || vrstica.match(/create table\s+public\.(\w+)/i);
     if (ct) { trenutnaTabela = ct[1]; return; }

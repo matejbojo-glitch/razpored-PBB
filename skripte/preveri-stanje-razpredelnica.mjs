@@ -337,16 +337,30 @@ console.log("16) legenda in menjave so v index.html res prikazane");
   trdi(/from\("menjave_javno"\)/.test(razpredelnica), "menjave se berejo iz pogleda menjave_javno");
   trdi(!/from\("obrazci"\)/.test(razpredelnica), "ne bere se več neposredno iz obrazci (ozek RLS)");
   const shema = readFileSync(join(koren, "supabase", "schema.sql"), "utf8");
-  const pogled = shema.slice(shema.indexOf("create view public.menjave_javno"));
-  trdi(/status = 'zakljucen'/.test(pogled.slice(0, 600)), "pogled vsebuje SAMO potrjene menjave");
-  trdi(!/opomba|razlog_zavrnitve/.test(pogled.slice(0, 600)),
+  // Konsolidacija sheme (avgust 2026) je spremenila ZAPIS, ne pomena:
+  // "create view" -> "create or replace view", pravice pa so v obliki, ki
+  // jo izpiše PostgreSQL ("GRANT SELECT ON TABLE ... TO authenticated").
+  // Dostop za anon ni več izražen z izrecnim REVOKE, ampak z ODSOTNOSTJO
+  // podelitve - kar je enakovredno in celo bolj zanesljivo.
+  const zac = shema.search(/create (?:or replace )?view public\.menjave_javno/i);
+  trdi(zac !== -1, "pogled menjave_javno je v shemi");
+  // Odrežemo natanko pri koncu TEGA ukaza (prvi podpičje na koncu vrstice).
+  // Prej je bilo odrezano na fiksnih 600 znakih; po konsolidaciji so pogledi
+  // drug ob drugem, zato bi fiksno okno zajelo tudi naslednji pogled in
+  // preizkus bi grajal napačno definicijo.
+  const rel = shema.slice(zac);
+  const konec = rel.search(/;\s*$/m);
+  const pogled = konec === -1 ? rel.slice(0, 900) : rel.slice(0, konec + 1);
+  trdi(/status = 'zakljucen'/.test(pogled), "pogled vsebuje SAMO potrjene menjave");
+  trdi(!/opomba|razlog_zavrnitve/.test(pogled),
     "pogled ne izpostavi opomb ne razlogov zavrnitve (samo kdo/kdaj)");
-  trdi(!/security_invoker/.test(pogled.slice(0, 600)),
+  trdi(!/security_invoker/.test(pogled),
     "pogled teče s pravicami lastnika - to je edini način, da pokaže vse mesece");
-  trdi(/grant select on public\.menjave_javno to authenticated/.test(shema),
+  trdi(/grant select on (?:table )?public\.menjave_javno to [^;]*authenticated/i.test(shema),
     "pogled je berljiv vsem prijavljenim");
-  trdi(/revoke all on public\.menjave_javno from anon/.test(shema),
-    "neprijavljeni (anon) do pogleda NIMAJO dostopa");
+  const podeljenoAnon = new RegExp(
+    "grant [^;]*on (?:table )?public\\.menjave_javno to [^;]*\\banon\\b", "i").test(shema);
+  trdi(!podeljenoAnon, "neprijavljeni (anon) do pogleda NIMAJO dostopa");
   trdi(/setMenjani\(mm\)/.test(html2), "dnevi s potrjeno menjavo se označijo");
   trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
 }

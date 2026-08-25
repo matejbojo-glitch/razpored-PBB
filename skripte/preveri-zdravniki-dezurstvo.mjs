@@ -171,8 +171,15 @@ console.log("8) tretji krog (dipl. m.s./zn.) se res shrani");
   const { zapisi } = obdelajZdravnikiVrstice(VRSTICE, "2026-09");
   trdi(zapisi.some(z => z.kind === "sestra"), "vrsta 'sestra' se sploh pojavi");
   const shema = readFileSync(join(koren, "supabase", "schema.sql"), "utf8");
-  trdi(/kind in \('urgenca', 'dezurstvo', 'sestra'\)/.test(shema),
-    "shema dovoljuje vse tri vrste");
+  // Po konsolidaciji sheme (avgust 2026) je omejitev zapisana v obliki, ki
+  // jo izpiše PostgreSQL sam - "kind = ANY (ARRAY['urgenca'::text, ...])" -
+  // namesto nekdanjega "kind in ('urgenca', ...)". Pomen je isti, zato
+  // sprejmemo OBA zapisa; preverja se, da so dovoljene vse tri vrste.
+  const vseTriVrste =
+    /kind in \('urgenca', 'dezurstvo', 'sestra'\)/.test(shema) ||
+    (/kind = ANY/i.test(shema) &&
+      ["urgenca", "dezurstvo", "sestra"].every(v => new RegExp(`'${v}'::text`).test(shema)));
+  trdi(vseTriVrste, "shema dovoljuje vse tri vrste");
   const dodatek = readFileSync(join(koren, "supabase", "dodaj-dezurno-sestro.sql"), "utf8");
   trdi(/drop constraint if exists duty_doctors_kind_check/.test(dodatek),
     "za obstoječe baze obstaja ločena skripta");
