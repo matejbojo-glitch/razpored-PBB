@@ -838,59 +838,75 @@ alter table public.zgodovina_stanja_dopusta add column if not exists uvozil uuid
 -- Primarni ključi in enoličnost:
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'barvne_oznake_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.barvne_oznake'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.barvne_oznake
     ADD CONSTRAINT barvne_oznake_pkey PRIMARY KEY (barva)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dezurni_zdravniki_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.dezurni_zdravniki'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.dezurni_zdravniki
     ADD CONSTRAINT dezurni_zdravniki_pkey PRIMARY KEY (work_date, kind)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_odsotnosti_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.dnevnik_odsotnosti'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.dnevnik_odsotnosti
     ADD CONSTRAINT dnevnik_odsotnosti_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.dnevnik_ogledov'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.dnevnik_ogledov
     ADD CONSTRAINT dnevnik_ogledov_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_profilov_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.dnevnik_profilov'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.dnevnik_profilov
     ADD CONSTRAINT dnevnik_profilov_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_razporeda_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.dnevnik_razporeda'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.dnevnik_razporeda
     ADD CONSTRAINT dnevnik_razporeda_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'kadrovski_podatki_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.kadrovski_podatki'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.kadrovski_podatki
     ADD CONSTRAINT kadrovski_podatki_pkey PRIMARY KEY (profile_id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.koledarski_zetoni'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.koledarski_zetoni
     ADD CONSTRAINT koledarski_zetoni_pkey PRIMARY KEY (profile_id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -898,41 +914,53 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.koledarski_zetoni
     ADD CONSTRAINT koledarski_zetoni_token_key UNIQUE (token)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'minimalna_zasedba_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.minimalna_zasedba'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.minimalna_zasedba
     ADD CONSTRAINT minimalna_zasedba_pkey PRIMARY KEY (department_code, shift_bucket)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'nastavitve_obvestil_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.nastavitve_obvestil'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.nastavitve_obvestil
     ADD CONSTRAINT nastavitve_obvestil_pkey PRIMARY KEY (profile_id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'nosilci_oddelkov_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.nosilci_oddelkov'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.nosilci_oddelkov
     ADD CONSTRAINT nosilci_oddelkov_pkey PRIMARY KEY (full_name)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.obrazci_dnevnik'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.obrazci_dnevnik
     ADD CONSTRAINT obrazci_dnevnik_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.obrazci'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -940,20 +968,26 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_stevilka_key UNIQUE (stevilka)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obvestila_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.obvestila'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'oddelki_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.oddelki'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.oddelki
     ADD CONSTRAINT oddelki_pkey PRIMARY KEY (code)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -961,20 +995,26 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.odsotnosti
     ADD CONSTRAINT odsotnosti_full_name_work_date_key UNIQUE (full_name, work_date)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.odsotnosti'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.odsotnosti
     ADD CONSTRAINT odsotnosti_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.pokriva_oddelek'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -982,6 +1022,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_profile_id_department_code_key UNIQUE (profile_id, department_code)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -989,20 +1031,26 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.potisne_narocnine
     ADD CONSTRAINT potisne_narocnine_endpoint_key UNIQUE (endpoint)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.potisne_narocnine'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.potisne_narocnine
     ADD CONSTRAINT potisne_narocnine_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'profili_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.profili'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1010,41 +1058,53 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_employee_id_work_date_key UNIQUE (employee_id, work_date)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.razpored'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'telefoni_kontaktov_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.telefoni_kontaktov'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.telefoni_kontaktov
     ADD CONSTRAINT telefoni_kontaktov_pkey PRIMARY KEY (profile_id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.uvozi_kontaktov'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.uvozi_kontaktov
     ADD CONSTRAINT uvozi_kontaktov_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.zahtevki_za_menjavo'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.zelje_zaposlenih'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1052,13 +1112,17 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_employee_code_leto_mesec_key UNIQUE (employee_code, leto, mesec)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_pkey') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.zgodovina_stanja_dopusta'::regclass and contype = 'p') then
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_pkey PRIMARY KEY (id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 
@@ -1074,6 +1138,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.barvne_oznake
     ADD CONSTRAINT barvne_oznake_posodobil_fkey FOREIGN KEY (posodobil) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1081,6 +1147,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.dnevnik_odsotnosti
     ADD CONSTRAINT dnevnik_odsotnosti_editor_id_fkey FOREIGN KEY (editor_id) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1088,6 +1156,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.dnevnik_ogledov
     ADD CONSTRAINT dnevnik_ogledov_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES auth.users(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1095,6 +1165,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.dnevnik_ogledov
     ADD CONSTRAINT dnevnik_ogledov_target_profile_id_fkey FOREIGN KEY (target_profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1102,6 +1174,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.dnevnik_profilov
     ADD CONSTRAINT dnevnik_profilov_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1109,6 +1183,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.dnevnik_razporeda
     ADD CONSTRAINT dnevnik_razporeda_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1116,6 +1192,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.kadrovski_podatki
     ADD CONSTRAINT kadrovski_podatki_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1123,6 +1201,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.koledarski_zetoni
     ADD CONSTRAINT koledarski_zetoni_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1130,6 +1210,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.minimalna_zasedba
     ADD CONSTRAINT minimalna_zasedba_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1137,6 +1219,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.nastavitve_obvestil
     ADD CONSTRAINT nastavitve_obvestil_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1144,6 +1228,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.nosilci_oddelkov
     ADD CONSTRAINT nosilci_oddelkov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1151,6 +1237,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci_dnevnik
     ADD CONSTRAINT obrazci_dnevnik_obrazec_id_fkey FOREIGN KEY (obrazec_id) REFERENCES public.obrazci(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1158,6 +1246,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci_dnevnik
     ADD CONSTRAINT obrazci_dnevnik_uporabnik_id_fkey FOREIGN KEY (uporabnik_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1165,6 +1255,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_koordinator_id_fkey FOREIGN KEY (koordinator_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1172,6 +1264,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_sodelavec_id_fkey FOREIGN KEY (sodelavec_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1179,6 +1273,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_vlagatelj_id_fkey FOREIGN KEY (vlagatelj_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1186,6 +1282,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1193,6 +1291,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_swap_request_id_fkey FOREIGN KEY (swap_request_id) REFERENCES public.zahtevki_za_menjavo(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1200,6 +1300,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1207,6 +1309,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.odsotnosti
     ADD CONSTRAINT odsotnosti_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1214,6 +1318,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1221,6 +1327,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1228,6 +1336,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.potisne_narocnine
     ADD CONSTRAINT potisne_narocnine_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1235,6 +1345,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profiles_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1242,6 +1354,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1249,6 +1363,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1256,6 +1372,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1263,6 +1381,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1270,6 +1390,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1277,6 +1399,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1284,6 +1408,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1291,6 +1417,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.telefoni_kontaktov
     ADD CONSTRAINT telefoni_kontaktov_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1298,6 +1426,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.uvozi_kontaktov
     ADD CONSTRAINT uvozi_kontaktov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1305,6 +1435,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.uvozi_kontaktov
     ADD CONSTRAINT uvozi_kontaktov_linked_profile_id_fkey FOREIGN KEY (linked_profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1312,6 +1444,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1319,6 +1453,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1326,6 +1462,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.profili(id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1333,6 +1471,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.profili(id)';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1340,6 +1480,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1347,6 +1489,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1354,6 +1498,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 do $$ begin
@@ -1361,6 +1507,8 @@ do $$ begin
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_uvozil_fkey FOREIGN KEY (uvozil) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
 end $$;
 
 
