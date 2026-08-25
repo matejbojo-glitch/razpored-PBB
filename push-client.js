@@ -73,7 +73,7 @@
       user_agent: navigator.userAgent.slice(0, 300),
     };
     var odgovor = await root.RazporedAuth.client
-      .from("push_subscriptions")
+      .from("potisne_narocnine")
       .upsert(zapis, { onConflict: "endpoint" });
     if (odgovor.error) throw odgovor.error;
     return true;
@@ -90,7 +90,7 @@
     await narocnina.unsubscribe();
     // Vrstico v bazi pobrišemo tudi, če odjava v brskalniku ne uspe –
     // sicer bi strežnik še naprej pošiljal na mrtvo naročnino.
-    await root.RazporedAuth.client.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    await root.RazporedAuth.client.from("potisne_narocnine").delete().eq("endpoint", endpoint);
     return true;
   }
 

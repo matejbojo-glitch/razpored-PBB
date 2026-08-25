@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------
--- Čiščenje: profiles.full_name, ki so še vedno zapisani "Ime Priimek"
+-- Čiščenje: profili.full_name, ki so še vedno zapisani "Ime Priimek"
 -- namesto standardnega "Priimek Ime" (glej schema.sql, razdelek 35).
 --
 -- Kaj naredi:
@@ -25,7 +25,7 @@ do $$
 declare v_st int;
 begin
   with popravljeni as (
-    update public.profiles
+    update public.profili
     set full_name = initcap(full_name)
     where full_name is not null
       and full_name <> ''
@@ -45,14 +45,14 @@ begin
     select p.id, p.full_name,
            split_part(btrim(p.full_name), ' ', 1) as beseda1,
            split_part(btrim(p.full_name), ' ', 2) as beseda2
-    from public.profiles p
+    from public.profili p
     join auth.users u on u.id = p.id
     where array_length(regexp_split_to_array(btrim(p.full_name), '\s+'), 1) = 2
       and lower(translate(split_part(btrim(p.full_name), ' ', 1), 'ČčĆćŽžŠšĐđ', 'CcCcZzSsDd'))
           = lower(split_part(split_part(u.email, '@', 1), '.', 1))
   ),
   popravljeni as (
-    update public.profiles p
+    update public.profili p
     set full_name = initcap(k.beseda2 || ' ' || k.beseda1)
     from kandidati k
     where p.id = k.id
@@ -65,7 +65,7 @@ end $$;
 -- 3) Preostali sumljivi zapisi (tri ali več besed) - SAMO izpis, brez
 --    samodejnega popravka; popravi ročno v Imeniku.
 select p.full_name, u.email
-from public.profiles p
+from public.profili p
 join auth.users u on u.id = p.id
 where array_length(regexp_split_to_array(btrim(p.full_name), '\s+'), 1) >= 3
   and lower(translate(split_part(btrim(p.full_name), ' ', 1), 'ČčĆćŽžŠšĐđ', 'CcCcZzSsDd'))

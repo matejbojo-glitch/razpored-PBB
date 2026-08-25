@@ -4,7 +4,7 @@
  * Zakaj tak preizkus obstaja: izbris osebe se je v razvoju trikrat zalomil
  * na način, ki ga z branjem kode ni bilo videti –
  *   1. supabase/schema.sql ni znal postaviti delujoče baze (manjkal je
- *      stolpec schedule_entries.created_at, ki ga sprožilec nastavlja),
+ *      stolpec razpored.created_at, ki ga sprožilec nastavlja),
  *   2. sprožilci dnevnika ob izbrisu SAMI zapišejo novo vrstico z imenom
  *      izbrisane osebe – čiščenje dnevnika pred izbrisom torej ne zaleže,
  *   3. sprožilec schedule_entries_touch je izbrisanega avtorja vrnil nazaj
@@ -99,41 +99,41 @@ insert into auth.users (id, email) values
   ('${ODHAJA_B}','nekdo.drug@pb-begunje.si'),
   ('${OSTANE_A}','ostane.a@pb-begunje.si'),
   ('${OSTANE_B}','ostane.b@pb-begunje.si');
-insert into public.profiles (id, full_name, role, department_code) values
+insert into public.profili (id, full_name, role, department_code) values
   ('${ODHAJA_A}','Stare Luka','user','C1'),
   ('${ODHAJA_B}','BALEK MIJA','user','C'),
   ('${OSTANE_A}','Bojić Matej','admin','NZV'),
   ('${OSTANE_B}','Hrovat Nina','vodja','NZV')
 on conflict (id) do update set full_name = excluded.full_name, role = excluded.role,
   department_code = excluded.department_code;
-update public.profiles set vodja_id = '${ODHAJA_A}' where id = '${OSTANE_B}';
-insert into public.schedule_entries (employee_id, department_code, work_date, shift_code) values
+update public.profili set vodja_id = '${ODHAJA_A}' where id = '${OSTANE_B}';
+insert into public.razpored (employee_id, department_code, work_date, shift_code) values
   ('${ODHAJA_A}','C1','2026-09-01','dopoldan'),
   ('${OSTANE_A}','NZV','2026-09-01','DEŽURSTVO');
-insert into public.swap_requests (requester_id, requester_date, target_id, target_date, lead_id) values
+insert into public.zahtevki_za_menjavo (requester_id, requester_date, target_id, target_date, lead_id) values
   ('${ODHAJA_A}','2026-09-02','${OSTANE_A}','2026-09-03', null),
   ('${OSTANE_A}','2026-09-04','${OSTANE_B}','2026-09-05','${ODHAJA_A}');
 insert into public.obrazci (vrsta, vlagatelj_id, sodelavec_id) values
   ('menjava_sluzbe','${ODHAJA_A}','${OSTANE_A}'),
   ('menjava_sluzbe','${OSTANE_A}','${OSTANE_B}');
-insert into public.leave_entries (full_name, work_date, kind) values
+insert into public.odsotnosti (full_name, work_date, kind) values
   ('STARE LUKA','2026-09-10','ld'),
   ('Bojić Matej','2026-09-12','ld');
-insert into public.employee_wishes (full_name, department_code) values
+insert into public.zelje_zaposlenih (full_name, department_code) values
   ('Stare Luka','C1'),
   ('MIJA BALEK','C'),
   ('Bojić Matej','NZV');
-insert into public.contact_imports (full_name, email) values
+insert into public.uvozi_kontaktov (full_name, email) values
   ('STARE LUKA','luka.stare@pb-begunje.si'),
   ('BOJIĆ MATEJ','ostane.a@pb-begunje.si');
 `);
 
 console.log("2) razpored je mogoče urejati (stolpec created_at obstaja)");
 try {
-  psql(`update public.schedule_entries set shift_code = 'popoldan' where employee_id = '${OSTANE_A}';`);
-  trdi(true, "UPDATE na schedule_entries uspe");
+  psql(`update public.razpored set shift_code = 'popoldan' where employee_id = '${OSTANE_A}';`);
+  trdi(true, "UPDATE na razpored uspe");
 } catch (e) {
-  trdi(false, "UPDATE na schedule_entries uspe: " + String(e.stderr || e).slice(0, 200));
+  trdi(false, "UPDATE na razpored uspe: " + String(e.stderr || e).slice(0, 200));
 }
 
 // Avtorstvo nastavimo z izklopljenimi sprožilci – sprožilec ga ob rednem
@@ -141,7 +141,7 @@ try {
 // tega sploh ne bi preveril povezave, ki izbris ustavi.
 psql(`
 set session_replication_role = replica;
-update public.schedule_entries set created_by = '${ODHAJA_A}', updated_by = '${ODHAJA_A}'
+update public.razpored set created_by = '${ODHAJA_A}', updated_by = '${ODHAJA_A}'
  where employee_id = '${OSTANE_A}';
 set session_replication_role = origin;
 `);
@@ -165,32 +165,32 @@ trdi(zadnjiIzpis.trim() === "", "zadnji ukaz (preverba) ne vrne nobene vrstice")
 
 console.log("4) stanje po izbrisu");
 function vrednost(sql) { return psql(sql).trim(); }
-trdi(vrednost("select count(*) from public.profiles") === "2", "ostaneta natanko 2 profila");
-trdi(vrednost("select string_agg(full_name, ', ' order by full_name) from public.profiles")
+trdi(vrednost("select count(*) from public.profili") === "2", "ostaneta natanko 2 profila");
+trdi(vrednost("select string_agg(full_name, ', ' order by full_name) from public.profili")
      === "Bojić Matej, Hrovat Nina", "ostaneta prava dva");
 trdi(vrednost("select count(*) from auth.users") === "2", "ostaneta 2 računa");
-trdi(vrednost(`select count(*) from public.schedule_entries s
-  where s.created_by is not null and not exists (select 1 from public.profiles p where p.id = s.created_by)`) === "0",
+trdi(vrednost(`select count(*) from public.razpored s
+  where s.created_by is not null and not exists (select 1 from public.profili p where p.id = s.created_by)`) === "0",
   "v razporedu ni viseče povezave na izbrisanega avtorja");
-trdi(vrednost(`select count(*) from public.schedule_entries s
-  where s.updated_by is not null and not exists (select 1 from public.profiles p where p.id = s.updated_by)`) === "0",
+trdi(vrednost(`select count(*) from public.razpored s
+  where s.updated_by is not null and not exists (select 1 from public.profili p where p.id = s.updated_by)`) === "0",
   "isto za updated_by");
-trdi(vrednost(`select count(*) from public.schedule_entries where employee_id = '${OSTANE_A}'`) === "1",
+trdi(vrednost(`select count(*) from public.razpored where employee_id = '${OSTANE_A}'`) === "1",
   "razpored osebe, ki ostane, je nedotaknjen");
-trdi(vrednost("select count(*) from public.swap_requests") === "1", "menjava dveh drugih ostane");
-trdi(vrednost("select coalesce(lead_id::text,'-') from public.swap_requests") === "-",
+trdi(vrednost("select count(*) from public.zahtevki_za_menjavo") === "1", "menjava dveh drugih ostane");
+trdi(vrednost("select coalesce(lead_id::text,'-') from public.zahtevki_za_menjavo") === "-",
   "izbrisani odobritelj je izpraznjen, menjava pa ostane");
 trdi(vrednost("select count(*) from public.obrazci") === "1", "obrazec brez izbrisanega ostane");
-trdi(vrednost("select count(*) from public.leave_entries") === "1", "dopust osebe, ki ostane, ostane");
-trdi(vrednost(`select count(*) from public.leave_entries_log l
+trdi(vrednost("select count(*) from public.odsotnosti") === "1", "dopust osebe, ki ostane, ostane");
+trdi(vrednost(`select count(*) from public.dnevnik_odsotnosti l
   where public.imena_se_ujemata(l.full_name, 'Stare Luka')
      or public.imena_se_ujemata(l.full_name, 'Balek Mija')`) === "0",
   "dnevnik dopusta ne omenja več izbrisanih");
-trdi(vrednost("select count(*) from public.employee_wishes") === "1", "želje osebe, ki ostane, ostanejo");
-trdi(vrednost("select count(*) from public.contact_imports") === "1", "vizitka osebe, ki ostane, ostane");
-trdi(vrednost(`select count(*) from public.profiles_log where profile_name in ('Stare Luka','BALEK MIJA')`) === "0",
+trdi(vrednost("select count(*) from public.zelje_zaposlenih") === "1", "želje osebe, ki ostane, ostanejo");
+trdi(vrednost("select count(*) from public.uvozi_kontaktov") === "1", "vizitka osebe, ki ostane, ostane");
+trdi(vrednost(`select count(*) from public.dnevnik_profilov where profile_name in ('Stare Luka','BALEK MIJA')`) === "0",
   "dnevnik profilov ne omenja več izbrisanih");
-trdi(vrednost(`select count(*) from public.profiles where vodja_id = '${ODHAJA_A}'`) === "0",
+trdi(vrednost(`select count(*) from public.profili where vodja_id = '${ODHAJA_A}'`) === "0",
   "nihče nima več izbrisanega za vodjo");
 
 pg(`dropdb --if-exists ${BAZA}`);

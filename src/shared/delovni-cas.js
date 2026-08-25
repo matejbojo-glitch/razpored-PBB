@@ -384,3 +384,55 @@ export function povzetek(krsitve) {
   const kriticnih = krsitve.filter((k) => k.resnost === "kriticno").length;
   return { skupaj: krsitve.length, kriticnih, opozoril: krsitve.length - kriticnih };
 }
+
+// --- Uradni šifrant kratic (CLAUDE.md "Uradni šifrant kratic in izmen") -
+//
+// Ločeno od IZMENE zgoraj (drug, krajši nabor kod - DF12/D12/N12 ipd. - ki
+// ga generator/aplikacija trenutno ne oddajata; ta šifrant je uradna
+// referenca za obračun ur po kratici). DEŽ nima trdne vrednosti - glej
+// ureDezurstva spodaj (medtedensko proti vikend/praznik).
+export const URE_SIFRANT = {
+  DF12: 12, D12: 12, N12: 12, N11: 11, N10: 10,
+  PO5: 5, PO6: 6, DO6: 6, DO4: 4, PO4: 4, PO7: 7, DO7: 7, DOP: 8,
+  LD: 8, POR: 8, STI: 8, BS: 8,
+  KPU: 0, "": 0,
+};
+
+// Nočne izmene in kode, ki jim naslednji dan (11-urni počitek) NE smejo
+// slediti - dnevne/dopoldanske izmene.
+export const NOCNE_IZMENE = ["N12", "N11", "N10"];
+export const PREPOVEDANE_PO_NOCNI = ["DF12", "D12", "DOP", "DO7", "DO6", "DO4"];
+
+// Ali je prehod iz prejsnjaIzmena v naslednjaIzmena skladen z 11-urnim
+// počitkom po nočni izmeni. false SAMO, če je prejšnja izmena nočna IN je
+// naslednja na seznamu prepovedanih - vsi drugi prehodi so v redu.
+export function preveriPocitek(prejsnjaIzmena, naslednjaIzmena) {
+  if (NOCNE_IZMENE.indexOf(prejsnjaIzmena) === -1) return true;
+  return PREPOVEDANE_PO_NOCNI.indexOf(naslednjaIzmena) === -1;
+}
+
+// Ure dežurstva (DEŽ) za en dan: med tednom 15:30-07:00 (15,5 h), ob
+// vikendih in praznikih 07:00-07:00 (24 h) - isto razlikovanje kot pri
+// DEŽURSTVO v IZMENE zgoraj.
+export function ureDezurstva(iso) {
+  return jeDelaProstDan(iso) ? 24 : 15.5;
+}
+
+// Vsota ur po URE_SIFRANT za poljuben seznam vnosov (npr. cel mesec ene
+// osebe). vnosi: [{ datum (ISO), sifra }]. "DEŽ" se izračuna po datumu
+// (ureDezurstva), neznane kode ne štejejo (0), ne vržejo napake.
+export function izracunajUreMeseca(vnosi) {
+  return (vnosi || []).reduce((vsota, v) => {
+    if (!v) return vsota;
+    if (v.sifra === "DEŽ") return vsota + ureDezurstva(v.datum);
+    if (Object.prototype.hasOwnProperty.call(URE_SIFRANT, v.sifra)) return vsota + URE_SIFRANT[v.sifra];
+    return vsota;
+  }, 0);
+}
+
+// Ali dejansko število zaposlenih doseže zahtevani minimum. Splošen,
+// samostojen preverjevalnik - klicatelj sam prešteje dejansko zasedbo (ni
+// povezave na minimalna_zasedba v bazi).
+export function preveriMinimalnoZasedbo(dejanskoStevilo, minimalnoStevilo) {
+  return dejanskoStevilo >= minimalnoStevilo;
+}

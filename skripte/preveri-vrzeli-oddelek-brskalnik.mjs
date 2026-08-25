@@ -75,8 +75,8 @@ try {
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
 
   await stran.addInitScript(({ profili, minimumi }) => {
-    const tabele = { profiles: profili, department_shift_minimums: minimumi,
-      leave_entries: [], schedule_entries: [], departments: [], profile_hr_details: [] };
+    const tabele = { profili: profili, minimalna_zasedba: minimumi,
+      odsotnosti: [], razpored: [], oddelki: [], kadrovski_podatki: [] };
     const poizvedba = (v) => {
       const b = new Proxy({}, { get(_, n) {
         if (n === "then") return (nx) => Promise.resolve({ data: v, error: null }).then(nx);

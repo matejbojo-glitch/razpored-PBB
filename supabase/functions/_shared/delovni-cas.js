@@ -432,7 +432,7 @@ export function izracunajUreMeseca(vnosi) {
 
 // Ali dejansko število zaposlenih doseže zahtevani minimum. Splošen,
 // samostojen preverjevalnik - klicatelj sam prešteje dejansko zasedbo (ni
-// povezave na department_shift_minimums v bazi).
+// povezave na minimalna_zasedba v bazi).
 export function preveriMinimalnoZasedbo(dejanskoStevilo, minimalnoStevilo) {
   return dejanskoStevilo >= minimalnoStevilo;
 }

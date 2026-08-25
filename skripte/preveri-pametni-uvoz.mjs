@@ -181,9 +181,9 @@ console.log("3) obdelajNzvVrstice na NZV-oblikovanem listu (enote + LD/IZOB/BS)"
   const { zapisi, dopusti, najdenDatum, najdenaGlava, neujemanja } = obdelajNzvVrstice(vrsteVrstic, "2026-09", poParafi, "admin-id", profili);
   trdi(najdenDatum && najdenaGlava, "najde datume in glavo enot");
   const pdzn = zapisi.find(z => z.employee_id === "karnicar-id" && z.department_code === "PDZN");
-  trdi(!!pdzn, "PDZN / KAR -> zapis v schedule_entries");
+  trdi(!!pdzn, "PDZN / KAR -> zapis v razpored");
   const dez = zapisi.find(z => z.employee_id === "bojic-id" && z.department_code === "DEZ");
-  trdi(!!dez, "DEŽURSTVO / 'Matej Bojić' (polno ime) -> zapis v schedule_entries");
+  trdi(!!dez, "DEŽURSTVO / 'Matej Bojić' (polno ime) -> zapis v razpored");
   jseq(dopusti.length, 2, "2 vpisa odsotnosti (NOV in PET v stolpcu LD)");
   trdi(dopusti.every(d => d.kind === "ld" && d.created_by === "admin-id"), "oba LD vpisa imata kind='ld' in pravi created_by");
   trdi(neujemanja.size === 0, "brez neujemanj");

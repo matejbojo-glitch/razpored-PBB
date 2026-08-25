@@ -33,7 +33,7 @@
 // v13: Excel/Google Sheets izvoz na vseh straneh z razpredelnicami – 3 nove
 // skupne datoteke (export-utils.js, gsheets-client.js, export-buttons.js),
 // vse cache-first, zato v precache in nova verzija.
-// v14: menjave.html (swap_requests, dvostopenjski vodja→admin) ukinjena –
+// v14: menjave.html (zahtevki_za_menjavo, dvostopenjski vodja→admin) ukinjena –
 // združena v obrazec.html ("Menjava", nav.js dobi en sam vnos namesto dveh).
 // menjave.html odstranjena iz precache (dvig verzije, da cache.addAll ne
 // poskuša naložiti ukinjene datoteke in podre namestitve service workerja).
@@ -154,9 +154,9 @@
 // v45: NZV pogled usklajen z uradno predlogo "Letni dopusti in omejitve za
 // NZV" – vrstni red stolpcev popravljen (SA DOP/SA POP med DB in URGENCA,
 // ne na koncu) in dodani trije novi povzetni stolpci LD/IZOB/BS (kdo je ta
-// dan na letnem dopustu/strokovnem izobraževanju/bolniški - iz leave_entries,
+// dan na letnem dopustu/strokovnem izobraževanju/bolniški - iz odsotnosti,
 // isti vir kot Želje → Razpredelnica). Uvoz teh treh stolpcev piše v
-// leave_entries (ne schedule_entries kot ostale enote). "Zapiši nazaj v
+// odsotnosti (ne razpored kot ostale enote). "Zapiši nazaj v
 // Sheets" zdaj deluje tudi za NZV (prej samo za navadne oddelke). Spremenjen
 // index.html.
 
@@ -190,7 +190,7 @@
 // xlsx.core.min.js (preveri-xlsx-datum.mjs). Ista napaka bi lahko doslej
 // prizadela tudi druge, starejše uvoze iz .xlsx (npr. HR uvoz v Imeniku).
 // Dodatno: "Moj razpored" zdaj prikaže tudi LD, vpisan samo v Želje →
-// Razpredelnica (leave_entries) - prej se je za osebe, ki nimajo objavljene
+// Razpredelnica (odsotnosti) - prej se je za osebe, ki nimajo objavljene
 // izmene po osebi (NZV/vodje), letni dopust kazal kot navaden prost dan.
 // Spremenjena index.html, import-utils.js.
 
@@ -276,7 +276,7 @@
 // zdravnikov (PDF)" prebere uradni mesečni dokument "Razporeditev
 // zaposlenih v UA in DEŽ" (Urgenca ZDR/Dežurstvo ZDR - dva kroga
 // zdravnikov, doslej neznana aplikaciji) in ime dežurnega zdravnika zdaj
-// prikaže poleg DEŽURSTVA v "Moj razpored" (nova tabela duty_doctors,
+// prikaže poleg DEŽURSTVA v "Moj razpored" (nova tabela dezurni_zdravniki,
 // samo za prikaz - zdravniki nimajo profila/računa). Zapis "Ime (Drugo
 // Ime)" pomeni zamenjavo - uporabi se samo prvo (dejansko delajoče) ime.
 // Spremenjena index.html, supabase/schema.sql. Nov preveri-zdravniki-dezurstvo.mjs.
@@ -305,14 +305,14 @@
 
 // v59: popravek RESNIČNE napake, zaradi katere je NZV mreža ostala prazna,
 // čeprav je uvoz javil več sto vpisanih vrstic (uporabnik jo je prijavil s
-// posnetkom): schedule_entries ima TRI tuje ključe na profiles
+// posnetkom): razpored ima TRI tuje ključe na profili
 // (employee_id + pozneje dodana created_by/updated_by, sekcija 30 sheme),
-// nalozizPodatkeNzv pa je bral vgnezdeno z nedoločenim "profiles(...)".
+// nalozizPodatkeNzv pa je bral vgnezdeno z nedoločenim "profili(...)".
 // PostgREST tak zapis zavrne kot dvoumen in vrne napako namesto vrstic -
 // zato so bile enote IN stolpec DEŽURSTVO prazni, medtem ko je LD deloval
-// (bere se iz leave_entries prek ločene poizvedbe). Ista napaka je tiho
+// (bere se iz odsotnosti prek ločene poizvedbe). Ista napaka je tiho
 // praznila dežurstva v razporedu vodij (admin.html). Obojemu dodan namig
-// "profiles!employee_id(...)"; preveri-vgnezdeni-join.mjs odslej statično
+// "profili!employee_id(...)"; preveri-vgnezdeni-join.mjs odslej statično
 // lovi vsak tak dvoumen zapis (napaka se drugače ne pokaže kot sporočilo,
 // ampak samo kot prazen zaslon).
 // Datum je odslej po VSEJ aplikaciji zapisan enako: dan.mesec.leto brez
@@ -340,7 +340,7 @@
 // sredi dopusta je navaden prost dan, doslej je kazalo "LD"); dežurstvo
 // MED TEDNOM se opravlja PO redni prisotnosti (15:30-07:00), zato tak dan
 // pomeni oboje - "PRISOTEN + DEŽURSTVO" - vikend dežurstvo (07:00-07:00)
-// pa ostane samo "DEŽURSTVO". Gre za PRIKAZNO pravilo: schedule_entries
+// pa ostane samo "DEŽURSTVO". Gre za PRIKAZNO pravilo: razpored
 // ima na (employee_id, work_date) en sam zapis, zato prisotnost in
 // dežurstvo istega dne ne moreta obstajati kot dve vrstici, je pa oboje
 // pravilno izpeljati iz enega. Oddelčnega kadra (B/C/C1/D/E1/E2/FLEXI),
@@ -354,8 +354,8 @@
 // v62: Imenik dobi zavihek "Razpredelnica" - mesečni pregled po osebah s
 // petimi stanji, kot jih je zahteval uporabnik: na delu, dežurstvo,
 // dopust, bolniška, prosto/ni v razporedu. Združuje DVA vira, ki se
-// dopolnjujeta: objavljen razpored (schedule_entries) in vpise iz Želja
-// (leave_entries) - slednji pokrijejo tudi ljudi brez objavljenega
+// dopolnjujeta: objavljen razpored (razpored) in vpise iz Želja
+// (odsotnosti) - slednji pokrijejo tudi ljudi brez objavljenega
 // razporeda po osebi (NZV/vodje). Filter po mesecu in oddelku, legenda z
 // barvami. Neznana koda izmene šteje kot "na delu" in ne "prosto":
 // lažno prost dan bi lahko pomenil, da koordinator nekoga po nesreči
@@ -483,7 +483,7 @@
 // zdaj prinese, dežurni kader prav tako, Kalup pa ga poišče nazaj po
 // imenu (generator ID-ja ne prenaša skozi).
 
-const CACHE = 'razpored-pbb-v116';
+const CACHE = 'razpored-pbb-v117';
 const ASSETS = [
   './',
   './index.html',

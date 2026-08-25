@@ -2,9 +2,9 @@
  *
  * Isto osebo pišejo trije različni viri vsak po svoje:
  *
- *   profiles.full_name        "Mavri Tratnik Magdalena"  (kar je vpisala sama)
- *   leave_entries.full_name   "Magdalena Mavri Tratnik"  (roster, drug vrstni red)
- *   lead_departments          "MAVRI TRATNIK MAGDALENA"  (uradna predloga, velike črke)
+ *   profili.full_name        "Mavri Tratnik Magdalena"  (kar je vpisala sama)
+ *   odsotnosti.full_name   "Magdalena Mavri Tratnik"  (roster, drug vrstni red)
+ *   nosilci_oddelkov          "MAVRI TRATNIK MAGDALENA"  (uradna predloga, velike črke)
  *
  * Poleg tega se v resničnih dokumentih pojavljajo strešične različice
  * ("Alukić" / "Alukic") in dve POTRJENI tipkarski napaki v izvornih
@@ -92,14 +92,14 @@ window.Imena = (function () {
   // Kazalo oseb: MATIČNA ŠTEVILKA najprej, ime šele potem.
   //
   // Aplikacija je ljudi med viri doslej povezovala izključno po imenu.
-  // To je vir tihih izgub: lead_departments ima imena z velikimi črkami
-  // ("ALUKIĆ DINO"), profiles pa "Priimek Ime" ("Alukić Dino"), zato
+  // To je vir tihih izgub: nosilci_oddelkov ima imena z velikimi črkami
+  // ("ALUKIĆ DINO"), profili pa "Priimek Ime" ("Alukić Dino"), zato
   // dobesedna primerjava (.in("full_name", ...)) ne najde NIKOGAR -
   // razpored se "objavi", vsi pa so poročani kot "brez profila". Enako
   // razhajanje delajo strešice (Bećirović/Becirovic) in dvobesedni
   // priimki.
   //
-  // Matična številka (profile_hr_details.employee_code) je stabilen
+  // Matična številka (kadrovski_podatki.employee_code) je stabilen
   // ključ iz Kadrisa in se ne spreminja, zato ima prednost; ime je
   // rezerva, ko številke ni. Iskanje po imenu gre prek kljuc(), ne
   // dobesedno - to je isto pravilo kot povsod drugod v aplikaciji.

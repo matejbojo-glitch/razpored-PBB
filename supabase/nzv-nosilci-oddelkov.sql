@@ -9,7 +9,7 @@
 -- Kaj prinese novega:
 --   - enote: nosilec ima lahko VEČ oddelkov (npr. "A/PO"). Zato
 --     nov stolpec "enote" kot prosto besedilo - department_code ima tuji
---     ključ na departments in take kombinacije zavrne (ista rešitev kot
+--     ključ na oddelki in take kombinacije zavrne (ista rešitev kot
 --     pokriva_oddelek pri FLEXI). department_code ostane PRVA prepoznana
 --     koda, da obstoječi pogledi delajo naprej.
 --     POZOR: tu sodi SAMO LASTNA enota nosilca. Enota, ki jo prevzame ob
@@ -27,12 +27,12 @@
 -- Kako pognati: Supabase -> SQL Editor -> prilepi vse -> Run.
 -- Varno je pognati večkrat.
 -- ---------------------------------------------------------------------
-alter table public.lead_departments add column if not exists enote text;
-alter table public.lead_departments add column if not exists inicialke text;
-alter table public.lead_departments add column if not exists mat_st text;
-alter table public.lead_departments add column if not exists letni_dopust_dni integer;
+alter table public.nosilci_oddelkov add column if not exists enote text;
+alter table public.nosilci_oddelkov add column if not exists inicialke text;
+alter table public.nosilci_oddelkov add column if not exists mat_st text;
+alter table public.nosilci_oddelkov add column if not exists letni_dopust_dni integer;
 
-insert into public.lead_departments
+insert into public.nosilci_oddelkov
   (full_name, inicialke, mat_st, department_code, enote, letni_dopust_dni,
    dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, ur_na_dan,
    odsotnost_tip, odsotnost_do, nadomesca, opomba)
@@ -63,7 +63,7 @@ values
 on conflict (full_name) do update set
   inicialke = excluded.inicialke,
   mat_st = excluded.mat_st,
-  department_code = coalesce(excluded.department_code, public.lead_departments.department_code),
+  department_code = coalesce(excluded.department_code, public.nosilci_oddelkov.department_code),
   enote = excluded.enote,
   letni_dopust_dni = excluded.letni_dopust_dni,
   dezurstvo_dovoljeno = excluded.dezurstvo_dovoljeno,
@@ -78,5 +78,5 @@ on conflict (full_name) do update set
 -- Kontrola: kdo nosi katere enote in kdo ga nadomešča.
 select full_name, inicialke, department_code, enote, nadomesca,
        dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, ur_na_dan, odsotnost_tip
-from public.lead_departments
+from public.nosilci_oddelkov
 order by full_name;

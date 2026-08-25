@@ -191,16 +191,16 @@ try {
   // prikaz pa mora to obrniti - najprej svoja enota, nato prevzeta.
   const PROFIL = { id: "v1", role: "admin", full_name: "Bojić Matej", department_code: "NZV" };
   const { stran, konzola } = await odpri("/index.html", {
-    profiles: [PROFIL],
-    lead_departments: [
+    profili: [PROFIL],
+    nosilci_oddelkov: [
       { full_name: "Bojić Matej", enote: "MO" },
       { full_name: "Alukić Dino", enote: "ŽO" },
     ],
     nadomescanja: [{ nosilec: "Alukić Dino", nadomesca: "Bojić Matej", enota: "ZO", prednost: 1, poleg_svoje: true }],
-    leave_entries: [{ full_name: "Alukić Dino", work_date: "2026-08-05", kind: "ld" }],
-    menjave_javno: [], duty_doctors: [], obrazci: [], nzv_nastavitve: [],
-    departments: [{ code: "C1", name: "C1" }],
-    schedule_entries: [{ employee_id: "v1", work_date: "2026-08-05", shift_code: "Dopoldne",
+    odsotnosti: [{ full_name: "Alukić Dino", work_date: "2026-08-05", kind: "ld" }],
+    menjave_javno: [], dezurni_zdravniki: [], obrazci: [], nzv_nastavitve: [],
+    oddelki: [{ code: "C1", name: "C1" }],
+    razpored: [{ employee_id: "v1", work_date: "2026-08-05", shift_code: "Dopoldne",
       department_code: "MO", pokriva_oddelek: "" }],
   }, PROFIL);
   await stran.waitForSelector(".segIkone button", { timeout: 15000 });
@@ -214,16 +214,16 @@ try {
 
   console.log("6) Imenik: samo Seznam in Parafe");
   const { stran: im, konzola: konzolaIm } = await odpri("/imenik.html",
-    { profiles: [PROFIL], departments: [{ code: "C1", name: "C1" }], contact_imports: [], contact_phones: [] }, PROFIL);
+    { profili: [PROFIL], oddelki: [{ code: "C1", name: "C1" }], uvozi_kontaktov: [], telefoni_kontaktov: [] }, PROFIL);
   await im.waitForSelector('button[role="tab"]', { timeout: 15000 });
   eq(await im.$$eval('button[role="tab"]', e => e.map(x => x.textContent.trim())),
     ["Seznam", "Parafe"], "dva zavihka, brez Stanja dopusta");
 
   console.log("7) Statistika ima Stanje dopusta in podatke izriše");
   const { stran: st, konzola: konzolaSt } = await odpri("/dashboard.html", {
-    departments: [{ code: "C1", name: "C1 – oddelek" }],
-    profiles: [{ id: "a", full_name: "Kovač Ana", department_code: "C1",
-      profile_hr_details: { annual_leave_total: 30, leave_balance_days: 12, leave_balance_asof: "2026-08-01" } }],
+    oddelki: [{ code: "C1", name: "C1 – oddelek" }],
+    profili: [{ id: "a", full_name: "Kovač Ana", department_code: "C1",
+      kadrovski_podatki: { annual_leave_total: 30, leave_balance_days: 12, leave_balance_asof: "2026-08-01" } }],
   }, PROFIL);
   await st.waitForSelector('button[role="tab"]', { timeout: 15000 });
   const zavihkiSt = await st.$$eval('button[role="tab"]', e => e.map(x => x.textContent.trim()));

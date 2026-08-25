@@ -73,9 +73,9 @@ try {
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
 
   await stran.addInitScript(({ vodje, dopust }) => {
-    const tabele = { lead_departments: vodje, leave_entries: dopust,
-      departments: [{ code: "PDZN", name: "PDZN" }, { code: "MO", name: "MO" }],
-      schedule_entries: [], nadomescanja: [], nzv_nastavitve: [], profiles: [] };
+    const tabele = { nosilci_oddelkov: vodje, odsotnosti: dopust,
+      oddelki: [{ code: "PDZN", name: "PDZN" }, { code: "MO", name: "MO" }],
+      razpored: [], nadomescanja: [], nzv_nastavitve: [], profili: [] };
     const poizvedba = (v) => {
       const b = new Proxy({}, { get(_, n) {
         if (n === "then") return (nx) => Promise.resolve({ data: v, error: null }).then(nx);

@@ -5,16 +5,16 @@
  * Zakaj obstaja: uporabnik je poslal posnetek zaslona, na katerem so bili
  * stolpci PDZN, SOBO, MO, ŽO … prazni čez cel mesec. Vzrok ni bil manjkajoč
  * podatek, ampak to, da se je mreža polnila IZKLJUČNO iz objavljenih
- * schedule_entries – za vodje pa se dnevni razpored ne objavlja, ker je
- * njihova enota stalna in zapisana v lead_departments.enote.
+ * razpored – za vodje pa se dnevni razpored ne objavlja, ker je
+ * njihova enota stalna in zapisana v nosilci_oddelkov.enote.
  *
  * Preverjamo torej ravno to, kar je manjkalo:
  *   - vsak delovni dan ima nosilec svojo parafo v svojem stolpcu;
  *   - sobota/nedelja/praznik ostanejo prazni (delovnik NZV je PON-PET);
- *   - ob odsotnosti nosilca (LD/BS iz leave_entries ali daljša odsotnost v
- *     lead_departments) se vpiše nadomeščevalec po vrstnem redu "prednost",
+ *   - ob odsotnosti nosilca (LD/BS iz odsotnosti ali daljša odsotnost v
+ *     nosilci_oddelkov) se vpiše nadomeščevalec po vrstnem redu "prednost",
  *     in sicer tak, ki tisti dan ni odsoten tudi sam;
- *   - objavljen vnos v schedule_entries ima prednost pred izpeljavo in
+ *   - objavljen vnos v razpored ima prednost pred izpeljavo in
  *     oseba se v istem dnevu ne podvoji;
  *   - sestavljene enote ("C/C1", "UA/SA") se razdelijo na prave stolpce,
  *     neznane oznake ("NOB") pa se tiho preskočijo.
@@ -212,10 +212,10 @@ const MESEC = { startISO: "2026-09-01", endISO: "2026-09-30" };
 
 async function poglej(dodatno = {}) {
   postaviOdjemalca({
-    schedule_entries: dodatno.entries || [],
-    leave_entries: dodatno.dopusti || [],
-    profiles: PROFILI,
-    lead_departments: dodatno.vodje || VODJE,
+    razpored: dodatno.entries || [],
+    odsotnosti: dodatno.dopusti || [],
+    profili: PROFILI,
+    nosilci_oddelkov: dodatno.vodje || VODJE,
     nadomescanja: dodatno.nadomescanja || NADOMESCANJA,
     nzv_nastavitve: dodatno.nastavitve || [],
   });
@@ -245,7 +245,7 @@ const test = async () => {
     // 1.11.2026 je dan mrtvih (nedelja), 2.11. ponedeljek je navaden delovni
     // dan; 31.10.2026 (sobota) je dan reformacije. Preverimo praznik, ki
     // pade na DELOVNI dan: 25.12.2026 je petek (božič).
-    postaviOdjemalca({ schedule_entries: [], leave_entries: [], profiles: PROFILI, lead_departments: VODJE, nadomescanja: NADOMESCANJA });
+    postaviOdjemalca({ razpored: [], odsotnosti: [], profili: PROFILI, nosilci_oddelkov: VODJE, nadomescanja: NADOMESCANJA });
     const { podatki } = await sandbox.nalozizPodatkeNzv("2026-12-01", "2026-12-31");
     eq(podatki["PDZN|2026-12-24"], "DŽA", "četrtek 24.12.2026 je navaden delovni dan");
     eq(podatki["PDZN|2026-12-25"] || "", "", "petek 25.12.2026 (božič) je prost");
@@ -303,7 +303,7 @@ const test = async () => {
   }
   {
     // Poletje: julij in avgust sta po privzetku samo dopoldne, ne glede na teden.
-    postaviOdjemalca({ schedule_entries: [], leave_entries: [], profiles: PROFILI, lead_departments: VODJE, nadomescanja: NADOMESCANJA, nzv_nastavitve: [] });
+    postaviOdjemalca({ razpored: [], odsotnosti: [], profili: PROFILI, nosilci_oddelkov: VODJE, nadomescanja: NADOMESCANJA, nzv_nastavitve: [] });
     const { podatki } = await sandbox.nalozizPodatkeNzv("2026-07-01", "2026-07-31");
     eq(podatki["SADOP|2026-07-01"], "BIZ", "1.7. (lih teden) dopoldne");
     eq(podatki["SADOP|2026-07-08"], "BIZ", "8.7. (sod teden) prav tako dopoldne – poletna izjema");
@@ -451,7 +451,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     const { podatki, izpeljano } = await poglej({
       entries: [{
         department_code: "PDZN", work_date: "2026-09-01", shift_code: "PRISOTEN",
-        profiles: profil("Bojić Matej", "BOJ", "admin"),
+        profili: profil("Bojić Matej", "BOJ", "admin"),
       }],
     });
     eq(podatki["PDZN|2026-09-01"], "BOJ", "objavljeni vnos obvelja pred izpeljanim nosilcem");
@@ -469,7 +469,7 @@ console.log("6) Objavljen razpored ima prednost, oseba se ne podvoji");
     eq(podatki["D|2026-09-01"] || "", "", "Novak Ana ima vlogo user – stolpec D ostane prazen");
   }
 
-  console.log("8) Brez tabel nadomescanja/lead_departments mreža deluje kot prej (ne sesuje se)");
+  console.log("8) Brez tabel nadomescanja/nosilci_oddelkov mreža deluje kot prej (ne sesuje se)");
   {
     const { podatki, izpeljano } = await poglej({ vodje: [], nadomescanja: [] });
     eq(Object.keys(izpeljano).length, 0, "nič izpeljanega");
@@ -557,7 +557,7 @@ console.log("9) Pregled odstopanj: kje se objavljen razpored ne drži pravil");
   const vnos = (ime, kratica, koda, datum, sifra) => ({
     department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: sifra || "PRISOTEN",
     created_at: null, created_by: null, updated_at: null,
-    profiles: profil(ime, kratica, "vodja"),
+    profili: profil(ime, kratica, "vodja"),
   });
 
   console.log("   a) razpored po pravilih -> nobenega odstopanja");
@@ -748,7 +748,7 @@ console.log("11) URGENCA in SA: vrstni red in enakovredni nadomeščevalci");
     ];
     const vnos = (ime, kratica, koda, datum, sifra) => ({
       department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: sifra || "PRISOTEN",
-      created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+      created_at: null, created_by: null, updated_at: null, profili: profil(ime, kratica, "vodja"),
     });
     const { odstopanja } = await poglej({
       vodje: nosilci, nadomescanja: pari,
@@ -782,7 +782,7 @@ console.log("12) URGENCO občasno pokrije kdor koli iz kroga dežurnih");
   // zaradi tega v septembru 2026 javljen 5-krat.
   const vnos = (ime, kratica, koda, datum) => ({
     department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: "PRISOTEN",
-    created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+    created_at: null, created_by: null, updated_at: null, profili: profil(ime, kratica, "vodja"),
   });
   const nosilci = [
     { full_name: "ARNEŽ GREGA", enote: "C", dezurstvo_dovoljeno: true, odsotnost_tip: null, odsotnost_do: null },
@@ -836,7 +836,7 @@ console.log("13) Na dopustu IN hkrati v razporedu - svoja vrsta odstopanja");
   // za protislovje v razporedu samem, ne za vprašanje prave enote.
   const vnos = (ime, kratica, koda, datum) => ({
     department_code: koda, pokriva_oddelek: null, work_date: datum, shift_code: "PRISOTEN",
-    created_at: null, created_by: null, updated_at: null, profiles: profil(ime, kratica, "vodja"),
+    created_at: null, created_by: null, updated_at: null, profili: profil(ime, kratica, "vodja"),
   });
   const { odstopanja } = await poglej({
     entries: [vnos("Lunar Mateja", "LUN", "B", "2026-09-01")],

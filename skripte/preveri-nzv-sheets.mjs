@@ -13,8 +13,8 @@
  *     stolpec) za enote IN za nove LD/IZOB/BS stolpce, prek prazne vmesne
  *     vrstice, ne glede na to, v katerem vrstnem redu je resnični dokument
  *     stolpce dejansko zložil (glava se bere iz lista, ne iz NZV_STOLPCI);
- *  3) uvoziNzv razdeli uvožene vrstice na "razpored" (schedule_entries) in
- *     "odsotnost" (leave_entries) glede na stolpec - LD/IZOB/BS gredo v
+ *  3) uvoziNzv razdeli uvožene vrstice na "razpored" (razpored) in
+ *     "odsotnost" (odsotnosti) glede na stolpec - LD/IZOB/BS gredo v
  *     drugo tabelo kot enote, ker gre za drugačno vrsto podatka.
  *
  * Funkcije se izvlečejo iz PRAVEGA index.html (ne prepisane tu), zato
@@ -205,13 +205,13 @@ console.log("2) septembrski blok – svoja glava, ne pobere avgustovskih vrednos
   jseq(dezSept, { vrstica: 13, stolpec: dezIdx, vrednost: "" }, "DEŽURSTVO / 1.9. -> prazno (v aplikaciji za ta dan ni vpisa), ne avgustovo BOJ");
 }
 
-console.log("3) uvoziNzv loči enote (schedule_entries) od LD/IZOB/BS (leave_entries)");
+console.log("3) uvoziNzv loči enote (razpored) od LD/IZOB/BS (odsotnosti)");
 {
   const nazivVKodo = nzvNazivVKodo();
   jseq(nazivVKodo["PDZN"], "PDZN", "PDZN se prevede v kodo enote");
   jseq(nazivVKodo["LD"], "LD", "LD se prevede v svojo kodo (ne v enoto)");
   trdi(sandbox.NZV_ODSOTNOST_KIND["LD"] === "ld" && sandbox.NZV_ODSOTNOST_KIND["IZOB"] === "sti" && sandbox.NZV_ODSOTNOST_KIND["BS"] === "bs",
-    "NZV_ODSOTNOST_KIND preslika LD/IZOB/BS v leave_entries.kind ld/sti/bs");
+    "NZV_ODSOTNOST_KIND preslika LD/IZOB/BS v odsotnosti.kind ld/sti/bs");
 }
 
 console.log("4) PRAVA oblika datoteke: prazna vrstica med glavo in prvim datumom");
@@ -279,7 +279,7 @@ console.log("4) PRAVA oblika datoteke: prazna vrstica med glavo in prvim datumom
 
   // Baza dovoli EN zapis na osebo in dan - to je bil vir izgube.
   const kljuci = r.zapisi.map(z => z.employee_id + "|" + z.work_date);
-  jseq(kljuci.length, new Set(kljuci).size, "noben par oseba+dan se ne ponovi (unique v schedule_entries)");
+  jseq(kljuci.length, new Set(kljuci).size, "noben par oseba+dan se ne ponovi (unique v razpored)");
 
   // SA POP + dežurstvo hkrati: pol dneva se ne sme izgubiti.
   const trp = najdi("TRP", "2026-09-09");

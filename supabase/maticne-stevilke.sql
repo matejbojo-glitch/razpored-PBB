@@ -91,7 +91,7 @@ ujemanje as (
   select v.employee_code, v.email, v.full_name,
          coalesce(
            (select u.id from auth.users u where lower(u.email) = v.email limit 1),
-           (select p.id from public.profiles p where upper(p.full_name) = upper(v.full_name) limit 1)
+           (select p.id from public.profili p where upper(p.full_name) = upper(v.full_name) limit 1)
          ) as profile_id
   from vhod v
 ),
@@ -105,7 +105,7 @@ enolicno as (
   order by profile_id, employee_code
 ),
 vpis as (
-  insert into public.profile_hr_details (profile_id, employee_code)
+  insert into public.kadrovski_podatki (profile_id, employee_code)
   select profile_id, employee_code from enolicno
   on conflict (profile_id) do update
     set employee_code = excluded.employee_code,

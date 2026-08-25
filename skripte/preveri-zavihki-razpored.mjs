@@ -102,17 +102,17 @@ try {
     stran.on("pageerror", e => konzola.push(String(e)));
     stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
     await stran.addInitScript(({ profili, vpisi, zdravniki, menjave }) => {
-      const tabele = { profiles: profili, schedule_entries: vpisi, duty_doctors: zdravniki,
-        menjave_javno: menjave, departments: [{ code: "C1", name: "C1" }],
-        lead_departments: [], nadomescanja: [], leave_entries: [], obrazci: [] };
+      const tabele = { profili: profili, razpored: vpisi, dezurni_zdravniki: zdravniki,
+        menjave_javno: menjave, oddelki: [{ code: "C1", name: "C1" }],
+        nosilci_oddelkov: [], nadomescanja: [], odsotnosti: [], obrazci: [] };
       const poizvedba = (v) => {
         const filtri = [];
         const b = new Proxy({}, { get(_, n) {
           if (n === "eq") return (k, x) => { filtri.push([k, x]); return b; };
           if (n === "then") return (nx) => Promise.resolve({
             data: v.filter(r => filtri.every(([k, x]) => r[k] === x))
-              .map(r => (r.employee_id && !r.profiles
-                ? Object.assign({}, r, { profiles: profili.find(p => p.id === r.employee_id) || null })
+              .map(r => (r.employee_id && !r.profili
+                ? Object.assign({}, r, { profili: profili.find(p => p.id === r.employee_id) || null })
                 : r)),
             error: null }).then(nx);
           if (typeof n !== "string") return undefined;

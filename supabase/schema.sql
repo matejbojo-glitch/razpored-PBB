@@ -1,28 +1,2736 @@
--- Razpored PBB – Supabase shema (faza 4)
--- Tri vloge (admin / vodja / user) + dvostopenjska odobritev menjav izmen.
+-- =====================================================================
+-- Razpored PBB - supabase/schema.sql
+-- =====================================================================
+-- ENA SAMA datoteka s celotno shemo. Varno jo je pognati VEČKRAT: vsak
+-- ukaz je idempotenten (if not exists / or replace / stražen DO blok).
 --
--- Zaženite CELO to datoteko enkrat v Supabase Dashboard → SQL Editor
--- (na novem ali obstoječem projektu). Varno je pognati večkrat zaradi
--- "if not exists" / "or replace" na večini objektov, RAZEN policy-jev,
--- ki se najprej pobrišejo in ponovno ustvarijo.
+-- Vrstni red razdelkov je STROG in ni naključen - vsak se opira na
+-- prejšnjega:
+--   1 Razširitve  ->  2 Enumi   ->  3 Tabele  ->  4 Tuji ključi
+--   5 Indeksi     ->  6 Funkcije in sprožilci ->  7 Pogledi
+--   8 RLS         ->  9 Seed
 --
--- Po tem glej SUPABASE-SETUP.md za: nastavitve Auth, prvi admin račun,
--- uvoz obstoječih JSON razporedov.
+-- Tuji ključi so NAMENOMA ločeni od CREATE TABLE (razdelek 4): tabele se
+-- med seboj sklicujejo v obe smeri (profili <-> oddelki), zato jih z
+-- vgrajenimi references ne bi bilo mogoče ustvariti brez krožne odvisnosti.
+--
+-- Funkcije so NAMENOMA pred pogledi (6 pred 7), čeprav se navadno navaja
+-- obratno: pogled uvozi_kontaktov_javno v svoji definiciji kliče
+-- current_role_is() in imena_se_ujemata(). Če funkcije še ne obstajajo,
+-- se pogled sploh ne ustvari ("function ... does not exist").
+--
+-- ČESA TU NI: enkratne podatkovne skripte (2-IZBRISI-IN-POPRAVI.sql,
+-- odstrani-zaposlene.sql, pocisti-*.sql ...) ostajajo LOČENE datoteke in
+-- niso zlite sem. Brišejo zaposlene in njihove razporede ("izbris je
+-- dokončen in podatkov ni mogoče povrniti"); ker se ta datoteka poganja
+-- večkrat, bi vsak zagon sheme znova pobrisal podatke.
+--
+-- Datoteka je SESTAVLJENA iz prave baze (pg_dump), zato so vsi nekdaj
+-- razpršeni ALTER-ji že zloženi v CREATE TABLE.
+-- =====================================================================
 
+
+-- =====================================================================
+-- 1. RAZŠIRITVE (Extensions)
 -- ---------------------------------------------------------------------
--- 0) Razširitve
--- ---------------------------------------------------------------------
+-- gen_random_uuid() za privzete vrednosti primarnih ključev.
+-- =====================================================================
+
+create extension if not exists "uuid-ossp";
 create extension if not exists "pgcrypto";
 
+-- Funkcije se med seboj kličejo (npr. dovoljeni_uporabniki -> imena_se_ujemata).
+-- PostgreSQL telo funkcije v jeziku SQL preveri že ob CREATE, zato bi klic
+-- funkcije, ki je zapisana nižje v datoteki, spodletel z "function ... does
+-- not exist". Preverjanje teles zato izklopimo za to sejo - natanko tako
+-- ravna tudi pg_dump. Na pravilnost delovanja to ne vpliva: telesa se
+-- preverijo ob prvem klicu.
+set check_function_bodies = false;
+
+
+-- =====================================================================
+-- 2. TIPI / ENUMI (Custom Types)
 -- ---------------------------------------------------------------------
--- 1) departments – 6 oddelkov SMS/TZN + dežurni/nedežurni kader
+-- Shema namenoma NE uporablja enumov. Šifre izmen (DF12, N12, DOP ...),
+-- vloge in statusi so navadno besedilo s CHECK omejitvijo - nabor kod se
+-- spreminja (nazadnje avgusta 2026), ALTER TYPE ... ADD VALUE pa v
+-- PostgreSQL ni preklicljiv in ga ni mogoče pognati v transakciji.
+-- Uradni šifrant kratic je v CLAUDE.md in v delovni-cas.js.
+-- =====================================================================
+
+
+-- =====================================================================
+-- 3. TABELE (+ dopolnitev stolpcev za obstoječe baze)
 -- ---------------------------------------------------------------------
-create table if not exists public.departments (
-  code text primary key,
-  name text not null
+-- CREATE TABLE nosi KONČNE stolpce (za nove baze).
+-- Za obstoječo bazo to ni dovolj: 'create table if not exists' je na
+-- obstoječi tabeli prazen ukaz in novega stolpca NE doda. Zato za vsakim
+-- blokom tabel sledi še seznam 'add column if not exists' - na novi bazi
+-- so to prazni ukazi, na stari pa dodajo natanko tisto, kar manjka.
+-- =====================================================================
+
+create table if not exists public.barvne_oznake (
+    barva text NOT NULL,
+    kind text,
+    prezri boolean DEFAULT false NOT NULL,
+    posodobil uuid,
+    posodobljeno timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT barvne_oznake_check CHECK (((prezri AND (kind IS NULL)) OR ((NOT prezri) AND (kind IS NOT NULL)))),
+    CONSTRAINT barvne_oznake_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text])))
 );
 
-insert into public.departments (code, name) values
+create table if not exists public.dezurni_zdravniki (
+    work_date date NOT NULL,
+    kind text NOT NULL,
+    full_name text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dezurni_zdravniki_kind_check CHECK ((kind = ANY (ARRAY['urgenca'::text, 'dezurstvo'::text, 'sestra'::text])))
+);
+
+create table if not exists public.dnevnik_odsotnosti (
+    id bigint NOT NULL,
+    full_name text NOT NULL,
+    work_date date NOT NULL,
+    from_kind text,
+    to_kind text,
+    editor_id uuid,
+    editor_name text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+create table if not exists public.dnevnik_ogledov (
+    id bigint NOT NULL,
+    admin_id uuid NOT NULL,
+    admin_email text,
+    target_profile_id uuid NOT NULL,
+    target_full_name text,
+    target_email text,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone
+);
+
+create table if not exists public.dnevnik_profilov (
+    id bigint NOT NULL,
+    profile_id uuid,
+    profile_name text,
+    polje text NOT NULL,
+    stara_vrednost text,
+    nova_vrednost text,
+    action text NOT NULL,
+    changed_by uuid,
+    changed_by_name text,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dnevnik_profilov_action_check CHECK ((action = ANY (ARRAY['insert'::text, 'update'::text, 'delete'::text]))),
+    CONSTRAINT dnevnik_profilov_polje_check CHECK ((polje = ANY (ARRAY['role'::text, 'department_code'::text, 'vodja_id'::text, 'is_koordinator'::text])))
+);
+
+create table if not exists public.dnevnik_razporeda (
+    id bigint NOT NULL,
+    entry_id bigint,
+    employee_id uuid,
+    department_code text,
+    work_date date,
+    old_shift_code text,
+    new_shift_code text,
+    action text NOT NULL,
+    changed_by uuid,
+    changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dnevnik_razporeda_action_check CHECK ((action = ANY (ARRAY['insert'::text, 'update'::text, 'delete'::text])))
+);
+
+create table if not exists public.kadrovski_podatki (
+    profile_id uuid NOT NULL,
+    employee_code text,
+    birth_date date,
+    position_name text,
+    manager_name text,
+    parental_leave text,
+    annual_leave_total integer,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    leave_balance_days integer,
+    leave_balance_asof date,
+    duty_min_monthly integer,
+    duty_max_monthly integer,
+    duty_day_off text,
+    duty_weekdays_only boolean,
+    CONSTRAINT kadrovski_podatki_duty_day_off_check CHECK ((duty_day_off = ANY (ARRAY['PO'::text, 'TO'::text, 'SR'::text, 'ČE'::text, 'PE'::text, 'SO'::text, 'NE'::text])))
+);
+
+create table if not exists public.koledarski_zetoni (
+    profile_id uuid NOT NULL,
+    token text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone,
+    enabled boolean DEFAULT true NOT NULL
+);
+
+create table if not exists public.obrazci (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    stevilka text,
+    vrsta text NOT NULL,
+    status text DEFAULT 'osnutek'::text NOT NULL,
+    vlagatelj_id uuid NOT NULL,
+    sodelavec_id uuid,
+    vodja_id uuid,
+    koordinator_id uuid,
+    polja jsonb DEFAULT '{}'::jsonb NOT NULL,
+    ustvarjen timestamp with time zone DEFAULT now() NOT NULL,
+    zakljucen_dne timestamp with time zone,
+    razlog_zavrnitve text,
+    je_dezurstvo boolean DEFAULT false NOT NULL,
+    CONSTRAINT obrazci_sodelavec_le_pri_menjavi CHECK (((vrsta = 'menjava_sluzbe'::text) OR (sodelavec_id IS NULL))),
+    CONSTRAINT obrazci_sodelavec_ni_vlagatelj CHECK (((sodelavec_id IS NULL) OR (sodelavec_id <> vlagatelj_id))),
+    CONSTRAINT obrazci_status_check CHECK ((status = ANY (ARRAY['osnutek'::text, 'caka_sodelavca'::text, 'caka_vodjo'::text, 'caka_koordinatorja'::text, 'zakljucen'::text, 'zavrnjen'::text, 'preklican'::text]))),
+    CONSTRAINT obrazci_vrsta_check CHECK ((vrsta = ANY (ARRAY['rocno_evidentiranje'::text, 'menjava_sluzbe'::text, 'drugo'::text])))
+);
+
+create table if not exists public.minimalna_zasedba (
+    department_code text NOT NULL,
+    shift_bucket text NOT NULL,
+    min_dms integer,
+    min_sms integer,
+    min_flexi integer,
+    note text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT minimalna_zasedba_shift_bucket_check CHECK ((shift_bucket = ANY (ARRAY['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text])))
+);
+
+create table if not exists public.nastavitve_obvestil (
+    profile_id uuid NOT NULL,
+    email_enabled boolean DEFAULT true NOT NULL,
+    push_enabled boolean DEFAULT true NOT NULL,
+    sms_enabled boolean DEFAULT false NOT NULL,
+    opomnik_izmene boolean DEFAULT true NOT NULL,
+    sprememba_razporeda boolean DEFAULT true NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+create table if not exists public.nosilci_oddelkov (
+    full_name text NOT NULL,
+    department_code text,
+    dezurstvo_dovoljeno boolean DEFAULT false NOT NULL,
+    max_mesecno integer,
+    samo_med_tednom boolean DEFAULT false NOT NULL,
+    delovnik text,
+    ur_na_dan numeric,
+    odsotnost_tip text,
+    odsotnost_do date,
+    nadomesca text,
+    opomba text,
+    enote text,
+    inicialke text,
+    mat_st text,
+    letni_dopust_dni integer
+);
+
+create table if not exists public.obrazci_dnevnik (
+    id bigint NOT NULL,
+    obrazec_id uuid NOT NULL,
+    stopnja smallint NOT NULL,
+    dejanje text NOT NULL,
+    uporabnik_id uuid,
+    ime_ob_dejanju text,
+    vloga_ob_dejanju text,
+    opomba text,
+    cas timestamp with time zone DEFAULT now() NOT NULL
+);
+
+create table if not exists public.obvestila (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    swap_request_id bigint,
+    message text NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    title text,
+    url text,
+    push_sent_at timestamp with time zone,
+    kljuc text,
+    email_sent_at timestamp with time zone
+);
+
+create table if not exists public.oddelki (
+    code text NOT NULL,
+    name text NOT NULL
+);
+
+create table if not exists public.odsotnosti (
+    id bigint NOT NULL,
+    full_name text NOT NULL,
+    work_date date NOT NULL,
+    kind text NOT NULL,
+    note text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT odsotnosti_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text])))
+);
+
+create table if not exists public.pokriva_oddelek (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    profile_id uuid NOT NULL,
+    department_code text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL
+);
+
+create table if not exists public.potisne_narocnine (
+    id bigint NOT NULL,
+    profile_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_ok_at timestamp with time zone
+);
+
+create table if not exists public.profili (
+    id uuid NOT NULL,
+    full_name text NOT NULL,
+    role text DEFAULT 'user'::text NOT NULL,
+    department_code text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    email text,
+    rotation_slot text,
+    vodja_id uuid,
+    is_koordinator boolean DEFAULT false NOT NULL,
+    parafa text,
+    job_title text,
+    parafa_pred_oktobrom_2026 text,
+    CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'vodja'::text, 'user'::text]))),
+    CONSTRAINT profili_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'vodja'::text, 'user'::text]))),
+    CONSTRAINT profili_rotation_slot_check CHECK ((rotation_slot = ANY (ARRAY['A'::text, 'B'::text, 'C'::text, 'D'::text, 'E'::text])))
+);
+
+create table if not exists public.razpored (
+    id bigint NOT NULL,
+    employee_id uuid NOT NULL,
+    department_code text NOT NULL,
+    work_date date NOT NULL,
+    shift_code text DEFAULT ''::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    pokriva_oddelek text
+);
+
+create table if not exists public.zgodovina_stanja_dopusta (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    employee_code text NOT NULL,
+    full_name text NOT NULL,
+    leto smallint NOT NULL,
+    mesec smallint NOT NULL,
+    dnevi numeric(5,1) NOT NULL,
+    profile_id uuid,
+    uvozeno timestamp with time zone DEFAULT now() NOT NULL,
+    uvozil uuid,
+    CONSTRAINT zgodovina_stanja_dopusta_dnevi_check CHECK ((dnevi >= (0)::numeric)),
+    CONSTRAINT zgodovina_stanja_dopusta_leto_check CHECK (((leto >= 2020) AND (leto <= 2100))),
+    CONSTRAINT zgodovina_stanja_dopusta_mesec_check CHECK (((mesec >= 1) AND (mesec <= 12)))
+);
+
+create table if not exists public.telefoni_kontaktov (
+    profile_id uuid NOT NULL,
+    phone text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+create table if not exists public.uvozi_kontaktov (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    full_name text NOT NULL,
+    email text NOT NULL,
+    phone text,
+    role text,
+    department_code text,
+    linked_profile_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    employee_code text,
+    birth_date date,
+    position_name text,
+    manager_name text,
+    parental_leave text,
+    annual_leave_total integer,
+    leave_balance_days integer,
+    leave_balance_asof date,
+    CONSTRAINT uvozi_kontaktov_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'vodja'::text, 'user'::text])))
+);
+
+create table if not exists public.zahtevki_za_menjavo (
+    id bigint NOT NULL,
+    requester_id uuid NOT NULL,
+    requester_date date NOT NULL,
+    target_id uuid NOT NULL,
+    target_date date NOT NULL,
+    note text,
+    status text DEFAULT 'pending_lead'::text NOT NULL,
+    lead_id uuid,
+    lead_decided_at timestamp with time zone,
+    lead_note text,
+    admin_id uuid,
+    admin_decided_at timestamp with time zone,
+    admin_note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT swap_requests_status_check CHECK ((status = ANY (ARRAY['pending_lead'::text, 'pending_admin'::text, 'pending_koordinator'::text, 'approved'::text, 'rejected_by_lead'::text, 'rejected_by_admin'::text, 'rejected_by_koordinator'::text]))),
+    CONSTRAINT zahtevki_za_menjavo_check CHECK ((requester_id <> target_id)),
+    CONSTRAINT zahtevki_za_menjavo_status_check CHECK ((status = ANY (ARRAY['pending_lead'::text, 'pending_admin'::text, 'approved'::text, 'rejected_by_lead'::text, 'rejected_by_admin'::text])))
+);
+
+create table if not exists public.zelje_zaposlenih (
+    id bigint NOT NULL,
+    profile_id uuid,
+    full_name text NOT NULL,
+    department_code text NOT NULL,
+    obdobje text,
+    opis text,
+    slika text,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT employee_wishes_department_code_check CHECK ((department_code = ANY (ARRAY['B'::text, 'C'::text, 'C1'::text, 'D'::text, 'E1'::text, 'E2'::text, 'FLEXI'::text, 'NZV'::text]))),
+    CONSTRAINT zelje_zaposlenih_department_code_check CHECK ((department_code = ANY (ARRAY['B'::text, 'C'::text, 'C1'::text, 'D'::text, 'E1'::text, 'E2'::text, 'VODJE'::text])))
+);
+
+
+-- Zaporedja / identitetni stolpci (zahtevajo obstoječe tabele):
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'dnevnik_odsotnosti'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.dnevnik_odsotnosti ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.dnevnik_odsotnosti_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'dnevnik_ogledov'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.dnevnik_ogledov ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.dnevnik_ogledov_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'dnevnik_profilov'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.dnevnik_profilov ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.dnevnik_profilov_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'dnevnik_razporeda'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.dnevnik_razporeda ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.dnevnik_razporeda_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'obrazci_dnevnik'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.obrazci_dnevnik ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.obrazci_dnevnik_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+create sequence if not exists public.obrazci_zap
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'obvestila'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.obvestila ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.obvestila_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'odsotnosti'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.odsotnosti ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.odsotnosti_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'potisne_narocnine'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.potisne_narocnine ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.potisne_narocnine_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'razpored'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.razpored ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.razpored_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'zahtevki_za_menjavo'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.zahtevki_za_menjavo ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.zahtevki_za_menjavo_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname = 'zelje_zaposlenih'
+      and a.attname = 'id' and a.attidentity <> ''
+  ) then
+    execute 'ALTER TABLE public.zelje_zaposlenih ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.zelje_zaposlenih_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+)';
+  end if;
+end $$;
+
+
+-- Dopolnitev stolpcev za baze, ki so nastale pred temi stolpci:
+
+alter table public.barvne_oznake add column if not exists barva text;
+alter table public.barvne_oznake add column if not exists kind text;
+alter table public.barvne_oznake add column if not exists prezri boolean default false;
+alter table public.barvne_oznake add column if not exists posodobil uuid;
+alter table public.barvne_oznake add column if not exists posodobljeno timestamp with time zone default now();
+alter table public.dezurni_zdravniki add column if not exists work_date date;
+alter table public.dezurni_zdravniki add column if not exists kind text;
+alter table public.dezurni_zdravniki add column if not exists full_name text;
+alter table public.dezurni_zdravniki add column if not exists updated_at timestamp with time zone default now();
+alter table public.dnevnik_odsotnosti add column if not exists id bigint;
+alter table public.dnevnik_odsotnosti add column if not exists full_name text;
+alter table public.dnevnik_odsotnosti add column if not exists work_date date;
+alter table public.dnevnik_odsotnosti add column if not exists from_kind text;
+alter table public.dnevnik_odsotnosti add column if not exists to_kind text;
+alter table public.dnevnik_odsotnosti add column if not exists editor_id uuid;
+alter table public.dnevnik_odsotnosti add column if not exists editor_name text;
+alter table public.dnevnik_odsotnosti add column if not exists created_at timestamp with time zone default now();
+alter table public.dnevnik_ogledov add column if not exists id bigint;
+alter table public.dnevnik_ogledov add column if not exists admin_id uuid;
+alter table public.dnevnik_ogledov add column if not exists admin_email text;
+alter table public.dnevnik_ogledov add column if not exists target_profile_id uuid;
+alter table public.dnevnik_ogledov add column if not exists target_full_name text;
+alter table public.dnevnik_ogledov add column if not exists target_email text;
+alter table public.dnevnik_ogledov add column if not exists started_at timestamp with time zone default now();
+alter table public.dnevnik_ogledov add column if not exists ended_at timestamp with time zone;
+alter table public.dnevnik_profilov add column if not exists id bigint;
+alter table public.dnevnik_profilov add column if not exists profile_id uuid;
+alter table public.dnevnik_profilov add column if not exists profile_name text;
+alter table public.dnevnik_profilov add column if not exists polje text;
+alter table public.dnevnik_profilov add column if not exists stara_vrednost text;
+alter table public.dnevnik_profilov add column if not exists nova_vrednost text;
+alter table public.dnevnik_profilov add column if not exists action text;
+alter table public.dnevnik_profilov add column if not exists changed_by uuid;
+alter table public.dnevnik_profilov add column if not exists changed_by_name text;
+alter table public.dnevnik_profilov add column if not exists changed_at timestamp with time zone default now();
+alter table public.dnevnik_razporeda add column if not exists id bigint;
+alter table public.dnevnik_razporeda add column if not exists entry_id bigint;
+alter table public.dnevnik_razporeda add column if not exists employee_id uuid;
+alter table public.dnevnik_razporeda add column if not exists department_code text;
+alter table public.dnevnik_razporeda add column if not exists work_date date;
+alter table public.dnevnik_razporeda add column if not exists old_shift_code text;
+alter table public.dnevnik_razporeda add column if not exists new_shift_code text;
+alter table public.dnevnik_razporeda add column if not exists action text;
+alter table public.dnevnik_razporeda add column if not exists changed_by uuid;
+alter table public.dnevnik_razporeda add column if not exists changed_at timestamp with time zone default now();
+alter table public.kadrovski_podatki add column if not exists profile_id uuid;
+alter table public.kadrovski_podatki add column if not exists employee_code text;
+alter table public.kadrovski_podatki add column if not exists birth_date date;
+alter table public.kadrovski_podatki add column if not exists position_name text;
+alter table public.kadrovski_podatki add column if not exists manager_name text;
+alter table public.kadrovski_podatki add column if not exists parental_leave text;
+alter table public.kadrovski_podatki add column if not exists annual_leave_total integer;
+alter table public.kadrovski_podatki add column if not exists updated_at timestamp with time zone default now();
+alter table public.kadrovski_podatki add column if not exists leave_balance_days integer;
+alter table public.kadrovski_podatki add column if not exists leave_balance_asof date;
+alter table public.kadrovski_podatki add column if not exists duty_min_monthly integer;
+alter table public.kadrovski_podatki add column if not exists duty_max_monthly integer;
+alter table public.kadrovski_podatki add column if not exists duty_day_off text;
+alter table public.kadrovski_podatki add column if not exists duty_weekdays_only boolean;
+alter table public.koledarski_zetoni add column if not exists profile_id uuid;
+alter table public.koledarski_zetoni add column if not exists token text;
+alter table public.koledarski_zetoni add column if not exists created_at timestamp with time zone default now();
+alter table public.koledarski_zetoni add column if not exists last_used_at timestamp with time zone;
+alter table public.koledarski_zetoni add column if not exists enabled boolean default true;
+alter table public.minimalna_zasedba add column if not exists department_code text;
+alter table public.minimalna_zasedba add column if not exists shift_bucket text;
+alter table public.minimalna_zasedba add column if not exists min_dms integer;
+alter table public.minimalna_zasedba add column if not exists min_sms integer;
+alter table public.minimalna_zasedba add column if not exists min_flexi integer;
+alter table public.minimalna_zasedba add column if not exists note text;
+alter table public.minimalna_zasedba add column if not exists updated_at timestamp with time zone default now();
+alter table public.nastavitve_obvestil add column if not exists profile_id uuid;
+alter table public.nastavitve_obvestil add column if not exists email_enabled boolean default true;
+alter table public.nastavitve_obvestil add column if not exists push_enabled boolean default true;
+alter table public.nastavitve_obvestil add column if not exists sms_enabled boolean default false;
+alter table public.nastavitve_obvestil add column if not exists opomnik_izmene boolean default true;
+alter table public.nastavitve_obvestil add column if not exists sprememba_razporeda boolean default true;
+alter table public.nastavitve_obvestil add column if not exists updated_at timestamp with time zone default now();
+alter table public.nosilci_oddelkov add column if not exists full_name text;
+alter table public.nosilci_oddelkov add column if not exists department_code text;
+alter table public.nosilci_oddelkov add column if not exists dezurstvo_dovoljeno boolean default false;
+alter table public.nosilci_oddelkov add column if not exists max_mesecno integer;
+alter table public.nosilci_oddelkov add column if not exists samo_med_tednom boolean default false;
+alter table public.nosilci_oddelkov add column if not exists delovnik text;
+alter table public.nosilci_oddelkov add column if not exists ur_na_dan numeric;
+alter table public.nosilci_oddelkov add column if not exists odsotnost_tip text;
+alter table public.nosilci_oddelkov add column if not exists odsotnost_do date;
+alter table public.nosilci_oddelkov add column if not exists nadomesca text;
+alter table public.nosilci_oddelkov add column if not exists opomba text;
+alter table public.nosilci_oddelkov add column if not exists enote text;
+alter table public.nosilci_oddelkov add column if not exists inicialke text;
+alter table public.nosilci_oddelkov add column if not exists mat_st text;
+alter table public.nosilci_oddelkov add column if not exists letni_dopust_dni integer;
+alter table public.obrazci add column if not exists id uuid default gen_random_uuid();
+alter table public.obrazci add column if not exists stevilka text;
+alter table public.obrazci add column if not exists vrsta text;
+alter table public.obrazci add column if not exists status text default 'osnutek'::text;
+alter table public.obrazci add column if not exists vlagatelj_id uuid;
+alter table public.obrazci add column if not exists sodelavec_id uuid;
+alter table public.obrazci add column if not exists vodja_id uuid;
+alter table public.obrazci add column if not exists koordinator_id uuid;
+alter table public.obrazci add column if not exists polja jsonb default '{}'::jsonb;
+alter table public.obrazci add column if not exists ustvarjen timestamp with time zone default now();
+alter table public.obrazci add column if not exists zakljucen_dne timestamp with time zone;
+alter table public.obrazci add column if not exists razlog_zavrnitve text;
+alter table public.obrazci add column if not exists je_dezurstvo boolean default false;
+alter table public.obrazci_dnevnik add column if not exists id bigint;
+alter table public.obrazci_dnevnik add column if not exists obrazec_id uuid;
+alter table public.obrazci_dnevnik add column if not exists stopnja smallint;
+alter table public.obrazci_dnevnik add column if not exists dejanje text;
+alter table public.obrazci_dnevnik add column if not exists uporabnik_id uuid;
+alter table public.obrazci_dnevnik add column if not exists ime_ob_dejanju text;
+alter table public.obrazci_dnevnik add column if not exists vloga_ob_dejanju text;
+alter table public.obrazci_dnevnik add column if not exists opomba text;
+alter table public.obrazci_dnevnik add column if not exists cas timestamp with time zone default now();
+alter table public.obvestila add column if not exists id bigint;
+alter table public.obvestila add column if not exists user_id uuid;
+alter table public.obvestila add column if not exists swap_request_id bigint;
+alter table public.obvestila add column if not exists message text;
+alter table public.obvestila add column if not exists read_at timestamp with time zone;
+alter table public.obvestila add column if not exists created_at timestamp with time zone default now();
+alter table public.obvestila add column if not exists title text;
+alter table public.obvestila add column if not exists url text;
+alter table public.obvestila add column if not exists push_sent_at timestamp with time zone;
+alter table public.obvestila add column if not exists kljuc text;
+alter table public.obvestila add column if not exists email_sent_at timestamp with time zone;
+alter table public.oddelki add column if not exists code text;
+alter table public.oddelki add column if not exists name text;
+alter table public.odsotnosti add column if not exists id bigint;
+alter table public.odsotnosti add column if not exists full_name text;
+alter table public.odsotnosti add column if not exists work_date date;
+alter table public.odsotnosti add column if not exists kind text;
+alter table public.odsotnosti add column if not exists note text;
+alter table public.odsotnosti add column if not exists created_by uuid;
+alter table public.odsotnosti add column if not exists created_at timestamp with time zone default now();
+alter table public.pokriva_oddelek add column if not exists id uuid default gen_random_uuid();
+alter table public.pokriva_oddelek add column if not exists profile_id uuid;
+alter table public.pokriva_oddelek add column if not exists department_code text;
+alter table public.pokriva_oddelek add column if not exists sort_order integer default 0;
+alter table public.potisne_narocnine add column if not exists id bigint;
+alter table public.potisne_narocnine add column if not exists profile_id uuid;
+alter table public.potisne_narocnine add column if not exists endpoint text;
+alter table public.potisne_narocnine add column if not exists p256dh text;
+alter table public.potisne_narocnine add column if not exists auth text;
+alter table public.potisne_narocnine add column if not exists user_agent text;
+alter table public.potisne_narocnine add column if not exists created_at timestamp with time zone default now();
+alter table public.potisne_narocnine add column if not exists last_ok_at timestamp with time zone;
+alter table public.profili add column if not exists id uuid;
+alter table public.profili add column if not exists full_name text;
+alter table public.profili add column if not exists role text default 'user'::text;
+alter table public.profili add column if not exists department_code text;
+alter table public.profili add column if not exists created_at timestamp with time zone default now();
+alter table public.profili add column if not exists email text;
+alter table public.profili add column if not exists rotation_slot text;
+alter table public.profili add column if not exists vodja_id uuid;
+alter table public.profili add column if not exists is_koordinator boolean default false;
+alter table public.profili add column if not exists parafa text;
+alter table public.profili add column if not exists job_title text;
+alter table public.profili add column if not exists parafa_pred_oktobrom_2026 text;
+alter table public.razpored add column if not exists id bigint;
+alter table public.razpored add column if not exists employee_id uuid;
+alter table public.razpored add column if not exists department_code text;
+alter table public.razpored add column if not exists work_date date;
+alter table public.razpored add column if not exists shift_code text default ''::text;
+alter table public.razpored add column if not exists updated_at timestamp with time zone default now();
+alter table public.razpored add column if not exists created_at timestamp with time zone default now();
+alter table public.razpored add column if not exists created_by uuid;
+alter table public.razpored add column if not exists updated_by uuid;
+alter table public.razpored add column if not exists pokriva_oddelek text;
+alter table public.telefoni_kontaktov add column if not exists profile_id uuid;
+alter table public.telefoni_kontaktov add column if not exists phone text;
+alter table public.telefoni_kontaktov add column if not exists updated_at timestamp with time zone default now();
+alter table public.uvozi_kontaktov add column if not exists id uuid default gen_random_uuid();
+alter table public.uvozi_kontaktov add column if not exists full_name text;
+alter table public.uvozi_kontaktov add column if not exists email text;
+alter table public.uvozi_kontaktov add column if not exists phone text;
+alter table public.uvozi_kontaktov add column if not exists role text;
+alter table public.uvozi_kontaktov add column if not exists department_code text;
+alter table public.uvozi_kontaktov add column if not exists linked_profile_id uuid;
+alter table public.uvozi_kontaktov add column if not exists created_at timestamp with time zone default now();
+alter table public.uvozi_kontaktov add column if not exists employee_code text;
+alter table public.uvozi_kontaktov add column if not exists birth_date date;
+alter table public.uvozi_kontaktov add column if not exists position_name text;
+alter table public.uvozi_kontaktov add column if not exists manager_name text;
+alter table public.uvozi_kontaktov add column if not exists parental_leave text;
+alter table public.uvozi_kontaktov add column if not exists annual_leave_total integer;
+alter table public.uvozi_kontaktov add column if not exists leave_balance_days integer;
+alter table public.uvozi_kontaktov add column if not exists leave_balance_asof date;
+alter table public.zahtevki_za_menjavo add column if not exists id bigint;
+alter table public.zahtevki_za_menjavo add column if not exists requester_id uuid;
+alter table public.zahtevki_za_menjavo add column if not exists requester_date date;
+alter table public.zahtevki_za_menjavo add column if not exists target_id uuid;
+alter table public.zahtevki_za_menjavo add column if not exists target_date date;
+alter table public.zahtevki_za_menjavo add column if not exists note text;
+alter table public.zahtevki_za_menjavo add column if not exists status text default 'pending_lead'::text;
+alter table public.zahtevki_za_menjavo add column if not exists lead_id uuid;
+alter table public.zahtevki_za_menjavo add column if not exists lead_decided_at timestamp with time zone;
+alter table public.zahtevki_za_menjavo add column if not exists lead_note text;
+alter table public.zahtevki_za_menjavo add column if not exists admin_id uuid;
+alter table public.zahtevki_za_menjavo add column if not exists admin_decided_at timestamp with time zone;
+alter table public.zahtevki_za_menjavo add column if not exists admin_note text;
+alter table public.zahtevki_za_menjavo add column if not exists created_at timestamp with time zone default now();
+alter table public.zahtevki_za_menjavo add column if not exists updated_at timestamp with time zone default now();
+alter table public.zelje_zaposlenih add column if not exists id bigint;
+alter table public.zelje_zaposlenih add column if not exists profile_id uuid;
+alter table public.zelje_zaposlenih add column if not exists full_name text;
+alter table public.zelje_zaposlenih add column if not exists department_code text;
+alter table public.zelje_zaposlenih add column if not exists obdobje text;
+alter table public.zelje_zaposlenih add column if not exists opis text;
+alter table public.zelje_zaposlenih add column if not exists slika text;
+alter table public.zelje_zaposlenih add column if not exists created_by uuid;
+alter table public.zelje_zaposlenih add column if not exists created_at timestamp with time zone default now();
+alter table public.zgodovina_stanja_dopusta add column if not exists id uuid default gen_random_uuid();
+alter table public.zgodovina_stanja_dopusta add column if not exists employee_code text;
+alter table public.zgodovina_stanja_dopusta add column if not exists full_name text;
+alter table public.zgodovina_stanja_dopusta add column if not exists leto smallint;
+alter table public.zgodovina_stanja_dopusta add column if not exists mesec smallint;
+alter table public.zgodovina_stanja_dopusta add column if not exists dnevi numeric(5,1);
+alter table public.zgodovina_stanja_dopusta add column if not exists profile_id uuid;
+alter table public.zgodovina_stanja_dopusta add column if not exists uvozeno timestamp with time zone default now();
+alter table public.zgodovina_stanja_dopusta add column if not exists uvozil uuid;
+
+
+-- Primarni ključi in enoličnost:
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'barvne_oznake_pkey') then
+    execute 'ALTER TABLE ONLY public.barvne_oznake
+    ADD CONSTRAINT barvne_oznake_pkey PRIMARY KEY (barva)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dezurni_zdravniki_pkey') then
+    execute 'ALTER TABLE ONLY public.dezurni_zdravniki
+    ADD CONSTRAINT dezurni_zdravniki_pkey PRIMARY KEY (work_date, kind)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_odsotnosti_pkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_odsotnosti
+    ADD CONSTRAINT dnevnik_odsotnosti_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_pkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_ogledov
+    ADD CONSTRAINT dnevnik_ogledov_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_profilov_pkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_profilov
+    ADD CONSTRAINT dnevnik_profilov_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_razporeda_pkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_razporeda
+    ADD CONSTRAINT dnevnik_razporeda_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'kadrovski_podatki_pkey') then
+    execute 'ALTER TABLE ONLY public.kadrovski_podatki
+    ADD CONSTRAINT kadrovski_podatki_pkey PRIMARY KEY (profile_id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_pkey') then
+    execute 'ALTER TABLE ONLY public.koledarski_zetoni
+    ADD CONSTRAINT koledarski_zetoni_pkey PRIMARY KEY (profile_id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_token_key') then
+    execute 'ALTER TABLE ONLY public.koledarski_zetoni
+    ADD CONSTRAINT koledarski_zetoni_token_key UNIQUE (token)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'minimalna_zasedba_pkey') then
+    execute 'ALTER TABLE ONLY public.minimalna_zasedba
+    ADD CONSTRAINT minimalna_zasedba_pkey PRIMARY KEY (department_code, shift_bucket)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'nastavitve_obvestil_pkey') then
+    execute 'ALTER TABLE ONLY public.nastavitve_obvestil
+    ADD CONSTRAINT nastavitve_obvestil_pkey PRIMARY KEY (profile_id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'nosilci_oddelkov_pkey') then
+    execute 'ALTER TABLE ONLY public.nosilci_oddelkov
+    ADD CONSTRAINT nosilci_oddelkov_pkey PRIMARY KEY (full_name)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_pkey') then
+    execute 'ALTER TABLE ONLY public.obrazci_dnevnik
+    ADD CONSTRAINT obrazci_dnevnik_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_pkey') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_stevilka_key') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_stevilka_key UNIQUE (stevilka)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obvestila_pkey') then
+    execute 'ALTER TABLE ONLY public.obvestila
+    ADD CONSTRAINT obvestila_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'oddelki_pkey') then
+    execute 'ALTER TABLE ONLY public.oddelki
+    ADD CONSTRAINT oddelki_pkey PRIMARY KEY (code)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_full_name_work_date_key') then
+    execute 'ALTER TABLE ONLY public.odsotnosti
+    ADD CONSTRAINT odsotnosti_full_name_work_date_key UNIQUE (full_name, work_date)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_pkey') then
+    execute 'ALTER TABLE ONLY public.odsotnosti
+    ADD CONSTRAINT odsotnosti_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_pkey') then
+    execute 'ALTER TABLE ONLY public.pokriva_oddelek
+    ADD CONSTRAINT pokriva_oddelek_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_profile_id_department_code_key') then
+    execute 'ALTER TABLE ONLY public.pokriva_oddelek
+    ADD CONSTRAINT pokriva_oddelek_profile_id_department_code_key UNIQUE (profile_id, department_code)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_endpoint_key') then
+    execute 'ALTER TABLE ONLY public.potisne_narocnine
+    ADD CONSTRAINT potisne_narocnine_endpoint_key UNIQUE (endpoint)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_pkey') then
+    execute 'ALTER TABLE ONLY public.potisne_narocnine
+    ADD CONSTRAINT potisne_narocnine_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profili_pkey') then
+    execute 'ALTER TABLE ONLY public.profili
+    ADD CONSTRAINT profili_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_employee_id_work_date_key') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_employee_id_work_date_key UNIQUE (employee_id, work_date)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_pkey') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'telefoni_kontaktov_pkey') then
+    execute 'ALTER TABLE ONLY public.telefoni_kontaktov
+    ADD CONSTRAINT telefoni_kontaktov_pkey PRIMARY KEY (profile_id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_pkey') then
+    execute 'ALTER TABLE ONLY public.uvozi_kontaktov
+    ADD CONSTRAINT uvozi_kontaktov_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_pkey') then
+    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
+    ADD CONSTRAINT zahtevki_za_menjavo_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_pkey') then
+    execute 'ALTER TABLE ONLY public.zelje_zaposlenih
+    ADD CONSTRAINT zelje_zaposlenih_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_employee_code_leto_mesec_key') then
+    execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
+    ADD CONSTRAINT zgodovina_stanja_dopusta_employee_code_leto_mesec_key UNIQUE (employee_code, leto, mesec)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_pkey') then
+    execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
+    ADD CONSTRAINT zgodovina_stanja_dopusta_pkey PRIMARY KEY (id)';
+  end if;
+end $$;
+
+
+-- =====================================================================
+-- 4. TUJI KLJUČI (Foreign Keys)
+-- ---------------------------------------------------------------------
+-- Ločeno od CREATE TABLE, da ni krožnih odvisnosti - ko se izvedejo,
+-- vse tabele iz razdelka 3 že obstajajo.
+-- =====================================================================
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'barvne_oznake_posodobil_fkey') then
+    execute 'ALTER TABLE ONLY public.barvne_oznake
+    ADD CONSTRAINT barvne_oznake_posodobil_fkey FOREIGN KEY (posodobil) REFERENCES auth.users(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_odsotnosti_editor_id_fkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_odsotnosti
+    ADD CONSTRAINT dnevnik_odsotnosti_editor_id_fkey FOREIGN KEY (editor_id) REFERENCES auth.users(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_admin_id_fkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_ogledov
+    ADD CONSTRAINT dnevnik_ogledov_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES auth.users(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_target_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_ogledov
+    ADD CONSTRAINT dnevnik_ogledov_target_profile_id_fkey FOREIGN KEY (target_profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_profilov_changed_by_fkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_profilov
+    ADD CONSTRAINT dnevnik_profilov_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'dnevnik_razporeda_changed_by_fkey') then
+    execute 'ALTER TABLE ONLY public.dnevnik_razporeda
+    ADD CONSTRAINT dnevnik_razporeda_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'kadrovski_podatki_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.kadrovski_podatki
+    ADD CONSTRAINT kadrovski_podatki_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.koledarski_zetoni
+    ADD CONSTRAINT koledarski_zetoni_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'minimalna_zasedba_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.minimalna_zasedba
+    ADD CONSTRAINT minimalna_zasedba_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'nastavitve_obvestil_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.nastavitve_obvestil
+    ADD CONSTRAINT nastavitve_obvestil_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'nosilci_oddelkov_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.nosilci_oddelkov
+    ADD CONSTRAINT nosilci_oddelkov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_obrazec_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci_dnevnik
+    ADD CONSTRAINT obrazci_dnevnik_obrazec_id_fkey FOREIGN KEY (obrazec_id) REFERENCES public.obrazci(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_uporabnik_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci_dnevnik
+    ADD CONSTRAINT obrazci_dnevnik_uporabnik_id_fkey FOREIGN KEY (uporabnik_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_koordinator_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_koordinator_id_fkey FOREIGN KEY (koordinator_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_sodelavec_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_sodelavec_id_fkey FOREIGN KEY (sodelavec_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_vlagatelj_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_vlagatelj_id_fkey FOREIGN KEY (vlagatelj_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obrazci_vodja_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obrazci
+    ADD CONSTRAINT obrazci_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obvestila_swap_request_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obvestila
+    ADD CONSTRAINT obvestila_swap_request_id_fkey FOREIGN KEY (swap_request_id) REFERENCES public.zahtevki_za_menjavo(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'obvestila_user_id_fkey') then
+    execute 'ALTER TABLE ONLY public.obvestila
+    ADD CONSTRAINT obvestila_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_created_by_fkey') then
+    execute 'ALTER TABLE ONLY public.odsotnosti
+    ADD CONSTRAINT odsotnosti_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.pokriva_oddelek
+    ADD CONSTRAINT pokriva_oddelek_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.pokriva_oddelek
+    ADD CONSTRAINT pokriva_oddelek_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.potisne_narocnine
+    ADD CONSTRAINT potisne_narocnine_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.profili
+    ADD CONSTRAINT profiles_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profili_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.profili
+    ADD CONSTRAINT profili_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profili_id_fkey') then
+    execute 'ALTER TABLE ONLY public.profili
+    ADD CONSTRAINT profili_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'profili_vodja_id_fkey') then
+    execute 'ALTER TABLE ONLY public.profili
+    ADD CONSTRAINT profili_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_created_by_fkey') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_employee_id_fkey') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'razpored_updated_by_fkey') then
+    execute 'ALTER TABLE ONLY public.razpored
+    ADD CONSTRAINT razpored_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'telefoni_kontaktov_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.telefoni_kontaktov
+    ADD CONSTRAINT telefoni_kontaktov_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_department_code_fkey') then
+    execute 'ALTER TABLE ONLY public.uvozi_kontaktov
+    ADD CONSTRAINT uvozi_kontaktov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_linked_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.uvozi_kontaktov
+    ADD CONSTRAINT uvozi_kontaktov_linked_profile_id_fkey FOREIGN KEY (linked_profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_admin_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
+    ADD CONSTRAINT zahtevki_za_menjavo_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_lead_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
+    ADD CONSTRAINT zahtevki_za_menjavo_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_requester_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
+    ADD CONSTRAINT zahtevki_za_menjavo_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.profili(id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_target_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
+    ADD CONSTRAINT zahtevki_za_menjavo_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.profili(id)';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_created_by_fkey') then
+    execute 'ALTER TABLE ONLY public.zelje_zaposlenih
+    ADD CONSTRAINT zelje_zaposlenih_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zelje_zaposlenih
+    ADD CONSTRAINT zelje_zaposlenih_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_profile_id_fkey') then
+    execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
+    ADD CONSTRAINT zgodovina_stanja_dopusta_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_uvozil_fkey') then
+    execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
+    ADD CONSTRAINT zgodovina_stanja_dopusta_uvozil_fkey FOREIGN KEY (uvozil) REFERENCES auth.users(id) ON DELETE SET NULL';
+  end if;
+end $$;
+
+
+-- =====================================================================
+-- 5. INDEKSI
+-- ---------------------------------------------------------------------
+-- Po datumih, oddelkih in zaposlenih - stolpci, po katerih aplikacija
+-- najpogosteje filtrira razpored.
+-- =====================================================================
+
+create index if not exists idx_admin_view_as_log_admin ON public.dnevnik_ogledov USING btree (admin_id);
+
+create index if not exists idx_employee_wishes_dept ON public.zelje_zaposlenih USING btree (department_code);
+
+create index if not exists idx_leave_balance_history_obdobje ON public.zgodovina_stanja_dopusta USING btree (leto, mesec);
+
+create index if not exists idx_leave_balance_history_profile ON public.zgodovina_stanja_dopusta USING btree (profile_id);
+
+create index if not exists idx_obrazci_dnevnik_obrazec ON public.obrazci_dnevnik USING btree (obrazec_id, cas);
+
+create index if not exists idx_obrazci_sodelavec ON public.obrazci USING btree (sodelavec_id);
+
+create index if not exists idx_obrazci_status ON public.obrazci USING btree (status);
+
+create index if not exists idx_obrazci_vlagatelj ON public.obrazci USING btree (vlagatelj_id);
+
+create index if not exists notifications_email_pending_idx ON public.obvestila USING btree (created_at) WHERE (email_sent_at IS NULL);
+
+create unique index if not exists notifications_kljuc_idx ON public.obvestila USING btree (kljuc) WHERE (kljuc IS NOT NULL);
+
+create index if not exists notifications_push_pending_idx ON public.obvestila USING btree (created_at) WHERE (push_sent_at IS NULL);
+
+create index if not exists notifications_user_idx ON public.obvestila USING btree (user_id, read_at);
+
+create index if not exists profiles_log_cas_idx ON public.dnevnik_profilov USING btree (changed_at DESC);
+
+create index if not exists profiles_log_profile_idx ON public.dnevnik_profilov USING btree (profile_id, changed_at DESC);
+
+create index if not exists push_subscriptions_profile_idx ON public.potisne_narocnine USING btree (profile_id);
+
+create index if not exists schedule_entries_date_idx ON public.razpored USING btree (work_date);
+
+create index if not exists schedule_entries_dept_idx ON public.razpored USING btree (department_code, work_date);
+
+create index if not exists schedule_entries_log_date_idx ON public.dnevnik_razporeda USING btree (work_date);
+
+create index if not exists schedule_entries_log_emp_idx ON public.dnevnik_razporeda USING btree (employee_id, work_date);
+
+create index if not exists swap_requests_requester_idx ON public.zahtevki_za_menjavo USING btree (requester_id);
+
+create index if not exists swap_requests_status_idx ON public.zahtevki_za_menjavo USING btree (status);
+
+create index if not exists swap_requests_target_idx ON public.zahtevki_za_menjavo USING btree (target_id);
+
+
+-- =====================================================================
+-- 6. FUNKCIJE IN SPROŽILCI
+-- ---------------------------------------------------------------------
+-- Izračuni ur, časovni žigi (updated_at), preverjanje počitka med
+-- izmenama. Sprožilci pridejo za funkcijami, ki jih kličejo.
+-- 
+-- POZOR na vrstni red: funkcije morajo biti PRED pogledi (razdelek 7),
+-- ne za njimi. Pogledi kot uvozi_kontaktov_javno v svoji definiciji
+-- kličejo current_role_is() / imena_se_ujemata(); če funkcije še ne
+-- obstajajo, se pogled sploh ne ustvari.
+-- =====================================================================
+
+create or replace function public.blokirani_dnevi(p_od date, p_do date) RETURNS TABLE(profile_id uuid, datum date)
+    LANGUAGE sql STABLE
+    AS $$
+  with le as (
+    select p.id as profile_id, l.work_date, l.kind
+    from public.odsotnosti l
+    join public.profili p on public.imena_se_ujemata(p.full_name, l.full_name)
+    where l.work_date between p_od - 3 and p_do
+  ),
+  ld_bloki as (
+    select profile_id, work_date,
+      lag(work_date) over (partition by profile_id order by work_date) as prejsnji
+    from le where kind = 'ld'
+  ),
+  ld_pred as (
+    select profile_id,
+      (work_date - 1) as datum
+    from ld_bloki where prejsnji is null or work_date - prejsnji > 1
+    union
+    select profile_id, (work_date - 3) as datum
+    from ld_bloki
+    where (prejsnji is null or work_date - prejsnji > 1) and extract(dow from work_date) = 1
+  )
+  select profile_id, work_date as datum from le where work_date between p_od and p_do
+  union
+  select profile_id, datum from ld_pred where datum between p_od and p_do;
+$$;
+
+create or replace function public.current_department() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select department_code from public.profili where id = auth.uid();
+$$;
+
+create or replace function public.current_full_name() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select full_name from public.profili where id = auth.uid();
+$$;
+
+create or replace function public.current_is_koordinator() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select coalesce((select is_koordinator from public.profili where id = auth.uid()), false);
+$$;
+
+create or replace function public.current_role_is(p_role text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select exists (
+    select 1 from public.profili where id = auth.uid() and role = p_role
+  );
+$$;
+
+create or replace function public.decide_swap_admin(p_swap_id bigint, p_approve boolean, p_note text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_req record;
+  v_requester_shift text;
+  v_target_shift text;
+begin
+  if not public.current_role_is('admin') then
+    raise exception 'Samo administrator lahko dokončno odloča.';
+  end if;
+
+  select * into v_req from public.zahtevki_za_menjavo
+  where id = p_swap_id and status = 'pending_admin'
+  for update;
+
+  if v_req.id is null then
+    raise exception 'Predlog ne obstaja ali ni več v čakanju na administratorja.';
+  end if;
+
+  if p_approve then
+    select shift_code into v_requester_shift from public.razpored
+      where employee_id = v_req.requester_id and work_date = v_req.requester_date;
+    select shift_code into v_target_shift from public.razpored
+      where employee_id = v_req.target_id and work_date = v_req.target_date;
+
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+    select v_req.requester_id, department_code, v_req.requester_date, coalesce(v_target_shift, ''), now()
+    from public.profili where id = v_req.requester_id
+    on conflict (employee_id, work_date)
+      do update set shift_code = excluded.shift_code, updated_at = now();
+
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+    select v_req.target_id, department_code, v_req.target_date, coalesce(v_requester_shift, ''), now()
+    from public.profili where id = v_req.target_id
+    on conflict (employee_id, work_date)
+      do update set shift_code = excluded.shift_code, updated_at = now();
+  end if;
+
+  update public.zahtevki_za_menjavo
+  set status = case when p_approve then 'approved' else 'rejected_by_admin' end,
+      admin_id = auth.uid(),
+      admin_decided_at = now(),
+      admin_note = p_note,
+      updated_at = now()
+  where id = p_swap_id;
+end;
+$$;
+
+create or replace function public.decide_swap_lead(p_swap_id bigint, p_approve boolean, p_note text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_req_dept text;
+begin
+  if not public.current_role_is('vodja') then
+    raise exception 'Samo vodja lahko odloča na prvi stopnji.';
+  end if;
+
+  select p.department_code into v_req_dept
+  from public.zahtevki_za_menjavo s join public.profili p on p.id = s.requester_id
+  where s.id = p_swap_id and s.status = 'pending_lead'
+  for update of s;
+
+  if v_req_dept is null then
+    raise exception 'Predlog ne obstaja ali ni več v čakanju na vodjo.';
+  end if;
+  if v_req_dept is distinct from public.current_department() then
+    raise exception 'Ta predlog ni iz tvoje ekipe.';
+  end if;
+
+  update public.zahtevki_za_menjavo
+  set status = case when p_approve then 'pending_admin' else 'rejected_by_lead' end,
+      lead_id = auth.uid(),
+      lead_decided_at = now(),
+      lead_note = p_note,
+      updated_at = now()
+  where id = p_swap_id;
+end;
+$$;
+
+create or replace function public.handle_new_user() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  insert into public.profili (id, full_name, role, email)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.email, 'Neznano ime'),
+    'user',
+    new.email
+  )
+  on conflict (id) do update set email = excluded.email where profili.email is null;
+  return new;
+exception
+  when others then
+    raise warning 'handle_new_user: ustvarjanje profila za % ni uspelo: %', new.id, sqlerrm;
+    return new;
+end;
+$$;
+
+create or replace function public.imena_se_ujemata(a text, b text) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  select a is not null and b is not null and (
+    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(a)), '\s+')) w
+  ) = (
+    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(b)), '\s+')) w
+  );
+$$;
+
+create or replace function public.izmena_cas(p_sifra text) RETURNS TABLE(zacetek time without time zone, konec time without time zone, cez_polnoc boolean)
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+declare t text := lower(trim(coalesce(p_sifra, '')));
+begin
+  if t = '' or t like 'ld%' or t like 'kpu%' or t = 'pomoč drugje' then
+    return;
+  elsif t like '%nočna12%' then
+    return query select time '17:50', time '06:00', true;
+  elsif t like '%dnevna12%' then
+    return query select time '07:00', time '19:00', false;
+  elsif t like 'nočna od 19%' then
+    return query select time '18:50', time '06:00', true;
+  elsif t like 'nočna%' then
+    return query select time '20:50', time '06:00', true;
+  elsif t like 'dopoldan%' then
+    return query select time '05:50', time '14:00', false;
+  elsif t like 'popoldan do 19%' then
+    return query select time '13:50', time '19:00', false;
+  elsif t like 'popoldan%' then
+    return query select time '13:50', time '21:00', false;
+  elsif t like 'dežurstvo%' then
+    return query select time '07:00', time '07:00', true; -- 24 ur
+  end if;
+  return;
+end;
+$$;
+
+create or replace function public.koledar_razpored(p_token text, p_od date, p_do date) RETURNS TABLE(full_name text, work_date date, shift_code text)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_profile uuid;
+begin
+  -- "and ct.enabled" pomeni, da izklopljena sinhronizacija izgleda
+  -- popolnoma enako kot neveljaven žeton – brez namiga, ali oseba obstaja.
+  select ct.profile_id into v_profile
+  from public.koledarski_zetoni ct
+  where ct.token = p_token and ct.enabled;
+  if v_profile is null then
+    return; -- neveljaven žeton ali izklopljena sinhronizacija
+  end if;
+  update public.koledarski_zetoni set last_used_at = now() where profile_id = v_profile;
+  return query
+    select p.full_name, se.work_date, se.shift_code
+    from public.razpored se
+    join public.profili p on p.id = se.employee_id
+    where se.employee_id = v_profile
+      and se.work_date between p_od and p_do
+      and coalesce(se.shift_code, '') <> ''
+    order by se.work_date;
+end;
+$$;
+
+create or replace function public.koledar_sinhronizacija(p_vklop boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_stanje boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  -- Če vrstice še ni in se vklaplja, jo ustvarimo z novim žetonom.
+  insert into public.koledarski_zetoni (profile_id, token, enabled)
+  values (auth.uid(), replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), p_vklop)
+  on conflict (profile_id) do update set enabled = excluded.enabled
+  returning enabled into v_stanje;
+  return v_stanje;
+end;
+$$;
+
+create or replace function public.koledar_token() RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  select token into v_token from public.koledarski_zetoni where profile_id = auth.uid();
+  if v_token is not null then
+    return v_token;
+  end if;
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
+  insert into public.koledarski_zetoni (profile_id, token) values (auth.uid(), v_token)
+  on conflict (profile_id) do update set token = excluded.token
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+create or replace function public.koledar_token_ponastavi() RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'Ni prijave.';
+  end if;
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
+  insert into public.koledarski_zetoni (profile_id, token, created_at, last_used_at)
+  values (auth.uid(), v_token, now(), null)
+  on conflict (profile_id) do update
+    set token = excluded.token, created_at = now(), last_used_at = null
+  returning token into v_token;
+  return v_token;
+end;
+$$;
+
+create or replace function public.leave_entry_rok_odprt(p_work_date date) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  select now() <= (
+    date_trunc('month', p_work_date) - interval '1 month' + interval '9 days 23 hours 59 minutes 59 seconds'
+  );
+$$;
+
+create or replace function public.log_leave_entry_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_editor_name text;
+begin
+  select full_name into v_editor_name from public.profili where id = auth.uid();
+  if tg_op = 'INSERT' then
+    insert into public.dnevnik_odsotnosti (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (new.full_name, new.work_date, null, new.kind, auth.uid(), v_editor_name);
+    return new;
+  elsif tg_op = 'UPDATE' then
+    insert into public.dnevnik_odsotnosti (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (new.full_name, new.work_date, old.kind, new.kind, auth.uid(), v_editor_name);
+    return new;
+  elsif tg_op = 'DELETE' then
+    insert into public.dnevnik_odsotnosti (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
+    values (old.full_name, old.work_date, old.kind, null, auth.uid(), v_editor_name);
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+create or replace function public.min_pocitek() RETURNS interval
+    LANGUAGE sql IMMUTABLE
+    AS $$ select interval '10 hours 42 minutes' $$;
+
+create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text, njihova_izmena text, njihov_datum date, moj_zacetek time without time zone, njihov_zacetek time without time zone, jaz_pridem_prej boolean)
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare v_moja_sifra text;
+begin
+  select shift_code into v_moja_sifra from public.razpored
+    where employee_id = p_profile_id and work_date = p_datum;
+
+  return query
+  select p.id, p.full_name, se.shift_code, se.work_date,
+    (select zacetek from public.izmena_cas(v_moja_sifra)),
+    (select zacetek from public.izmena_cas(se.shift_code)),
+    (select zacetek from public.izmena_cas(v_moja_sifra)) < (select zacetek from public.izmena_cas(se.shift_code))
+  from public.razpored se
+  join public.profili p on p.id = se.employee_id
+  where se.work_date between p_datum - 7 and p_datum + 7
+    and se.employee_id <> p_profile_id
+    and se.shift_code is not null and se.shift_code <> ''
+    and (select zacetek from public.izmena_cas(se.shift_code)) is not null
+    and not exists (select 1 from public.blokirani_dnevi(p_datum, p_datum) b where b.profile_id = p.id)
+    and not exists (select 1 from public.blokirani_dnevi(se.work_date, se.work_date) b where b.profile_id = p_profile_id)
+    and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
+    and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
+  order by p.full_name;
+end;
+$$;
+
+create or replace function public.notify_swap_status_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  msg text;
+begin
+  if new.status = old.status then
+    return new;
+  end if;
+  msg := case new.status
+    when 'pending_admin'           then 'Vodja je odobril predlog menjave – čaka na administratorja.'
+    when 'pending_koordinator'     then 'Predlog menjave čaka na potrditev koordinatorja.'
+    when 'approved'                then 'Menjava izmene je bila potrjena.'
+    when 'rejected_by_lead'        then 'Vodja je zavrnil predlog menjave.'
+    when 'rejected_by_admin'       then 'Administrator je zavrnil predlog menjave.'
+    when 'rejected_by_koordinator' then 'Koordinator je zavrnil predlog menjave.'
+    else 'Status predloga menjave se je spremenil: ' || new.status
+  end;
+  insert into public.obvestila (user_id, swap_request_id, message)
+  values (new.requester_id, new.id, msg), (new.target_id, new.id, msg);
+  return new;
+end;
+$$;
+
+create or replace function public.obrazec_oddaj(p_id uuid) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  o public.obrazci;
+  v_vodja uuid;
+  v_status text;
+  v_je_dez boolean := false;
+  v_izmena_a text;
+  v_izmena_b text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vlagatelj_id <> auth.uid() then raise exception 'Oddaš lahko samo svoj obrazec'; end if;
+  if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
+
+    select shift_code into v_izmena_a from public.razpored
+      where employee_id = o.vlagatelj_id and work_date = (o.polja ->> 'datum_a')::date;
+    select shift_code into v_izmena_b from public.razpored
+      where employee_id = o.sodelavec_id and work_date = (o.polja ->> 'datum_b')::date;
+    v_je_dez := (lower(coalesce(v_izmena_a, '')) like 'dežurstvo%') or (lower(coalesce(v_izmena_b, '')) like 'dežurstvo%');
+
+    v_status := 'caka_sodelavca';
+  else
+    v_status := 'caka_vodjo';
+  end if;
+
+  -- Neposrednega vodjo potrebujemo samo, če bo obrazec dejansko šel skozi
+  -- njegovo stopnjo – menjava dežurstva jo preskoči (glej
+  -- obrazec_potrdi_sodelavec spodaj), zato zanjo vodja ni pogoj za oddajo.
+  if not (o.vrsta = 'menjava_sluzbe' and v_je_dez) then
+    select vodja_id into v_vodja from public.profili where id = auth.uid();
+    if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
+  end if;
+
+  update public.obrazci set status = v_status, vodja_id = v_vodja, je_dezurstvo = v_je_dez where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 1::smallint, 'ODDANO');
+  return v_status;
+end;
+$$;
+
+create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  o public.obrazci;
+  v_dan_a date; v_dan_b date;
+  v_izmena_a text; v_izmena_b text;
+  v_dept_a text; v_dept_b text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.status <> 'caka_koordinatorja' then raise exception 'Obrazec ni v stanju čakanja na koordinatorja'; end if;
+
+  if o.je_dezurstvo then
+    if not public.current_is_koordinator() then
+      raise exception 'Menjavo dežurstva lahko potrdi izključno koordinator.';
+    end if;
+  else
+    if not public.current_role_is('admin') then
+      raise exception 'Za končno potrditev nimaš pravic';
+    end if;
+  end if;
+
+  if not p_sprejmi then
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba, koordinator_id = auth.uid() where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+
+  if o.vrsta = 'menjava_sluzbe' then
+    v_dan_a := (o.polja ->> 'datum_a')::date;
+    v_dan_b := (o.polja ->> 'datum_b')::date;
+
+    select shift_code into v_izmena_a from public.razpored where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+    select shift_code into v_izmena_b from public.razpored where employee_id = o.sodelavec_id and work_date = v_dan_b;
+    select department_code into v_dept_a from public.profili where id = o.vlagatelj_id;
+    select department_code into v_dept_b from public.profili where id = o.sodelavec_id;
+
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
+    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+  end if;
+
+  update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
+  return 'zakljucen';
+end;
+$$;
+
+create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare o public.obrazci; v_naslednji text;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.sodelavec_id <> auth.uid() then raise exception 'Nisi izbrani sodelavec'; end if;
+  if o.status <> 'caka_sodelavca' then raise exception 'Obrazec ni v stanju čakanja na sodelavca'; end if;
+
+  if p_sprejmi then
+    v_naslednji := case when o.je_dezurstvo then 'caka_koordinatorja' else 'caka_vodjo' end;
+    update public.obrazci set status = v_naslednji where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_POTRDIL', p_opomba);
+    return v_naslednji;
+  else
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+end;
+$$;
+
+create or replace function public.obrazec_potrdi_vodja(p_id uuid, p_sprejmi boolean, p_opomba text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare o public.obrazci;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vodja_id <> auth.uid() then raise exception 'Nisi neposredni vodja vlagatelja'; end if;
+  if o.status <> 'caka_vodjo' then raise exception 'Obrazec ni v stanju čakanja na vodjo'; end if;
+
+  if p_sprejmi then
+    update public.obrazci set status = 'caka_koordinatorja' where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ODOBRIL', p_opomba);
+    return 'caka_koordinatorja';
+  else
+    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
+    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ZAVRNIL', p_opomba);
+    return 'zavrnjen';
+  end if;
+end;
+$$;
+
+create or replace function public.obrazec_preklici(p_id uuid, p_opomba text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare o public.obrazci;
+begin
+  select * into o from public.obrazci where id = p_id;
+  if not found then raise exception 'Obrazec ne obstaja'; end if;
+  if o.vlagatelj_id <> auth.uid() then raise exception 'Prekličeš lahko samo svoj obrazec'; end if;
+  if o.status in ('zakljucen', 'zavrnjen', 'preklican') then raise exception 'Obrazca v tem stanju ni mogoče preklicati'; end if;
+
+  update public.obrazci set status = 'preklican', razlog_zavrnitve = p_opomba where id = p_id;
+  perform public.zapisi_v_dnevnik(p_id, 0::smallint, 'VLAGATELJ_PREKLICAL', p_opomba);
+  return 'preklican';
+end;
+$$;
+
+create or replace function public.obrazec_stevilka() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.stevilka is null then
+    new.stevilka := 'OBV-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('public.obrazci_zap')::text, 4, '0');
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.obvesti_o_objavi_razporeda(p_start date, p_end date, p_oddelek text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  st integer;
+begin
+  if not public.current_role_is('admin') then
+    raise exception 'Samo administrator lahko pošlje obvestilo o objavi razporeda.';
+  end if;
+
+  insert into public.obvestila (user_id, message, title, url, kljuc)
+  select distinct se.employee_id,
+         'Objavljen je razpored za obdobje ' || to_char(p_start, 'DD.MM.YYYY') || ' – ' || to_char(p_end, 'DD.MM.YYYY') || '.',
+         'Nov razpored je objavljen',
+         'index.html',
+         'razpored:' || se.employee_id || ':' || p_start || ':' || p_end
+  from public.razpored se
+  where se.work_date between p_start and p_end
+    and (p_oddelek is null or se.department_code = p_oddelek)
+  on conflict (kljuc) where kljuc is not null do nothing;
+
+  get diagnostics st = row_count;
+  return st;
+end;
+$$;
+
+create or replace function public.obvesti_ob_spremembi_obrazca() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  vlagatelj text;
+  naslov text;
+  sporocilo text;
+begin
+  if new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  select full_name into vlagatelj from public.profili where id = new.vlagatelj_id;
+
+  if new.status = 'caka_sodelavca' then
+    naslov := 'Predlog menjave čaka tvojo potrditev';
+    sporocilo := coalesce(vlagatelj, 'Sodelavec') || ' ti je poslal predlog menjave. Odpri stran Menjava.';
+    if new.sodelavec_id is not null then
+      insert into public.obvestila (user_id, message, title, url)
+      values (new.sodelavec_id, sporocilo, naslov, 'obrazec.html');
+    end if;
+
+  elsif new.status = 'caka_vodjo' then
+    naslov := 'Menjava čaka tvojo odobritev';
+    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka odobritev neposrednega vodje.';
+    if new.vodja_id is not null then
+      insert into public.obvestila (user_id, message, title, url)
+      values (new.vodja_id, sporocilo, naslov, 'obrazec.html');
+    end if;
+
+  elsif new.status = 'caka_koordinatorja' then
+    naslov := 'Menjava čaka koordinatorja';
+    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka končno potrditev koordinatorja.';
+    insert into public.obvestila (user_id, message, title, url)
+    select p.id, sporocilo, naslov, 'obrazec.html'
+    from public.profili p where p.is_koordinator;
+
+  elsif new.status in ('zakljucen', 'zavrnjen', 'preklican') then
+    naslov := case new.status
+      when 'zakljucen' then 'Menjava je odobrena'
+      when 'zavrnjen' then 'Menjava je zavrnjena'
+      else 'Menjava je preklicana'
+    end;
+    sporocilo := case new.status
+      when 'zakljucen' then 'Predlog menjave je bil dokončno odobren – razpored je posodobljen.'
+      when 'zavrnjen' then 'Predlog menjave je bil zavrnjen.' || coalesce(' Razlog: ' || new.razlog_zavrnitve, '')
+      else 'Predlog menjave je bil preklican.'
+    end;
+    insert into public.obvestila (user_id, message, title, url)
+    select x.uid, sporocilo, naslov, 'obrazec.html'
+    from (select new.vlagatelj_id as uid union select new.sodelavec_id) x
+    where x.uid is not null;
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.pocitek_ustreza(p_profile_id uuid, p_datum date, p_sifra text) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare
+  nova record; nova_od timestamp; nova_do timestamp;
+  r record; sosed record; od timestamp; do_ timestamp;
+begin
+  select * into nova from public.izmena_cas(p_sifra);
+  if nova is null then return true; end if; -- ne dela ta dan, počitek ni relevanten
+
+  nova_od := p_datum + nova.zacetek;
+  nova_do := p_datum + nova.konec + (case when nova.cez_polnoc then interval '1 day' else interval '0' end);
+
+  for r in
+    select se.work_date, se.shift_code from public.razpored se
+    where se.employee_id = p_profile_id and se.work_date between p_datum - 2 and p_datum + 2 and se.work_date <> p_datum
+  loop
+    select * into sosed from public.izmena_cas(r.shift_code);
+    if sosed is null then continue; end if;
+    od := r.work_date + sosed.zacetek;
+    do_ := r.work_date + sosed.konec + (case when sosed.cez_polnoc then interval '1 day' else interval '0' end);
+
+    if r.work_date = p_datum - 1 and lower(trim(r.shift_code)) like 'popoldan do 19%'
+       and (lower(trim(p_sifra)) like 'dopoldan%' or lower(trim(p_sifra)) like 'dnevna12%') then
+      continue; -- interna izjema, glej komentar zgoraj
+    end if;
+
+    if nova_od < do_ + public.min_pocitek() and od < nova_do + public.min_pocitek() then
+      return false;
+    end if;
+  end loop;
+  return true;
+end;
+$$;
+
+create or replace function public.prejemniki_obvestil(p_ids uuid[]) RETURNS TABLE(profile_id uuid, email text, full_name text, email_enabled boolean, push_enabled boolean)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  select p.id, p.email, p.full_name,
+         coalesce(ns.email_enabled, true),
+         coalesce(ns.push_enabled, true)
+  from public.profili p
+  left join public.nastavitve_obvestil ns on ns.profile_id = p.id
+  where p.id = any(p_ids);
+$$;
+
+create or replace function public.profiles_audit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  akter_ime text;
+  akter uuid;
+begin
+  akter := auth.uid();
+  -- Ime akterja se zapiše ob dejanju in se pozneje NE osvežuje: če se
+  -- oseba pozneje preimenuje ali izbriše, mora dnevnik še vedno brati
+  -- tako, kot je bilo ob dogodku.
+  select p.full_name into akter_ime from public.profili p where p.id = akter;
+
+  if TG_OP = 'DELETE' then
+    insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (old.id, old.full_name, 'role', old.role, null, 'delete', akter, akter_ime);
+    return old;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    -- Ob registraciji je vloga vedno privzeta ('user'); vpiše se samo, če
+    -- je račun nastal že z višjo vlogo (npr. prek uvoza).
+    if new.role is distinct from 'user' then
+      insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+      values (new.id, new.full_name, 'role', null, new.role, 'insert', akter, akter_ime);
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE: po eno vrstico na vsako dejansko spremenjeno polje, da je
+  -- dnevnik berljiv brez razbiranja, kaj se je v vrstici spremenilo.
+  if old.role is distinct from new.role then
+    insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'role', old.role, new.role, 'update', akter, akter_ime);
+  end if;
+  if old.department_code is distinct from new.department_code then
+    insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
+  end if;
+  if old.vodja_id is distinct from new.vodja_id then
+    -- Zapiše se IME vodje, ne uuid – dnevnik mora biti berljiv brez
+    -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
+    -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
+    -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
+    -- prazno, torej kot sprememba, ki se ni zgodila.
+    insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'vodja_id',
+            coalesce((select p.full_name from public.profili p where p.id = old.vodja_id), old.vodja_id::text),
+            coalesce((select p.full_name from public.profili p where p.id = new.vodja_id), new.vodja_id::text),
+            'update', akter, akter_ime);
+  end if;
+  if old.is_koordinator is distinct from new.is_koordinator then
+    insert into public.dnevnik_profilov (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
+    values (new.id, new.full_name, 'is_koordinator', old.is_koordinator::text, new.is_koordinator::text, 'update', akter, akter_ime);
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.schedule_entries_audit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if TG_OP = 'DELETE' then
+    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+    values (old.id, old.employee_id, old.department_code, old.work_date, old.shift_code, null, 'delete', auth.uid());
+    return old;
+  elsif TG_OP = 'UPDATE' then
+    -- samo, če se je dejansko kaj vidnega spremenilo (ne vsak "ping" upsert
+    -- z istimi vrednostmi - schedule_entries_touch zgoraj tako ali tako
+    -- vedno posodobi updated_at/updated_by, kar bi sicer napolnilo dnevnik
+    -- z nič-spremembami).
+    if old.shift_code is distinct from new.shift_code or old.department_code is distinct from new.department_code then
+      insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+      values (new.id, new.employee_id, new.department_code, new.work_date, old.shift_code, new.shift_code, 'update', auth.uid());
+    end if;
+    return new;
+  else
+    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
+    values (new.id, new.employee_id, new.department_code, new.work_date, null, new.shift_code, 'insert', auth.uid());
+    return new;
+  end if;
+end;
+$$;
+
+create or replace function public.schedule_entries_touch() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+begin
+  if TG_OP = 'INSERT' then
+    new.created_by := auth.uid();
+  else
+    new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
+    -- Avtorja prve objave ohrani (upsert iz aplikacije pošlje prazno polje
+    -- in bi ga sicer izbrisal) – RAZEN kadar ga prav zdaj prazni baza sama,
+    -- ker je bil avtorjev račun izbrisan ("on delete set null", odsek 30).
+    -- Takrat old.created_by kaže na profil, ki ne obstaja več; če ga vrnemo,
+    -- v vrstici ostane viseča povezava na neobstoječo osebo.
+    if not (new.created_by is null and old.created_by is not null
+            and not exists (select 1 from public.profili p where p.id = old.created_by)) then
+      new.created_by := old.created_by;
+    end if;
+  end if;
+  new.updated_at := now();
+  new.updated_by := auth.uid();
+  return new;
+end;
+$$;
+
+create or replace function public.standardiziraj_polno_ime() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  if new.full_name is not null
+     and new.full_name <> ''
+     and new.full_name = upper(new.full_name)
+     and new.full_name <> initcap(new.full_name)
+  then
+    new.full_name := initcap(new.full_name);
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.submit_swap_request(p_target_id uuid, p_requester_date date, p_target_date date, p_note text DEFAULT NULL::text) RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id bigint;
+begin
+  if p_target_id = auth.uid() then
+    raise exception 'Ne moreš predlagati menjave sam s seboj.';
+  end if;
+  insert into public.zahtevki_za_menjavo (requester_id, requester_date, target_id, target_date, note, status)
+  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, 'pending_lead')
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+
+create or replace function public.sync_leave_balance_to_hr_details() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  najnovejsi record;
+begin
+  if new.profile_id is null then
+    return new;
+  end if;
+
+  select leto, mesec into najnovejsi
+  from public.zgodovina_stanja_dopusta
+  where employee_code = new.employee_code
+  order by leto desc, mesec desc
+  limit 1;
+
+  if najnovejsi.leto = new.leto and najnovejsi.mesec = new.mesec then
+    insert into public.kadrovski_podatki (profile_id, leave_balance_days, leave_balance_asof, updated_at)
+    values (new.profile_id, new.dnevi, make_date(new.leto, new.mesec, 1), now())
+    on conflict (profile_id) do update set
+      leave_balance_days = excluded.leave_balance_days,
+      leave_balance_asof = excluded.leave_balance_asof,
+      updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.sync_primary_department() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.department_code is null then
+    return new;
+  end if;
+  -- Vse ostale oddelke te osebe premakni za enega nazaj, nato nov primarni
+  -- oddelek postavi na sort_order 0 (upsert, če ga na seznamu še ni bilo).
+  update public.pokriva_oddelek
+  set sort_order = sort_order + 1
+  where profile_id = new.id and department_code <> new.department_code;
+
+  insert into public.pokriva_oddelek (profile_id, department_code, sort_order)
+  values (new.id, new.department_code, 0)
+  on conflict (profile_id, department_code) do update set sort_order = 0;
+  return new;
+end;
+$$;
+
+create or replace function public.ustvari_opomnike_za_jutri() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  jutri date := (current_date + 1);
+  st integer;
+begin
+  insert into public.obvestila (user_id, message, title, url, kljuc)
+  select se.employee_id,
+         case when lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%'
+              then 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš dežurstvo.'
+              else 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš nočno izmeno: ' || se.shift_code || '.'
+         end,
+         'Opomnik za jutrišnjo izmeno',
+         'index.html',
+         'opomnik:' || se.employee_id || ':' || jutri
+  from public.razpored se
+  where se.work_date = jutri
+    and (lower(se.shift_code) like 'nočna%' or lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%')
+  on conflict (kljuc) where kljuc is not null do nothing;
+
+  get diagnostics st = row_count;
+  return st;
+end;
+$$;
+
+create or replace function public.zapisi_v_dnevnik(p_obrazec uuid, p_stopnja smallint, p_dejanje text, p_opomba text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_ime text; v_vloga text;
+begin
+  select full_name, role into v_ime, v_vloga from public.profili where id = auth.uid();
+  insert into public.obrazci_dnevnik (obrazec_id, stopnja, dejanje, uporabnik_id, ime_ob_dejanju, vloga_ob_dejanju, opomba)
+  values (p_obrazec, p_stopnja, p_dejanje, auth.uid(), v_ime, v_vloga, p_opomba);
+end;
+$$;
+
+drop trigger if exists ob_vstavljanju_obrazca on public.obrazci;
+CREATE TRIGGER ob_vstavljanju_obrazca BEFORE INSERT ON public.obrazci FOR EACH ROW EXECUTE FUNCTION public.obrazec_stevilka();
+
+drop trigger if exists on_leave_entry_change on public.odsotnosti;
+CREATE TRIGGER on_leave_entry_change AFTER INSERT OR DELETE OR UPDATE ON public.odsotnosti FOR EACH ROW EXECUTE FUNCTION public.log_leave_entry_change();
+
+drop trigger if exists on_obrazec_status_change on public.obrazci;
+CREATE TRIGGER on_obrazec_status_change AFTER UPDATE OF status ON public.obrazci FOR EACH ROW EXECUTE FUNCTION public.obvesti_ob_spremembi_obrazca();
+
+drop trigger if exists on_swap_status_change on public.zahtevki_za_menjavo;
+CREATE TRIGGER on_swap_status_change AFTER UPDATE ON public.zahtevki_za_menjavo FOR EACH ROW EXECUTE FUNCTION public.notify_swap_status_change();
+
+drop trigger if exists profiles_audit on public.profili;
+CREATE TRIGGER profiles_audit AFTER INSERT OR DELETE OR UPDATE ON public.profili FOR EACH ROW EXECUTE FUNCTION public.profiles_audit();
+
+drop trigger if exists schedule_entries_audit on public.razpored;
+CREATE TRIGGER schedule_entries_audit AFTER INSERT OR DELETE OR UPDATE ON public.razpored FOR EACH ROW EXECUTE FUNCTION public.schedule_entries_audit();
+
+drop trigger if exists schedule_entries_touch on public.razpored;
+CREATE TRIGGER schedule_entries_touch BEFORE INSERT OR UPDATE ON public.razpored FOR EACH ROW EXECUTE FUNCTION public.schedule_entries_touch();
+
+drop trigger if exists trg_standardiziraj_polno_ime on public.profili;
+CREATE TRIGGER trg_standardiziraj_polno_ime BEFORE INSERT OR UPDATE OF full_name ON public.profili FOR EACH ROW EXECUTE FUNCTION public.standardiziraj_polno_ime();
+
+drop trigger if exists trg_sync_leave_balance on public.zgodovina_stanja_dopusta;
+CREATE TRIGGER trg_sync_leave_balance AFTER INSERT OR UPDATE OF dnevi, profile_id ON public.zgodovina_stanja_dopusta FOR EACH ROW EXECUTE FUNCTION public.sync_leave_balance_to_hr_details();
+
+drop trigger if exists trg_sync_primary_department on public.profili;
+CREATE TRIGGER trg_sync_primary_department AFTER INSERT OR UPDATE OF department_code ON public.profili FOR EACH ROW EXECUTE FUNCTION public.sync_primary_department();
+
+
+-- =====================================================================
+-- 7. POGLEDI (Views)
+-- ---------------------------------------------------------------------
+-- Opirajo se na tabele in tuje ključe (3-4) IN na funkcije (6).
+-- Pravice (grant) so tu, ker se del nanaša prav na te poglede.
+-- =====================================================================
+
+create or replace view public.menjave_javno AS
+ SELECT vlagatelj_id,
+    sodelavec_id,
+    ((polja ->> 'datum_a'::text))::date AS datum_a,
+    ((polja ->> 'datum_b'::text))::date AS datum_b
+   FROM public.obrazci o
+  WHERE ((vrsta = 'menjava_sluzbe'::text) AND (status = 'zakljucen'::text) AND (polja ? 'datum_a'::text) AND (polja ? 'datum_b'::text));
+
+create or replace view public.obrazci_moja_naloga WITH (security_invoker='true') AS
+ SELECT id,
+    stevilka,
+    vrsta,
+    status,
+    vlagatelj_id,
+    sodelavec_id,
+    vodja_id,
+    koordinator_id,
+    polja,
+    ustvarjen,
+    zakljucen_dne,
+    razlog_zavrnitve,
+    je_dezurstvo,
+        CASE
+            WHEN ((status = 'caka_sodelavca'::text) AND (sodelavec_id = auth.uid())) THEN 'potrdi_kot_sodelavec'::text
+            WHEN ((status = 'caka_vodjo'::text) AND (vodja_id = auth.uid())) THEN 'odobri_kot_vodja'::text
+            WHEN ((status = 'caka_koordinatorja'::text) AND je_dezurstvo AND public.current_is_koordinator()) THEN 'potrdi_kot_koordinator'::text
+            WHEN ((status = 'caka_koordinatorja'::text) AND (NOT je_dezurstvo) AND public.current_role_is('admin'::text)) THEN 'potrdi_kot_koordinator'::text
+            ELSE NULL::text
+        END AS moje_dejanje
+   FROM public.obrazci o;
+
+create or replace view public.stanje_dopusta_obdobja WITH (security_invoker='true') AS
+ SELECT leto,
+    mesec,
+    count(*) AS stevilo_oseb,
+    max(uvozeno) AS zadnji_uvoz
+   FROM public.zgodovina_stanja_dopusta
+  GROUP BY leto, mesec
+  ORDER BY leto DESC, mesec DESC;
+
+create or replace view public.stanje_dopusta_pregled WITH (security_invoker='true') AS
+ SELECT id,
+    employee_code,
+    full_name,
+    leto,
+    mesec,
+    dnevi,
+    profile_id,
+    uvozeno,
+    lag(dnevi) OVER (PARTITION BY employee_code ORDER BY leto, mesec) AS dnevi_prejsnji,
+    (dnevi - lag(dnevi) OVER (PARTITION BY employee_code ORDER BY leto, mesec)) AS sprememba
+   FROM public.zgodovina_stanja_dopusta h;
+
+create or replace view public.uvozi_kontaktov_javno AS
+ SELECT id,
+    full_name,
+    department_code,
+    role,
+    linked_profile_id,
+    created_at,
+    email,
+        CASE
+            WHEN (public.current_role_is('admin'::text) OR public.current_role_is('vodja'::text)) THEN phone
+            ELSE NULL::text
+        END AS phone,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN employee_code
+            ELSE NULL::text
+        END AS employee_code,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN birth_date
+            ELSE NULL::date
+        END AS birth_date,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN position_name
+            ELSE NULL::text
+        END AS position_name,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN manager_name
+            ELSE NULL::text
+        END AS manager_name,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN parental_leave
+            ELSE NULL::text
+        END AS parental_leave,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN annual_leave_total
+            ELSE NULL::integer
+        END AS annual_leave_total,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN leave_balance_days
+            ELSE NULL::integer
+        END AS leave_balance_days,
+        CASE
+            WHEN public.current_role_is('admin'::text) THEN leave_balance_asof
+            ELSE NULL::date
+        END AS leave_balance_asof
+   FROM public.uvozi_kontaktov;
+
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+
+GRANT ALL ON FUNCTION public.decide_swap_admin(p_swap_id bigint, p_approve boolean, p_note text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.decide_swap_lead(p_swap_id bigint, p_approve boolean, p_note text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
+
+REVOKE ALL ON FUNCTION public.koledar_razpored(p_token text, p_od date, p_do date) FROM PUBLIC;
+
+GRANT ALL ON FUNCTION public.mozni_sodelavci(p_profile_id uuid, p_datum date) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obrazec_oddaj(p_id uuid) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obrazec_potrdi_vodja(p_id uuid, p_sprejmi boolean, p_opomba text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obrazec_preklici(p_id uuid, p_opomba text) TO authenticated;
+
+GRANT ALL ON FUNCTION public.obvesti_o_objavi_razporeda(p_start date, p_end date, p_oddelek text) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.prejemniki_obvestil(p_ids uuid[]) FROM PUBLIC;
+
+GRANT ALL ON FUNCTION public.submit_swap_request(p_target_id uuid, p_requester_date date, p_target_date date, p_note text) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.zapisi_v_dnevnik(p_obrazec uuid, p_stopnja smallint, p_dejanje text, p_opomba text) FROM PUBLIC;
+
+GRANT SELECT ON TABLE public.menjave_javno TO authenticated;
+
+GRANT ALL ON TABLE public.profili TO supabase_auth_admin;
+
+GRANT SELECT ON TABLE public.uvozi_kontaktov_javno TO authenticated;
+
+
+-- =====================================================================
+-- 8. VARNOST NA VRSTICO (RLS) IN POLITIKE
+-- ---------------------------------------------------------------------
+-- Politike se sklicujejo na funkcije iz razdelka 7, zato so za njim.
+-- =====================================================================
+
+ALTER TABLE public.barvne_oznake ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dezurni_zdravniki ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dnevnik_odsotnosti ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dnevnik_ogledov ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dnevnik_profilov ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.dnevnik_razporeda ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.kadrovski_podatki ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.koledarski_zetoni ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.minimalna_zasedba ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.nastavitve_obvestil ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.nosilci_oddelkov ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.obrazci ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.obrazci_dnevnik ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.obvestila ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.oddelki ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.odsotnosti ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.pokriva_oddelek ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.potisne_narocnine ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.profili ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.razpored ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.telefoni_kontaktov ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.uvozi_kontaktov ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.zahtevki_za_menjavo ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.zelje_zaposlenih ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.zgodovina_stanja_dopusta ENABLE ROW LEVEL SECURITY;
+
+drop policy if exists absence_color_map_admin on public.barvne_oznake;
+CREATE POLICY absence_color_map_admin ON public.barvne_oznake TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists admin_view_as_log_insert on public.dnevnik_ogledov;
+CREATE POLICY admin_view_as_log_insert ON public.dnevnik_ogledov FOR INSERT TO authenticated WITH CHECK ((public.current_role_is('admin'::text) AND (admin_id = auth.uid())));
+
+drop policy if exists admin_view_as_log_select on public.dnevnik_ogledov;
+CREATE POLICY admin_view_as_log_select ON public.dnevnik_ogledov FOR SELECT TO authenticated USING (public.current_role_is('admin'::text));
+
+drop policy if exists admin_view_as_log_update on public.dnevnik_ogledov;
+CREATE POLICY admin_view_as_log_update ON public.dnevnik_ogledov FOR UPDATE TO authenticated USING ((public.current_role_is('admin'::text) AND (admin_id = auth.uid()))) WITH CHECK ((public.current_role_is('admin'::text) AND (admin_id = auth.uid())));
+
+drop policy if exists calendar_tokens_own on public.koledarski_zetoni;
+CREATE POLICY calendar_tokens_own ON public.koledarski_zetoni FOR SELECT TO authenticated USING ((profile_id = auth.uid()));
+
+drop policy if exists contact_imports_admin on public.uvozi_kontaktov;
+CREATE POLICY contact_imports_admin ON public.uvozi_kontaktov TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists contact_phones_admin_all on public.telefoni_kontaktov;
+CREATE POLICY contact_phones_admin_all ON public.telefoni_kontaktov TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists contact_phones_select on public.telefoni_kontaktov;
+CREATE POLICY contact_phones_select ON public.telefoni_kontaktov FOR SELECT TO authenticated USING (((profile_id = auth.uid()) OR public.current_role_is('admin'::text) OR public.current_role_is('vodja'::text)));
+
+drop policy if exists contact_phones_update_own on public.telefoni_kontaktov;
+CREATE POLICY contact_phones_update_own ON public.telefoni_kontaktov FOR UPDATE TO authenticated USING ((profile_id = auth.uid())) WITH CHECK ((profile_id = auth.uid()));
+
+drop policy if exists contact_phones_upsert_own on public.telefoni_kontaktov;
+CREATE POLICY contact_phones_upsert_own ON public.telefoni_kontaktov FOR INSERT TO authenticated WITH CHECK ((profile_id = auth.uid()));
+
+drop policy if exists departments_select on public.oddelki;
+CREATE POLICY departments_select ON public.oddelki FOR SELECT TO authenticated USING (true);
+
+drop policy if exists departments_write_admin on public.oddelki;
+CREATE POLICY departments_write_admin ON public.oddelki TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists dept_min_select on public.minimalna_zasedba;
+CREATE POLICY dept_min_select ON public.minimalna_zasedba FOR SELECT TO authenticated USING (true);
+
+drop policy if exists dept_min_write on public.minimalna_zasedba;
+CREATE POLICY dept_min_write ON public.minimalna_zasedba TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists duty_doctors_select on public.dezurni_zdravniki;
+CREATE POLICY duty_doctors_select ON public.dezurni_zdravniki FOR SELECT TO authenticated USING (true);
+
+drop policy if exists duty_doctors_write on public.dezurni_zdravniki;
+CREATE POLICY duty_doctors_write ON public.dezurni_zdravniki TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists employee_wishes_delete on public.zelje_zaposlenih;
+CREATE POLICY employee_wishes_delete ON public.zelje_zaposlenih FOR DELETE TO authenticated USING ((public.current_role_is('admin'::text) OR (created_by = auth.uid())));
+
+drop policy if exists employee_wishes_insert on public.zelje_zaposlenih;
+CREATE POLICY employee_wishes_insert ON public.zelje_zaposlenih FOR INSERT TO authenticated WITH CHECK ((public.current_role_is('admin'::text) OR public.current_role_is('vodja'::text) OR ((profile_id = auth.uid()) AND (department_code = public.current_department()))));
+
+drop policy if exists employee_wishes_select on public.zelje_zaposlenih;
+CREATE POLICY employee_wishes_select ON public.zelje_zaposlenih FOR SELECT TO authenticated USING ((public.current_role_is('admin'::text) OR public.current_role_is('vodja'::text) OR (department_code = public.current_department())));
+
+drop policy if exists employee_wishes_update on public.zelje_zaposlenih;
+CREATE POLICY employee_wishes_update ON public.zelje_zaposlenih FOR UPDATE TO authenticated USING ((public.current_role_is('admin'::text) OR (created_by = auth.uid()))) WITH CHECK ((public.current_role_is('admin'::text) OR ((created_by = auth.uid()) AND public.current_role_is('vodja'::text)) OR ((created_by = auth.uid()) AND (department_code = public.current_department()) AND (full_name = ( SELECT profili.full_name
+   FROM public.profili
+  WHERE (profili.id = auth.uid()))))));
+
+drop policy if exists lead_departments_select on public.nosilci_oddelkov;
+CREATE POLICY lead_departments_select ON public.nosilci_oddelkov FOR SELECT TO authenticated USING (true);
+
+drop policy if exists lead_departments_write_admin on public.nosilci_oddelkov;
+CREATE POLICY lead_departments_write_admin ON public.nosilci_oddelkov TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists leave_balance_history_admin_write on public.zgodovina_stanja_dopusta;
+CREATE POLICY leave_balance_history_admin_write ON public.zgodovina_stanja_dopusta TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists leave_balance_history_select on public.zgodovina_stanja_dopusta;
+CREATE POLICY leave_balance_history_select ON public.zgodovina_stanja_dopusta FOR SELECT TO authenticated USING ((public.current_role_is('admin'::text) OR (profile_id = auth.uid())));
+
+drop policy if exists leave_entries_log_select on public.dnevnik_odsotnosti;
+CREATE POLICY leave_entries_log_select ON public.dnevnik_odsotnosti FOR SELECT TO authenticated USING (public.current_role_is('admin'::text));
+
+drop policy if exists leave_entries_select on public.odsotnosti;
+CREATE POLICY leave_entries_select ON public.odsotnosti FOR SELECT TO authenticated USING (true);
+
+drop policy if exists leave_entries_write on public.odsotnosti;
+CREATE POLICY leave_entries_write ON public.odsotnosti TO authenticated USING ((public.current_role_is('admin'::text) OR (public.imena_se_ujemata(full_name, public.current_full_name()) AND public.leave_entry_rok_odprt(work_date)))) WITH CHECK ((public.current_role_is('admin'::text) OR (public.imena_se_ujemata(full_name, public.current_full_name()) AND public.leave_entry_rok_odprt(work_date))));
+
+drop policy if exists notif_settings_select on public.nastavitve_obvestil;
+CREATE POLICY notif_settings_select ON public.nastavitve_obvestil FOR SELECT TO authenticated USING (((profile_id = auth.uid()) OR public.current_role_is('admin'::text)));
+
+drop policy if exists notif_settings_update on public.nastavitve_obvestil;
+CREATE POLICY notif_settings_update ON public.nastavitve_obvestil FOR UPDATE TO authenticated USING ((profile_id = auth.uid())) WITH CHECK ((profile_id = auth.uid()));
+
+drop policy if exists notif_settings_upsert on public.nastavitve_obvestil;
+CREATE POLICY notif_settings_upsert ON public.nastavitve_obvestil FOR INSERT TO authenticated WITH CHECK ((profile_id = auth.uid()));
+
+drop policy if exists notifications_select on public.obvestila;
+CREATE POLICY notifications_select ON public.obvestila FOR SELECT TO authenticated USING ((user_id = auth.uid()));
+
+drop policy if exists notifications_update_own on public.obvestila;
+CREATE POLICY notifications_update_own ON public.obvestila FOR UPDATE TO authenticated USING ((user_id = auth.uid())) WITH CHECK ((user_id = auth.uid()));
+
+drop policy if exists obrazci_dnevnik_select on public.obrazci_dnevnik;
+CREATE POLICY obrazci_dnevnik_select ON public.obrazci_dnevnik FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM public.obrazci o
+  WHERE ((o.id = obrazci_dnevnik.obrazec_id) AND ((o.vlagatelj_id = auth.uid()) OR (o.sodelavec_id = auth.uid()) OR (o.vodja_id = auth.uid()) OR public.current_role_is('admin'::text))))));
+
+drop policy if exists obrazci_insert on public.obrazci;
+CREATE POLICY obrazci_insert ON public.obrazci FOR INSERT TO authenticated WITH CHECK (((vlagatelj_id = auth.uid()) AND (status = 'osnutek'::text)));
+
+drop policy if exists obrazci_select on public.obrazci;
+CREATE POLICY obrazci_select ON public.obrazci FOR SELECT TO authenticated USING (((vlagatelj_id = auth.uid()) OR (sodelavec_id = auth.uid()) OR (vodja_id = auth.uid()) OR public.current_role_is('admin'::text) OR public.current_is_koordinator() OR ((vrsta = 'menjava_sluzbe'::text) AND (status <> 'osnutek'::text) AND (date_trunc('month'::text, (((polja ->> 'datum_a'::text))::date)::timestamp with time zone) = date_trunc('month'::text, (CURRENT_DATE)::timestamp with time zone)))));
+
+drop policy if exists profile_departments_admin_write on public.pokriva_oddelek;
+CREATE POLICY profile_departments_admin_write ON public.pokriva_oddelek TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists profile_departments_select on public.pokriva_oddelek;
+CREATE POLICY profile_departments_select ON public.pokriva_oddelek FOR SELECT TO authenticated USING (true);
+
+drop policy if exists profile_hr_details_admin_write on public.kadrovski_podatki;
+CREATE POLICY profile_hr_details_admin_write ON public.kadrovski_podatki TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists profile_hr_details_select on public.kadrovski_podatki;
+CREATE POLICY profile_hr_details_select ON public.kadrovski_podatki FOR SELECT TO authenticated USING (((profile_id = auth.uid()) OR public.current_role_is('admin'::text)));
+
+drop policy if exists profiles_log_select_admin on public.dnevnik_profilov;
+CREATE POLICY profiles_log_select_admin ON public.dnevnik_profilov FOR SELECT TO authenticated USING (public.current_role_is('admin'::text));
+
+drop policy if exists profiles_select on public.profili;
+CREATE POLICY profiles_select ON public.profili FOR SELECT TO authenticated USING (true);
+
+drop policy if exists profiles_update_admin on public.profili;
+CREATE POLICY profiles_update_admin ON public.profili FOR UPDATE TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists push_subscriptions_own on public.potisne_narocnine;
+CREATE POLICY push_subscriptions_own ON public.potisne_narocnine TO authenticated USING ((profile_id = auth.uid())) WITH CHECK ((profile_id = auth.uid()));
+
+drop policy if exists schedule_entries_log_select_admin on public.dnevnik_razporeda;
+CREATE POLICY schedule_entries_log_select_admin ON public.dnevnik_razporeda FOR SELECT TO authenticated USING (public.current_role_is('admin'::text));
+
+drop policy if exists schedule_select on public.razpored;
+CREATE POLICY schedule_select ON public.razpored FOR SELECT TO authenticated USING (true);
+
+drop policy if exists schedule_write_admin on public.razpored;
+CREATE POLICY schedule_write_admin ON public.razpored TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists swap_select on public.zahtevki_za_menjavo;
+CREATE POLICY swap_select ON public.zahtevki_za_menjavo FOR SELECT TO authenticated USING (((requester_id = auth.uid()) OR (target_id = auth.uid()) OR public.current_role_is('admin'::text) OR public.current_is_koordinator() OR (public.current_role_is('vodja'::text) AND (public.current_department() = ( SELECT profili.department_code
+   FROM public.profili
+  WHERE (profili.id = zahtevki_za_menjavo.requester_id))))));
+
+
+-- =====================================================================
+-- 9. ZAČETNI PODATKI (Seed)
+-- ---------------------------------------------------------------------
+-- Šele tu, ko tabele, ključi in funkcije obstajajo. Vsi vnosi so
+-- idempotentni (on conflict), zato ponoven zagon ničesar ne podvoji.
+-- =====================================================================
+
+insert into public.oddelki (code, name) values
   ('B',  'B – oddelek'),
   ('C',  'C – oddelek'),
   ('C1', 'C1 – oddelek'),
@@ -47,39 +2755,18 @@ insert into public.departments (code, name) values
   ('U2',   'U2')
 on conflict (code) do update set name = excluded.name;
 
--- ---------------------------------------------------------------------
--- 2) profiles – 1:1 z auth.users, nosi vlogo in oddelek/ekipo
--- ---------------------------------------------------------------------
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  full_name text not null,
-  role text not null default 'user' check (role in ('admin', 'vodja', 'user')),
-  department_code text references public.departments (code) on update cascade,
-  created_at timestamptz not null default now()
-);
-
--- Varovalka: "create table if not exists" zgoraj je no-op, če "profiles"
--- že obstaja (npr. iz prejšnjega delnega zagona ali ročnega urejanja v
--- Table Editorju) – NE doda manjkajočih stolpcev nazaj. Spodnje
--- "add column if not exists" to zagotovi, ne glede na to, v kakšnem
--- stanju je tabela pred tem zagonom.
-alter table public.profiles add column if not exists role text not null default 'user';
-alter table public.profiles add column if not exists department_code text;
-alter table public.profiles add column if not exists created_at timestamptz not null default now();
-
-alter table public.profiles drop constraint if exists profiles_role_check;
-alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'vodja', 'user'));
 
 do $$
 begin
   if not exists (
     select 1 from pg_constraint where conname = 'profiles_department_code_fkey'
   ) then
-    alter table public.profiles
+    alter table public.profili
       add constraint profiles_department_code_fkey
-      foreign key (department_code) references public.departments (code) on update cascade;
+      foreign key (department_code) references public.oddelki (code) on update cascade;
   end if;
 end $$;
+
 
 -- Enkratna migracija: če v tej bazi zaradi ročnega urejanja v Table
 -- Editorju obstaja ločen stolpec "Admin" (z veliko začetnico, namesto
@@ -91,765 +2778,31 @@ do $$
 begin
   if exists (
     select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'profiles' and column_name = 'Admin'
+    where table_schema = 'public' and table_name = 'profili' and column_name = 'Admin'
   ) then
-    execute 'update public.profiles set role = "Admin" where "Admin" is not null';
-    execute 'alter table public.profiles drop column "Admin"';
+    execute 'update public.profili set role = "Admin" where "Admin" is not null';
+    execute 'alter table public.profili drop column "Admin"';
   end if;
 end $$;
 
--- Ob registraciji ALI Auth → "Invite user" (auth.users insert) samodejno
--- ustvari profil z vlogo 'user'. Ime se vzame iz signUp({ options: { data:
--- { full_name } } }); pri povabilu po e-pošti te metapodatke večinoma ni,
--- zato pade nazaj na e-poštni naslov – admin ga kasneje popravi v
--- admin.html → Uporabniki.
---
--- Sprožilec teče v transakciji GoTrue (Supabase Auth) storitve, ki jo
--- izvaja vloga supabase_auth_admin, ne "postgres" iz SQL Editorja – zato
--- spodnji grant-i, brez njih lahko GoTrue vrne generično napako
--- "Database error saving new user", ko sprožilec zaradi manjkajočih
--- pravic ne more zapisati v public.profiles.
---
--- Dodatno: telo je zavito v exception handler, da napaka pri ustvarjanju
--- profila (npr. začasna težava, podvojen vnos) NIKOLI ne prepreči
--- ustvarjanja samega Auth računa – brez tega bi vsaka nepričakovana
--- napaka tu pomenila, da se noben nov uporabnik ne more registrirati/biti
--- povabljen, dokler je ne odpravimo.
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-begin
-  insert into public.profiles (id, full_name, role, email)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data ->> 'full_name', new.email, 'Neznano ime'),
-    'user',
-    new.email
-  )
-  on conflict (id) do update set email = excluded.email where profiles.email is null;
-  return new;
-exception
-  when others then
-    raise warning 'handle_new_user: ustvarjanje profila za % ni uspelo: %', new.id, sqlerrm;
-    return new;
-end;
-$$;
-
--- Brez tega GoTrue (vloga supabase_auth_admin) pogosto ne more sprožiti
--- zgornje funkcije, kar se navzven kaže kot "Database error saving new user".
-grant usage on schema public to supabase_auth_admin;
-grant all on public.profiles to supabase_auth_admin;
-grant execute on function public.handle_new_user() to supabase_auth_admin;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
--- ---------------------------------------------------------------------
--- 3) schedule_entries – en zapis = en zaposleni, en dan, ena izmena
--- ---------------------------------------------------------------------
-create table if not exists public.schedule_entries (
-  id bigint generated always as identity primary key,
-  employee_id uuid not null references public.profiles (id) on delete cascade,
-  department_code text not null references public.departments (code) on update cascade,
-  work_date date not null,
-  shift_code text not null default '',
-  updated_at timestamptz not null default now(),
-  unique (employee_id, work_date)
-);
-create index if not exists schedule_entries_date_idx on public.schedule_entries (work_date);
-create index if not exists schedule_entries_dept_idx on public.schedule_entries (department_code, work_date);
-
--- ---------------------------------------------------------------------
--- 4) swap_requests – dvostopenjska odobritev (vodja → admin)
--- ---------------------------------------------------------------------
-create table if not exists public.swap_requests (
-  id bigint generated always as identity primary key,
-  requester_id uuid not null references public.profiles (id),
-  requester_date date not null,
-  target_id uuid not null references public.profiles (id),
-  target_date date not null,
-  note text,
-  status text not null default 'pending_lead' check (
-    status in ('pending_lead', 'pending_admin', 'approved', 'rejected_by_lead', 'rejected_by_admin')
-  ),
-  lead_id uuid references public.profiles (id),
-  lead_decided_at timestamptz,
-  lead_note text,
-  admin_id uuid references public.profiles (id),
-  admin_decided_at timestamptz,
-  admin_note text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (requester_id <> target_id)
-);
-create index if not exists swap_requests_requester_idx on public.swap_requests (requester_id);
-create index if not exists swap_requests_target_idx on public.swap_requests (target_id);
-create index if not exists swap_requests_status_idx on public.swap_requests (status);
-
--- ---------------------------------------------------------------------
--- 5) notifications – obveščanje samo znotraj aplikacije
--- ---------------------------------------------------------------------
-create table if not exists public.notifications (
-  id bigint generated always as identity primary key,
-  user_id uuid not null references public.profiles (id) on delete cascade,
-  swap_request_id bigint references public.swap_requests (id) on delete cascade,
-  message text not null,
-  read_at timestamptz,
-  created_at timestamptz not null default now()
-);
-create index if not exists notifications_user_idx on public.notifications (user_id, read_at);
-
-create or replace function public.notify_swap_status_change()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  msg text;
-begin
-  if new.status = old.status then
-    return new;
-  end if;
-  msg := case new.status
-    when 'pending_admin'     then 'Vodja je odobril predlog menjave – čaka na administratorja.'
-    when 'approved'          then 'Menjava izmene je bila potrjena.'
-    when 'rejected_by_lead'  then 'Vodja je zavrnil predlog menjave.'
-    when 'rejected_by_admin' then 'Administrator je zavrnil predlog menjave.'
-    else 'Status predloga menjave se je spremenil: ' || new.status
-  end;
-  insert into public.notifications (user_id, swap_request_id, message)
-  values (new.requester_id, new.id, msg), (new.target_id, new.id, msg);
-  return new;
-end;
-$$;
-
-drop trigger if exists on_swap_status_change on public.swap_requests;
-create trigger on_swap_status_change
-  after update on public.swap_requests
-  for each row execute function public.notify_swap_status_change();
-
--- ---------------------------------------------------------------------
--- 6) Pomožne funkcije za RLS
--- ---------------------------------------------------------------------
-create or replace function public.current_role_is(p_role text)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1 from public.profiles where id = auth.uid() and role = p_role
-  );
-$$;
-
-create or replace function public.current_department()
-returns text
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select department_code from public.profiles where id = auth.uid();
-$$;
-
--- ---------------------------------------------------------------------
--- 6b) Imenik (kontakti) – e-pošta na profiles, telefon v LOČENI tabeli
---     (contact_phones), da nivojsko vidljivost zagotavlja navadna
---     vrstična RLS, ne krhko stolpčno omejevanje na že široko
---     poizvedovani tabeli "profiles" (ki ima "select using (true)").
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists email text;
 
 -- Enkraten popravek za profile, ustvarjene PRED to spremembo (sprožilec
 -- spodaj odslej sam vpiše e-pošto ob registraciji; za obstoječe jo je
 -- treba prekopirati iz auth.users, ki ni neposredno vidna odjemalcem).
-update public.profiles p
+update public.profili p
 set email = u.email
 from auth.users u
 where p.id = u.id and p.email is null;
 
-create table if not exists public.contact_phones (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  phone text,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.contact_phones enable row level security;
-
--- Telefon vidijo: lastnik (svoj), admin (vsi) in vodja (vsi) – navaden
--- uporabnik tuje telefonske številke NE vidi (samo e-pošto, ki je na
--- profiles in torej vidna vsem). To je prava vrstična RLS: če vrstica ni
--- vidna klicatelju, PostgREST pri vgnezdenem povpraševanju
--- profiles→contact_phones vrne phone: null, ne napake.
-drop policy if exists contact_phones_select on public.contact_phones;
-create policy contact_phones_select on public.contact_phones
-  for select to authenticated using (
-    profile_id = auth.uid()
-    or public.current_role_is('admin')
-    or public.current_role_is('vodja')
-  );
-
-drop policy if exists contact_phones_upsert_own on public.contact_phones;
-create policy contact_phones_upsert_own on public.contact_phones
-  for insert to authenticated with check (profile_id = auth.uid());
-drop policy if exists contact_phones_update_own on public.contact_phones;
-create policy contact_phones_update_own on public.contact_phones
-  for update to authenticated using (profile_id = auth.uid()) with check (profile_id = auth.uid());
-
-drop policy if exists contact_phones_admin_all on public.contact_phones;
-create policy contact_phones_admin_all on public.contact_phones
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- contact_imports: admin vnaprej naloži seznam vseh zaposlenih (ime,
--- e-pošta, telefon, predlagana vloga/oddelek), preden se ti sami
--- registrirajo (ni service_role ključa za neposredno ustvarjanje Auth
--- računov – glej SUPABASE-SETUP.md). Ko se oseba dejansko registrira s to
--- e-pošto, admin v Imeniku njen nov profil ročno "poveže" s to vrstico
--- (linked_profile_id) – s tem se telefon/vloga/oddelek prekopirajo vanj.
-create table if not exists public.contact_imports (
-  id uuid primary key default gen_random_uuid(),
-  full_name text not null,
-  email text not null,
-  phone text,
-  role text check (role in ('admin', 'vodja', 'user')),
-  department_code text references public.departments (code) on update cascade,
-  linked_profile_id uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now()
-);
-
--- POZOR: ker je zgornji "create table IF NOT EXISTS" na obstoječi (že prej
--- ustvarjeni) tabeli no-op, stolpcev, dodanih pozneje, NI SMELO biti znotraj
--- tega bloka (bili so v prejšnji različici te datoteke - napaka, ki je
--- povzročila "column employee_code does not exist" pri poganjanju pogleda
--- spodaj na bazi, kjer je contact_imports že obstajala pred to spremembo).
--- "alter table add column if not exists" deluje pravilno v obeh primerih
--- (nova IN že obstoječa tabela), zato se od tu naprej dosledno uporablja to.
-alter table public.contact_imports add column if not exists employee_code text;
-alter table public.contact_imports add column if not exists birth_date date;
-alter table public.contact_imports add column if not exists position_name text;
-alter table public.contact_imports add column if not exists manager_name text;
-alter table public.contact_imports add column if not exists parental_leave text;
-alter table public.contact_imports add column if not exists annual_leave_total integer;
-alter table public.contact_imports add column if not exists leave_balance_days integer;
-alter table public.contact_imports add column if not exists leave_balance_asof date;
-
-alter table public.contact_imports enable row level security;
-drop policy if exists contact_imports_admin on public.contact_imports;
-create policy contact_imports_admin on public.contact_imports
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- contact_imports_public: na izrecno željo morajo biti VSI vneseni podatki
--- takoj vidni v Imeniku, TUDI za še ne povezane (neregistrirane) osebe – ne
--- samo adminu v "Uvoz zaposlenih". Osnovna tabela contact_imports ostaja
--- admin-only (ureja jo samo admin), ta pogled pa istim vidnostnim pravilom
--- kot pri registriranih profilih (e-pošta vsem, telefon admin+vodja, HR
--- polja samo admin – ni "lastnika", ker oseba še ni registrirana) izpostavi
--- BRANJE vsem prijavljenim. Pogled ni "security invoker": teče s pravicami
--- lastnika (privzeto obnašanje navadnega pogleda), zato prebere vse vrstice
--- ne glede na RLS na contact_imports – vidnost posameznih stolpcev namesto
--- tega vsili spodnja CASE logika, ovrednotena za VSAKEGA klicatelja posebej
--- (current_role_is bere iz profiles glede na auth.uid() klicatelja).
-create or replace view public.contact_imports_public as
-select
-  id, full_name, department_code, role, linked_profile_id, created_at, email,
-  case when public.current_role_is('admin') or public.current_role_is('vodja') then phone else null end as phone,
-  case when public.current_role_is('admin') then employee_code else null end as employee_code,
-  case when public.current_role_is('admin') then birth_date else null end as birth_date,
-  case when public.current_role_is('admin') then position_name else null end as position_name,
-  case when public.current_role_is('admin') then manager_name else null end as manager_name,
-  case when public.current_role_is('admin') then parental_leave else null end as parental_leave,
-  case when public.current_role_is('admin') then annual_leave_total else null end as annual_leave_total,
-  case when public.current_role_is('admin') then leave_balance_days else null end as leave_balance_days,
-  case when public.current_role_is('admin') then leave_balance_asof else null end as leave_balance_asof
-from public.contact_imports;
-
-grant select on public.contact_imports_public to authenticated;
-
--- profile_hr_details: dodatni HR podatki (šifra zaposlenega, datum rojstva,
--- naziv delovnega mesta, vodja, starševsko varstvo, letni dopust), ki se
--- prekopirajo iz contact_imports ob "Poveži". Bolj občutljivi kot telefon
--- (rojstni datum!), zato ožja vidljivost kot pri contact_phones: lastnik vidi
--- SAMO svoje ("vsak vidi podatke samo zase"), admin vidi in ureja vse,
--- vodja NIMA dostopa (ni bilo izrecno naročeno, za razliko od telefona).
-create table if not exists public.profile_hr_details (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  employee_code text,
-  birth_date date,
-  position_name text,
-  manager_name text,
-  parental_leave text,
-  annual_leave_total integer,
-  updated_at timestamptz not null default now()
-);
-
--- Ista past kot pri contact_imports zgoraj (glej opombo tam) - leave_balance_*
--- je bil prej pomotoma znotraj "create table if not exists", kar na že
--- obstoječi tabeli ne naredi ničesar.
-alter table public.profile_hr_details add column if not exists leave_balance_days integer;
-alter table public.profile_hr_details add column if not exists leave_balance_asof date;
-
-alter table public.profile_hr_details enable row level security;
-drop policy if exists profile_hr_details_select on public.profile_hr_details;
-create policy profile_hr_details_select on public.profile_hr_details
-  for select to authenticated using (
-    profile_id = auth.uid() or public.current_role_is('admin')
-  );
-drop policy if exists profile_hr_details_admin_write on public.profile_hr_details;
-create policy profile_hr_details_admin_write on public.profile_hr_details
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- ---------------------------------------------------------------------
--- 7) RLS
--- ---------------------------------------------------------------------
-alter table public.departments enable row level security;
-alter table public.profiles enable row level security;
-alter table public.schedule_entries enable row level security;
-alter table public.swap_requests enable row level security;
-alter table public.notifications enable row level security;
-
-drop policy if exists departments_select on public.departments;
-create policy departments_select on public.departments
-  for select to authenticated using (true);
-
-drop policy if exists departments_write_admin on public.departments;
-create policy departments_write_admin on public.departments
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- profiles: vsi prijavljeni vidijo vsa imena (potrebno za izbiro sodelavca
--- pri predlogu menjave); ureja jih samo admin (vloga, oddelek, ime).
-drop policy if exists profiles_select on public.profiles;
-create policy profiles_select on public.profiles
-  for select to authenticated using (true);
-
-drop policy if exists profiles_update_admin on public.profiles;
-create policy profiles_update_admin on public.profiles
-  for update to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- profile_departments: en zaposleni lahko pokriva VEČ oddelkov (na izrecno
--- željo, prikazano/urejano v Imeniku) - "primaren" (sort_order najnižji) je
--- tisti, ki šteje za generator urnika. Namenoma NE spreminja WARDS_META /
--- lead_departments / obstoječega generatorja (admin.html) - ta še naprej
--- uporablja izključno profiles.department_code (=primarni oddelek), da se
--- ne tvega regresij v že delujočem generiranju razporeda. Sprožilec spodaj
--- profiles.department_code drži usklajen s "primarnim" vnosom tukaj, ne
--- glede na to, kateri del aplikacije department_code spremeni.
-create table if not exists public.profile_departments (
-  id uuid primary key default gen_random_uuid(),
-  profile_id uuid not null references public.profiles (id) on delete cascade,
-  department_code text not null references public.departments (code) on update cascade,
-  sort_order integer not null default 0,
-  unique (profile_id, department_code)
-);
-
-alter table public.profile_departments enable row level security;
-drop policy if exists profile_departments_select on public.profile_departments;
-create policy profile_departments_select on public.profile_departments
-  for select to authenticated using (true);
-drop policy if exists profile_departments_admin_write on public.profile_departments;
-create policy profile_departments_admin_write on public.profile_departments
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
-create or replace function public.sync_primary_department()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if new.department_code is null then
-    return new;
-  end if;
-  -- Vse ostale oddelke te osebe premakni za enega nazaj, nato nov primarni
-  -- oddelek postavi na sort_order 0 (upsert, če ga na seznamu še ni bilo).
-  update public.profile_departments
-  set sort_order = sort_order + 1
-  where profile_id = new.id and department_code <> new.department_code;
-
-  insert into public.profile_departments (profile_id, department_code, sort_order)
-  values (new.id, new.department_code, 0)
-  on conflict (profile_id, department_code) do update set sort_order = 0;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_sync_primary_department on public.profiles;
-create trigger trg_sync_primary_department
-  after insert or update of department_code on public.profiles
-  for each row execute function public.sync_primary_department();
 
 -- Enkraten (idempotenten) zagon za profile, ki so department_code dobili
 -- PREDEN je ta sprožilec obstajal - sprožilec sam se namreč ne požene za
 -- pretekle vrstice, samo za bodoče insert/update.
-insert into public.profile_departments (profile_id, department_code, sort_order)
-select id, department_code, 0 from public.profiles
+insert into public.pokriva_oddelek (profile_id, department_code, sort_order)
+select id, department_code, 0 from public.profili
 where department_code is not null
 on conflict (profile_id, department_code) do nothing;
 
--- schedule_entries: berejo vsi prijavljeni, za VSE oddelke (dogovorjeno);
--- pišejo (kalup/dežurstva) samo admin.
-drop policy if exists schedule_select on public.schedule_entries;
-create policy schedule_select on public.schedule_entries
-  for select to authenticated using (true);
-
-drop policy if exists schedule_write_admin on public.schedule_entries;
-create policy schedule_write_admin on public.schedule_entries
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- swap_requests: neposreden insert/update je zavrnjen (privzeto, ker ni
--- ustrezne "for insert/update" policy) – vse spremembe gredo prek spodnjih
--- SECURITY DEFINER funkcij, ki eksplicitno preverijo pravice klicatelja.
-drop policy if exists swap_select on public.swap_requests;
-create policy swap_select on public.swap_requests
-  for select to authenticated using (
-    requester_id = auth.uid()
-    or target_id = auth.uid()
-    or public.current_role_is('admin')
-    or (
-      public.current_role_is('vodja')
-      and public.current_department() = (select department_code from public.profiles where id = requester_id)
-    )
-  );
-
--- notifications: vsak vidi in označi kot prebrano samo svoje.
-drop policy if exists notifications_select on public.notifications;
-create policy notifications_select on public.notifications
-  for select to authenticated using (user_id = auth.uid());
-
-drop policy if exists notifications_update_own on public.notifications;
-create policy notifications_update_own on public.notifications
-  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-
--- ---------------------------------------------------------------------
--- 8) RPC funkcije – edina pot za pisanje v swap_requests / izvedbo menjave
--- ---------------------------------------------------------------------
-
--- Zaposleni odda predlog menjave: jaz (moj datum/izmena) <-> sodelavec (njegov datum/izmena).
-create or replace function public.submit_swap_request(
-  p_target_id uuid,
-  p_requester_date date,
-  p_target_date date,
-  p_note text default null
-)
-returns bigint
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_id bigint;
-begin
-  if p_target_id = auth.uid() then
-    raise exception 'Ne moreš predlagati menjave sam s seboj.';
-  end if;
-  insert into public.swap_requests (requester_id, requester_date, target_id, target_date, note, status)
-  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, 'pending_lead')
-  returning id into v_id;
-  return v_id;
-end;
-$$;
-grant execute on function public.submit_swap_request(uuid, date, date, text) to authenticated;
-
--- 1. stopnja: vodja ekipe predlagatelja odobri ali zavrne.
-create or replace function public.decide_swap_lead(
-  p_swap_id bigint,
-  p_approve boolean,
-  p_note text default null
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_req_dept text;
-begin
-  if not public.current_role_is('vodja') then
-    raise exception 'Samo vodja lahko odloča na prvi stopnji.';
-  end if;
-
-  select p.department_code into v_req_dept
-  from public.swap_requests s join public.profiles p on p.id = s.requester_id
-  where s.id = p_swap_id and s.status = 'pending_lead'
-  for update of s;
-
-  if v_req_dept is null then
-    raise exception 'Predlog ne obstaja ali ni več v čakanju na vodjo.';
-  end if;
-  if v_req_dept is distinct from public.current_department() then
-    raise exception 'Ta predlog ni iz tvoje ekipe.';
-  end if;
-
-  update public.swap_requests
-  set status = case when p_approve then 'pending_admin' else 'rejected_by_lead' end,
-      lead_id = auth.uid(),
-      lead_decided_at = now(),
-      lead_note = p_note,
-      updated_at = now()
-  where id = p_swap_id;
-end;
-$$;
-grant execute on function public.decide_swap_lead(bigint, boolean, text) to authenticated;
-
--- 2. stopnja: administrator dokončno potrdi ali zavrne; ob potrditvi
--- dejansko zamenja izmene v schedule_entries (atomarno, en klic).
-create or replace function public.decide_swap_admin(
-  p_swap_id bigint,
-  p_approve boolean,
-  p_note text default null
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_req record;
-  v_requester_shift text;
-  v_target_shift text;
-begin
-  if not public.current_role_is('admin') then
-    raise exception 'Samo administrator lahko dokončno odloča.';
-  end if;
-
-  select * into v_req from public.swap_requests
-  where id = p_swap_id and status = 'pending_admin'
-  for update;
-
-  if v_req.id is null then
-    raise exception 'Predlog ne obstaja ali ni več v čakanju na administratorja.';
-  end if;
-
-  if p_approve then
-    select shift_code into v_requester_shift from public.schedule_entries
-      where employee_id = v_req.requester_id and work_date = v_req.requester_date;
-    select shift_code into v_target_shift from public.schedule_entries
-      where employee_id = v_req.target_id and work_date = v_req.target_date;
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.requester_id, department_code, v_req.requester_date, coalesce(v_target_shift, ''), now()
-    from public.profiles where id = v_req.requester_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.target_id, department_code, v_req.target_date, coalesce(v_requester_shift, ''), now()
-    from public.profiles where id = v_req.target_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-  end if;
-
-  update public.swap_requests
-  set status = case when p_approve then 'approved' else 'rejected_by_admin' end,
-      admin_id = auth.uid(),
-      admin_decided_at = now(),
-      admin_note = p_note,
-      updated_at = now()
-  where id = p_swap_id;
-end;
-$$;
-grant execute on function public.decide_swap_admin(bigint, boolean, text) to authenticated;
-
--- ---------------------------------------------------------------------
--- 9) leave_entries – barvna razpredelnica dopustov/omejitev (zavihek
---    "Želje"), ki jo generator dežurstev/vodij bere samodejno.
---    Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02 ..." v
---    admin.html z vizualnim pobarvanim koledarjem (glej zelje.html).
--- ---------------------------------------------------------------------
-create table if not exists public.leave_entries (
-  id bigint generated always as identity primary key,
-  full_name text not null,
-  work_date date not null,
-  kind text not null check (kind in ('omejitev', 'ld', 'bs', 'sti')),
-  note text,
-  created_by uuid references auth.users (id) on delete set null,
-  created_at timestamptz not null default now(),
-  unique (full_name, work_date)
-);
-
-create table if not exists public.leave_entries_log (
-  id bigint generated always as identity primary key,
-  full_name text not null,
-  work_date date not null,
-  from_kind text,
-  to_kind text,
-  editor_id uuid references auth.users (id) on delete set null,
-  editor_name text,
-  created_at timestamptz not null default now()
-);
-
-alter table public.leave_entries enable row level security;
-alter table public.leave_entries_log enable row level security;
-
-drop policy if exists leave_entries_select on public.leave_entries;
-create policy leave_entries_select on public.leave_entries
-  for select to authenticated using (true);
-
--- Ime v leave_entries.full_name je prosto besedilo iz statičnega
--- roster-seznama (npr. "BOJIĆ MATEJ"), profiles.full_name pa karkoli je
--- oseba vpisala ob samoregistraciji (npr. "Matej Bojić") – zato primerjava
--- ni nujno enaka niz, primerjamo brez oziru na velikost črk/presledke in
--- dovolimo obrnjen vrstni red "ime priimek" <-> "priimek ime".
-create or replace function public.current_full_name()
-returns text
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select full_name from public.profiles where id = auth.uid();
-$$;
-
--- Primerja kot "vrečo besed" (ne glede na vrstni red), da "PRIIMEK IME"
--- (roster) ujema "Ime Priimek" (kakor koli je oseba vpisala ob
--- registraciji) – deluje za poljubno število besed, ne samo za dve.
-create or replace function public.imena_se_ujemata(a text, b text)
-returns boolean
-language sql
-stable
-as $$
-  select a is not null and b is not null and (
-    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(a)), '\s+')) w
-  ) = (
-    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(b)), '\s+')) w
-  );
-$$;
-
--- Rok za vnos: 10. v mesecu PRED mesecem "work_date", do 23:59:59.
-create or replace function public.leave_entry_rok_odprt(p_work_date date)
-returns boolean
-language sql
-stable
-as $$
-  select now() <= (
-    date_trunc('month', p_work_date) - interval '1 month' + interval '9 days 23 hours 59 minutes 59 seconds'
-  );
-$$;
-
--- Samo admin ureja katero koli vrstico, kadar koli. "vodja" IN "user" oba
--- urejata SAMO svojo vrstico (ujemanje imena, glej zgoraj) in samo do roka
--- (10. v prejšnjem mesecu) – po tem je zaklenjeno tudi zanju. Uveljavljeno
--- tu (RLS), ne samo v vmesniku, ker bi sicer kdorkoli z neposrednim klicem
--- API-ja lahko obšel omejitev v UI.
-drop policy if exists leave_entries_write on public.leave_entries;
-create policy leave_entries_write on public.leave_entries
-  for all to authenticated
-  using (
-    public.current_role_is('admin')
-    or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
-  )
-  with check (
-    public.current_role_is('admin')
-    or (public.imena_se_ujemata(full_name, public.current_full_name()) and public.leave_entry_rok_odprt(work_date))
-  );
-
--- Zgodovina sprememb je vidna samo administratorjem (na izrecno navodilo:
--- "sledljivo in vidno samo uporabnikom admin") – vodja in user je v UI
--- sploh ne prikažeta, tu pa je zaklenjeno tudi za neposreden klic API-ja.
-drop policy if exists leave_entries_log_select on public.leave_entries_log;
-create policy leave_entries_log_select on public.leave_entries_log
-  for select to authenticated using (public.current_role_is('admin'));
-
--- Vpisi v dnevnik gredo samo prek sprožilca spodaj (SECURITY DEFINER), ne
--- neposredno od odjemalca – zato ni potrebe po "insert" politiki za
--- authenticated na leave_entries_log.
-
-create or replace function public.log_leave_entry_change()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_editor_name text;
-begin
-  select full_name into v_editor_name from public.profiles where id = auth.uid();
-  if tg_op = 'INSERT' then
-    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
-    values (new.full_name, new.work_date, null, new.kind, auth.uid(), v_editor_name);
-    return new;
-  elsif tg_op = 'UPDATE' then
-    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
-    values (new.full_name, new.work_date, old.kind, new.kind, auth.uid(), v_editor_name);
-    return new;
-  elsif tg_op = 'DELETE' then
-    insert into public.leave_entries_log (full_name, work_date, from_kind, to_kind, editor_id, editor_name)
-    values (old.full_name, old.work_date, old.kind, null, auth.uid(), v_editor_name);
-    return old;
-  end if;
-  return null;
-end;
-$$;
-
-drop trigger if exists on_leave_entry_change on public.leave_entries;
-create trigger on_leave_entry_change
-  after insert or update or delete on public.leave_entries
-  for each row execute function public.log_leave_entry_change();
-
--- ---------------------------------------------------------------------
--- 10) lead_departments – 22 vodij/nosilcev oddelkov (iz "Predloga
---     razporeda vodje NZV"): domači oddelek (in morebitne dodatne enote),
---     inicialke/matična številka, ali sodelujejo pri dežurstvih, mesečna
---     kvota/omejitve, nadomeščanje ob odsotnosti.
---     Ločeno od profiles.department_code, ker gre za VODSTVENO
---     pokritost enote (en vodja = ena "domača" enota), ne za vlogo v
---     Supabase Auth pomenu.
--- ---------------------------------------------------------------------
-create table if not exists public.lead_departments (
-  full_name text primary key,
-  department_code text references public.departments (code) on update cascade,
-  dezurstvo_dovoljeno boolean not null default false,
-  max_mesecno integer,
-  samo_med_tednom boolean not null default false,
-  delovnik text,
-  ur_na_dan numeric,
-  odsotnost_tip text,
-  odsotnost_do date,
-  nadomesca text,
-  opomba text
-);
-
--- enote/inicialke/mat_st/letni_dopust_dni: iz "Predloga_razporeda_682026_2.xlsx",
--- zavihek "Zaposleni - Oddelki" (vir novejši od prvotne postavitve zgoraj -
--- npr. Alukić Dino je bil tu prej PDZN, v resnici je nosilec ŽO). enote je
--- prosto besedilo, ker ima lahko nosilec VEČ oddelkov hkrati (npr. "A/PO");
--- department_code ostane PRVA prepoznana koda, da obstoječi pogledi delajo
--- naprej brez sprememb (department_code ima tuji ključ na departments, ki
--- kombinacije kot "A/PO" zavrne).
-alter table public.lead_departments add column if not exists enote text;
-alter table public.lead_departments add column if not exists inicialke text;
-alter table public.lead_departments add column if not exists mat_st text;
-alter table public.lead_departments add column if not exists letni_dopust_dni integer;
-
-alter table public.lead_departments enable row level security;
-drop policy if exists lead_departments_select on public.lead_departments;
-create policy lead_departments_select on public.lead_departments
-  for select to authenticated using (true);
-drop policy if exists lead_departments_write_admin on public.lead_departments;
-create policy lead_departments_write_admin on public.lead_departments
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
 
 -- Opomba k spodnjemu seznamu (22 vodij/nosilcev): department_code/enote/
 -- inicialke/mat_st/letni_dopust_dni so uskladjeni na novejši vir "Zaposleni
@@ -858,7 +2811,7 @@ create policy lead_departments_write_admin on public.lead_departments
 -- vrednostih (mat_st zanju je iz kadrovskega izvoza "Seznam zaposlenih ZN").
 -- Priimek "Lelič" (ne "Lelić") je uradni zapis, preverjen proti e-pošti
 -- dijana.lelic@pb-begunje.si.
-insert into public.lead_departments
+insert into public.nosilci_oddelkov
   (full_name, inicialke, mat_st, department_code, enote, letni_dopust_dni,
    dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, delovnik, ur_na_dan,
    odsotnost_tip, odsotnost_do, nadomesca, opomba)
@@ -889,11 +2842,11 @@ values
   ('TRPIN SAŠA', 'TRP', '870', 'URGENCA', 'UA/SA', 17, true, 1, true, 'dopoldne 7.00-15.30', null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) Bizjak Tea, Musić Ines'),
   ('VELUŠČEK METKA', 'VEL', '834', 'SOBO', 'SOBO', 41, true, 2, false, 'dopoldne 7.00-15.30', null, null, null, 'DŽAMASTAGIĆ DENIS', 'ob odsotnosti (LD, BS) nadomeščanje Džamastagić Denis')
 on conflict (full_name) do update set
-  inicialke = coalesce(excluded.inicialke, public.lead_departments.inicialke),
-  mat_st = coalesce(excluded.mat_st, public.lead_departments.mat_st),
+  inicialke = coalesce(excluded.inicialke, public.nosilci_oddelkov.inicialke),
+  mat_st = coalesce(excluded.mat_st, public.nosilci_oddelkov.mat_st),
   department_code = excluded.department_code,
-  enote = coalesce(excluded.enote, public.lead_departments.enote),
-  letni_dopust_dni = coalesce(excluded.letni_dopust_dni, public.lead_departments.letni_dopust_dni),
+  enote = coalesce(excluded.enote, public.nosilci_oddelkov.enote),
+  letni_dopust_dni = coalesce(excluded.letni_dopust_dni, public.nosilci_oddelkov.letni_dopust_dni),
   dezurstvo_dovoljeno = excluded.dezurstvo_dovoljeno,
   max_mesecno = excluded.max_mesecno,
   samo_med_tednom = excluded.samo_med_tednom,
@@ -904,263 +2857,22 @@ on conflict (full_name) do update set
   nadomesca = excluded.nadomesca,
   opomba = excluded.opomba;
 
+
 -- Enkraten popravek: starejši zagon te datoteke je morda ustvaril vrstico
 -- "LELIĆ DIJANA" (Ć), preden je bil znan pravilen zapis "LELIČ DIJANA" (Č,
 -- glej opombo zgoraj) - brez tega bi po tej spremembi obstajali DVE vrstici
 -- za isto osebo (primary key je full_name, torej dobesedno besedilo).
-delete from public.lead_departments
+delete from public.nosilci_oddelkov
 where full_name = 'LELIĆ DIJANA'
-  and exists (select 1 from public.lead_departments where full_name = 'LELIČ DIJANA');
+  and exists (select 1 from public.nosilci_oddelkov where full_name = 'LELIČ DIJANA');
 
--- ---------------------------------------------------------------------
--- 8) Mesečna zgodovina stanja dopusta (Kadris) + trend
---    Na izrecno željo: admin vsak mesec uvozi izvoz iz Kadrisa (ime,
---    šifra zaposlenega/"Mat.št", leto, mesec, DOPUST). employee_code je
---    edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
---    včasih zapišejo drugače) - ista logika kot že uveljavljen
---    profile_hr_details.employee_code, zato se prek njega samodejno
---    poveže s pravim profilom, če je znan.
--- ---------------------------------------------------------------------
-create table if not exists public.leave_balance_history (
-  id uuid primary key default gen_random_uuid(),
-  employee_code text not null,
-  full_name text not null,
-  leto smallint not null check (leto between 2020 and 2100),
-  mesec smallint not null check (mesec between 1 and 12),
-  dnevi numeric(5,1) not null check (dnevi >= 0),
-  profile_id uuid references public.profiles (id) on delete set null,
-  uvozeno timestamptz not null default now(),
-  uvozil uuid references auth.users (id) on delete set null,
-  unique (employee_code, leto, mesec)
-);
-
-comment on column public.leave_balance_history.dnevi is 'Preostali dnevi dopusta na prvi dan meseca (stolpec DOPUST v Kadrisu)';
-
-create index if not exists idx_leave_balance_history_obdobje on public.leave_balance_history (leto, mesec);
-create index if not exists idx_leave_balance_history_profile on public.leave_balance_history (profile_id);
-
-alter table public.leave_balance_history enable row level security;
-drop policy if exists leave_balance_history_select on public.leave_balance_history;
-create policy leave_balance_history_select on public.leave_balance_history
-  for select to authenticated using (
-    public.current_role_is('admin') or profile_id = auth.uid()
-  );
-drop policy if exists leave_balance_history_admin_write on public.leave_balance_history;
-create policy leave_balance_history_admin_write on public.leave_balance_history
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- Pregled s primerjavo s prejšnjim mesecem (lag). security_invoker: pogled
--- spoštuje RLS zgoraj, torej ne-admin vidi kvečjemu svojo vrstico.
-create or replace view public.leave_balance_pregled
-with (security_invoker = true) as
-select
-  h.id, h.employee_code, h.full_name, h.leto, h.mesec, h.dnevi, h.profile_id, h.uvozeno,
-  lag(h.dnevi) over (partition by h.employee_code order by h.leto, h.mesec) as dnevi_prejsnji,
-  h.dnevi - lag(h.dnevi) over (partition by h.employee_code order by h.leto, h.mesec) as sprememba
-from public.leave_balance_history h;
-
-create or replace view public.leave_balance_obdobja
-with (security_invoker = true) as
-select leto, mesec, count(*) as stevilo_oseb, max(uvozeno) as zadnji_uvoz
-from public.leave_balance_history
-group by leto, mesec
-order by leto desc, mesec desc;
-
--- Ob vsakem uvozu drži profile_hr_details.leave_balance_days/asof usklajena
--- z NAJNOVEJŠIM mesecem te osebe v zgodovini - tako Imenik (trenutno stanje)
--- in ta zgodovina (trend) nikoli ne razideta, ne glede na to, v katerem
--- vrstnem redu admin uvozi mesece.
-create or replace function public.sync_leave_balance_to_hr_details()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  najnovejsi record;
-begin
-  if new.profile_id is null then
-    return new;
-  end if;
-
-  select leto, mesec into najnovejsi
-  from public.leave_balance_history
-  where employee_code = new.employee_code
-  order by leto desc, mesec desc
-  limit 1;
-
-  if najnovejsi.leto = new.leto and najnovejsi.mesec = new.mesec then
-    insert into public.profile_hr_details (profile_id, leave_balance_days, leave_balance_asof, updated_at)
-    values (new.profile_id, new.dnevi, make_date(new.leto, new.mesec, 1), now())
-    on conflict (profile_id) do update set
-      leave_balance_days = excluded.leave_balance_days,
-      leave_balance_asof = excluded.leave_balance_asof,
-      updated_at = now();
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_sync_leave_balance on public.leave_balance_history;
-create trigger trg_sync_leave_balance
-  after insert or update of dnevi, profile_id on public.leave_balance_history
-  for each row execute function public.sync_leave_balance_to_hr_details();
-
--- ---------------------------------------------------------------------
--- 12) absence_color_map – pomni, katera barva celice v uvoženem barvnem
---     koledarju odsotnosti (Kadris) pomeni katero vrsto (leave_entries.kind),
---     da administratorju vsak mesec ni treba znova ročno določati istih
---     barv. Sam uvoz piše neposredno v obstoječ leave_entries (upsert, brez
---     brisanja), zato ta tabela hrani SAMO preslikavo barva->vrsta, ne
---     podatkov o odsotnostih samih.
--- ---------------------------------------------------------------------
-create table if not exists public.absence_color_map (
-  barva text primary key,
-  kind text check (kind in ('omejitev', 'ld', 'bs', 'sti')),
-  prezri boolean not null default false,
-  posodobil uuid references auth.users (id) on delete set null,
-  posodobljeno timestamptz not null default now(),
-  check ((prezri and kind is null) or (not prezri and kind is not null))
-);
-
-comment on table public.absence_color_map is 'ARGB barva celice iz uvoženega Excela -> vrsta odsotnosti (leave_entries.kind); prezri=true pomeni "ni odsotnost, ne uvažaj"';
-
-alter table public.absence_color_map enable row level security;
-drop policy if exists absence_color_map_admin on public.absence_color_map;
-create policy absence_color_map_admin on public.absence_color_map
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
--- ---------------------------------------------------------------------
--- 13) admin_view_as_log – revizijska sled za "Prijavi se kot" (admin vidi
---     aplikacijo iz perspektive izbranega uporabnika, brez poznavanja/
---     ponastavljanja njegovega gesla). To NI prava zamenjava seje: prava
---     Supabase avtentikacija ostane administratorjeva (varno brez
---     service_role ključa na strežniku, ki ga to brez-strežniško
---     postavljanje nima), samo odjemalec (supabase-client.js) med ogledom
---     lokalno preslika profil/"jaz" na ciljno osebo - zato je vsak
---     začetek/konec ogleda zabeležen tu, admin_id pa je vedno resnični
---     prijavljeni administrator (auth.uid()), ne more se ponarejati.
--- ---------------------------------------------------------------------
-create table if not exists public.admin_view_as_log (
-  id bigint generated always as identity primary key,
-  admin_id uuid not null references auth.users (id) on delete cascade,
-  admin_email text,
-  target_profile_id uuid not null references public.profiles (id) on delete cascade,
-  target_full_name text,
-  target_email text,
-  started_at timestamptz not null default now(),
-  ended_at timestamptz
-);
-
-create index if not exists idx_admin_view_as_log_admin on public.admin_view_as_log (admin_id);
-
-alter table public.admin_view_as_log enable row level security;
-
--- Celotna sled je vidna VSEM administratorjem (ne samo tistemu, ki je
--- ogled začel) - namenoma, ker je smisel revizijske sledi nadzor, ne
--- zasebnost pred drugimi administratorji.
-drop policy if exists admin_view_as_log_select on public.admin_view_as_log;
-create policy admin_view_as_log_select on public.admin_view_as_log
-  for select to authenticated using (public.current_role_is('admin'));
-
--- Vpis/zaključek vrstice pa lahko naredi SAMO administrator o svojem
--- lastnem ogledu (admin_id mora biti resnični auth.uid()) - da en admin
--- ne bi mogel beležiti (ali predčasno zaključiti) ogleda v imenu drugega.
-drop policy if exists admin_view_as_log_insert on public.admin_view_as_log;
-create policy admin_view_as_log_insert on public.admin_view_as_log
-  for insert to authenticated with check (public.current_role_is('admin') and admin_id = auth.uid());
-
-drop policy if exists admin_view_as_log_update on public.admin_view_as_log;
-create policy admin_view_as_log_update on public.admin_view_as_log
-  for update to authenticated using (public.current_role_is('admin') and admin_id = auth.uid())
-  with check (public.current_role_is('admin') and admin_id = auth.uid());
-
--- ---------------------------------------------------------------------
--- 14) employee_wishes – "Seznam želja" (zelje.html), razdeljen po
---     oddelkih. Na izrecno navodilo: samo 6 SMS/TZN oddelkov (B/C/C1/D/
---     E1/E2) + "VODJE" (nosilci oddelkov) - ostali oddelčni kod (DEZ,
---     NEDEZ, PDZN, SOBO ...) NISO del te funkcije, zato "department_code"
---     tu NI vezan na splošno tabelo departments (ki jih vse vsebuje),
---     ampak ima svojo, namenoma ožjo omejitev. Prej je bil ta seznam
---     samo lokalen (IndexedDB v brskalniku, brez deljenja med napravami/
---     uporabniki) - zdaj je v Supabase, da "uporabnik vidi samo svoj
---     oddelek, admin/vodja vse" sploh lahko drži (RLS spodaj).
--- ---------------------------------------------------------------------
-create table if not exists public.employee_wishes (
-  id bigint generated always as identity primary key,
-  profile_id uuid references public.profiles (id) on delete set null,
-  full_name text not null,
-  department_code text not null check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'VODJE')),
-  obdobje text,
-  opis text,
-  slika text,
-  created_by uuid references auth.users (id) on delete set null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_employee_wishes_dept on public.employee_wishes (department_code);
-
-alter table public.employee_wishes enable row level security;
-
-drop policy if exists employee_wishes_select on public.employee_wishes;
-create policy employee_wishes_select on public.employee_wishes
-  for select to authenticated using (
-    public.current_role_is('admin') or public.current_role_is('vodja')
-    or department_code = public.current_department()
-  );
-
--- Admin/vodja lahko vnese željo za katero koli osebo/oddelek (npr. sporočeno
--- po telefonu); navaden uporabnik samo zase, v svoj lasten oddelek - da si
--- ne bi mogel "podtakniti" želje v tuj oddelek.
-drop policy if exists employee_wishes_insert on public.employee_wishes;
-create policy employee_wishes_insert on public.employee_wishes
-  for insert to authenticated with check (
-    public.current_role_is('admin') or public.current_role_is('vodja')
-    or (profile_id = auth.uid() and department_code = public.current_department())
-  );
-
--- Admin/vodja lahko urejata svoje vnose brez dodatnih omejitev (enako kot pri
--- insertu - vodja vnaša/ureja tudi za druge osebe/oddelke). Navaden uporabnik
--- pa mora tudi po popravku ostati znotraj istih omejitev kot pri insertu
--- (svoj oddelek, svoje ime) - drugače bi lahko z update-om (mimo insert
--- pravila) "premaknil" svojo željo v tuj oddelek ali jo pripisal drugemu imenu.
-drop policy if exists employee_wishes_update on public.employee_wishes;
-create policy employee_wishes_update on public.employee_wishes
-  for update to authenticated
-  using (public.current_role_is('admin') or created_by = auth.uid())
-  with check (
-    public.current_role_is('admin')
-    or (created_by = auth.uid() and public.current_role_is('vodja'))
-    or (
-      created_by = auth.uid()
-      and department_code = public.current_department()
-      and full_name = (select full_name from public.profiles where id = auth.uid())
-    )
-  );
-
-drop policy if exists employee_wishes_delete on public.employee_wishes;
-create policy employee_wishes_delete on public.employee_wishes
-  for delete to authenticated using (public.current_role_is('admin') or created_by = auth.uid());
-
--- ---------------------------------------------------------------------
--- 15) profiles.rotation_slot – nadomešča trdo kodirano drugo kolono
---     (rotacijska črka A-E) v admin.html WARDS_META.staff. RLS ni nova:
---     rotation_slot je navaden profiles stolpec, torej ga že pokrivata
---     obstoječa profiles_select (vsi ga vidijo) in profiles_update_admin
---     (samo admin ga ureja, prek Imenika) - enako kot department_code.
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists rotation_slot text check (rotation_slot in ('A','B','C','D','E'));
 
 -- Enkratna zasnovna vrednost = isti podatek, ki je bil doslej trdo kodiran
 -- v WARDS_META (izpeljan iz analize dejanskega razporeda, glej
 -- roster/analiza-razporedov.md). "and rotation_slot is null" naredi to
 -- varno za ponovni zagon: ne prepiše ročnega popravka, ki ga admin naredi
 -- pozneje v Imeniku.
-update public.profiles p set rotation_slot = v.slot
+update public.profili p set rotation_slot = v.slot
 from (values
   ('ROZMAN A.', 'E'), ('SVETINA S.', 'A'), ('REJC J.', 'D'), ('DOLAR T.', 'C'), ('VOVK U.', 'B'),
   ('ŠABIĆ S.', 'A'), ('KODRAS N.', 'B'), ('ROZMAN K.', 'C'), ('MOČNIK S.', 'D'), ('SMOLEJ N.', 'E'),
@@ -1173,24 +2885,11 @@ from (values
 ) as v(full_name, slot)
 where p.full_name = v.full_name and p.rotation_slot is null;
 
--- ---------------------------------------------------------------------
--- 16) profile_hr_details.duty_* – osebne nastavitve dežurnega kadra
---     (min/maks dežurstev na mesec, prost dan v tednu, samo med tednom),
---     prej trdo kodirane v admin.html DEZURNI_ZACETNO. RLS ni nova - te
---     kolone pokrivata obstoječi profile_hr_details_select/_admin_write.
---     Št. dežurstev/zadnje dežurstvo NISTA tu - ti dve se od te spremembe
---     dalje računata živo iz schedule_entries (glej nalozizDezurniKader v
---     admin.html), zato ne potrebujeta stolpca ne seed vrednosti.
--- ---------------------------------------------------------------------
-alter table public.profile_hr_details add column if not exists duty_min_monthly integer;
-alter table public.profile_hr_details add column if not exists duty_max_monthly integer;
-alter table public.profile_hr_details add column if not exists duty_day_off text check (duty_day_off in ('PO','TO','SR','ČE','PE','SO','NE'));
-alter table public.profile_hr_details add column if not exists duty_weekdays_only boolean;
 
 -- Enkratna zasnovna vrednost = isti podatek, ki je bil doslej trdo kodiran
 -- v DEZURNI_ZACETNO. "coalesce(obstoječe, novo)" v update delu naredi to
 -- varno za ponovni zagon: ne prepiše poznejšega ročnega popravka.
-insert into public.profile_hr_details (profile_id, duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)
+insert into public.kadrovski_podatki (profile_id, duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)
 select p.id, v.min_m, v.max_m, v.day_off, v.weekdays_only
 from (values
   ('ALUKIĆ DINO', 2, 3, null, false),
@@ -1212,7 +2911,7 @@ from (values
 -- točnem zapisu: imena so bila medtem poenotena iz "PRIIMEK IME" v
 -- "Priimek Ime", zato bi natančna primerjava tiho ujela nič vrstic in
 -- dežurna pravila bi ostala nenastavljena, brez vsakega opozorila.
-join public.profiles p on (
+join public.profili p on (
   select string_agg(d, ' ' order by d)
   from unnest(string_to_array(upper(regexp_replace(btrim(p.full_name), '\s+', ' ', 'g')), ' ')) d
 ) = (
@@ -1220,13 +2919,14 @@ join public.profiles p on (
   from unnest(string_to_array(upper(v.full_name), ' ')) d
 )
 on conflict (profile_id) do update set
-  duty_min_monthly = coalesce(public.profile_hr_details.duty_min_monthly, excluded.duty_min_monthly),
-  duty_max_monthly = coalesce(public.profile_hr_details.duty_max_monthly, excluded.duty_max_monthly),
-  duty_day_off = coalesce(public.profile_hr_details.duty_day_off, excluded.duty_day_off),
-  duty_weekdays_only = coalesce(public.profile_hr_details.duty_weekdays_only, excluded.duty_weekdays_only);
+  duty_min_monthly = coalesce(public.kadrovski_podatki.duty_min_monthly, excluded.duty_min_monthly),
+  duty_max_monthly = coalesce(public.kadrovski_podatki.duty_max_monthly, excluded.duty_max_monthly),
+  duty_day_off = coalesce(public.kadrovski_podatki.duty_day_off, excluded.duty_day_off),
+  duty_weekdays_only = coalesce(public.kadrovski_podatki.duty_weekdays_only, excluded.duty_weekdays_only);
+
 
 -- ---------------------------------------------------------------------
--- 17) FLEXI oddelek + department_shift_minimums + profile_hr_details.employee_code
+-- 17) FLEXI oddelek + minimalna_zasedba + kadrovski_podatki.employee_code
 --     Del kontrolnega seznama za jutri – tri stvari, ki so bile v Google
 --     Sheets predlogah (Hospital/NZV/Dežurstva, 6.8.2026) uporabljene kot
 --     "osnutek"/"referenca", zdaj postanejo pravi del aplikacije.
@@ -1236,41 +2936,14 @@ on conflict (profile_id) do update set
 -- (glej roster/analiza-razporedov.md §4). Rotacijski generator
 -- (generirajKalup/WARDS_META) namerno ostaja nedotaknjen – FLEXI kader se
 -- še vedno ne razporeja samodejno, to je znana, dokumentirana omejitev.
--- Novi oddelek se avtomatsko pojavi v Imeniku (dropdown bere departments),
+-- Novi oddelek se avtomatsko pojavi v Imeniku (dropdown bere oddelki),
 -- brez sprememb UI kode.
-insert into public.departments (code, name) values
+insert into public.oddelki (code, name) values
   ('FLEXI', 'FLEXI – plavajoče osebje (več oddelkov)')
 on conflict (code) do update set name = excluded.name;
 
--- Minimumi po oddelku × izmeni – natančnejši nadomestek za "bazni kalup"
--- primerjavo, ki jo PokritostPoDnevih (admin.html) doslej uporablja.
--- Osnutek številk je iz starega analiznega prototipa (schedule_data.json,
--- department_requirements) – NI potrjen s strani koordinatorja, zato
--- admin.html to prikaže kot urejljivo tabelo, ne kot trdno pravilo.
-create table if not exists public.department_shift_minimums (
-  department_code text not null references public.departments (code) on update cascade,
-  shift_bucket text not null check (shift_bucket in ('DOPOLDNE', 'POPOLDNE', 'PONOCI')),
-  min_dms integer,
-  min_sms integer,
-  min_flexi integer,
-  note text,
-  updated_at timestamptz not null default now(),
-  primary key (department_code, shift_bucket)
-);
 
-alter table public.department_shift_minimums enable row level security;
-
-drop policy if exists dept_min_select on public.department_shift_minimums;
-create policy dept_min_select on public.department_shift_minimums
-  for select to authenticated using (true);
-
-drop policy if exists dept_min_write on public.department_shift_minimums;
-create policy dept_min_write on public.department_shift_minimums
-  for all to authenticated
-  using (public.current_role_is('admin'))
-  with check (public.current_role_is('admin'));
-
-insert into public.department_shift_minimums (department_code, shift_bucket, min_dms, min_sms, min_flexi, note) values
+insert into public.minimalna_zasedba (department_code, shift_bucket, min_dms, min_sms, min_flexi, note) values
   ('B', 'DOPOLDNE', 1, 1, null, null),
   ('B', 'POPOLDNE', null, 1, null, null),
   ('B', 'PONOCI', null, 1, null, null),
@@ -1291,25 +2964,26 @@ insert into public.department_shift_minimums (department_code, shift_bucket, min
   ('E2', 'PONOCI', null, 1, null, null)
 on conflict (department_code, shift_bucket) do nothing;
 
+
 -- Matična številka – enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev
 -- + 22 vodij/nosilcev oddelkov, iz "Zaposleni - SMS-DMS" in "Zaposleni -
 -- Oddelki", 6.8.2026 ter kadrovskega izvoza "Seznam zaposlenih ZN - vse").
--- `profile_hr_details.employee_code` stolpec je že obstajal (uvožen prek HR
+-- `kadrovski_podatki.employee_code` stolpec je že obstajal (uvožen prek HR
 -- podatkov), a doslej neizpolnjen za te osebe.
 --
 -- Ujemanje najprej po e-pošti iz auth.users (zanesljiv, enoličen ključ v
 -- kadrovskem izvozu), šele če te ni najti, po `imena_se_ujemata()` (glej
--- komentar ob funkciji zgoraj) - ker profiles.full_name lahko odstopa po
+-- komentar ob funkciji zgoraj) - ker profili.full_name lahko odstopa po
 -- vrstnem redu/velikosti črk od "PRIIMEK IME" seznama. Vir je kadrovska
 -- evidenca in torej merodajen, zato prepiše obstoječo vrednost (ne
 -- coalesce, glej prejšnjo različico te migracije) - `is distinct from` v
 -- "where" samo prepreči nepotreben zapis (updated_at), kadar je vrednost
 -- že enaka.
-insert into public.profile_hr_details (profile_id, employee_code)
+insert into public.kadrovski_podatki (profile_id, employee_code)
 select
   coalesce(
     (select u.id from auth.users u where lower(u.email) = v.email limit 1),
-    (select p.id from public.profiles p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
+    (select p.id from public.profili p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
   ) as profile_id,
   v.employee_code
 from (values
@@ -1384,12 +3058,13 @@ from (values
 ) as v(full_name, employee_code, email)
 where coalesce(
     (select u.id from auth.users u where lower(u.email) = v.email limit 1),
-    (select p.id from public.profiles p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
+    (select p.id from public.profili p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
   ) is not null
 on conflict (profile_id) do update set
   employee_code = excluded.employee_code,
   updated_at = now()
-where public.profile_hr_details.employee_code is distinct from excluded.employee_code;
+where public.kadrovski_podatki.employee_code is distinct from excluded.employee_code;
+
 
 -- ---------------------------------------------------------------------
 -- 18) Oddelek/vloga po e-pošti – dopolnilo k skripte/uvoz-racunov.mjs
@@ -1409,7 +3084,7 @@ where public.profile_hr_details.employee_code is distinct from excluded.employee
 --     Lelić Dijana, Maglić Aleksander, Mavri Tratnik Magdalena, Mušič Ines,
 --     Šubic Petra, Trpin Saša), ki jim prvotno (iz zaposleni-vloge-gesla.csv)
 --     ni bilo mogoče dodeliti nedvoumnega oddelka, imajo tu department_code
---     dopolnjen iz že obstoječe tabele (10) lead_departments – ta natančno
+--     dopolnjen iz že obstoječe tabele (10) nosilci_oddelkov – ta natančno
 --     pozna njihov "domači" oddelek (isti vir, ki že polni Statistiko/Vodje).
 --
 --     Tri osebe, ki jim noben vir ni dal konkretnega oddelka (Zaplotnik
@@ -1418,10 +3093,10 @@ where public.profile_hr_details.employee_code is distinct from excluded.employee
 --     Za njihov izbris iz obstoječe baze glej supabase/odstrani-zaposlene.sql.
 --     Za "FLEXI/<oddelek>" zapise je department_code=
 --     'FLEXI' (primarni), spodnji drugi insert pa doda njihov "domači"
---     oddelek kot SEKUNDARNO članstvo prek profile_departments (oseba je
+--     oddelek kot SEKUNDARNO članstvo prek pokriva_oddelek (oseba je
 --     hkrati FLEXI in npr. E2/C/A).
 -- ---------------------------------------------------------------------
-update public.profiles p set
+update public.profili p set
   department_code = coalesce(p.department_code, v.dept),
   role = case when p.role = 'user' then coalesce(v.role, p.role) else p.role end
 from (values
@@ -1496,8 +3171,9 @@ from (values
 ) as v(email, dept, role)
 where lower(p.email) = v.email;
 
+
 -- FLEXI osebe: sekundarno članstvo v "domačem" oddelku (glej opombo zgoraj).
-insert into public.profile_departments (profile_id, department_code, sort_order)
+insert into public.pokriva_oddelek (profile_id, department_code, sort_order)
 select p.id, v.dept2, 1
 from (values
   ('gentiana.gashi@pb-begunje.si', 'E2'),
@@ -1508,430 +3184,9 @@ from (values
   ('neja.vozel@pb-begunje.si', 'C'),
   ('maja.vrevc@pb-begunje.si', 'A')
 ) as v(email, dept2)
-join public.profiles p on lower(p.email) = v.email
+join public.profili p on lower(p.email) = v.email
 on conflict (profile_id, department_code) do nothing;
 
--- ---------------------------------------------------------------------
--- 19) Obrazec "Zahtevek za spremembo evidence delovnega časa in razporeda"
---     Digitalna različica papirnatega obrazca PB Begunje istega imena
---     (prvotno "Obvestilo koordinatorici za razporejanje kadra v ZN" -
---     preimenovano na izrecno željo uporabnika). Namenoma LOČEN od
---     obstoječega swap_requests (menjave.html) – ta obrazec je širši
---     (3 kategorije: ročno evidentiranje / menjava službe / drugo) in za
---     menjavo dodaja korak "sodelavec mora najprej privoliti" ter
---     preverjanje najmanjšega počitka (public.min_pocitek(), usklajeno z
---     delovni-cas.js), česar swap_requests ne počne.
---
---     Prilagojeno iz zunanjega referenčnega gradiva (druga aplikacija,
---     shema profili/zaposleni_kadris) na obstoječo shemo profiles/
---     departments/schedule_entries – brez "koordinator" kot 4. vloge:
---     ta korak opravi kdorkoli ima role='admin' (enako kot povsod drugod
---     v aplikaciji, npr. 2. stopnja pri swap_requests).
--- ---------------------------------------------------------------------
-
--- Neposredni vodja – ločeno od profile_hr_details.manager_name (ki je
--- samo prikazno prosto besedilo). Ta stolpec je prava FK-povezava, ker ga
--- spodnje RPC funkcije uporabljajo za usmerjanje odobritev. Admin ga
--- ureja v Imeniku (nov dropdown izbirnik druge osebe).
-alter table public.profiles add column if not exists vodja_id uuid references public.profiles (id) on delete set null;
-
-create table if not exists public.obrazci (
-  id uuid primary key default gen_random_uuid(),
-  stevilka text unique,
-  vrsta text not null check (vrsta in ('rocno_evidentiranje', 'menjava_sluzbe', 'drugo')),
-  status text not null default 'osnutek'
-    check (status in ('osnutek', 'caka_sodelavca', 'caka_vodjo', 'caka_koordinatorja', 'zakljucen', 'zavrnjen', 'preklican')),
-  vlagatelj_id uuid not null references public.profiles (id) on delete restrict,
-  sodelavec_id uuid references public.profiles (id) on delete restrict,
-  vodja_id uuid references public.profiles (id) on delete set null,
-  koordinator_id uuid references public.profiles (id) on delete set null,
-  polja jsonb not null default '{}'::jsonb,
-  ustvarjen timestamptz not null default now(),
-  zakljucen_dne timestamptz,
-  razlog_zavrnitve text,
-  constraint obrazci_sodelavec_le_pri_menjavi check (vrsta = 'menjava_sluzbe' or sodelavec_id is null),
-  constraint obrazci_sodelavec_ni_vlagatelj check (sodelavec_id is null or sodelavec_id <> vlagatelj_id)
-);
-create index if not exists idx_obrazci_vlagatelj on public.obrazci (vlagatelj_id);
-create index if not exists idx_obrazci_sodelavec on public.obrazci (sodelavec_id);
-create index if not exists idx_obrazci_status on public.obrazci (status);
-
-create sequence if not exists public.obrazci_zap;
-
-create or replace function public.obrazec_stevilka()
-returns trigger language plpgsql as $$
-begin
-  if new.stevilka is null then
-    new.stevilka := 'OBV-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('public.obrazci_zap')::text, 4, '0');
-  end if;
-  return new;
-end;
-$$;
-drop trigger if exists ob_vstavljanju_obrazca on public.obrazci;
-create trigger ob_vstavljanju_obrazca before insert on public.obrazci
-  for each row execute function public.obrazec_stevilka();
-
-create table if not exists public.obrazci_dnevnik (
-  id bigint generated always as identity primary key,
-  obrazec_id uuid not null references public.obrazci (id) on delete cascade,
-  stopnja smallint not null,
-  dejanje text not null,
-  uporabnik_id uuid references public.profiles (id) on delete set null,
-  ime_ob_dejanju text,
-  vloga_ob_dejanju text,
-  opomba text,
-  cas timestamptz not null default now()
-);
-create index if not exists idx_obrazci_dnevnik_obrazec on public.obrazci_dnevnik (obrazec_id, cas);
-
-alter table public.obrazci enable row level security;
-alter table public.obrazci_dnevnik enable row level security;
-
-drop policy if exists obrazci_select on public.obrazci;
-create policy obrazci_select on public.obrazci for select to authenticated using (
-  vlagatelj_id = auth.uid()
-  or sodelavec_id = auth.uid()
-  or vodja_id = auth.uid()
-  or public.current_role_is('admin')
-);
-
--- Vlagatelj sme vstaviti samo svoj osnutek. Vse nadaljnje spremembe gredo
--- skozi spodnje funkcije – tu ni pravila za update, zato tudi neposreden
--- klic API mimo funkcij ne more obiti verige odobritev.
-drop policy if exists obrazci_insert on public.obrazci;
-create policy obrazci_insert on public.obrazci for insert to authenticated
-  with check (vlagatelj_id = auth.uid() and status = 'osnutek');
-
-drop policy if exists obrazci_dnevnik_select on public.obrazci_dnevnik;
-create policy obrazci_dnevnik_select on public.obrazci_dnevnik for select to authenticated using (
-  exists (
-    select 1 from public.obrazci o where o.id = obrazci_dnevnik.obrazec_id
-    and (o.vlagatelj_id = auth.uid() or o.sodelavec_id = auth.uid() or o.vodja_id = auth.uid() or public.current_role_is('admin'))
-  )
-);
-
-create or replace function public.zapisi_v_dnevnik(
-  p_obrazec uuid, p_stopnja smallint, p_dejanje text, p_opomba text default null
-) returns void language plpgsql security definer set search_path = public as $$
-declare v_ime text; v_vloga text;
-begin
-  select full_name, role into v_ime, v_vloga from public.profiles where id = auth.uid();
-  insert into public.obrazci_dnevnik (obrazec_id, stopnja, dejanje, uporabnik_id, ime_ob_dejanju, vloga_ob_dejanju, opomba)
-  values (p_obrazec, p_stopnja, p_dejanje, auth.uid(), v_ime, v_vloga, p_opomba);
-end;
-$$;
-revoke execute on function public.zapisi_v_dnevnik(uuid, smallint, text, text) from public, anon, authenticated;
-
--- STOPNJA 1 – oddaja
-create or replace function public.obrazec_oddaj(p_id uuid)
-returns text language plpgsql security definer set search_path = public as $$
-declare o public.obrazci; v_vodja uuid; v_status text;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.vlagatelj_id <> auth.uid() then raise exception 'Oddaš lahko samo svoj obrazec'; end if;
-  if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
-
-  select vodja_id into v_vodja from public.profiles where id = auth.uid();
-  if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
-
-  if o.vrsta = 'menjava_sluzbe' then
-    if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
-    v_status := 'caka_sodelavca';
-  else
-    v_status := 'caka_vodjo';
-  end if;
-
-  update public.obrazci set status = v_status, vodja_id = v_vodja where id = p_id;
-  perform public.zapisi_v_dnevnik(p_id, 1::smallint, 'ODDANO');
-  return v_status;
-end;
-$$;
-grant execute on function public.obrazec_oddaj(uuid) to authenticated;
-
--- STOPNJA 2 – sodelavec potrdi (samo menjava)
-create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare o public.obrazci;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.sodelavec_id <> auth.uid() then raise exception 'Nisi izbrani sodelavec'; end if;
-  if o.status <> 'caka_sodelavca' then raise exception 'Obrazec ni v stanju čakanja na sodelavca'; end if;
-
-  if p_sprejmi then
-    update public.obrazci set status = 'caka_vodjo' where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_POTRDIL', p_opomba);
-    return 'caka_vodjo';
-  else
-    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_ZAVRNIL', p_opomba);
-    return 'zavrnjen';
-  end if;
-end;
-$$;
-grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
-
--- STOPNJA 3 – neposredni vodja
-create or replace function public.obrazec_potrdi_vodja(p_id uuid, p_sprejmi boolean, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare o public.obrazci;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.vodja_id <> auth.uid() then raise exception 'Nisi neposredni vodja vlagatelja'; end if;
-  if o.status <> 'caka_vodjo' then raise exception 'Obrazec ni v stanju čakanja na vodjo'; end if;
-
-  if p_sprejmi then
-    update public.obrazci set status = 'caka_koordinatorja' where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ODOBRIL', p_opomba);
-    return 'caka_koordinatorja';
-  else
-    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 3::smallint, 'VODJA_ZAVRNIL', p_opomba);
-    return 'zavrnjen';
-  end if;
-end;
-$$;
-grant execute on function public.obrazec_potrdi_vodja(uuid, boolean, text) to authenticated;
-
--- STOPNJA 4 – koordinator (role='admin'); ob potrditvi menjave zamenja
--- schedule_entries.shift_code med vlagateljem in sodelavcem – isti vzorec
--- kot decide_swap_admin (glej zgoraj), samo brez zaposleni_kadris/mat_st
--- posrednika, ker so profiles.id že stabilen ključ.
-create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  o public.obrazci;
-  v_dan_a date; v_dan_b date;
-  v_izmena_a text; v_izmena_b text;
-  v_dept_a text; v_dept_b text;
-begin
-  if not public.current_role_is('admin') then
-    raise exception 'Za končno potrditev nimaš pravic';
-  end if;
-
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.status <> 'caka_koordinatorja' then raise exception 'Obrazec ni v stanju čakanja na koordinatorja'; end if;
-
-  if not p_sprejmi then
-    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba, koordinator_id = auth.uid() where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_ZAVRNIL', p_opomba);
-    return 'zavrnjen';
-  end if;
-
-  if o.vrsta = 'menjava_sluzbe' then
-    v_dan_a := (o.polja ->> 'datum_a')::date;
-    v_dan_b := (o.polja ->> 'datum_b')::date;
-
-    select shift_code into v_izmena_a from public.schedule_entries where employee_id = o.vlagatelj_id and work_date = v_dan_a;
-    select shift_code into v_izmena_b from public.schedule_entries where employee_id = o.sodelavec_id and work_date = v_dan_b;
-    select department_code into v_dept_a from public.profiles where id = o.vlagatelj_id;
-    select department_code into v_dept_b from public.profiles where id = o.sodelavec_id;
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
-  end if;
-
-  update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
-  perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
-  return 'zakljucen';
-end;
-$$;
-grant execute on function public.obrazec_potrdi_koordinator(uuid, boolean, text) to authenticated;
-
--- Preklic s strani vlagatelja, dokler ni zaključen
-create or replace function public.obrazec_preklici(p_id uuid, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare o public.obrazci;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.vlagatelj_id <> auth.uid() then raise exception 'Prekličeš lahko samo svoj obrazec'; end if;
-  if o.status in ('zakljucen', 'zavrnjen', 'preklican') then raise exception 'Obrazca v tem stanju ni mogoče preklicati'; end if;
-
-  update public.obrazci set status = 'preklican', razlog_zavrnitve = p_opomba where id = p_id;
-  perform public.zapisi_v_dnevnik(p_id, 0::smallint, 'VLAGATELJ_PREKLICAL', p_opomba);
-  return 'preklican';
-end;
-$$;
-grant execute on function public.obrazec_preklici(uuid, text) to authenticated;
-
--- Kaj čaka name – enako kot obstoječi "Menjave" rumen klicaj, samo za ta obrazec.
-create or replace view public.obrazci_moja_naloga
-with (security_invoker = true) as
-select o.*,
-  case
-    when o.status = 'caka_sodelavca' and o.sodelavec_id = auth.uid() then 'potrdi_kot_sodelavec'
-    when o.status = 'caka_vodjo' and o.vodja_id = auth.uid() then 'odobri_kot_vodja'
-    when o.status = 'caka_koordinatorja' and public.current_role_is('admin') then 'potrdi_kot_koordinator'
-  end as moje_dejanje
-from public.obrazci o;
-
--- ---------------------------------------------------------------------
--- 19b) Pomožne funkcije za menjavo: kdo je odsoten, kdo je na voljo,
---      preverjanje najmanjšega počitka. Isti nabor kod izmen kot
---      generator-core.js/admin.html classify() – glede na to, da je
---      shift_code prosto besedilo, ujemanje po predponi (ne po tabeli
---      točnih vrednosti), da zajame vse dosedanje zapise (npr. "popoldan
---      do 19h" ali "popoldan do 19" – oboje).
--- ---------------------------------------------------------------------
-
--- Meje in "čez polnoč" za znane kode izmen. Vrne null, če koda ne pomeni
--- dela (LD/KPU/prazno/POMOČ DRUGJE) – take dneve pocitek_ustreza spodaj
--- preskoči.
-create or replace function public.izmena_cas(p_sifra text)
-returns table (zacetek time, konec time, cez_polnoc boolean)
-language plpgsql immutable as $$
-declare t text := lower(trim(coalesce(p_sifra, '')));
-begin
-  if t = '' or t like 'ld%' or t like 'kpu%' or t = 'pomoč drugje' then
-    return;
-  elsif t like '%nočna12%' then
-    return query select time '17:50', time '06:00', true;
-  elsif t like '%dnevna12%' then
-    return query select time '07:00', time '19:00', false;
-  elsif t like 'nočna od 19%' then
-    return query select time '18:50', time '06:00', true;
-  elsif t like 'nočna%' then
-    return query select time '20:50', time '06:00', true;
-  elsif t like 'dopoldan%' then
-    return query select time '05:50', time '14:00', false;
-  elsif t like 'popoldan do 19%' then
-    return query select time '13:50', time '19:00', false;
-  elsif t like 'popoldan%' then
-    return query select time '13:50', time '21:00', false;
-  elsif t like 'dežurstvo%' then
-    return query select time '07:00', time '07:00', true; -- 24 ur
-  end if;
-  return;
-end;
-$$;
-
--- EDINA meja počitka na strani baze. Mora se ujemati s
--- PRIVZETA_PRAVILA.minPocitekUr v src/shared/delovni-cas.js (10,7 h =
--- 10 h 42 min) - do avgusta 2026 je tu pisalo 11 h, kar je bilo prevzeto
--- iz zunanjega referenčnega gradiva (druga aplikacija), ne iz pravila te
--- aplikacije. Razlika je bila resnična: obrazec.html je menjavo preverjal
--- po 10,7 h (window.DelovniCas), baza pa jo je po 11 h zavrnila oz.
--- sodelavca sploh ni ponudila. skripte/preveri-meja-pocitka.mjs zaklene,
--- da obe številki ostaneta enaki.
-create or replace function public.min_pocitek()
-returns interval language sql immutable as $$ select interval '10 hours 42 minutes' $$;
-
--- Ali bi oseba p_profile_id na p_datum v izmeni p_sifra ohranila najmanjši
--- počitek (glej min_pocitek() zgoraj) pred/po vseh svojih že razporejenih
--- izmenah v okolici (±2 dni)?
--- Izjema (interno pravilo PB Begunje, glej PROMPTmenjavasluzbe.md): iz
--- "popoldan do 19" (konec 19.00) na "dopoldan"/"dnevna12" naslednji dan
--- (začetek 05.50/07.00) je dovoljeno, ker traja le ~10h50m/11h10m. Pri
--- meji 10,7 h je 10h50m že sam po sebi dovolj, izjema pa ostaja zapisana,
--- ker meja ostaja nastavljiva (kadrovska jo lahko dvigne nazaj na 11 h).
-create or replace function public.pocitek_ustreza(p_profile_id uuid, p_datum date, p_sifra text)
-returns boolean language plpgsql stable as $$
-declare
-  nova record; nova_od timestamp; nova_do timestamp;
-  r record; sosed record; od timestamp; do_ timestamp;
-begin
-  select * into nova from public.izmena_cas(p_sifra);
-  if nova is null then return true; end if; -- ne dela ta dan, počitek ni relevanten
-
-  nova_od := p_datum + nova.zacetek;
-  nova_do := p_datum + nova.konec + (case when nova.cez_polnoc then interval '1 day' else interval '0' end);
-
-  for r in
-    select se.work_date, se.shift_code from public.schedule_entries se
-    where se.employee_id = p_profile_id and se.work_date between p_datum - 2 and p_datum + 2 and se.work_date <> p_datum
-  loop
-    select * into sosed from public.izmena_cas(r.shift_code);
-    if sosed is null then continue; end if;
-    od := r.work_date + sosed.zacetek;
-    do_ := r.work_date + sosed.konec + (case when sosed.cez_polnoc then interval '1 day' else interval '0' end);
-
-    if r.work_date = p_datum - 1 and lower(trim(r.shift_code)) like 'popoldan do 19%'
-       and (lower(trim(p_sifra)) like 'dopoldan%' or lower(trim(p_sifra)) like 'dnevna12%') then
-      continue; -- interna izjema, glej komentar zgoraj
-    end if;
-
-    if nova_od < do_ + public.min_pocitek() and od < nova_do + public.min_pocitek() then
-      return false;
-    end if;
-  end loop;
-  return true;
-end;
-$$;
-
--- Kdo je odsoten (dopust/omejitev/bolniška/študijski) med p_od in p_do,
--- vključno s pravilom "dan pred dopustom" (in petek prej, če se blok LD
--- začne v ponedeljek) – enako pravilo, kot ga generator-core.js/
--- generirajDezurstva že uporablja, tu na voljo kot splošna SQL funkcija.
-create or replace function public.blokirani_dnevi(p_od date, p_do date)
-returns table (profile_id uuid, datum date)
-language sql stable as $$
-  with le as (
-    select p.id as profile_id, l.work_date, l.kind
-    from public.leave_entries l
-    join public.profiles p on public.imena_se_ujemata(p.full_name, l.full_name)
-    where l.work_date between p_od - 3 and p_do
-  ),
-  ld_bloki as (
-    select profile_id, work_date,
-      lag(work_date) over (partition by profile_id order by work_date) as prejsnji
-    from le where kind = 'ld'
-  ),
-  ld_pred as (
-    select profile_id,
-      (work_date - 1) as datum
-    from ld_bloki where prejsnji is null or work_date - prejsnji > 1
-    union
-    select profile_id, (work_date - 3) as datum
-    from ld_bloki
-    where (prejsnji is null or work_date - prejsnji > 1) and extract(dow from work_date) = 1
-  )
-  select profile_id, work_date as datum from le where work_date between p_od and p_do
-  union
-  select profile_id, datum from ld_pred where datum between p_od and p_do;
-$$;
-
--- Kandidati za menjavo izmene z osebo p_profile_id na dan p_datum: nekdo
--- drug, ki ima znotraj ±7 dni izmeno, ki jo je mogoče zamenjati, tisti dan
--- ni odsoten, in po zamenjavi OBEMA ostane 11 ur počitka.
-create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date)
-returns table (
-  profile_id uuid, full_name text, njihova_izmena text, njihov_datum date,
-  moj_zacetek time, njihov_zacetek time, jaz_pridem_prej boolean
-)
-language plpgsql stable security invoker as $$
-declare v_moja_sifra text;
-begin
-  select shift_code into v_moja_sifra from public.schedule_entries
-    where employee_id = p_profile_id and work_date = p_datum;
-
-  return query
-  select p.id, p.full_name, se.shift_code, se.work_date,
-    (select zacetek from public.izmena_cas(v_moja_sifra)),
-    (select zacetek from public.izmena_cas(se.shift_code)),
-    (select zacetek from public.izmena_cas(v_moja_sifra)) < (select zacetek from public.izmena_cas(se.shift_code))
-  from public.schedule_entries se
-  join public.profiles p on p.id = se.employee_id
-  where se.work_date between p_datum - 7 and p_datum + 7
-    and se.employee_id <> p_profile_id
-    and se.shift_code is not null and se.shift_code <> ''
-    and (select zacetek from public.izmena_cas(se.shift_code)) is not null
-    and not exists (select 1 from public.blokirani_dnevi(p_datum, p_datum) b where b.profile_id = p.id)
-    and not exists (select 1 from public.blokirani_dnevi(se.work_date, se.work_date) b where b.profile_id = p_profile_id)
-    and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
-    and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
-  order by p.full_name;
-end;
-$$;
-grant execute on function public.mozni_sodelavci(uuid, date) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 20) Enkraten popravek: full_name je bil za te 3 admin račune dobesedno
@@ -1941,7 +3196,7 @@ grant execute on function public.mozni_sodelavci(uuid, date) to authenticated;
 --     prepreči za bodoče uvoze). "coalesce" ni potreben - te tri vrednosti
 --     so bile potrjeno napačne (enake e-pošti), zato je varno prepisati.
 -- ---------------------------------------------------------------------
-update public.profiles p set full_name = v.full_name
+update public.profili p set full_name = v.full_name
 from (values
   ('matej.bojic@pb-begunje.si', 'BOJIĆ MATEJ'),
   ('denis.dzamastagic@pb-begunje.si', 'DŽAMASTAGIĆ DENIS'),
@@ -1949,403 +3204,9 @@ from (values
 ) as v(email, full_name)
 where lower(p.email) = v.email and p.full_name = p.email;
 
--- ---------------------------------------------------------------------
--- 21) Enostopenjska odobritev menjav, kjer je udeležen vodja
---     ("Menjave dejansko potrebujejo samo vodje ki dežurajo" – vodja ne more
---     smiselno odločati o lastni menjavi na 1. stopnji, zato taka menjava
---     preskoči navadno dvostopenjsko verigo (vodja→admin) in gre naravnost
---     na EN sam korak, ki ga sme potrditi izključno oseba z zastavico
---     is_koordinator = true (privzeto samo Denis Džamastagić – glej seed
---     spodaj). Zastavica je urejljiva v Imeniku (admin), da ni trajno trdo
---     vezana na eno osebo. Ob potrditvi se menjava neposredno izvede v
---     schedule_entries – enak vzorec kot obstoječi decide_swap_admin.
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists is_koordinator boolean not null default false;
 
-update public.profiles set is_koordinator = true where lower(email) = 'denis.dzamastagic@pb-begunje.si';
+update public.profili set is_koordinator = true where lower(email) = 'denis.dzamastagic@pb-begunje.si';
 
-alter table public.swap_requests drop constraint if exists swap_requests_status_check;
-alter table public.swap_requests add constraint swap_requests_status_check check (
-  status in (
-    'pending_lead', 'pending_admin', 'pending_koordinator',
-    'approved', 'rejected_by_lead', 'rejected_by_admin', 'rejected_by_koordinator'
-  )
-);
-
-create or replace function public.current_is_koordinator()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce((select is_koordinator from public.profiles where id = auth.uid()), false);
-$$;
-
--- submit_swap_request: če je predlagatelj ALI sodelavec vodja, usmeri
--- naravnost na pending_koordinator namesto na običajni pending_lead.
-create or replace function public.submit_swap_request(
-  p_target_id uuid,
-  p_requester_date date,
-  p_target_date date,
-  p_note text default null
-)
-returns bigint
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_id bigint;
-  v_requester_role text;
-  v_target_role text;
-  v_status text;
-begin
-  if p_target_id = auth.uid() then
-    raise exception 'Ne moreš predlagati menjave sam s seboj.';
-  end if;
-
-  select role into v_requester_role from public.profiles where id = auth.uid();
-  select role into v_target_role from public.profiles where id = p_target_id;
-
-  if v_requester_role = 'vodja' or v_target_role = 'vodja' then
-    v_status := 'pending_koordinator';
-  else
-    v_status := 'pending_lead';
-  end if;
-
-  insert into public.swap_requests (requester_id, requester_date, target_id, target_date, note, status)
-  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, v_status)
-  returning id into v_id;
-  return v_id;
-end;
-$$;
-grant execute on function public.submit_swap_request(uuid, date, date, text) to authenticated;
-
--- Enostopenjska odločitev koordinatorja za menjave z udeleženim vodjo.
--- Namenoma NE preverja current_role_is('admin') - dostop je izključno
--- prek is_koordinator, tudi če je koordinator hkrati admin (Denis je).
-create or replace function public.decide_swap_koordinator(
-  p_swap_id bigint,
-  p_approve boolean,
-  p_note text default null
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_req record;
-  v_requester_shift text;
-  v_target_shift text;
-begin
-  if not public.current_is_koordinator() then
-    raise exception 'Samo koordinator lahko odloča o tej menjavi.';
-  end if;
-
-  select * into v_req from public.swap_requests
-  where id = p_swap_id and status = 'pending_koordinator'
-  for update;
-
-  if v_req.id is null then
-    raise exception 'Predlog ne obstaja ali ni več v čakanju na koordinatorja.';
-  end if;
-
-  if p_approve then
-    select shift_code into v_requester_shift from public.schedule_entries
-      where employee_id = v_req.requester_id and work_date = v_req.requester_date;
-    select shift_code into v_target_shift from public.schedule_entries
-      where employee_id = v_req.target_id and work_date = v_req.target_date;
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.requester_id, department_code, v_req.requester_date, coalesce(v_target_shift, ''), now()
-    from public.profiles where id = v_req.requester_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    select v_req.target_id, department_code, v_req.target_date, coalesce(v_requester_shift, ''), now()
-    from public.profiles where id = v_req.target_id
-    on conflict (employee_id, work_date)
-      do update set shift_code = excluded.shift_code, updated_at = now();
-  end if;
-
-  update public.swap_requests
-  set status = case when p_approve then 'approved' else 'rejected_by_koordinator' end,
-      admin_id = auth.uid(),
-      admin_decided_at = now(),
-      admin_note = p_note,
-      updated_at = now()
-  where id = p_swap_id;
-end;
-$$;
-grant execute on function public.decide_swap_koordinator(bigint, boolean, text) to authenticated;
-
--- swap_select: koordinator mora videti pending_koordinator vrstice tudi če
--- ni admin (dostop naj bo neodvisen od role, samo od zastavice).
-drop policy if exists swap_select on public.swap_requests;
-create policy swap_select on public.swap_requests
-  for select to authenticated using (
-    requester_id = auth.uid()
-    or target_id = auth.uid()
-    or public.current_role_is('admin')
-    or public.current_is_koordinator()
-    or (
-      public.current_role_is('vodja')
-      and public.current_department() = (select department_code from public.profiles where id = requester_id)
-    )
-  );
-
--- notify_swap_status_change: dopolni sporočila za novo enostopenjsko pot.
-create or replace function public.notify_swap_status_change()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  msg text;
-begin
-  if new.status = old.status then
-    return new;
-  end if;
-  msg := case new.status
-    when 'pending_admin'           then 'Vodja je odobril predlog menjave – čaka na administratorja.'
-    when 'pending_koordinator'     then 'Predlog menjave čaka na potrditev koordinatorja.'
-    when 'approved'                then 'Menjava izmene je bila potrjena.'
-    when 'rejected_by_lead'        then 'Vodja je zavrnil predlog menjave.'
-    when 'rejected_by_admin'       then 'Administrator je zavrnil predlog menjave.'
-    when 'rejected_by_koordinator' then 'Koordinator je zavrnil predlog menjave.'
-    else 'Status predloga menjave se je spremenil: ' || new.status
-  end;
-  insert into public.notifications (user_id, swap_request_id, message)
-  values (new.requester_id, new.id, msg), (new.target_id, new.id, msg);
-  return new;
-end;
-$$;
-
--- ---------------------------------------------------------------------
--- 22) POPRAVEK sekcije 21 + prava izvedba: "vodja ki dežura" iz uporabnikove
---     zahteve NI pomenilo "vodja je udeležen v menjavi" (napačna predpostavka
---     sekcije 21), ampak "menjava DEŽURSTVA" (izmena, ne vloga osebe).
---     Poleg tega je uporabnik naročil ENO združeno stran "Menjava" namesto
---     ločenih menjave.html (swap_requests, dvostopenjski vodja→admin) +
---     obrazec.html (obrazci, štiristopenjski sodelavec→vodja→koordinator).
---     menjave.html je ukinjena (glej commit) - swap_requests ostane v bazi
---     nedotaknjen (brez izgube morebitnih obstoječih vrstic), samo brez UI
---     poti vanj. Vsa nova logika za menjave gre prek sistema "obrazci", ki
---     že ima pravo verigo za navadne menjave (sodelavec → vodja →
---     koordinator/admin) - dodana je samo veja za menjavo dežurstva, ki
---     preskoči korak vodje in gre h koordinatorju, potrdi pa jo lahko
---     izključno oseba z is_koordinator=true (ne kdorkoli admin).
--- ---------------------------------------------------------------------
-
--- Prekliči napačno usmerjanje submit_swap_request iz sekcije 21 - nazaj na
--- izvirno obnašanje (vedno pending_lead). Funkcija ostane v bazi (varno, ni
--- podatkov), le brez UI, ki bi jo klicala.
-create or replace function public.submit_swap_request(
-  p_target_id uuid,
-  p_requester_date date,
-  p_target_date date,
-  p_note text default null
-)
-returns bigint
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_id bigint;
-begin
-  if p_target_id = auth.uid() then
-    raise exception 'Ne moreš predlagati menjave sam s seboj.';
-  end if;
-  insert into public.swap_requests (requester_id, requester_date, target_id, target_date, note, status)
-  values (auth.uid(), p_requester_date, p_target_id, p_target_date, p_note, 'pending_lead')
-  returning id into v_id;
-  return v_id;
-end;
-$$;
-grant execute on function public.submit_swap_request(uuid, date, date, text) to authenticated;
-
--- decide_swap_koordinator je bila specifična za napačno vodja-usmerjanje -
--- ni več potrebna (obrazci sistem ima svojo obrazec_potrdi_koordinator).
-drop function if exists public.decide_swap_koordinator(bigint, boolean, text);
-
--- obrazci.je_dezurstvo: samodejno zaznano ob oddaji (glej obrazec_oddaj
--- spodaj) - ali je izmena predlagatelja ALI sodelavca na dan menjave
--- "DEŽURSTVO". Taka menjava preskoči stopnjo neposrednega vodje in gre
--- naravnost h koordinatorju, a to stopnjo sme potrditi izključno oseba z
--- is_koordinator=true (za razliko od navadne menjave, kjer koordinatorsko
--- stopnjo opravi kdorkoli ima role='admin').
-alter table public.obrazci add column if not exists je_dezurstvo boolean not null default false;
-
--- STOPNJA 1 – oddaja (popravljena: zazna je_dezurstvo, vodja ni obvezen,
--- če ga menjava dežurstva sploh ne bo potrebovala).
-create or replace function public.obrazec_oddaj(p_id uuid)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  o public.obrazci;
-  v_vodja uuid;
-  v_status text;
-  v_je_dez boolean := false;
-  v_izmena_a text;
-  v_izmena_b text;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.vlagatelj_id <> auth.uid() then raise exception 'Oddaš lahko samo svoj obrazec'; end if;
-  if o.status <> 'osnutek' then raise exception 'Obrazec je že oddan'; end if;
-
-  if o.vrsta = 'menjava_sluzbe' then
-    if o.sodelavec_id is null then raise exception 'Pri menjavi je treba izbrati sodelavca'; end if;
-
-    select shift_code into v_izmena_a from public.schedule_entries
-      where employee_id = o.vlagatelj_id and work_date = (o.polja ->> 'datum_a')::date;
-    select shift_code into v_izmena_b from public.schedule_entries
-      where employee_id = o.sodelavec_id and work_date = (o.polja ->> 'datum_b')::date;
-    v_je_dez := (lower(coalesce(v_izmena_a, '')) like 'dežurstvo%') or (lower(coalesce(v_izmena_b, '')) like 'dežurstvo%');
-
-    v_status := 'caka_sodelavca';
-  else
-    v_status := 'caka_vodjo';
-  end if;
-
-  -- Neposrednega vodjo potrebujemo samo, če bo obrazec dejansko šel skozi
-  -- njegovo stopnjo – menjava dežurstva jo preskoči (glej
-  -- obrazec_potrdi_sodelavec spodaj), zato zanjo vodja ni pogoj za oddajo.
-  if not (o.vrsta = 'menjava_sluzbe' and v_je_dez) then
-    select vodja_id into v_vodja from public.profiles where id = auth.uid();
-    if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
-  end if;
-
-  update public.obrazci set status = v_status, vodja_id = v_vodja, je_dezurstvo = v_je_dez where id = p_id;
-  perform public.zapisi_v_dnevnik(p_id, 1::smallint, 'ODDANO');
-  return v_status;
-end;
-$$;
-grant execute on function public.obrazec_oddaj(uuid) to authenticated;
-
--- STOPNJA 2 – sodelavec potrdi (popravljena: menjava dežurstva gre naravnost
--- h koordinatorju, brez vodje).
-create or replace function public.obrazec_potrdi_sodelavec(p_id uuid, p_sprejmi boolean, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare o public.obrazci; v_naslednji text;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.sodelavec_id <> auth.uid() then raise exception 'Nisi izbrani sodelavec'; end if;
-  if o.status <> 'caka_sodelavca' then raise exception 'Obrazec ni v stanju čakanja na sodelavca'; end if;
-
-  if p_sprejmi then
-    v_naslednji := case when o.je_dezurstvo then 'caka_koordinatorja' else 'caka_vodjo' end;
-    update public.obrazci set status = v_naslednji where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_POTRDIL', p_opomba);
-    return v_naslednji;
-  else
-    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 2::smallint, 'SODELAVEC_ZAVRNIL', p_opomba);
-    return 'zavrnjen';
-  end if;
-end;
-$$;
-grant execute on function public.obrazec_potrdi_sodelavec(uuid, boolean, text) to authenticated;
-
--- STOPNJA 4 – koordinator (popravljena: menjava dežurstva zahteva
--- is_koordinator=true, navadna menjava ostane role='admin' kot doslej).
-create or replace function public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  o public.obrazci;
-  v_dan_a date; v_dan_b date;
-  v_izmena_a text; v_izmena_b text;
-  v_dept_a text; v_dept_b text;
-begin
-  select * into o from public.obrazci where id = p_id;
-  if not found then raise exception 'Obrazec ne obstaja'; end if;
-  if o.status <> 'caka_koordinatorja' then raise exception 'Obrazec ni v stanju čakanja na koordinatorja'; end if;
-
-  if o.je_dezurstvo then
-    if not public.current_is_koordinator() then
-      raise exception 'Menjavo dežurstva lahko potrdi izključno koordinator.';
-    end if;
-  else
-    if not public.current_role_is('admin') then
-      raise exception 'Za končno potrditev nimaš pravic';
-    end if;
-  end if;
-
-  if not p_sprejmi then
-    update public.obrazci set status = 'zavrnjen', razlog_zavrnitve = p_opomba, koordinator_id = auth.uid() where id = p_id;
-    perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_ZAVRNIL', p_opomba);
-    return 'zavrnjen';
-  end if;
-
-  if o.vrsta = 'menjava_sluzbe' then
-    v_dan_a := (o.polja ->> 'datum_a')::date;
-    v_dan_b := (o.polja ->> 'datum_b')::date;
-
-    select shift_code into v_izmena_a from public.schedule_entries where employee_id = o.vlagatelj_id and work_date = v_dan_a;
-    select shift_code into v_izmena_b from public.schedule_entries where employee_id = o.sodelavec_id and work_date = v_dan_b;
-    select department_code into v_dept_a from public.profiles where id = o.vlagatelj_id;
-    select department_code into v_dept_b from public.profiles where id = o.sodelavec_id;
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
-
-    insert into public.schedule_entries (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
-  end if;
-
-  update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
-  perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
-  return 'zakljucen';
-end;
-$$;
-grant execute on function public.obrazec_potrdi_koordinator(uuid, boolean, text) to authenticated;
-
--- Kaj čaka name (popravljeno: koordinatorska naloga je vidna glede na
--- je_dezurstvo - is_koordinator za dežurstvo, kateri koli admin za navadno).
--- "create or replace view" tu ne deluje: obrazci.je_dezurstvo je bil dodan
--- k tabeli PRED to spremembo, zato "select o.*" zdaj vrne ta nov stolpec na
--- mestu, kjer je bil prej zadnji stolpec "moje_dejanje" - Postgres to bere
--- kot preimenovanje obstoječega stolpca, kar CREATE OR REPLACE VIEW
--- prepoveduje (42P16). Pravi popravek je drop+create (varno: na pogled se
--- ne sklicuje noben drug DB objekt, samo odjemalec prek PostgREST).
-drop view if exists public.obrazci_moja_naloga;
-create view public.obrazci_moja_naloga
-with (security_invoker = true) as
-select o.*,
-  case
-    when o.status = 'caka_sodelavca' and o.sodelavec_id = auth.uid() then 'potrdi_kot_sodelavec'
-    when o.status = 'caka_vodjo' and o.vodja_id = auth.uid() then 'odobri_kot_vodja'
-    when o.status = 'caka_koordinatorja' and o.je_dezurstvo and public.current_is_koordinator() then 'potrdi_kot_koordinator'
-    when o.status = 'caka_koordinatorja' and not o.je_dezurstvo and public.current_role_is('admin') then 'potrdi_kot_koordinator'
-  end as moje_dejanje
-from public.obrazci o;
-
--- obrazci_select: razširjeno na "vse menjave v tekočem mesecu" - na izrecno
--- željo naj bo seznam menjav (kdo ↔ kdo, kdaj, status) viden vsem
--- prijavljenim, ne samo udeležencem/vodji/adminu. Namenoma omejeno na
--- vrsta='menjava_sluzbe' in izključi 'osnutek' (neoddan predlog ni "javen").
--- Ostali dve vrsti (ročno evidentiranje/drugo) ostajata vidni samo
--- udeležencem in adminu - širša vidnost ni bila naročena zanju.
-drop policy if exists obrazci_select on public.obrazci;
-create policy obrazci_select on public.obrazci for select to authenticated using (
-  vlagatelj_id = auth.uid()
-  or sodelavec_id = auth.uid()
-  or vodja_id = auth.uid()
-  or public.current_role_is('admin')
-  or public.current_is_koordinator()
-  or (
-    vrsta = 'menjava_sluzbe'
-    and status <> 'osnutek'
-    and date_trunc('month', (polja ->> 'datum_a')::date) = date_trunc('month', current_date)
-  )
-);
 
 -- ---------------------------------------------------------------------
 -- 23) NZV kot oddelek za razporede (vodje + admin) – na izrecno željo so
@@ -2359,8 +3220,8 @@ create policy obrazci_select on public.obrazci for select to authenticated using
 --
 --     Namenoma NE brišemo/ne diramo starih department kod (DEZ, NEDEZ,
 --     PDZN, SOBO, ZO, MO, PO, A, B1B2, DB, SA, URGENCA, U2) iz tabele
---     departments – obstoječi schedule_entries (že objavljeni razporedi
---     vodij/dežurstev, NOT NULL FK na departments) jih zgodovinsko
+--     oddelki – obstoječi razpored (že objavljeni razporedi
+--     vodij/dežurstev, NOT NULL FK na oddelki) jih zgodovinsko
 --     referencira; izbris bi ali padel na FK omejitvi ali (če bi ga na
 --     silo izvedli) uničil zgodovino že objavljenih razporedov, česar
 --     nimam možnosti preveriti brez neposrednega dostopa do žive baze.
@@ -2370,696 +3231,14 @@ create policy obrazci_select on public.obrazci for select to authenticated using
 --     nedotaknjeni, dokler jih admin ročno ne popravi v Imeniku (na
 --     izrecno željo uporabnika – "naknadno bom popravil").
 -- ---------------------------------------------------------------------
-insert into public.departments (code, name) values
+insert into public.oddelki (code, name) values
   ('NZV', 'NZV – vodje in administratorji (vključno z dežurstvi)')
 on conflict (code) do update set name = excluded.name;
 
--- employee_wishes: "VODJE" preimenovan v "NZV" (ista skupina, novo ime,
+
+-- zelje_zaposlenih: "VODJE" preimenovan v "NZV" (ista skupina, novo ime,
 -- usklajeno z zgornjim modelom) – najprej podatki, nato CHECK.
-update public.employee_wishes set department_code = 'NZV' where department_code = 'VODJE';
-
-alter table public.employee_wishes drop constraint if exists employee_wishes_department_code_check;
-alter table public.employee_wishes add constraint employee_wishes_department_code_check
-  check (department_code in ('B', 'C', 'C1', 'D', 'E1', 'E2', 'FLEXI', 'NZV'));
-
--- ---------------------------------------------------------------------
--- 24) profiles.parafa – kratka 2-4 črkovna parafa (npr. "BOJ", "DŽA"),
---     kot jo uporablja uradna predloga "Letni dopusti in omejitve za NZV"
---     namesto polnega imena v celicah. NAMENOMA na profiles (ne
---     profile_hr_details), ker mora biti vidna VSEM prijavljenim, ne
---     samo lastniku/adminu - profile_hr_details ima ožjo RLS vidljivost
---     (glej opombo pri tej tabeli), profiles pa že ima "vsi vidijo"
---     (profiles_select), isto kot is_koordinator zgoraj. Admin ureja v
---     Imeniku; če prazna, index.html izpelje grobo privzeto parafo iz
---     priimka (glej autoParafa()) - to polje jo lahko ročno popravi.
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists parafa text;
-
--- ---------------------------------------------------------------------
--- 25) Realni podpisi pod razporedom ("Pripravil/-a" + "Pregledal in
---     odobril", po vzoru uradnih predlog) in dva ločena datuma - "Datum
---     objave" (prvič objavljen) in "Zadnja sprememba" (kasneje urejano).
---
---     a) profiles.job_title - naziv delovnega mesta za podpis (npr.
---        "dipl. zn., Strokovni vodja V"), NAMENOMA na profiles (ne
---        profile_hr_details.position_name, ki ima ožjo RLS vidljivost -
---        samo lastnik/admin) - vsi prijavljeni morajo videti podpis pod
---        katerimkoli razporedom, ne samo svojim. Admin ureja v Imeniku.
---     b) schedule_entries.created_by/updated_by - kdo je zapis prvič
---        objavil / nazadnje uredil, samodejno prek sprožilca spodaj (ne
---        prek aplikacijske kode - velja za VSE poti pisanja, tudi
---        obstoječi generator v admin.html, ne samo za nov uvoz).
---     c) schedule_entries_touch() sprožilec TUDI popravi pravi hrošč:
---        "updated_at" ima privzeto "now()", kar velja SAMO ob INSERT (ne
---        ob UPDATE/upsert-conflict) - brez sprožilca bi "Zadnja
---        sprememba" v index.html vedno kazala prvi vnos, nikoli poznejši
---        popravek.
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists job_title text;
-
--- "created_at" (datum PRVE objave) je manjkal, čeprav ga sprožilec spodaj
--- ohranja in ga index.html bere ("Objavljeno"). V produkciji obstaja, v tej
--- datoteki ga ni bilo – shema torej ni znala na novo postaviti delujoče
--- baze: prvi UPDATE bi padel z "record new has no field created_at".
-alter table public.schedule_entries add column if not exists created_at timestamptz not null default now();
-alter table public.schedule_entries add column if not exists created_by uuid references public.profiles (id);
-alter table public.schedule_entries add column if not exists updated_by uuid references public.profiles (id);
-
-
-create or replace function public.schedule_entries_touch()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-begin
-  if TG_OP = 'INSERT' then
-    new.created_by := auth.uid();
-  else
-    new.created_at := old.created_at; -- datum objave se ob poznejšem urejanju ne spreminja
-    -- Avtorja prve objave ohrani (upsert iz aplikacije pošlje prazno polje
-    -- in bi ga sicer izbrisal) – RAZEN kadar ga prav zdaj prazni baza sama,
-    -- ker je bil avtorjev račun izbrisan ("on delete set null", odsek 30).
-    -- Takrat old.created_by kaže na profil, ki ne obstaja več; če ga vrnemo,
-    -- v vrstici ostane viseča povezava na neobstoječo osebo.
-    if not (new.created_by is null and old.created_by is not null
-            and not exists (select 1 from public.profiles p where p.id = old.created_by)) then
-      new.created_by := old.created_by;
-    end if;
-  end if;
-  new.updated_at := now();
-  new.updated_by := auth.uid();
-  return new;
-end;
-$$;
-
-drop trigger if exists schedule_entries_touch on public.schedule_entries;
-create trigger schedule_entries_touch
-  before insert or update on public.schedule_entries
-  for each row execute function public.schedule_entries_touch();
-
--- ---------------------------------------------------------------------
--- 26) schedule_entries_log – revizijska sled (audit log): kdo, kdaj in
---     kaj je spremenil v razporedu. Ločena append-only tabela (ne
---     "zgodovina v isti vrstici" kot created_by/updated_by zgoraj, ki
---     hrani samo TRENUTNO stanje) - vsak dejanski vpis/sprememba/izbris
---     shift_code ali department_code doda svojo vrstico, prejšnji vpisi
---     se nikoli ne prepišejo. Piše izključno sprožilec (security definer),
---     nobenih insert/update/delete politik za navadne uporabnike - vidi
---     (in torej lahko piše prek trigger-ja) samo admin prek obstoječe
---     schedule_write_admin politike na schedule_entries sami.
--- ---------------------------------------------------------------------
-create table if not exists public.schedule_entries_log (
-  id bigint generated always as identity primary key,
-  entry_id bigint,
-  employee_id uuid,
-  department_code text,
-  work_date date,
-  old_shift_code text,
-  new_shift_code text,
-  action text not null check (action in ('insert', 'update', 'delete')),
-  changed_by uuid references public.profiles (id),
-  changed_at timestamptz not null default now()
-);
-create index if not exists schedule_entries_log_date_idx on public.schedule_entries_log (work_date);
-create index if not exists schedule_entries_log_emp_idx on public.schedule_entries_log (employee_id, work_date);
-
-alter table public.schedule_entries_log enable row level security;
-drop policy if exists schedule_entries_log_select_admin on public.schedule_entries_log;
-create policy schedule_entries_log_select_admin on public.schedule_entries_log
-  for select to authenticated using (public.current_role_is('admin'));
-
-create or replace function public.schedule_entries_audit()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-begin
-  if TG_OP = 'DELETE' then
-    insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-    values (old.id, old.employee_id, old.department_code, old.work_date, old.shift_code, null, 'delete', auth.uid());
-    return old;
-  elsif TG_OP = 'UPDATE' then
-    -- samo, če se je dejansko kaj vidnega spremenilo (ne vsak "ping" upsert
-    -- z istimi vrednostmi - schedule_entries_touch zgoraj tako ali tako
-    -- vedno posodobi updated_at/updated_by, kar bi sicer napolnilo dnevnik
-    -- z nič-spremembami).
-    if old.shift_code is distinct from new.shift_code or old.department_code is distinct from new.department_code then
-      insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-      values (new.id, new.employee_id, new.department_code, new.work_date, old.shift_code, new.shift_code, 'update', auth.uid());
-    end if;
-    return new;
-  else
-    insert into public.schedule_entries_log (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-    values (new.id, new.employee_id, new.department_code, new.work_date, null, new.shift_code, 'insert', auth.uid());
-    return new;
-  end if;
-end;
-$$;
-
-drop trigger if exists schedule_entries_audit on public.schedule_entries;
-create trigger schedule_entries_audit
-  after insert or update or delete on public.schedule_entries
-  for each row execute function public.schedule_entries_audit();
-
--- ---------------------------------------------------------------------
--- 27) Potisna obvestila (Web Push) – nadgradnja obstoječega
---     "obveščanja samo znotraj aplikacije" (sekcija 5) v pravo potisno
---     obvestilo na telefon, brez SMS-stroškov in brez trgovin z
---     aplikacijami (PWA + Web Push, deluje na Androidu in iOS 16.4+, na
---     iPhonu SAMO, če je aplikacija nameščena na domači zaslon).
---
---     Zasnova namenoma NE pošilja push-a neposredno iz sprožilca:
---     notifications tabela je EDINI vir resnice ("kaj je treba povedati"),
---     Edge Function posiljaj-push pa jo občasno prebere in odpošlje
---     (push_sent_at označi poslano). Prednost: obvestilo v aplikaciji in
---     push nikoli ne razideta, izpad pošiljanja pa ne izgubi sporočila –
---     ob naslednjem zagonu se enostavno pošlje.
---
---     "kljuc" je neobvezen idempotenčni ključ: opomniki (pg_cron spodaj)
---     se lahko poganjajo večkrat na dan, pa bo vsak opomnik vstavljen
---     natanko enkrat. Ker je unikatni indeks DELEN (samo kjer kljuc ni
---     null), mora "on conflict" ponoviti isti pogoj - brez tega ga
---     Postgres ne prepozna in stavek pade z napako.
--- ---------------------------------------------------------------------
-alter table public.notifications add column if not exists title text;
-alter table public.notifications add column if not exists url text;
-alter table public.notifications add column if not exists push_sent_at timestamptz;
-alter table public.notifications add column if not exists kljuc text;
-
-create unique index if not exists notifications_kljuc_idx on public.notifications (kljuc) where kljuc is not null;
-create index if not exists notifications_push_pending_idx on public.notifications (created_at) where push_sent_at is null;
-
--- Naročnine brskalnikov (en zapis = ena naprava/brskalnik ene osebe).
--- Uporabnik jih ureja sam (vklop/izklop v Nastavitvah); Edge Function
--- bere prek service_role ključa in zato zaobide RLS.
-create table if not exists public.push_subscriptions (
-  id bigint generated always as identity primary key,
-  profile_id uuid not null references public.profiles (id) on delete cascade,
-  endpoint text not null unique,
-  p256dh text not null,
-  auth text not null,
-  user_agent text,
-  created_at timestamptz not null default now(),
-  last_ok_at timestamptz
-);
-create index if not exists push_subscriptions_profile_idx on public.push_subscriptions (profile_id);
-
-alter table public.push_subscriptions enable row level security;
-drop policy if exists push_subscriptions_own on public.push_subscriptions;
-create policy push_subscriptions_own on public.push_subscriptions
-  for all to authenticated
-  using (profile_id = auth.uid())
-  with check (profile_id = auth.uid());
-
--- ---------------------------------------------------------------------
--- 27a) Obvestila ob spremembi statusa MENJAVE (obrazci)
---
---      Obstoječi notify_swap_status_change (sekcija 5) visi na ukinjeni
---      swap_requests tabeli in se torej nikoli več ne sproži – obrazci
---      sistem doslej NI pisal obvestil. To je popravek te vrzeli, ne
---      samo dodatek za push.
--- ---------------------------------------------------------------------
-create or replace function public.obvesti_ob_spremembi_obrazca()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  vlagatelj text;
-  naslov text;
-  sporocilo text;
-begin
-  if new.status is not distinct from old.status then
-    return new;
-  end if;
-
-  select full_name into vlagatelj from public.profiles where id = new.vlagatelj_id;
-
-  if new.status = 'caka_sodelavca' then
-    naslov := 'Predlog menjave čaka tvojo potrditev';
-    sporocilo := coalesce(vlagatelj, 'Sodelavec') || ' ti je poslal predlog menjave. Odpri stran Menjava.';
-    if new.sodelavec_id is not null then
-      insert into public.notifications (user_id, message, title, url)
-      values (new.sodelavec_id, sporocilo, naslov, 'obrazec.html');
-    end if;
-
-  elsif new.status = 'caka_vodjo' then
-    naslov := 'Menjava čaka tvojo odobritev';
-    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka odobritev neposrednega vodje.';
-    if new.vodja_id is not null then
-      insert into public.notifications (user_id, message, title, url)
-      values (new.vodja_id, sporocilo, naslov, 'obrazec.html');
-    end if;
-
-  elsif new.status = 'caka_koordinatorja' then
-    naslov := 'Menjava čaka koordinatorja';
-    sporocilo := 'Predlog menjave (' || coalesce(vlagatelj, 'zaposleni') || ') čaka končno potrditev koordinatorja.';
-    insert into public.notifications (user_id, message, title, url)
-    select p.id, sporocilo, naslov, 'obrazec.html'
-    from public.profiles p where p.is_koordinator;
-
-  elsif new.status in ('zakljucen', 'zavrnjen', 'preklican') then
-    naslov := case new.status
-      when 'zakljucen' then 'Menjava je odobrena'
-      when 'zavrnjen' then 'Menjava je zavrnjena'
-      else 'Menjava je preklicana'
-    end;
-    sporocilo := case new.status
-      when 'zakljucen' then 'Predlog menjave je bil dokončno odobren – razpored je posodobljen.'
-      when 'zavrnjen' then 'Predlog menjave je bil zavrnjen.' || coalesce(' Razlog: ' || new.razlog_zavrnitve, '')
-      else 'Predlog menjave je bil preklican.'
-    end;
-    insert into public.notifications (user_id, message, title, url)
-    select x.uid, sporocilo, naslov, 'obrazec.html'
-    from (select new.vlagatelj_id as uid union select new.sodelavec_id) x
-    where x.uid is not null;
-  end if;
-
-  return new;
-end;
-$$;
-
-drop trigger if exists on_obrazec_status_change on public.obrazci;
-create trigger on_obrazec_status_change
-  after update of status on public.obrazci
-  for each row execute function public.obvesti_ob_spremembi_obrazca();
-
--- ---------------------------------------------------------------------
--- 27b) Obvestilo ob OBJAVI mesečnega razporeda – kliče ga admin.html po
---      uspešni objavi (ne sprožilec na schedule_entries: objava je na
---      tisoče vrstic naenkrat, kar bi pomenilo tisoče obvestil namesto
---      enega na osebo).
--- ---------------------------------------------------------------------
-create or replace function public.obvesti_o_objavi_razporeda(p_start date, p_end date, p_oddelek text default null)
-returns integer
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  st integer;
-begin
-  if not public.current_role_is('admin') then
-    raise exception 'Samo administrator lahko pošlje obvestilo o objavi razporeda.';
-  end if;
-
-  insert into public.notifications (user_id, message, title, url, kljuc)
-  select distinct se.employee_id,
-         'Objavljen je razpored za obdobje ' || to_char(p_start, 'DD.MM.YYYY') || ' – ' || to_char(p_end, 'DD.MM.YYYY') || '.',
-         'Nov razpored je objavljen',
-         'index.html',
-         'razpored:' || se.employee_id || ':' || p_start || ':' || p_end
-  from public.schedule_entries se
-  where se.work_date between p_start and p_end
-    and (p_oddelek is null or se.department_code = p_oddelek)
-  on conflict (kljuc) where kljuc is not null do nothing;
-
-  get diagnostics st = row_count;
-  return st;
-end;
-$$;
-grant execute on function public.obvesti_o_objavi_razporeda(date, date, text) to authenticated;
-
--- ---------------------------------------------------------------------
--- 27c) Opomnik 24 ur pred nočno izmeno ali dežurstvom. Poganja ga
---      pg_cron (glej PUSH-SETUP.md) – idempotentno prek "kljuc", zato
---      večkratni zagon istega dne ne podvoji opomnika.
--- ---------------------------------------------------------------------
-create or replace function public.ustvari_opomnike_za_jutri()
-returns integer
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  jutri date := (current_date + 1);
-  st integer;
-begin
-  insert into public.notifications (user_id, message, title, url, kljuc)
-  select se.employee_id,
-         case when lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%'
-              then 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš dežurstvo.'
-              else 'Jutri (' || to_char(jutri, 'DD.MM.YYYY') || ') imaš nočno izmeno: ' || se.shift_code || '.'
-         end,
-         'Opomnik za jutrišnjo izmeno',
-         'index.html',
-         'opomnik:' || se.employee_id || ':' || jutri
-  from public.schedule_entries se
-  where se.work_date = jutri
-    and (lower(se.shift_code) like 'nočna%' or lower(se.shift_code) like 'dežurstvo%' or lower(se.shift_code) like 'dezurstvo%')
-  on conflict (kljuc) where kljuc is not null do nothing;
-
-  get diagnostics st = row_count;
-  return st;
-end;
-$$;
-
--- ---------------------------------------------------------------------
--- 28) profiles_log – revizijska sled SPREMEMB PRAVIC (RBAC audit).
---
---     Sekcija 26 zgoraj revidira razpored (kdo je komu spremenil izmeno).
---     Kdo je komu podelil ali odvzel PRAVICE, pa doslej ni bilo nikjer
---     zabeleženo – administrator lahko v Generator → Uporabniki komurkoli
---     nastavi vlogo "admin", in po tem dejanju ni ostalo nobene sledi.
---     Za "pravno skladnost in varnost podatkov" je to večja vrzel od
---     revizije razporeda: brez nje ni mogoče odgovoriti na vprašanje
---     "kdo je tej osebi omogočil dostop do kadrovskih podatkov in kdaj".
---
---     Beležijo se samo štiri polja, ki dejansko določajo pravice:
---       role            – admin / vodja / user
---       department_code – kateri oddelek vodja vidi in ureja
---       vodja_id        – komu je oseba podrejena (veriga odobritev)
---       is_koordinator  – enostopenjska odobritev menjav
---     Ostala polja (ime, e-pošta, parafa, naziv) niso varnostno
---     relevantna in bi dnevnik samo napolnila.
---
---     Enak vzorec kot schedule_entries_log: append-only, piše izključno
---     sprožilec (security definer), bere samo admin.
--- ---------------------------------------------------------------------
-create table if not exists public.profiles_log (
-  id bigint generated always as identity primary key,
-  profile_id uuid,
-  profile_name text,
-  polje text not null check (polje in ('role', 'department_code', 'vodja_id', 'is_koordinator')),
-  stara_vrednost text,
-  nova_vrednost text,
-  action text not null check (action in ('insert', 'update', 'delete')),
-  changed_by uuid references public.profiles (id),
-  changed_by_name text,
-  changed_at timestamptz not null default now()
-);
-create index if not exists profiles_log_profile_idx on public.profiles_log (profile_id, changed_at desc);
-create index if not exists profiles_log_cas_idx on public.profiles_log (changed_at desc);
-
-alter table public.profiles_log enable row level security;
-drop policy if exists profiles_log_select_admin on public.profiles_log;
-create policy profiles_log_select_admin on public.profiles_log
-  for select to authenticated using (public.current_role_is('admin'));
-
-create or replace function public.profiles_audit()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  akter_ime text;
-  akter uuid;
-begin
-  akter := auth.uid();
-  -- Ime akterja se zapiše ob dejanju in se pozneje NE osvežuje: če se
-  -- oseba pozneje preimenuje ali izbriše, mora dnevnik še vedno brati
-  -- tako, kot je bilo ob dogodku.
-  select p.full_name into akter_ime from public.profiles p where p.id = akter;
-
-  if TG_OP = 'DELETE' then
-    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-    values (old.id, old.full_name, 'role', old.role, null, 'delete', akter, akter_ime);
-    return old;
-  end if;
-
-  if TG_OP = 'INSERT' then
-    -- Ob registraciji je vloga vedno privzeta ('user'); vpiše se samo, če
-    -- je račun nastal že z višjo vlogo (npr. prek uvoza).
-    if new.role is distinct from 'user' then
-      insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-      values (new.id, new.full_name, 'role', null, new.role, 'insert', akter, akter_ime);
-    end if;
-    return new;
-  end if;
-
-  -- UPDATE: po eno vrstico na vsako dejansko spremenjeno polje, da je
-  -- dnevnik berljiv brez razbiranja, kaj se je v vrstici spremenilo.
-  if old.role is distinct from new.role then
-    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-    values (new.id, new.full_name, 'role', old.role, new.role, 'update', akter, akter_ime);
-  end if;
-  if old.department_code is distinct from new.department_code then
-    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-    values (new.id, new.full_name, 'department_code', old.department_code, new.department_code, 'update', akter, akter_ime);
-  end if;
-  if old.vodja_id is distinct from new.vodja_id then
-    -- Zapiše se IME vodje, ne uuid – dnevnik mora biti berljiv brez
-    -- poizvedovanja. Kadar imena ni več mogoče razrešiti (vodja je bil
-    -- pravkar izbrisan in je ta sprememba kaskada "on delete set null"),
-    -- pade nazaj na uuid: brez tega bi vrstica izgledala kot prazno →
-    -- prazno, torej kot sprememba, ki se ni zgodila.
-    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-    values (new.id, new.full_name, 'vodja_id',
-            coalesce((select p.full_name from public.profiles p where p.id = old.vodja_id), old.vodja_id::text),
-            coalesce((select p.full_name from public.profiles p where p.id = new.vodja_id), new.vodja_id::text),
-            'update', akter, akter_ime);
-  end if;
-  if old.is_koordinator is distinct from new.is_koordinator then
-    insert into public.profiles_log (profile_id, profile_name, polje, stara_vrednost, nova_vrednost, action, changed_by, changed_by_name)
-    values (new.id, new.full_name, 'is_koordinator', old.is_koordinator::text, new.is_koordinator::text, 'update', akter, akter_ime);
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists profiles_audit on public.profiles;
-create trigger profiles_audit
-  after insert or update or delete on public.profiles
-  for each row execute function public.profiles_audit();
-
--- ---------------------------------------------------------------------
--- 29) Živa koledarska naročnina (iCal subscription).
---
---     Doslej je bil izvoz .ics ENKRATEN prenos: kar si prenesel, je v
---     telefonu obtičalo takšno, kot je bilo – sprememba razporeda se v
---     koledarju ni poznala. Tu se doda naslov, na katerega se koledar
---     naroči in ga sam občasno osveži.
---
---     ZAKAJ LOČENA TABELA IN NE STOLPEC V profiles:
---     politika profiles_select je "for select to authenticated using
---     (true)" – vsak prijavljen vidi VSE vrstice tabele profiles. Če bi
---     žeton živel tam, bi vsak zaposleni videl žetone vseh sodelavcev in
---     se lahko naročil na njihov razpored. Zato svoja tabela, kjer
---     politika omeji branje na lastnika vrstice.
---
---     Žeton je nosilni podatek (kdor ga ima, vidi razpored te osebe brez
---     prijave – koledarski odjemalci se ne znajo prijaviti), zato:
---       * 32 naključnih bajtov iz pgcrypto (ne uuid, ki je deloma
---         predvidljiv in se ponekod izpisuje v naslovih),
---       * bere ga IZKLJUČNO lastnik; niti admin ne, ker ga ne potrebuje –
---         admin razpored že vidi v aplikaciji,
---       * zamenljiv z eno potezo (koledar_token_ponastavi), s čimer
---         prejšnja povezava takoj neha delovati.
--- ---------------------------------------------------------------------
-create table if not exists public.calendar_tokens (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  token text not null unique,
-  created_at timestamptz not null default now(),
-  last_used_at timestamptz
-);
--- Stikalo za vklop/izklop sinhronizacije. Ločeno od brisanja žetona:
--- izklop naj povezavo USTAVI, ne pa pozabi – kdor jo pozneje spet vklopi,
--- naj mu ni treba znova urejati koledarja na telefonu. Ob izklopu vir
--- vrne 404, enako kot pri neveljavnem žetonu.
-alter table public.calendar_tokens add column if not exists enabled boolean not null default true;
-
-alter table public.calendar_tokens enable row level security;
--- Samo lastnik. Brez insert/update/delete politik – vse gre prek
--- security definer funkcij spodaj.
-drop policy if exists calendar_tokens_own on public.calendar_tokens;
-create policy calendar_tokens_own on public.calendar_tokens
-  for select to authenticated using (profile_id = auth.uid());
-
--- OPOMBA o generiranju žetona: uporabljamo dva gen_random_uuid() brez
--- pomišljajev (2 x 32 = 64 šestnajstiških znakov), NE encode(gen_random_bytes...).
--- gen_random_bytes prihaja iz razširitve pgcrypto, ta pa v Supabase ni v shemi
--- "public" ampak v "extensions" – ob "set search_path = public, pg_temp" je
--- torej nedosegljiva in klic odpove z "function gen_random_bytes(integer) does
--- not exist". gen_random_uuid() je od PostgreSQL 13 del jedra, zato deluje
--- povsod in brez razširitev. Naključnost ostaja kriptografska (2 x 122 bita).
--- Vrne obstoječi žeton prijavljene osebe ali ga ob prvem klicu ustvari.
-create or replace function public.koledar_token()
-returns text
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_token text;
-begin
-  if auth.uid() is null then
-    raise exception 'Ni prijave.';
-  end if;
-  select token into v_token from public.calendar_tokens where profile_id = auth.uid();
-  if v_token is not null then
-    return v_token;
-  end if;
-  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
-  insert into public.calendar_tokens (profile_id, token) values (auth.uid(), v_token)
-  on conflict (profile_id) do update set token = excluded.token
-  returning token into v_token;
-  return v_token;
-end;
-$$;
-
--- Vklop/izklop sinhronizacije. Žeton se pri izklopu OHRANI, da po
--- ponovnem vklopu ista povezava spet deluje in koledarja na telefonu ni
--- treba znova nastavljati. Kdor želi povezavo dokončno razveljaviti,
--- uporabi koledar_token_ponastavi().
-create or replace function public.koledar_sinhronizacija(p_vklop boolean)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_stanje boolean;
-begin
-  if auth.uid() is null then
-    raise exception 'Ni prijave.';
-  end if;
-  -- Če vrstice še ni in se vklaplja, jo ustvarimo z novim žetonom.
-  insert into public.calendar_tokens (profile_id, token, enabled)
-  values (auth.uid(), replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), p_vklop)
-  on conflict (profile_id) do update set enabled = excluded.enabled
-  returning enabled into v_stanje;
-  return v_stanje;
-end;
-$$;
-
--- Zamenja žeton – prejšnja povezava takoj preneha delovati (za primer,
--- ko je bila povezava pomotoma deljena).
-create or replace function public.koledar_token_ponastavi()
-returns text
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_token text;
-begin
-  if auth.uid() is null then
-    raise exception 'Ni prijave.';
-  end if;
-  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
-  insert into public.calendar_tokens (profile_id, token, created_at, last_used_at)
-  values (auth.uid(), v_token, now(), null)
-  on conflict (profile_id) do update
-    set token = excluded.token, created_at = now(), last_used_at = null
-  returning token into v_token;
-  return v_token;
-end;
-$$;
-
--- Uporabi jo IZKLJUČNO robna funkcija "koledar" s service_role ključem:
--- iz žetona dobi osebo in njen razpored. Ni dosegljiva navadnemu
--- (authenticated) uporabniku, ker bi sicer lahko kdorkoli z ugibanjem
--- žetona bral tuje razporede prek RPC.
-create or replace function public.koledar_razpored(p_token text, p_od date, p_do date)
-returns table (full_name text, work_date date, shift_code text)
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $$
-declare
-  v_profile uuid;
-begin
-  -- "and ct.enabled" pomeni, da izklopljena sinhronizacija izgleda
-  -- popolnoma enako kot neveljaven žeton – brez namiga, ali oseba obstaja.
-  select ct.profile_id into v_profile
-  from public.calendar_tokens ct
-  where ct.token = p_token and ct.enabled;
-  if v_profile is null then
-    return; -- neveljaven žeton ali izklopljena sinhronizacija
-  end if;
-  update public.calendar_tokens set last_used_at = now() where profile_id = v_profile;
-  return query
-    select p.full_name, se.work_date, se.shift_code
-    from public.schedule_entries se
-    join public.profiles p on p.id = se.employee_id
-    where se.employee_id = v_profile
-      and se.work_date between p_od and p_do
-      and coalesce(se.shift_code, '') <> ''
-    order by se.work_date;
-end;
-$$;
-
-revoke all on function public.koledar_razpored(text, date, date) from public, anon, authenticated;
-
--- ---------------------------------------------------------------------
--- 30) notification_settings – kanali obveščanja po osebi.
---
---     Doslej je bilo obveščanje vse-ali-nič in vezano na NAPRAVO: potisna
---     obvestila si vklopil na telefonu (push_subscriptions), drugih poti
---     ni bilo. Tu se doda izbira po OSEBI: e-pošta, potisno obvestilo in
---     (pozneje) SMS, vsak posebej.
---
---     Zakaj privzeto vklopljena e-pošta in potisno obvestilo: kdor si
---     potisnih ni vklopil na nobeni napravi, brez e-pošte ne bi izvedel
---     ničesar. Prazna vrstica (osebe, ki nastavitev ni odprla) se zato
---     obravnava kot "oboje vklopljeno" - glej coalesce v robni funkciji.
---
---     SMS je pripravljen kot zastavica, a ga nič še ne pošilja: zahteva
---     plačljivega ponudnika. Dokler ga ni, vklop ne naredi ničesar in je
---     v vmesniku tako tudi označen - raje vidna neaktivna možnost kot
---     tiho neizpolnjena obljuba.
--- ---------------------------------------------------------------------
-create table if not exists public.notification_settings (
-  profile_id uuid primary key references public.profiles (id) on delete cascade,
-  email_enabled boolean not null default true,
-  push_enabled boolean not null default true,
-  sms_enabled boolean not null default false,
-  -- Vrste dogodkov; obe privzeto vklopljeni.
-  opomnik_izmene boolean not null default true,
-  sprememba_razporeda boolean not null default true,
-  updated_at timestamptz not null default now()
-);
-
-alter table public.notification_settings enable row level security;
-
-drop policy if exists notif_settings_select on public.notification_settings;
-create policy notif_settings_select on public.notification_settings
-  for select to authenticated
-  using (profile_id = auth.uid() or public.current_role_is('admin'));
-
-drop policy if exists notif_settings_upsert on public.notification_settings;
-create policy notif_settings_upsert on public.notification_settings
-  for insert to authenticated with check (profile_id = auth.uid());
-
-drop policy if exists notif_settings_update on public.notification_settings;
-create policy notif_settings_update on public.notification_settings
-  for update to authenticated
-  using (profile_id = auth.uid()) with check (profile_id = auth.uid());
-
--- Sled o dostavi po e-pošti; push_sent_at (sekcija 27) že obstaja.
-alter table public.notifications add column if not exists email_sent_at timestamptz;
-create index if not exists notifications_email_pending_idx
-  on public.notifications (created_at) where email_sent_at is null;
-
--- Robna funkcija potrebuje e-pošto in nastavitve prejemnikov v enem
--- klicu. profiles.email je berljiv vsem prijavljenim, a funkcija teče s
--- service_role - ta pogled je tu zato, da je poizvedba na enem mestu in
--- da se ne pošilja osebam, ki so kanal izklopile.
-create or replace function public.prejemniki_obvestil(p_ids uuid[])
-returns table (
-  profile_id uuid,
-  email text,
-  full_name text,
-  email_enabled boolean,
-  push_enabled boolean
-)
-language sql
-security definer
-set search_path = public, pg_temp
-as $$
-  select p.id, p.email, p.full_name,
-         coalesce(ns.email_enabled, true),
-         coalesce(ns.push_enabled, true)
-  from public.profiles p
-  left join public.notification_settings ns on ns.profile_id = p.id
-  where p.id = any(p_ids);
-$$;
-
-revoke all on function public.prejemniki_obvestil(uuid[]) from public, anon, authenticated;
+update public.zelje_zaposlenih set department_code = 'NZV' where department_code = 'VODJE';
 
 
 -- ---------------------------------------------------------------------
@@ -3078,171 +3257,30 @@ begin
     from pg_constraint c
     join unnest(c.conkey) k on true
     join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k
-    where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass
+    where c.contype = 'f' and c.confrelid = 'public.profili'::regclass
       and c.confdeltype = 'a'   -- 'a' = no action (privzeto, blokira izbris)
       and (c.conrelid, a.attname) in (
-        ('public.schedule_entries'::regclass, 'created_by'),
-        ('public.schedule_entries'::regclass, 'updated_by'),
-        ('public.schedule_entries_log'::regclass, 'changed_by'),
-        ('public.profiles_log'::regclass, 'changed_by'),
-        ('public.swap_requests'::regclass, 'lead_id'),
-        ('public.swap_requests'::regclass, 'admin_id')
+        ('public.razpored'::regclass, 'created_by'),
+        ('public.razpored'::regclass, 'updated_by'),
+        ('public.dnevnik_razporeda'::regclass, 'changed_by'),
+        ('public.dnevnik_profilov'::regclass, 'changed_by'),
+        ('public.zahtevki_za_menjavo'::regclass, 'lead_id'),
+        ('public.zahtevki_za_menjavo'::regclass, 'admin_id')
       )
   loop
     execute format('alter table %s drop constraint %I', v.tabela, v.conname);
-    execute format('alter table %s add constraint %I foreign key (%I) references public.profiles (id) on delete set null',
+    execute format('alter table %s add constraint %I foreign key (%I) references public.profili (id) on delete set null',
                    v.tabela, v.conname, v.stolpec);
   end loop;
 end $$;
 
--- ---------------------------------------------------------------------
--- 31) profiles.parafa_pred_oktobrom_2026 – parafa je bila za del kadra
---     PRENOVLJENA z veljavnostjo od 1.10.2026 (uradna sprememba, ne napaka
---     v aplikaciji) - profiles.parafa (sekcija 24) odslej hrani NOVO
---     parafo, ta stolpec pa STARO, ki je veljala do 30.9.2026. Potreben je
---     samo za osebe, ki jim je parafa RESNIČNO spremenjena - za vse ostale
---     ostane prazen in profiles.parafa velja ne glede na datum (glej
---     parafaOd(profil, datum) v index.html, ki izbira med njima glede na
---     work_date razporeda/dopusta - meseci v tej aplikaciji nikoli ne
---     segajo čez 1. v mesecu, zato en klic vedno pade bodisi v celoti
---     pred bodisi v celoti po prestopu). Seed konkretnih vrednosti: glej
---     supabase/posodobi-parafe-oktober-2026.sql.
--- ---------------------------------------------------------------------
-alter table public.profiles add column if not exists parafa_pred_oktobrom_2026 text;
-
--- ---------------------------------------------------------------------
--- 32) duty_doctors – kateri ZDRAVNIK je dežuren na posamezen dan (dva
---     ločena kroga: "Urgenca ZDR" in "Dežurstvo ZDR" - iz uradnega
---     dokumenta "Razporeditev zaposlenih v UA in DEŽ"). Zdravniki NISO
---     zaposleni v tej aplikaciji (nimajo profila/računa) - to je namerno
---     samo za PRIKAZ imena poleg dežurstva v "Moj razpored", ne pravi
---     profil/uporabnik. Ločeno od schedule_entries (ta tabela je za
---     negovalno osebje, ki JE zaposleno v aplikaciji).
--- ---------------------------------------------------------------------
-create table if not exists public.duty_doctors (
-  work_date date not null,
-  -- "sestra" = dežurna dipl. m.s./zn., tretji stolpec uradnega dokumenta.
-  -- Dodana pozneje; za obstoječe baze glej supabase/dodaj-dezurno-sestro.sql.
-  kind text not null check (kind in ('urgenca', 'dezurstvo', 'sestra')),
-  full_name text not null,
-  updated_at timestamptz not null default now(),
-  primary key (work_date, kind)
-);
-alter table public.duty_doctors enable row level security;
-drop policy if exists duty_doctors_select on public.duty_doctors;
-create policy duty_doctors_select on public.duty_doctors for select to authenticated using (true);
-drop policy if exists duty_doctors_write on public.duty_doctors;
-create policy duty_doctors_write on public.duty_doctors for all to authenticated
-  using (public.current_role_is('admin')) with check (public.current_role_is('admin'));
-
--- ---------------------------------------------------------------------
--- 33) menjave_javno – kdaj je bila izmena zamenjana s POTRJENO menjavo,
---     vidno vsem zaposlenim in za VSE mesece.
---
---     Zakaj pogled in ne širša politika na obrazci: obrazci_select
---     (sekcija 28) navadnemu uporabniku pokaže tuje menjave samo za
---     tekoči mesec, zato je oznaka "zamenjano" v razpredelnici za
---     pretekle in prihodnje mesece manjkala. Politiko bi lahko razširili,
---     a bi s tem vsem razkrili tudi polje "polja" (opomba/razlog
---     menjave) in razlog zavrnitve - to so občutljivi podatki, ki jih za
---     oznako sploh ne potrebujemo.
---
---     Pogled zato izpostavi SAMO štiri stvari, ki so nujne: kdo, s kom,
---     in katera dva dneva. Sama izmena tistega dne je itak že javna -
---     razpored vidijo vsi (schedule_entries_select) - in menjava je vanj
---     že vpisana (obrazec_potrdi_koordinator), zato oznaka ne razkriva
---     ničesar, česar zaposleni ne bi mogel prebrati iz razporeda.
---
---     Pogled NAMENOMA nima security_invoker: teče s pravicami lastnika,
---     zato zaobide RLS na obrazci in pokaže vse mesece - to je celoten
---     namen. Ker izbira samo status='zakljucen', osnutki in zavrnjene
---     menjave ostanejo skriti.
--- ---------------------------------------------------------------------
-drop view if exists public.menjave_javno;
-create view public.menjave_javno as
-  select
-    o.vlagatelj_id,
-    o.sodelavec_id,
-    (o.polja ->> 'datum_a')::date as datum_a,
-    (o.polja ->> 'datum_b')::date as datum_b
-  from public.obrazci o
-  where o.vrsta = 'menjava_sluzbe'
-    and o.status = 'zakljucen'
-    and o.polja ? 'datum_a'
-    and o.polja ? 'datum_b';
-
-revoke all on public.menjave_javno from anon;
-grant select on public.menjave_javno to authenticated;
-
--- ---------------------------------------------------------------------
--- 34) schedule_entries.pokriva_oddelek – kateri oddelek oseba TA DAN
---     pokriva, kadar to ni njen matični oddelek (FLEXI kader).
---
---     Zakaj ločen stolpec in ne department_code: v zavihku FLEXI uradne
---     preglednice ima vsaka oseba PAR stolpcev (oznaka oddelka + koda
---     izmene), oznaka pa je pogosto KOMBINIRANA - "C/E2", "C1/D" - ker
---     človek tisti dan pokriva dva oddelka hkrati. To niso kode iz
---     departments in tuji ključ jih zavrne, zato jih je uvoz doslej
---     preskočil: cel zavihek FLEXI je ostal prazen (87 vpisov zavrženih
---     na avgustu 2026).
---
---     Odslej gre FLEXI kader v department_code = 'FLEXI' (njegova skupina,
---     tako kot v preglednici, kjer imajo oddelčni zavihki le opombo "glej
---     razpored FLEXI"), pokriti oddelek pa v ta stolpec - kot prosto
---     besedilo, NAMENOMA brez tujega ključa, ker "C/E2" ni koda oddelka,
---     ampak oznaka dvojne pokritosti.
--- ---------------------------------------------------------------------
-alter table public.schedule_entries add column if not exists pokriva_oddelek text;
-
--- ---------------------------------------------------------------------
--- 35) Standardiziran zapis osebnega imena – povsod "Priimek Ime"
---
---     `profiles.full_name` je edino ime, ki ga oseba sama vpiše (ob
---     registraciji ali ko ga admin popravi v Imeniku) in edino, ki se
---     prikazuje po vsej aplikaciji (nav.js, admin.html, obrazci, ...) - zato
---     je edino, kjer format ("Priimek Ime", ne VELIKE ČRKE, ne obratni
---     vrstni red) sploh šteje kot "prikazan format". Ostala imenska polja
---     (lead_departments.full_name, leave_entries.full_name,
---     contact_imports.full_name, leave_balance_history.full_name) so
---     NAMENOMA ujemalni ključi v obliki "PRIIMEK IME" iz uradnih HR/Kadris
---     izvozov (glej `imena_se_ujemata()` zgoraj) - teh se ne normalizira,
---     ker bi to podvojilo/zlomilo ujemanje z izvozi.
---
---     Sprožilec spodaj samodejno poenoti VSAK bodoč vnos/popravek
---     profiles.full_name, ki je zapisan izključno z velikimi črkami (torej
---     "ALUKIĆ DINO" -> "Alukić Dino") - enako pravilo, kot ga je doslej
---     enkratno izvedla supabase/popravi-imena-flexi.sql. Obratnega vrstnega
---     reda ("Ime Priimek" -> "Priimek Ime") sprožilec NAMENOMA ne poskuša
---     ugibati - pri dvobesednem priimku ni zanesljivo mogoče vedeti, kje se
---     priimek konča (glej isto opombo v imena-priimek-prvi.sql); za to je
---     spodnji pregledni skript supabase/cleanup-ime-priimek.sql.
--- ---------------------------------------------------------------------
-create or replace function public.standardiziraj_polno_ime()
-returns trigger
-language plpgsql
-as $$
-begin
-  if new.full_name is not null
-     and new.full_name <> ''
-     and new.full_name = upper(new.full_name)
-     and new.full_name <> initcap(new.full_name)
-  then
-    new.full_name := initcap(new.full_name);
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_standardiziraj_polno_ime on public.profiles;
-create trigger trg_standardiziraj_polno_ime
-  before insert or update of full_name on public.profiles
-  for each row execute function public.standardiziraj_polno_ime();
 
 -- Enkraten zagon za obstoječe vrstice (sprožilec zgoraj velja šele za
 -- bodoče insert/update) - isto pravilo, ki ga uveljavlja sprožilec.
-update public.profiles
+update public.profili
 set full_name = initcap(full_name)
 where full_name is not null
   and full_name <> ''
   and full_name = upper(full_name)
   and full_name <> initcap(full_name);
+

@@ -97,7 +97,7 @@ with vhod (email, polno) as (
     ('maja.miljkovic@pb-begunje.si', 'Vrevc Maja')
 ),
 posodobitev as (
-  update public.profiles p
+  update public.profili p
   set full_name = v.polno
   from vhod v
   join auth.users u on lower(u.email) = v.email
@@ -117,7 +117,7 @@ union all
 -- ročno v Imeniku – poizvedba jih namenoma ne ugiba, ker pri dvobesednem
 -- priimku ni mogoče vedeti, kje se priimek konča.
 select 'ročno preveri (zunaj seznama)', p.full_name || '  <' || u.email || '>'
-from public.profiles p
+from public.profili p
 join auth.users u on u.id = p.id
 where lower(u.email) not in (select email from vhod)
   and position(' ' in btrim(p.full_name)) > 0

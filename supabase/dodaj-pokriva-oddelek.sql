@@ -11,9 +11,9 @@
 -- Isto vsebino ima supabase/schema.sql, razdelek 34 - če poženeš celotno
 -- shemo, tega ni treba posebej.
 -- ---------------------------------------------------------------------
-alter table public.schedule_entries add column if not exists pokriva_oddelek text;
+alter table public.razpored add column if not exists pokriva_oddelek text;
 
 -- Kontrola: stolpec mora obstajati.
 select column_name, data_type
 from information_schema.columns
-where table_schema = 'public' and table_name = 'schedule_entries' and column_name = 'pokriva_oddelek';
+where table_schema = 'public' and table_name = 'razpored' and column_name = 'pokriva_oddelek';

@@ -35,10 +35,10 @@
 -- Varno je pognati večkrat.
 -- ---------------------------------------------------------------------
 
-update public.lead_departments set enote = 'C'  where full_name = 'ARNEŽ GREGA'        and enote <> 'C';
-update public.lead_departments set enote = 'E1' where full_name = 'MAGLIĆ ALEKSANDER'  and enote <> 'E1';
-update public.lead_departments set enote = 'E2' where full_name = 'LELIČ DIJANA'       and enote <> 'E2';
-update public.lead_departments set enote = 'B1' where full_name in ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA') and enote <> 'B1';
+update public.nosilci_oddelkov set enote = 'C'  where full_name = 'ARNEŽ GREGA'        and enote <> 'C';
+update public.nosilci_oddelkov set enote = 'E1' where full_name = 'MAGLIĆ ALEKSANDER'  and enote <> 'E1';
+update public.nosilci_oddelkov set enote = 'E2' where full_name = 'LELIČ DIJANA'       and enote <> 'E2';
+update public.nosilci_oddelkov set enote = 'B1' where full_name in ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA') and enote <> 'B1';
 
 update public.nadomescanja set enota = 'E2'
  where nosilec = 'LELIČ DIJANA' and nadomesca = 'MAGLIĆ ALEKSANDER';
@@ -49,6 +49,6 @@ update public.nadomescanja set enota = 'B1'
 -- Preverba: stolpec "enote" naj ne vsebuje več oznak SOB/NOB, prevzete
 -- enote pa naj bodo samo v tabeli nadomescanja.
 select full_name, department_code, enote
-  from public.lead_departments
+  from public.nosilci_oddelkov
  where enote is not null
  order by full_name;

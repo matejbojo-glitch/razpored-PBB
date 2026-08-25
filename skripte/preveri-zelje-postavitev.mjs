@@ -119,8 +119,8 @@ async function odpri(sirina, visina, vloga, pot) {
       return b;
     };
     const tabele = {
-      profiles: profili, employee_wishes: zelje,
-      leave_entries: [], leave_entries_log: [], absence_color_map: [],
+      profili: profili, zelje_zaposlenih: zelje,
+      odsotnosti: [], dnevnik_odsotnosti: [], barvne_oznake: [],
     };
     let pravi = null;
     Object.defineProperty(window, "RazporedAuth", {

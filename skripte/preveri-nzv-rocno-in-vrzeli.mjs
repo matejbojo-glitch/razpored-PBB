@@ -224,13 +224,13 @@ eq(dez.vrstice, [], "popravka v stolpcu DEŽURSTVO ne objavi");
 trdi(dez.tezave.length === 1 && /DEŽURSTVO/.test(dez.tezave[0]), "in to pove: " + dez.tezave[0]);
 
 console.log("9) objava ne izgubi druge enote iste osebe");
-// schedule_entries ima unique (employee_id, work_date), oseba pa je isti dan
+// razpored ima unique (employee_id, work_date), oseba pa je isti dan
 // pogosto na več enotah (Džamastagić na PDZN, SOBO in U2). Doslej je vsaka
 // nadaljnja enota tiho prepisala prejšnjo - v razporedu je ostala ena sama.
 // "Predlagaj mesec" tak primer namenoma ustvarja (človek dobi drugo enoto),
 // zato mora objava to prenesti.
 let poslano = null;
-// Imena v profiles so "Priimek Ime", v lead_departments (od koder pridejo
+// Imena v profili so "Priimek Ime", v nosilci_oddelkov (od koder pridejo
 // imena za razpored NZV) pa z VELIKIMI črkami - natanko razhajanje, ob
 // katerem je dobesedna primerjava izgubila vse ljudi.
 const PROFILI_V_BAZI = [
@@ -244,8 +244,8 @@ const VODJE_V_BAZI = [{ full_name: "DŽAMASTAGIĆ DENIS", employee_code: "855" }
 const thenable = (podatki) => ({ then: (nx) => Promise.resolve({ data: podatki, error: null }).then(nx) });
 sandbox.client = {
   from: (tabela) => ({
-    select: () => thenable(tabela === "profiles" ? PROFILI_V_BAZI
-      : tabela === "lead_departments" ? VODJE_V_BAZI : HR_VRSTICE),
+    select: () => thenable(tabela === "profili" ? PROFILI_V_BAZI
+      : tabela === "nosilci_oddelkov" ? VODJE_V_BAZI : HR_VRSTICE),
     upsert: (vrstice) => { poslano = vrstice; return Promise.resolve({ error: null }); },
   }),
 };
@@ -281,7 +281,7 @@ eq(izidObjave.manjkajo, [], "nihče ni izgubljen");
 
 console.log("10) oseba se najde tudi, kadar se zapis imena razlikuje");
 // Doslej je bilo tu .in("full_name", imena) - dobesedna primerjava proti
-// profiles. Ker so imena v lead_departments z velikimi črkami, ni našla
+// profili. Ker so imena v nosilci_oddelkov z velikimi črkami, ni našla
 // NIKOGAR: objava je "uspela" z 0 zapisi, vsi pa so bili poročani kot
 // "brez profila". Zato je to ključna trditev, ne podrobnost.
 poslano = null;

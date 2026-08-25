@@ -19,7 +19,7 @@
  * pokriva_oddelek (shema, razdelek 34). Prej je šel v department_code
  * pokriti oddelek, kar je imelo dve slabi posledici:
  *   1. kombinirane oznake ("C/E2" - oseba tisti dan pokriva dva oddelka)
- *      tuji ključ na departments zavrne, zato jih je uvoz PRESKOČIL: na
+ *      tuji ključ na oddelki zavrne, zato jih je uvoz PRESKOČIL: na
  *      avgustu 2026 je tako odpadlo 87 vpisov;
  *   2. tisti, ki so se shranili, so pristali pod TUJIM oddelkom, zato je
  *      zavihek FLEXI ostal PRAZEN, čeprav je uvoz javil "FLEXI (87)".
@@ -163,7 +163,7 @@ console.log("3) kombinirana oznaka ('C/E2' = dvojna pokritost) se OHRANI, ne pre
   trdi(!!misotic1 && misotic1.pokriva_oddelek === "C/E2",
     "kombinirana oznaka se ohrani nespremenjena v pokriva_oddelek");
   trdi(!!misotic1 && misotic1.department_code === "FLEXI",
-    "v department_code gre FLEXI (koda, ki v departments obstaja - tuji ključ je zadovoljen)");
+    "v department_code gre FLEXI (koda, ki v oddelki obstaja - tuji ključ je zadovoljen)");
   const jePrijavljeno = [...neujemanja].some(n => n.includes("MISOTIČ R.") && n.includes("C/E2"));
   trdi(!jePrijavljeno, "ni več prijavljeno kot neujemanje (ker ni več napaka)");
 }
@@ -203,11 +203,11 @@ console.log("7) NZV razpored vsebuje samo vodje in administratorje");
   const html2 = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/const JE_NZV_VLOGA = new Set\(window\.NzvZasedba\.VLOGE\);/.test(html2),
     "vloge, ki sodijo v NZV, so opredeljene na enem mestu");
-  trdi(/if \(!JE_NZV_VLOGA\.has\(r\.profiles\.role\)\) return;/.test(html2),
-    "enote (schedule_entries) so filtrirane po vlogi");
+  trdi(/if \(!JE_NZV_VLOGA\.has\(r\.profili\.role\)\) return;/.test(html2),
+    "enote (razpored) so filtrirane po vlogi");
   trdi(/if \(!ujem \|\| !JE_NZV_VLOGA\.has\(ujem\.role\)\) return;/.test(html2),
-    "tudi stolpci LD/IZOB/BS (leave_entries) so filtrirani po isti vlogi");
-  trdi(/profiles!employee_id\(full_name, role,/.test(html2),
+    "tudi stolpci LD/IZOB/BS (odsotnosti) so filtrirani po isti vlogi");
+  trdi(/profili!employee_id\(full_name, role,/.test(html2),
     "poizvedba res prebere vlogo (sicer bi bil filter vedno prazen)");
 }
 
@@ -218,7 +218,7 @@ console.log("8) stolpec 'DODATNO C/E2 7-19' se ne uvozi, a se PRIJAVI");
   // preostalih 19 pa na njenem matičnem oddelčnem zavihku (Jereb S. 13. 6.
   // -> zavihek C "DNEVNA12"; Šabić 25. 7. -> C "DNEVNA12 C/E2"). Vpisati ga
   // posebej bi pomenilo PREPISATI oddelčno izmeno iste osebe, ker
-  // schedule_entries dovoli en zapis na oseba/dan.
+  // razpored dovoli en zapis na oseba/dan.
   const html2 = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/\/\^DODATNO\\b\/i\.test\(ime\)/.test(html2), "stolpec se prepozna po naslovu");
   trdi(/steviloDodatnih\+\+/.test(html2), "šteje se, kolikokrat je bil preskočen");

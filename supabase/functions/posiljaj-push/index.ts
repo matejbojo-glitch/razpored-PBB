@@ -1,14 +1,14 @@
 // ---------------------------------------------------------------------
 // Razpored PBB – Edge Function "posiljaj-push"
 //
-// Prebere še neposlana obvestila iz tabele notifications (push_sent_at is
+// Prebere še neposlana obvestila iz tabele obvestila (push_sent_at is
 // null) in jih odpošlje kot Web Push na vse naprave, ki jih je posamezni
-// uporabnik registriral (push_subscriptions). Uspešno poslana obvestila
+// uporabnik registriral (potisne_narocnine). Uspešno poslana obvestila
 // označi s push_sent_at, mrtve naročnine (404/410 = uporabnik je odstranil
 // aplikacijo ali počistil brskalnik) pa pobriše.
 //
 // NE pošilja neposredno iz sprožilca v bazi – glej razlago v
-// supabase/schema.sql sekcija 27. Tabela notifications je edini vir
+// supabase/schema.sql sekcija 27. Tabela obvestila je edini vir
 // resnice; ta funkcija je samo dostavljalec.
 //
 // Namestitev in ključi: glej PUSH-SETUP.md v korenu repozitorija.
@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
   // se označujeta ločeno (push_sent_at / email_sent_at), zato lahko eno
   // uspe in drugo ostane za naslednji krog, ne da bi se karkoli podvojilo.
   const { data: obvestila, error: napakaBranja } = await db
-    .from("notifications")
+    .from("obvestila")
     .select("id, user_id, message, title, url, push_sent_at, email_sent_at")
     .or("push_sent_at.is.null,email_sent_at.is.null")
     .gte("created_at", mejaCasa)
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
   // namesto ene na obvestilo).
   const idjiPrejemnikov = [...new Set(obvestila.map((o) => o.user_id))];
   const { data: narocnine } = await db
-    .from("push_subscriptions")
+    .from("potisne_narocnine")
     .select("id, profile_id, endpoint, p256dh, auth")
     .in("profile_id", idjiPrejemnikov);
 
@@ -201,17 +201,17 @@ Deno.serve(async (req: Request) => {
   // manjkajoče e-pošte, po nesreči obvelja za "push poslan".
   const zdaj = new Date().toISOString();
   if (pushOpravljeno.length) {
-    await db.from("notifications").update({ push_sent_at: zdaj }).in("id", pushOpravljeno);
+    await db.from("obvestila").update({ push_sent_at: zdaj }).in("id", pushOpravljeno);
   }
   if (epostaOpravljeno.length) {
-    await db.from("notifications").update({ email_sent_at: zdaj }).in("id", epostaOpravljeno);
+    await db.from("obvestila").update({ email_sent_at: zdaj }).in("id", epostaOpravljeno);
   }
 
   if (mrtveNarocnine.length) {
-    await db.from("push_subscriptions").delete().in("id", mrtveNarocnine);
+    await db.from("potisne_narocnine").delete().in("id", mrtveNarocnine);
   }
   if (zivaNarocnine.length) {
-    await db.from("push_subscriptions").update({ last_ok_at: new Date().toISOString() })
+    await db.from("potisne_narocnine").update({ last_ok_at: new Date().toISOString() })
       .in("id", [...new Set(zivaNarocnine)]);
   }
 

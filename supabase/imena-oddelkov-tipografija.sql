@@ -22,17 +22,17 @@
 select code,
        name                                  as staro_ime,
        replace(name, ' - ODDELEK', ' – oddelek') as novo_ime
-  from public.departments
+  from public.oddelki
  where name like '% - ODDELEK'
  order by code;
 
 -- Šele nato posodobi.
-update public.departments
+update public.oddelki
    set name = replace(name, ' - ODDELEK', ' – oddelek')
  where name like '% - ODDELEK';
 
 -- Preverba: spodnja poizvedba mora vrniti 0 vrstic.
-select code, name from public.departments where name like '% - ODDELEK';
+select code, name from public.oddelki where name like '% - ODDELEK';
 
 -- In pregled končnega stanja.
-select code, name from public.departments order by code;
+select code, name from public.oddelki order by code;

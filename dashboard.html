@@ -157,12 +157,12 @@ function DopustPregled({ oddelki }){
       return;
     }
 
-    client.from("profiles")
-      .select("id, full_name, department_code, profile_hr_details(annual_leave_total, leave_balance_days, leave_balance_asof)")
+    client.from("profili")
+      .select("id, full_name, department_code, kadrovski_podatki(annual_leave_total, leave_balance_days, leave_balance_asof)")
       .order("full_name")
       .then(({ data }) => {
         setVrstice((data || []).map(p => {
-          const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+          const hr = Array.isArray(p.kadrovski_podatki) ? p.kadrovski_podatki[0] : p.kadrovski_podatki;
           return {
             id: p.id,
             full_name: p.full_name,
@@ -612,7 +612,7 @@ function App({ role, ogled, profil }){
       return;
     }
 
-    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || [])).catch(() => setOddelki([]));
+    client.from("oddelki").select("code, name").order("code").then(({ data }) => setOddelki(data || [])).catch(() => setOddelki([]));
   }, []);
 
   const update = (key, novi) => setData(d => ({ ...d, [key]: { ...d[key], podatki: novi } }));

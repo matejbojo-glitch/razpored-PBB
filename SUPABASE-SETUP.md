@@ -10,10 +10,10 @@ ključa ali dostopa do SQL urejevalnika.
 
 Če pri povabilu novega uporabnika (ali pri navadni registraciji) dobiš to
 napako, je vzrok skoraj zagotovo sprožilec `handle_new_user()`, ki ob
-vsakem novem `auth.users` vnosu doda vrstico v `public.profiles`. Ta
+vsakem novem `auth.users` vnosu doda vrstico v `public.profili`. Ta
 sprožilec teče v transakciji vloge `supabase_auth_admin` (Supabase Auth
 storitev), ne `postgres` iz SQL Editorja – če ji manjkajo pravice na
-`public.profiles`, GoTrue vrne točno to generično sporočilo.
+`public.profili`, GoTrue vrne točno to generično sporočilo.
 
 **Popravek je že v `supabase/schema.sql`** (doda eksplicitne grante za
 `supabase_auth_admin` in naredi sprožilec odporen na napake, da nikoli ne
@@ -42,16 +42,33 @@ URL v nastavitvah razlikuje, ga popravi v `supabase-client.js` (vrstica z
 
 ## 1. Zaženi shemo
 
+> ### ⚠️ Na OBSTOJEČI bazi najprej preimenuj tabele
+>
+> Avgusta 2026 so bile tabele preimenovane v slovenska imena
+> (`profiles` → `profili`, `departments` → `oddelki`,
+> `schedule_entries` → `razpored` …). Če tvoja baza še vsebuje podatke
+> pod starimi imeni, poženi **najprej**
+> [`supabase/00-preimenuj-tabele.sql`](supabase/00-preimenuj-tabele.sql)
+> in **šele nato** `schema.sql`.
+>
+> Zakaj je vrstni red pomemben: `schema.sql` ustvarja tabele z
+> `create table if not exists`. Če bi ga pognal na bazi s starimi imeni,
+> bi ustvaril 25 **praznih** novih tabel poleg starih – aplikacija bi
+> kazala prazen razpored, podatki pa bi tiho obtičali v starih tabelah.
+> Skripta `00-preimenuj-tabele.sql` tabele **preimenuje** (podatki,
+> indeksi, tuji ključi in RLS politike se ohranijo) in jo je varno
+> pognati večkrat. Na povsem novi bazi je ne potrebuješ.
+
 Supabase Dashboard → **SQL Editor** → **New query** → prilepi celotno
 vsebino datoteke [`supabase/schema.sql`](supabase/schema.sql) → **Run**.
 
 To ustvari:
-- `departments` (6 oddelkov SMS/TZN + "Dežurni"/"Nedežurni")
-- `profiles` (1:1 z `auth.users`, vloga + oddelek/ekipa)
-- `schedule_entries` (razpored, en zapis = en zaposleni/en dan)
-- `swap_requests` + `notifications` (dvostopenjska odobritev menjav)
+- `oddelki` (6 oddelkov SMS/TZN + "Dežurni"/"Nedežurni")
+- `profili` (1:1 z `auth.users`, vloga + oddelek/ekipa)
+- `razpored` (razpored, en zapis = en zaposleni/en dan)
+- `zahtevki_za_menjavo` + `obvestila` (dvostopenjska odobritev menjav)
 - RLS politike in RPC funkcije (`submit_swap_request`, `decide_swap_lead`,
-  `decide_swap_admin`) – vsa pisanja v `swap_requests` gredo izključno
+  `decide_swap_admin`) – vsa pisanja v `zahtevki_za_menjavo` gredo izključno
   prek teh funkcij, neposreden insert/update od klienta je zavrnjen.
 
 Skripto je varno pognati večkrat (uporablja `if not exists` / `or replace`,
@@ -82,7 +99,7 @@ ročno postati prvi administrator, preden lahko v `admin.html` upravlja
 ostale. En sam ukaz v SQL Editorju, potem ko se ta oseba enkrat registrira:
 
 ```sql
-update public.profiles set role = 'admin'
+update public.profili set role = 'admin'
 where id = (select id from auth.users where email = 'ime.priimek@example.com');
 ```
 
@@ -91,13 +108,13 @@ Od takrat naprej administrator vse ostale vloge/oddelke ureja v
 
 ## 4. Kako zdaj deluje razpored
 
-- `index.html` bere razpored iz `schedule_entries`, ne več iz
+- `index.html` bere razpored iz `razpored`, ne več iz
   `data-oktober-2026.json` / `data-november-2026.json` – ti dve datoteki
   ostajata v repozitoriju kot zgodovinski zapis, a ju aplikacija ne bere več.
 - `admin.html` (generator) po generiranju ponuja **oba** načina: ročni
   prenos JSON (kot prej) IN nov gumb **"📤 Objavi neposredno v Supabase"**,
-  ki vrstice zapiše naravnost v `schedule_entries`. Objava poveže
-  zaposlene po polnem imenu (`profiles.full_name`) – kdor se še ni
+  ki vrstice zapiše naravnost v `razpored`. Objava poveže
+  zaposlene po polnem imenu (`profili.full_name`) – kdor se še ni
   registriral, je v sporočilu po objavi izpisan kot "brez računa".
 - **Uvoz obstoječih oktobrskih/novembrskih podatkov** (iz
   `data-oktober-2026.json`, `data-november-2026.json`) v to shemo ni
@@ -131,9 +148,9 @@ in telefonsko številko na vsak profil, z vidljivostjo po vlogah:
 | **user** | samo svojega | vseh |
 
 To zahteva **ponoven zagon celotne `supabase/schema.sql`** v SQL Editorju
-(varno je pognati večkrat) – doda stolpec `profiles.email`, novi tabeli
-`contact_phones` (telefon, ločen od `profiles` zaradi prave vrstične RLS –
-glej komentar v shemi) in `contact_imports` (uvoz zaposlenih, ki se še niso
+(varno je pognati večkrat) – doda stolpec `profili.email`, novi tabeli
+`telefoni_kontaktov` (telefon, ločen od `profili` zaradi prave vrstične RLS –
+glej komentar v shemi) in `uvozi_kontaktov` (uvoz zaposlenih, ki se še niso
 sami registrirali).
 
 ## 5c. Razpredelnica dopusti/omejitve + generator za vodje – spet zahteva ponoven zagon
@@ -143,24 +160,24 @@ vodje NZV" sta nastali dve novi funkciji:
 
 - **`zelje.html` → zavihek "Razpredelnica dopusti/omejitve"**: barvni koledar
   (Omejitev/LD/BS/STI) namesto ročnega vnosa datumov. Piše v novo tabelo
-  `leave_entries` (+ `leave_entries_log` za zgodovino). `admin.html` →
+  `odsotnosti` (+ `dnevnik_odsotnosti` za zgodovino). `admin.html` →
   Dežurstva to samodejno prebere ob izbiri meseca.
 - **`admin.html` → zavihek "Vodje"**: mesečna zasedenost 22 vodij/nosilcev
-  oddelkov iz nove tabele `lead_departments` (seed podatki že v shemi, iz
+  oddelkov iz nove tabele `nosilci_oddelkov` (seed podatki že v shemi, iz
   Excel predloge) – vsak je ob delavnikih privzeto na svojem domačem
   oddelku, LD/BS/STI vnosi iz zgornje razpredelnice ga premaknejo v ustrezen
   stolpec. Poenostavitev glede na izvirno predlogo: stolpca "SA DOP"/"SA
   POP" sta združena v en "SA", "Omejitev" (rumena) nima lastnega stolpca
   (koordinator te dni presodi ročno) – če je to pomembno, povej in dopolnim.
 
-Spet zahteva **ponoven zagon `supabase/schema.sql`** – doda `leave_entries`,
-`leave_entries_log`, `lead_departments` (s seed podatki) in nove kode enot v
-`departments` (PDZN/SOBO/ŽO/MO/PO/A/B1B2/DB/SA/URGENCA/U2).
+Spet zahteva **ponoven zagon `supabase/schema.sql`** – doda `odsotnosti`,
+`dnevnik_odsotnosti`, `nosilci_oddelkov` (s seed podatki) in nove kode enot v
+`oddelki` (PDZN/SOBO/ŽO/MO/PO/A/B1B2/DB/SA/URGENCA/U2).
 
 ### Pravice v Razpredelnici – vezane na pravo prijavo (ne na PIN/geslo)
 
 Stran je zdaj dostopna vsem trem vlogam (prej samo admin/vodja), z realnimi
-pravicami vezanimi na Supabase prijavo (`profiles.role`/`full_name`), ne na
+pravicami vezanimi na Supabase prijavo (`profili.role`/`full_name`), ne na
 izbiro imena v obrazcu ali PIN, kot je bilo predlagano v ločenem, ne-
 avtenticiranem HTML orodju – naša aplikacija ima že pravo prijavo, zato ta
 korak ni bil potreben:
@@ -174,8 +191,8 @@ korak ni bil potreben:
 Uveljavljeno na obeh koncih: v vmesniku (`zelje.html`) IN v RLS politiki
 `leave_entries_write`/`leave_entries_log_select` v shemi – tako da omejitve
 veljajo tudi, če bi kdo klical Supabase API neposredno, mimo vmesnika.
-Ujemanje imena med `leave_entries.full_name` (roster, npr. "BOJIĆ MATEJ") in
-`profiles.full_name` (kar je oseba vpisala ob registraciji) je narejeno kot
+Ujemanje imena med `odsotnosti.full_name` (roster, npr. "BOJIĆ MATEJ") in
+`profili.full_name` (kar je oseba vpisala ob registraciji) je narejeno kot
 primerjava "vreče besed" (ne glede na vrstni red besed), da manjše razlike v
 zapisu ne blokirajo dostopa.
 
@@ -199,14 +216,14 @@ zapisu ne blokirajo dostopa.
   vrstnem redu: "Priimek in ime", "Elektronska pošta", "Datum rojstva",
   "Naziv delovnega mesta", "Vodja (naziv)", "Starševsko varstvo", "Letni
   dopust 2026 (skupaj)", "vloga" …).
-- Ti dodatni HR podatki gredo v novo tabelo `profile_hr_details` – vidljivost
+- Ti dodatni HR podatki gredo v novo tabelo `kadrovski_podatki` – vidljivost
   je ožja kot pri telefonu: **samo lastnik in admin**, vodja NIMA dostopa
   (rojstni datum je občutljivejši od telefonske številke, za razliko od
   telefona ni bilo izrecno naročeno, da ga vidi tudi vodja).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda stolpce na
-`contact_imports` (employee_code, birth_date, position_name, manager_name,
-parental_leave, annual_leave_total) in novo tabelo `profile_hr_details`.
+`uvozi_kontaktov` (employee_code, birth_date, position_name, manager_name,
+parental_leave, annual_leave_total) in novo tabelo `kadrovski_podatki`.
 
 ## 5e. Stanje dopusta (preostanek dni) + neposreden uvoz na že registrirane osebe
 
@@ -220,7 +237,7 @@ zaposlene:
 - **Sprememba vedenja uvoza**: če se e-pošta v uvoženi vrstici ujema z že
   registriranim profilom, se vsi podatki (vloga, oddelek, telefon, vsa HR
   polja vključno s stanjem dopusta) posodobijo NANJ **takoj**, ne le ob
-  prvem "Poveži". Prej je vsak uvoz vedno šel v `contact_imports` in čakal
+  prvem "Poveži". Prej je vsak uvoz vedno šel v `uvozi_kontaktov` in čakal
   na ročno povezavo – zdaj to velja samo še za osebe, ki se še niso
   registrirale. To pomeni: admin lahko vsak mesec znova naloži isto Excel
   tabelo z novim stanjem dopusta in vsi že prijavljeni zaposleni bodo takoj
@@ -232,20 +249,20 @@ zaposlene:
   (`import-utils.js` → `normalizirajDatum()`).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda `leave_balance_days`
-in `leave_balance_asof` na `contact_imports` in `profile_hr_details`.
+in `leave_balance_asof` na `uvozi_kontaktov` in `kadrovski_podatki`.
 
 ## 5f. Več oddelkov na zaposlenega + brez podvajanja pri ponovnem uvozu
 
 Na izrecno željo:
 
 - V Imeniku ima lahko en zaposleni **več oddelkov** (npr. pokriva C in C1) –
-  nova tabela `profile_departments` (profile_id, department_code,
+  nova tabela `pokriva_oddelek` (profile_id, department_code,
   sort_order). **Prvi** (najnižji `sort_order`) je "primarni" in ostaja
-  edini, ki šteje za obstoječi generator urnika (`profiles.department_code`
-  – WARDS_META/lead_departments v `admin.html` sta **namenoma
+  edini, ki šteje za obstoječi generator urnika (`profili.department_code`
+  – WARDS_META/nosilci_oddelkov v `admin.html` sta **namenoma
   nespremenjena**, da se ne tvega regresij). Sprožilec
-  `sync_primary_department` v shemi drži `profiles.department_code` in
-  `profile_departments` usklajena, ne glede na to, kateri del aplikacije
+  `sync_primary_department` v shemi drži `profili.department_code` in
+  `pokriva_oddelek` usklajena, ne glede na to, kateri del aplikacije
   (Imenik, Uporabniki, uvoz, gumb za ponastavitev) oddelek spremeni.
   V Imeniku → profil osebe (admin) je nov urejevalnik: dodajanje/odstranitev
   oddelka in gumb "Naredi primaren" za spremembo vrstnega reda.
@@ -255,7 +272,7 @@ Na izrecno željo:
   "posodobljeno stanje dopusta" iz §5e, ko oseba še ni registrirana).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda tabelo
-`profile_departments` + sprožilec (z enkratnim, idempotentnim backfillom za
+`pokriva_oddelek` + sprožilec (z enkratnim, idempotentnim backfillom za
 obstoječe profile).
 
 ## 5g. Pozabljeno geslo + potrditev gesla po registraciji
@@ -285,18 +302,18 @@ samo adminu v "Uvoz zaposlenih") se zdaj pojavijo tudi v glavnem, iskalnem
 seznamu Imenika za VSE vloge – z oznako "še ni registriran" namesto
 vloge/vrstice.
 
-Nov pogled `public.contact_imports_public` (osnovna tabela `contact_imports`
+Nov pogled `public.uvozi_kontaktov_javno` (osnovna tabela `uvozi_kontaktov`
 ostaja admin-only) uveljavlja ISTA pravila vidljivosti kot za registrirane
 profile: e-pošta in oddelek vsem, telefon admin+vodja, HR polja (rojstni
 datum, šifra zaposlenega, stanje dopusta ipd.) samo adminu – ker
 neregistrirana oseba nima "lastnika", ki bi jih smel videti namesto admina.
 Pogled teče s pravicami lastnika (ne "security invoker"), da prebere vse
-vrstice ne glede na RLS na `contact_imports`, nato pa vsak stolpec, ki ga
+vrstice ne glede na RLS na `uvozi_kontaktov`, nato pa vsak stolpec, ki ga
 klicatelj po vlogi ne sme videti, vrne kot `null` (CASE izraz, ovrednoten
 za vsak klic posebej glede na `current_role_is()`).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda pogled
-`contact_imports_public` + `grant select ... to authenticated`.
+`uvozi_kontaktov_javno` + `grant select ... to authenticated`.
 
 ## 5i. Mesečna zgodovina stanja dopusta (Kadris) + trend – zavihek Dopust
 
@@ -306,7 +323,7 @@ DOPUST). Glava se sama poišče med prvimi 15 vrsticami (`najdiGlavo` v
 `import-utils.js`), tako da morebitni naslovi nad tabelo ne motijo.
 
 Šifra zaposlenega (`employee_code`) je edini stabilen ključ med meseci –
-ista, kot jo že uporablja `profile_hr_details.employee_code` – zato se
+ista, kot jo že uporablja `kadrovski_podatki.employee_code` – zato se
 uvožena oseba samodejno poveže s pravim profilom, če je znana; sicer se
 poskusi ujemanje po imenu (vreča besed, diakritike neobčutljivo, ista
 logika kot `imenaSeUjemataAdmin`). Predogled pred potrditvijo loči
@@ -315,19 +332,19 @@ prejšnjih uvozov v novem izvozu ni bilo (njihovi podatki ostanejo,
 samo se v tem mesecu ne posodobijo). Ponoven uvoz istega meseca obstoječo
 vrstico posodobi (upsert po `employee_code, leto, mesec`), ne podvoji.
 
-Nova tabela `public.leave_balance_history` hrani en zapis na osebo na
+Nova tabela `public.zgodovina_stanja_dopusta` hrani en zapis na osebo na
 mesec (RLS: admin vidi vse, uporabnik samo vrstico s svojim `profile_id`).
-Pogled `public.leave_balance_pregled` doda trend – razliko glede na
+Pogled `public.stanje_dopusta_pregled` doda trend – razliko glede na
 prejšnji mesec te osebe (`lag` po `employee_code`, urejeno po
 leto/mesec). Sprožilec `trg_sync_leave_balance` po vsakem uvozu preveri,
 ali je pravkar zapisan mesec NAJNOVEJŠI za to osebo, in če je, samodejno
-uskladi `profile_hr_details.leave_balance_days/leave_balance_asof` – tako
+uskladi `kadrovski_podatki.leave_balance_days/leave_balance_asof` – tako
 Imenik (trenutno stanje pri osebi) in zavihek Dopust (zgodovina/trend)
 nikoli ne razideta, ne glede na vrstni red uvoza mesecev.
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda razdelek 8)
-(`leave_balance_history`, pogleda `leave_balance_pregled`/
-`leave_balance_obdobja`, sprožilec).
+(`zgodovina_stanja_dopusta`, pogleda `stanje_dopusta_pregled`/
+`stanje_dopusta_obdobja`, sprožilec).
 
 ## 5j. Uvoz barvnega koledarja odsotnosti (Kadris) – zavihek Želje
 
@@ -350,11 +367,11 @@ beseda; primerjava je tudi neobčutljiva na vrstni red in šumnike. Osebe
 brez ujemanja se v predogledu izpišejo posebej (uvoz jih preskoči, ne
 prekine celote) – admin lahko popravi črkovanje v datoteki in uvozi znova.
 
-Nova tabela `public.absence_color_map` hrani preslikavo barva → vrsta
+Nova tabela `public.barvne_oznake` hrani preslikavo barva → vrsta
 odsotnosti (`admin`-only), da je admin ob prvem uvozu ne določa vsak
 mesec znova – samo NOVE barve (ki jih tabela še ne pozna) se v predogledu
 izpišejo z izbirnikom vrste (ali "Ignoriraj", če barva ne pomeni
-odsotnosti). Sam uvoz piše neposredno v že obstoječ `leave_entries`
+odsotnosti). Sam uvoz piše neposredno v že obstoječ `odsotnosti`
 (upsert po `full_name, work_date`, torej brez podvajanja ob ponovnem
 uvozu istega meseca) – ista tabela, ki jo generator dežurstev (admin.html)
 že bere. Uvoz zapiše SAMO dejanske obarvane dni iz datoteke; pravilo
@@ -363,7 +380,7 @@ uvozu istega meseca) – ista tabela, ki jo generator dežurstev (admin.html)
 – uvoz ga NE podvoji, sicer bi generator blokiral preveč dni.
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda razdelek 12)
-(`absence_color_map`).
+(`barvne_oznake`).
 
 ## 5k. Izvoz v PDF na 1 A4 stran + pogled "Po dnevih" za telefon
 
@@ -422,13 +439,13 @@ Varnost: preslikava se zgodi SAMO, če je sveže preverjen profil (vedno iz
 baze, nikoli iz predpomnilnika) resnično `role = 'admin'` – nekdo, ki bi
 ročno podtaknil `sessionStorage` ključ brez resnične admin vloge, ne dobi
 učinka. Vsak začetek/konec ogleda je zabeležen v novo tabelo
-`admin_view_as_log` (admin_id, ciljna oseba, časa začetka/konca) – vidno
+`dnevnik_ogledov` (admin_id, ciljna oseba, časa začetka/konca) – vidno
 vsem administratorjem (revizijska sled), pisanje pa sme samo administrator
 o svojem lastnem ogledu (`admin_id = auth.uid()`, se ne da ponarejati v
 imenu drugega admina).
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda razdelek 13)
-(`admin_view_as_log`).
+(`dnevnik_ogledov`).
 
 ## 5m. Želje in razpored – razdeljeno po oddelkih (B/C/C1/D/E1/E2 + Vodje)
 
@@ -442,27 +459,27 @@ oddelkov – samo ta dva pogleda sta zdaj namenoma ožja.
 
 **Seznam želja** je bil prej shranjen samo lokalno (IndexedDB v brskalniku,
 brez deljenja med napravami/uporabniki). Zdaj je v novi tabeli
-`public.employee_wishes` (RLS: admin/vodja vidita in urejata vse; navaden
+`public.zelje_zaposlenih` (RLS: admin/vodja vidita in urejata vse; navaden
 zaposleni vidi in vnaša SAMO v svoj lasten oddelek – primerjava z
-`profiles.department_code` prek `current_department()`, ne z izbiro v
+`profili.department_code` prek `current_department()`, ne z izbiro v
 vmesniku, ker RLS to uveljavi tudi ob neposrednem klicu API-ja). Admin/vodja
 lahko vnese željo za katero koli osebo v katerem koli od 7 "oddelkov"
 (sporočeno po telefonu ipd.) – ime za izbirnik pride iz že obstoječega
-seznama osebja (6 oddelkov) oz. neposredno iz `lead_departments` (za
+seznama osebja (6 oddelkov) oz. neposredno iz `nosilci_oddelkov` (za
 "Vodje" – edini pravi vir 22 nosilcev oddelkov, brez podvajanja).
 
 **"Po oddelkih"** (index.html) dropdown zdaj ponuja samo teh 7 vnosov.
 Navaden zaposleni je zaklenjen na svoj lasten oddelek (če ta sploh spada
 med 6 – če ne, zavihek "Po oddelkih" zanj sploh ni prikazan); administrator
 in vodja lahko brskata po vseh, tudi po "Vodje". Ker nosilci oddelkov v
-`profiles.department_code` obdržijo svoj lasten negovalni oddelek (vodstvena
+`profili.department_code` obdržijo svoj lasten negovalni oddelek (vodstvena
 zadolžitev ni "pravi" oddelek), pogled "Vodje" seznam enot pridobi iz
-`lead_departments`, osebe/vnose pa iz `schedule_entries` za te enote (to
+`nosilci_oddelkov`, osebe/vnose pa iz `razpored` za te enote (to
 objavi zavihek "Vodje" v admin.html) – enaka tabela in RLS kot za vse
 ostale oddelke, brez posebnih dovoljenj.
 
 Zahteva **ponoven zagon `supabase/schema.sql`** – doda razdelek 14)
-(`employee_wishes`).
+(`zelje_zaposlenih`).
 
 ## 5n. Kalup – urejanje predloga + izvoz CSV (za Google Sheets)
 

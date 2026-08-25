@@ -13,7 +13,7 @@
 -- (PON-PET, brez dela prostih praznikov), ob njeni odsotnosti pa jo
 -- nadomesti Velušček Metka, ki je zanjo že vpisana v tabeli nadomescanja.
 --
--- Zakaj "A/PO" in ne dva zapisa: lead_departments ima eno vrstico na
+-- Zakaj "A/PO" in ne dva zapisa: nosilci_oddelkov ima eno vrstico na
 -- osebo, več enot pa se piše v stolpec "enote" kot prosto besedilo
 -- (glej nzv-nosilci-oddelkov.sql). department_code ostane "A" - to je
 -- njena primarna enota in nanjo se veže tuji ključ.
@@ -28,7 +28,7 @@
 -- Varno je pognati večkrat.
 -- ---------------------------------------------------------------------
 
-update public.lead_departments
+update public.nosilci_oddelkov
    set enote = 'A/PO'
  where translate(upper(full_name), 'Ć', 'Č') like 'TOMAŽEVIČ%'
    and coalesce(enote, '') <> 'A/PO';
@@ -37,5 +37,5 @@ update public.lead_departments
 -- Če vrne 0 vrstic, osebe v tabeli NI - takrat poženi nzv-nosilci-oddelkov.sql.
 select full_name, department_code, enote, nadomesca,
        case when enote = 'A/PO' then 'OK' else 'NAPAKA: enote niso A/PO' end as stanje
-  from public.lead_departments
+  from public.nosilci_oddelkov
  where translate(upper(full_name), 'Ć', 'Č') like 'TOMAŽEVIČ%';

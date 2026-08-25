@@ -91,19 +91,19 @@ try {
     stran.on("pageerror", e => konzola.push(String(e)));
     stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
     await stran.addInitScript(({ profili, vodje, pari, dopust, objavljeno }) => {
-      const tabele = { profiles: profili, lead_departments: vodje, nadomescanja: pari,
-        leave_entries: dopust, schedule_entries: objavljeno, menjave_javno: [],
-        departments: [{ code: "C1", name: "C1" }, { code: "C", name: "C" }, { code: "B", name: "B" }] };
+      const tabele = { profili: profili, nosilci_oddelkov: vodje, nadomescanja: pari,
+        odsotnosti: dopust, razpored: objavljeno, menjave_javno: [],
+        oddelki: [{ code: "C1", name: "C1" }, { code: "C", name: "C" }, { code: "B", name: "B" }] };
       const poizvedba = (v) => {
         const filtri = [];
         const b = new Proxy({}, { get(_, n) {
           if (n === "eq") return (k, x) => { filtri.push([k, x]); return b; };
           if (n === "then") return (nx) => Promise.resolve({
             data: v.filter(r => filtri.every(([k, x]) => r[k] === x))
-              // index.html bere osebo vgnezdeno ("profiles!employee_id(...)"),
+              // index.html bere osebo vgnezdeno ("profili!employee_id(...)"),
               // zato jo lažni odjemalec pripne enako, kot bi jo PostgREST.
-              .map(r => (r.employee_id && !r.profiles
-                ? Object.assign({}, r, { profiles: profili.find(p => p.id === r.employee_id) || null })
+              .map(r => (r.employee_id && !r.profili
+                ? Object.assign({}, r, { profili: profili.find(p => p.id === r.employee_id) || null })
                 : r)),
             error: null }).then(nx);
           if (n === "insert" || n === "upsert" || n === "update") return () => Promise.resolve({ data: [], error: null });

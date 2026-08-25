@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Preizkus parafaOd()/parafaMapa() (index.html) - parafa se je za del
- * kadra spremenila z veljavnostjo od 1.10.2026 (profiles.parafa = nova,
- * profiles.parafa_pred_oktobrom_2026 = stara, glej
+ * kadra spremenila z veljavnostjo od 1.10.2026 (profili.parafa = nova,
+ * profili.parafa_pred_oktobrom_2026 = stara, glej
  * supabase/posodobi-parafe-oktober-2026.sql). Preverja tri stvari, ki jih
  * ni mogoče zanesljivo preveriti samo z branjem kode:
  *  1) za osebo, ki JE spremenila parafo, se dnevi/meseci PRED 1.10.2026
