@@ -808,8 +808,9 @@ create trigger on_leave_entry_change
 
 -- ---------------------------------------------------------------------
 -- 10) lead_departments – 22 vodij/nosilcev oddelkov (iz "Predloga
---     razporeda vodje NZV"): domači oddelek, ali sodelujejo pri
---     dežurstvih, mesečna kvota/omejitve, nadomeščanje ob odsotnosti.
+--     razporeda vodje NZV"): domači oddelek (in morebitne dodatne enote),
+--     inicialke/matična številka, ali sodelujejo pri dežurstvih, mesečna
+--     kvota/omejitve, nadomeščanje ob odsotnosti.
 --     Ločeno od profiles.department_code, ker gre za VODSTVENO
 --     pokritost enote (en vodja = ena "domača" enota), ne za vlogo v
 --     Supabase Auth pomenu.
@@ -828,6 +829,18 @@ create table if not exists public.lead_departments (
   opomba text
 );
 
+-- enote/inicialke/mat_st/letni_dopust_dni: iz "Predloga_razporeda_682026_2.xlsx",
+-- zavihek "Zaposleni - Oddelki" (vir novejši od prvotne postavitve zgoraj -
+-- npr. Alukić Dino je bil tu prej PDZN, v resnici je nosilec ŽO). enote je
+-- prosto besedilo, ker ima lahko nosilec VEČ oddelkov hkrati (npr. "A/PO");
+-- department_code ostane PRVA prepoznana koda, da obstoječi pogledi delajo
+-- naprej brez sprememb (department_code ima tuji ključ na departments, ki
+-- kombinacije kot "A/PO" zavrne).
+alter table public.lead_departments add column if not exists enote text;
+alter table public.lead_departments add column if not exists inicialke text;
+alter table public.lead_departments add column if not exists mat_st text;
+alter table public.lead_departments add column if not exists letni_dopust_dni integer;
+
 alter table public.lead_departments enable row level security;
 drop policy if exists lead_departments_select on public.lead_departments;
 create policy lead_departments_select on public.lead_departments
@@ -838,33 +851,49 @@ create policy lead_departments_write_admin on public.lead_departments
   using (public.current_role_is('admin'))
   with check (public.current_role_is('admin'));
 
+-- Opomba k spodnjemu seznamu (22 vodij/nosilcev): department_code/enote/
+-- inicialke/mat_st/letni_dopust_dni so uskladjeni na novejši vir "Zaposleni
+-- - Oddelki" (glej opombo ob stolpcih zgoraj); Misotič Rebeka in Sofrić
+-- Nikolina v tem viru nista bili navedeni, zato ostajata na prvotnih
+-- vrednostih (mat_st zanju je iz kadrovskega izvoza "Seznam zaposlenih ZN").
+-- Priimek "Lelič" (ne "Lelić") je uradni zapis, preverjen proti e-pošti
+-- dijana.lelic@pb-begunje.si.
 insert into public.lead_departments
-  (full_name, department_code, dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, delovnik, ur_na_dan, odsotnost_tip, odsotnost_do, nadomesca, opomba)
+  (full_name, inicialke, mat_st, department_code, enote, letni_dopust_dni,
+   dezurstvo_dovoljeno, max_mesecno, samo_med_tednom, delovnik, ur_na_dan,
+   odsotnost_tip, odsotnost_do, nadomesca, opomba)
 values
-  ('ALUKIĆ DINO', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'BOJIĆ MATEJ', 'ob odsotnosti (LD, BS) nadomeščanje Bojić Matej'),
-  ('ARNEŽ GREGA', 'C1', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LUNAR MATEJA', 'ob odsotnosti (LD, BS) nadomeščanje Lunar Mateja'),
-  ('BIZJAK TEA', 'SA', false, null, false, 'dopoldne/popoldne', 6, null, null, null, 'delo po 6 ur'),
-  ('BOJIĆ MATEJ', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'ob odsotnosti (LD, BS) nadomeščanje Dino Alukić'),
-  ('DŽAMASTAGIĆ DENIS', 'PDZN', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'Pomočnik direktorja za zdravstveno nego; ob odsotnosti nadomeščanje Dino Alukić, nato Matej Bojić'),
-  ('HROVAT NINA', 'DB', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'TORKAR TANJA', 'ob odsotnosti (LD, BS) nadomeščanje Torkar Tanja'),
-  ('HUMAR SAŠA', 'SA', false, null, false, 'dopoldne/popoldne', null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) nadomeščanje Bizjak Tea, nato Trpin Saša'),
-  ('LELIĆ DIJANA', 'E2', false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
-  ('LUNAR MATEJA', 'B', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ARNEŽ GREGA', 'ob odsotnosti (LD, BS) nadomeščanje Arnež Grega'),
-  ('MAGLIĆ ALEKSANDER', 'E1', false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LELIĆ DIJANA', 'ob odsotnosti (LD, BS) nadomeščanje Dijana Lelić'),
-  ('MAVRI TRATNIK MAGDALENA', 'B1B2', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ŠUBIC PETRA', 'ob odsotnosti (LD, BS) nadomeščanje Šubic Petra'),
-  ('MISOTIČ REBEKA', 'C', false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
-  ('MUŠIČ INES', 'SA', false, null, false, 'dopoldne', 7, null, null, null, 'delo po 7 ur'),
-  ('PERVIZ AMAL', 'D', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
-  ('POGAČNIK TEJA', 'E1', false, null, false, 'dopoldne 7.00-15.30', null, 'porodniška', '2027-07-31', null, 'trenutno porodniška - do julij 2027'),
-  ('SALKIĆ MARUŠA', 'C1', true, 1, true, 'dopoldne 7.00-15.30', null, null, null, null, '1x dežurstvo na mesec med tednom'),
-  ('SOFRIĆ NIKOLINA', 'E2', false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
-  ('ŠUBIC PETRA', 'B1B2', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAVRI TRATNIK MAGDALENA', 'ob odsotnosti (LD, BS) nadomeščanje Magdalena Mavri Tratnik'),
-  ('TOMAŽEVIČ SIMONA', 'A', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'VELUŠČEK METKA', 'ob odsotnosti (LD, BS) nadomeščanje Velušček Metka'),
-  ('TORKAR TANJA', 'DB', true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'HROVAT NINA', 'ob odsotnosti (LD, BS) nadomeščanje Hrovat Nina'),
-  ('TRPIN SAŠA', 'SA', true, 1, true, 'dopoldne 7.00-15.30', null, null, null, null, 'ob odsotnosti (LD, BS) Bizjak Tea, Musić Ines'),
-  ('VELUŠČEK METKA', 'SOBO', true, 2, false, 'dopoldne 7.00-15.30', null, null, null, 'DŽAMASTAGIĆ DENIS', 'ob odsotnosti (LD, BS) nadomeščanje Džamastagić Denis')
+  ('ALUKIĆ DINO', 'ALU', '823', 'ZO', 'ŽO', 12, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'BOJIĆ MATEJ', 'ob odsotnosti (LD, BS) nadomeščanje Bojić Matej'),
+  ('ARNEŽ GREGA', 'ARN', '1092', 'C', 'C', 27, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LUNAR MATEJA', 'ob odsotnosti (LD, BS) nadomeščanje Lunar Mateja'),
+  ('BIZJAK TEA', 'BIZ', '989', 'URGENCA', 'UA/SA/B2', 8, false, null, false, 'dopoldne/popoldne', 6, null, null, null, 'delo po 6 ur'),
+  ('BOJIĆ MATEJ', 'BOJ', '855', 'MO', 'MO', 25, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'ob odsotnosti (LD, BS) nadomeščanje Dino Alukić'),
+  ('DŽAMASTAGIĆ DENIS', 'DŽA', '912', 'PDZN', 'PDZN', 19, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ALUKIĆ DINO', 'Pomočnik direktorja za zdravstveno nego; ob odsotnosti nadomeščanje Dino Alukić, nato Matej Bojić'),
+  ('HROVAT NINA', 'HRO', '820', 'DB', 'DB', 23, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'TORKAR TANJA', 'ob odsotnosti (LD, BS) nadomeščanje Torkar Tanja'),
+  ('HUMAR SAŠA', 'HUM', '705', 'SA', 'SA', 32, false, null, false, 'dopoldne/popoldne', null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) nadomeščanje Bizjak Tea, nato Trpin Saša'),
+  ('LELIČ DIJANA', 'LEL', '1090', 'E2', 'E2', 20, false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
+  ('LUNAR MATEJA', 'LUN', '844', 'B', 'B', 28, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ARNEŽ GREGA', 'ob odsotnosti (LD, BS) nadomeščanje Arnež Grega'),
+  ('MAGLIĆ ALEKSANDER', 'MAG', '1001', 'E1', 'E1', 18, false, null, false, 'dopoldne 7.00-15.30', null, null, null, 'LELIČ DIJANA', 'ob odsotnosti (LD, BS) nadomeščanje Dijana Lelić'),
+  ('MAVRI TRATNIK MAGDALENA', 'TRA', '833', 'B1B2', 'B1', 29, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'ŠUBIC PETRA', 'ob odsotnosti (LD, BS) nadomeščanje Šubic Petra'),
+  ('MISOTIČ REBEKA', null, '1163', 'C', null, null, false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
+  ('MUŠIČ INES', 'MUŠ', '926', 'URGENCA', 'UA/SA', 27, false, null, false, 'dopoldne', 7, null, null, null, 'delo po 7 ur'),
+  ('PERVIZ AMAL', 'PER', '887', 'D', 'D', 12, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAGLIĆ ALEKSANDER', 'ob odsotnosti (LD, BS) nadomeščanje Aleksander Maglić'),
+  ('POGAČNIK TEJA', 'POG', '1058', 'E1', 'E1', 35, false, null, false, 'dopoldne 7.00-15.30', null, 'porodniška', '2027-07-31', null, 'trenutno porodniška - do julij 2027'),
+  ('SALKIĆ MARUŠA', 'SAL', '925', 'C1', 'C1', 19, true, 1, true, 'dopoldne 7.00-15.30', null, null, null, null, '1x dežurstvo na mesec med tednom'),
+  ('SOFRIĆ NIKOLINA', null, '1174', 'E2', null, null, false, null, false, 'dopoldne/popoldne', null, null, null, null, null),
+  ('ŠUBIC PETRA', 'ŠUB', '905', 'B1B2', 'B1', 28, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'MAVRI TRATNIK MAGDALENA', 'ob odsotnosti (LD, BS) nadomeščanje Magdalena Mavri Tratnik'),
+  -- Nosilka enote A IN enote PO (uporabnikova navedba, avgust 2026) - PO
+  -- doslej ni imela nobenega nosilca, zato je stolpec v NZV mreži ostajal
+  -- prazen.
+  ('TOMAŽEVIČ SIMONA', 'TOM', '793', 'A', 'A/PO', 37, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'VELUŠČEK METKA', 'ob odsotnosti (LD, BS) nadomeščanje Velušček Metka'),
+  ('TORKAR TANJA', 'TOR', '965', 'DB', 'DB', 23, true, null, false, 'dopoldne 7.00-15.30', null, null, null, 'HROVAT NINA', 'ob odsotnosti (LD, BS) nadomeščanje Hrovat Nina'),
+  ('TRPIN SAŠA', 'TRP', '870', 'URGENCA', 'UA/SA', 17, true, 1, true, 'dopoldne 7.00-15.30', null, null, null, 'BIZJAK TEA', 'ob odsotnosti (LD, BS) Bizjak Tea, Musić Ines'),
+  ('VELUŠČEK METKA', 'VEL', '834', 'SOBO', 'SOBO', 41, true, 2, false, 'dopoldne 7.00-15.30', null, null, null, 'DŽAMASTAGIĆ DENIS', 'ob odsotnosti (LD, BS) nadomeščanje Džamastagić Denis')
 on conflict (full_name) do update set
+  inicialke = coalesce(excluded.inicialke, public.lead_departments.inicialke),
+  mat_st = coalesce(excluded.mat_st, public.lead_departments.mat_st),
   department_code = excluded.department_code,
+  enote = coalesce(excluded.enote, public.lead_departments.enote),
+  letni_dopust_dni = coalesce(excluded.letni_dopust_dni, public.lead_departments.letni_dopust_dni),
   dezurstvo_dovoljeno = excluded.dezurstvo_dovoljeno,
   max_mesecno = excluded.max_mesecno,
   samo_med_tednom = excluded.samo_med_tednom,
@@ -874,6 +903,14 @@ on conflict (full_name) do update set
   odsotnost_do = excluded.odsotnost_do,
   nadomesca = excluded.nadomesca,
   opomba = excluded.opomba;
+
+-- Enkraten popravek: starejši zagon te datoteke je morda ustvaril vrstico
+-- "LELIĆ DIJANA" (Ć), preden je bil znan pravilen zapis "LELIČ DIJANA" (Č,
+-- glej opombo zgoraj) - brez tega bi po tej spremembi obstajali DVE vrstici
+-- za isto osebo (primary key je full_name, torej dobesedno besedilo).
+delete from public.lead_departments
+where full_name = 'LELIĆ DIJANA'
+  and exists (select 1 from public.lead_departments where full_name = 'LELIČ DIJANA');
 
 -- ---------------------------------------------------------------------
 -- 8) Mesečna zgodovina stanja dopusta (Kadris) + trend
@@ -1256,87 +1293,103 @@ on conflict (department_code, shift_bucket) do nothing;
 
 -- Matična številka – enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev
 -- + 22 vodij/nosilcev oddelkov, iz "Zaposleni - SMS-DMS" in "Zaposleni -
--- Oddelki", 6.8.2026). `profile_hr_details.employee_code` stolpec je že
--- obstajal (uvožen prek HR podatkov), a doslej neizpolnjen za te osebe.
--- `imena_se_ujemata()` namesto točnega ujemanja, ker profiles.full_name
--- lahko odstopa po vrstnem redu/velikosti črk od "PRIIMEK IME" seznama
--- (glej komentar ob imena_se_ujemata zgoraj). Coalesce ščiti poznejši
--- ročni popravek v Imeniku.
+-- Oddelki", 6.8.2026 ter kadrovskega izvoza "Seznam zaposlenih ZN - vse").
+-- `profile_hr_details.employee_code` stolpec je že obstajal (uvožen prek HR
+-- podatkov), a doslej neizpolnjen za te osebe.
+--
+-- Ujemanje najprej po e-pošti iz auth.users (zanesljiv, enoličen ključ v
+-- kadrovskem izvozu), šele če te ni najti, po `imena_se_ujemata()` (glej
+-- komentar ob funkciji zgoraj) - ker profiles.full_name lahko odstopa po
+-- vrstnem redu/velikosti črk od "PRIIMEK IME" seznama. Vir je kadrovska
+-- evidenca in torej merodajen, zato prepiše obstoječo vrednost (ne
+-- coalesce, glej prejšnjo različico te migracije) - `is distinct from` v
+-- "where" samo prepreči nepotreben zapis (updated_at), kadar je vrednost
+-- že enaka.
 insert into public.profile_hr_details (profile_id, employee_code)
-select p.id, v.employee_code
+select
+  coalesce(
+    (select u.id from auth.users u where lower(u.email) = v.email limit 1),
+    (select p.id from public.profiles p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
+  ) as profile_id,
+  v.employee_code
 from (values
-  ('ALUKIĆ DINO', '823'),
-  ('ARNEŽ GREGA', '1092'),
-  ('BAJT ANJA', '830'),
-  ('BEĆIROVIĆ NELVEDIN', '1069'),
-  ('BIZJAK TEA', '989'),
-  ('BOJIĆ MATEJ', '855'),
-  ('BRATUŠA MARIJA', '691'),
-  ('DJEDOVIĆ MARK', '1172'),
-  ('DOLAR TOMAŽ', '747'),
-  ('DŽAMASTAGIĆ DENIS', '912'),
-  ('DŽINIĆ AMIN', '826'),
-  ('GASHI GENTIANA', '1167'),
-  ('GAZIBARA ALDIN', '1141'),
-  ('HROVAT NINA', '820'),
-  ('HUMAR SAŠA', '705'),
-  ('HUSEINBAŠIĆ AJLA', '1086'),
-  ('JEREB SARA', '994'),
-  ('KARNIČAR JURE', '1145'),
-  ('KODRAS NADJA', '1089'),
-  ('KOGOJ EVA', '1180'),
-  ('KVRŽIĆ MARKO', '1051'),
-  ('LELIČ DIJANA', '1090'),
-  ('LUNAR MATEJA', '844'),
-  ('MAGLIĆ ALEKSANDER', '1001'),
-  ('MALER ANTONINA', '971'),
-  ('MAVRI TRATNIK MAGDALENA', '833'),
-  ('MEGLIČ JAKA', '987'),
-  ('MISOTIČ REBEKA', '1163'),
-  ('MOČNIK SIMONA', '1084'),
-  ('MRAVLJE UROŠ', '997'),
-  ('MURIĆ ALMA', '964'),
-  ('MUŠIĆ ALEN', '1109'),
-  ('MUŠIČ INES', '926'),
-  ('NUHANOVIĆ MERIMA', '909'),
-  ('PERVIZ AMAL', '887'),
-  ('PETERMAN RENATA', '818'),
-  ('POGAČNIK MATEJ', '1075'),
-  ('POGAČNIK TEJA', '1058'),
-  ('RANT LUKA', '1072'),
-  ('REJC JANA', '973'),
-  ('REKIĆ ELMA', '1106'),
-  ('ROZMAN ANKA', '715'),
-  ('ROZMAN KLARA', '1062'),
-  ('SALKIĆ MARUŠA', '925'),
-  ('SMOLEJ NATAŠA', '1133'),
-  ('SODJA BARBARA', '1073'),
-  ('SOFRIĆ NIKOLINA', '1174'),
-  ('STARC ERIK', '1164'),
-  ('SUŠNIK JAKA', '1022'),
-  ('SVETINA ROBERT', '633'),
-  ('SVETINA SABINA', '676'),
-  ('TALIĆ AMIRA', '1159'),
-  ('TOMAŠIĆ NIKOLINA', '1035'),
-  ('TOMAŽEVIČ SIMONA', '793'),
-  ('TORKAR TANJA', '965'),
-  ('TRPIN SAŠA', '870'),
-  ('URANKER MOJCA', '604'),
-  ('VALJAVEC ENEJ', '1102'),
-  ('VELUŠČEK METKA', '834'),
-  ('VOLARIČ NEJC', '865'),
-  ('VOVK URŠKA', '657'),
-  ('VOZEL DEJAN', '991'),
-  ('VOZEL NEJA', '1179'),
-  ('VREVC MAJA', '974'),
-  ('ZEKAN ALMEDIN', '852'),
-  ('ŠABIĆ SEBINA', '1152'),
-  ('ŠKANTAR MARK', '963'),
-  ('ŠUBIC PETRA', '905')
-) as v(full_name, employee_code)
-join public.profiles p on public.imena_se_ujemata(p.full_name, v.full_name)
+  ('ALUKIĆ DINO', '823', 'dino.alukic@pb-begunje.si'),
+  ('ARNEŽ GREGA', '1092', 'grega.arnez@pb-begunje.si'),
+  ('BAJT ANJA', '830', 'anja.bajt@pb-begunje.si'),
+  ('BEĆIROVIĆ NELVEDIN', '1069', 'nelvedin.becirovic@pb-begunje.si'),
+  ('BIZJAK TEA', '989', 'tea.bizjak@pb-begunje.si'),
+  ('BOJIĆ MATEJ', '855', 'matej.bojic@pb-begunje.si'),
+  ('BRATUŠA MARIJA', '691', 'marija.bratusa@pb-begunje.si'),
+  ('DJEDOVIĆ MARK', '1172', 'mark.djedovic@pb-begunje.si'),
+  ('DOLAR TOMAŽ', '747', 'tomaz.dolar@pb-begunje.si'),
+  ('DŽAMASTAGIĆ DENIS', '912', 'denis.dzamastagic@pb-begunje.si'),
+  ('DŽINIĆ AMIN', '826', 'amin.dzinic@pb-begunje.si'),
+  ('GASHI GENTIANA', '1167', 'gentiana.gashi@pb-begunje.si'),
+  ('GAZIBARA ALDIN', '1141', 'aldin.gazibara@pb-begunje.si'),
+  ('HROVAT NINA', '820', 'nina.hrovat@pb-begunje.si'),
+  ('HUMAR SAŠA', '705', 'sasa.humar@pb-begunje.si'),
+  ('HUSEINBAŠIĆ AJLA', '1086', 'ajla.huseinbasic@pb-begunje.si'),
+  ('JEREB SARA', '994', 'sara.jereb@pb-begunje.si'),
+  ('KARNIČAR JURE', '1145', 'jure.karnicar@pb-begunje.si'),
+  ('KODRAS NADJA', '1089', 'nadja.kodras@pb-begunje.si'),
+  ('KOGOJ EVA', '1180', 'eva.kogoj@pb-begunje.si'),
+  ('KVRŽIĆ MARKO', '1051', 'marko.kvrzic@pb-begunje.si'),
+  ('LELIČ DIJANA', '1090', 'dijana.lelic@pb-begunje.si'),
+  ('LUNAR MATEJA', '844', 'mateja.lunar@pb-begunje.si'),
+  ('MAGLIĆ ALEKSANDER', '1001', 'aleksander.maglic@pb-begunje.si'),
+  ('MALER ANTONINA', '971', 'antonina.maler@pb-begunje.si'),
+  ('MAVRI TRATNIK MAGDALENA', '833', 'magdalena.mavri@pb-begunje.si'),
+  ('MEGLIČ JAKA', '987', 'jaka.meglic@pb-begunje.si'),
+  ('MISOTIČ REBEKA', '1163', 'rebeka.misotic@pb-begunje.si'),
+  ('MOČNIK SIMONA', '1084', 'simona.mocnik@pb-begunje.si'),
+  ('MRAVLJE UROŠ', '997', 'uros.mravlje@pb-begunje.si'),
+  ('MURIĆ ALMA', '964', 'alma.muric@pb-begunje.si'),
+  ('MUŠIĆ ALEN', '1109', 'alen.music@pb-begunje.si'),
+  ('MUŠIČ INES', '926', 'ines.music@pb-begunje.si'),
+  ('NUHANOVIĆ MERIMA', '909', 'merima.nuhanovic@pb-begunje.si'),
+  ('PERVIZ AMAL', '887', 'amal.perviz@pb-begunje.si'),
+  ('PETERMAN RENATA', '818', 'renata.peterman@pb-begunje.si'),
+  ('POGAČNIK MATEJ', '1075', 'matej.pogacnik@pb-begunje.si'),
+  ('POGAČNIK TEJA', '1058', 'teja.pogacnik@pb-begunje.si'),
+  ('RANT LUKA', '1072', 'luka.rant@pb-begunje.si'),
+  ('REJC JANA', '973', 'jana.rejc@pb-begunje.si'),
+  ('REKIĆ ELMA', '1106', 'elma.rekic@pb-begunje.si'),
+  ('ROZMAN ANKA', '715', 'anka.rozman@pb-begunje.si'),
+  ('ROZMAN KLARA', '1062', 'klara.rozman@pb-begunje.si'),
+  ('SALKIĆ MARUŠA', '925', 'marusa.salkic@pb-begunje.si'),
+  ('SMOLEJ NATAŠA', '1133', 'natasa.smolej@pb-begunje.si'),
+  ('SODJA BARBARA', '1073', 'barbara.sodja@pb-begunje.si'),
+  ('SOFRIĆ NIKOLINA', '1174', 'nikolina.sofric@pb-begunje.si'),
+  ('STARC ERIK', '1164', 'erik.starc@pb-begunje.si'),
+  ('SUŠNIK JAKA', '1022', 'jaka.susnik@pb-begunje.si'),
+  ('SVETINA ROBERT', '633', 'robert.svetina@pb-begunje.si'),
+  ('SVETINA SABINA', '676', 'sabina.svetina@pb-begunje.si'),
+  ('TALIĆ AMIRA', '1159', 'amira.talic@pb-begunje.si'),
+  ('TOMAŠIĆ NIKOLINA', '1035', 'nikolina.tomasic@pb-begunje.si'),
+  ('TOMAŽEVIČ SIMONA', '793', 'simona.tomazevic@pb-begunje.si'),
+  ('TORKAR TANJA', '965', 'tanja.torkar@pb-begunje.si'),
+  ('TRPIN SAŠA', '870', 'sasa.trpin@pb-begunje.si'),
+  ('URANKER MOJCA', '604', 'mojca.uranker@pb-begunje.si'),
+  ('VALJAVEC ENEJ', '1102', 'enej.valjavec@pb-begunje.si'),
+  ('VELUŠČEK METKA', '834', 'metka.veluscek@pb-begunje.si'),
+  ('VOLARIČ NEJC', '865', 'nejc.volaric@pb-begunje.si'),
+  ('VOVK URŠKA', '657', 'urska.vovk@pb-begunje.si'),
+  ('VOZEL DEJAN', '991', 'dejan.vozel@pb-begunje.si'),
+  ('VOZEL NEJA', '1179', 'neja.vozel@pb-begunje.si'),
+  ('VREVC MAJA', '974', 'maja.miljkovic@pb-begunje.si'),
+  ('ZEKAN ALMEDIN', '852', 'almedin.zekan@pb-begunje.si'),
+  ('ŠABIĆ SEBINA', '1152', 'sebina.sabic@pb-begunje.si'),
+  ('ŠKANTAR MARK', '963', 'mark.skantar@pb-begunje.si'),
+  ('ŠUBIC PETRA', '905', 'petra.subic@pb-begunje.si')
+) as v(full_name, employee_code, email)
+where coalesce(
+    (select u.id from auth.users u where lower(u.email) = v.email limit 1),
+    (select p.id from public.profiles p where public.imena_se_ujemata(p.full_name, v.full_name) limit 1)
+  ) is not null
 on conflict (profile_id) do update set
-  employee_code = coalesce(public.profile_hr_details.employee_code, excluded.employee_code);
+  employee_code = excluded.employee_code,
+  updated_at = now()
+where public.profile_hr_details.employee_code is distinct from excluded.employee_code;
 
 -- ---------------------------------------------------------------------
 -- 18) Oddelek/vloga po e-pošti – dopolnilo k skripte/uvoz-racunov.mjs
@@ -3140,3 +3193,56 @@ grant select on public.menjave_javno to authenticated;
 --     ampak oznaka dvojne pokritosti.
 -- ---------------------------------------------------------------------
 alter table public.schedule_entries add column if not exists pokriva_oddelek text;
+
+-- ---------------------------------------------------------------------
+-- 35) Standardiziran zapis osebnega imena – povsod "Priimek Ime"
+--
+--     `profiles.full_name` je edino ime, ki ga oseba sama vpiše (ob
+--     registraciji ali ko ga admin popravi v Imeniku) in edino, ki se
+--     prikazuje po vsej aplikaciji (nav.js, admin.html, obrazci, ...) - zato
+--     je edino, kjer format ("Priimek Ime", ne VELIKE ČRKE, ne obratni
+--     vrstni red) sploh šteje kot "prikazan format". Ostala imenska polja
+--     (lead_departments.full_name, leave_entries.full_name,
+--     contact_imports.full_name, leave_balance_history.full_name) so
+--     NAMENOMA ujemalni ključi v obliki "PRIIMEK IME" iz uradnih HR/Kadris
+--     izvozov (glej `imena_se_ujemata()` zgoraj) - teh se ne normalizira,
+--     ker bi to podvojilo/zlomilo ujemanje z izvozi.
+--
+--     Sprožilec spodaj samodejno poenoti VSAK bodoč vnos/popravek
+--     profiles.full_name, ki je zapisan izključno z velikimi črkami (torej
+--     "ALUKIĆ DINO" -> "Alukić Dino") - enako pravilo, kot ga je doslej
+--     enkratno izvedla supabase/popravi-imena-flexi.sql. Obratnega vrstnega
+--     reda ("Ime Priimek" -> "Priimek Ime") sprožilec NAMENOMA ne poskuša
+--     ugibati - pri dvobesednem priimku ni zanesljivo mogoče vedeti, kje se
+--     priimek konča (glej isto opombo v imena-priimek-prvi.sql); za to je
+--     spodnji pregledni skript supabase/cleanup-ime-priimek.sql.
+-- ---------------------------------------------------------------------
+create or replace function public.standardiziraj_polno_ime()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.full_name is not null
+     and new.full_name <> ''
+     and new.full_name = upper(new.full_name)
+     and new.full_name <> initcap(new.full_name)
+  then
+    new.full_name := initcap(new.full_name);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_standardiziraj_polno_ime on public.profiles;
+create trigger trg_standardiziraj_polno_ime
+  before insert or update of full_name on public.profiles
+  for each row execute function public.standardiziraj_polno_ime();
+
+-- Enkraten zagon za obstoječe vrstice (sprožilec zgoraj velja šele za
+-- bodoče insert/update) - isto pravilo, ki ga uveljavlja sprožilec.
+update public.profiles
+set full_name = initcap(full_name)
+where full_name is not null
+  and full_name <> ''
+  and full_name = upper(full_name)
+  and full_name <> initcap(full_name);
