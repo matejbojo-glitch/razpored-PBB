@@ -503,6 +503,12 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './logo-pbb.png',
+  // Vite prehod: strani ne nalagajo več posamičnih react*.min.js/babel.min.js/
+  // supabase-js.min.js/xlsx.core.min.js/exceljs.min.js, ampak en zgrajen
+  // vendor-app.min.js (glej build-vendor.mjs). Stare vnose spodaj puščamo, ker
+  // datoteke v korenu še obstajajo in jih nekatere preizkusne skripte
+  // (skripte/preveri-*.mjs) berejo neposredno.
+  './vendor-app.min.js',
   './react.production.min.js',
   './react-dom.production.min.js',
   './babel.min.js',

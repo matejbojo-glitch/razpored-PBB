@@ -1,0 +1,24 @@
+{
+  "name": "razpored-pbb",
+  "private": true,
+  "description": "Razpored PBB — statične strani (index.html, admin.html, ...), zgrajene z Vite. Odvisnosti (React, Supabase, XLSX, ExcelJS) se ne vozijo več kot ročno prenesene *.min.js datoteke v korenu, ampak prek npm + Vite. Namenoma BREZ \"type\": \"module\" - koren ostaja CommonJS, ker skripte/*.mjs z require() tako berejo generator-core.js/dashboard-core.js (UMD, module.exports); vite.config.mjs in build-vendor.mjs sta zato .mjs, ne .js.",
+  "scripts": {
+    "predev": "node build-vendor.mjs",
+    "dev": "vite",
+    "prebuild": "node build-vendor.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:vendor": "node build-vendor.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "exceljs": "^4.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "vite": "^5.4.0"
+  }
+}
