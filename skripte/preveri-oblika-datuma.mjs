@@ -127,7 +127,9 @@ console.log("5) mesta, ki so bila že popravljena, ostanejo popravljena");
     ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(hr\.leave_balance_asof\)/, "Stanje dopusta – na dan"],
     ["imenik.html", /\(na dan " \+ window\.Datum\.slo\(naDan\)/, "Napredek dopusta – na dan"],
     ["imenik.html", /Rojstvo<\/div><div className="val">\{window\.Datum\.slo\(hr\.birth_date\)/, "Datum rojstva"],
-    ["imenik.html", /<td>\{window\.Datum\.slo\(v\.leave_balance_asof\) \|\| "–"\}<\/td>/, "Seznam stanja dopusta"],
+    // Skupni pregled stanja dopusta je bil prenesen iz Imenika v Statistiko
+    // (na kartici posamezne osebe v Imeniku podatek ostaja).
+    ["dashboard.html", /window\.Datum\.slo\(v\.leave_balance_asof\)/, "Seznam stanja dopusta"],
     ["admin.html", /<td>\{window\.Datum\.slo\(v\.work_date\)\}<\/td>/, "Dnevnik sprememb – delovni datum"],
     ["admin.html", /\{window\.Datum\.sloSCasom\(v\.changed_at\)\}/, "Dnevnik sprememb – čas"],
     ["admin.html", /glave: \["Zaposleni", \.\.\.rezultat\.dnevi\.map\(dn => window\.Datum\.slo\(dn\.datum\)\)\]/, "Izvoz kalupa – glave dni"],

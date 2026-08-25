@@ -225,7 +225,8 @@ function normalizirajNazivOddelka(v) {
     .map(function (del) {
       var d = String(del).trim();
       if (!d) return "";
-      d = d.replace(/ZO/gi, "ŽO");
+      // Po CELI BESEDI, ne po podnizu: sicer se "IZOB" izpiše kot "IŽOB".
+      d = d.replace(/(^|[\/,+\s])ZO(?=$|[\/,+\s])/gi, "$1ŽO");
       d = d.replace(/B1B2/gi, "B1,B2");
       return d;
     })

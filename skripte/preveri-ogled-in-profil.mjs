@@ -145,7 +145,9 @@ console.log("5) Klik na ime odpre profil");
 console.log("6) Moj razpored: delovišče je v isti vrstici, v oklepaju");
 {
   const index = readFileSync(join(koren, "index.html"), "utf8");
-  trdi(/besedilo \+ " \(" \+ enota \+ "\)"/.test(index),
+  // Enota gre pred izpisom skozi formatirajEnotoZaPrikaz (lastna enota
+  // prva, "ŽO" namesto kode) - oblika izpisa pa ostaja ista.
+  trdi(/besedilo \+ " \(" \+ (enota|prikazEnote) \+ "\)"/.test(index),
     'izpis je oblike "Dopoldne (MO)"');
 }
 

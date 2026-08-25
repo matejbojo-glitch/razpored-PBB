@@ -660,9 +660,9 @@ function MyScheduleView({ userId, month, jeNzv }){
     return (datum) => {
       const vrednost = enotaNaDan[datum] || izVnosa[datum] || lastna;
       if (!vrednost) return "";
-      return typeof window.normalizirajNazivOddelka === "function" ?
-        window.normalizirajNazivOddelka(vrednost) :
-        String(vrednost).replace(/ZO/gi, "ŽO");
+      // "lastna" se preda naprej, da je vrstni red splošen: lastna enota
+      // vedno prva, prevzeta za njo - ne le pri paru MO/ŽO.
+      return window.normalizirajNazivOddelka(vrednost, lastna);
     };
   }, [entries, enotaNaDan, mojNosilec]);
 
