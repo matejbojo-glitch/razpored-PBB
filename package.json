@@ -3,12 +3,13 @@
   "private": true,
   "description": "Razpored PBB — statične strani (index.html, admin.html, ...), zgrajene z Vite. Odvisnosti (React, Supabase, XLSX, ExcelJS) se ne vozijo več kot ročno prenesene *.min.js datoteke v korenu, ampak prek npm + Vite. Namenoma BREZ \"type\": \"module\" - koren ostaja CommonJS, ker skripte/*.mjs z require() tako berejo generator-core.js/dashboard-core.js (UMD, module.exports); vite.config.mjs in build-vendor.mjs sta zato .mjs, ne .js.",
   "scripts": {
-    "predev": "node build-vendor.mjs",
+    "predev": "node build-vendor.mjs && node build-export.mjs",
     "dev": "vite",
-    "prebuild": "node build-vendor.mjs",
+    "prebuild": "node build-vendor.mjs && node build-export.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "build:vendor": "node build-vendor.mjs",
+    "build:export": "node build-export.mjs",
     "test": "vitest run"
   },
   "dependencies": {
