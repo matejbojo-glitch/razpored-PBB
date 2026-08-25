@@ -90,99 +90,86 @@ window.NzvZasedba = (function () {
   // "SOB" in "NOB", se kot neznani oznaki tiho preskočita.
   var ENOTA_PSEVDONIM = { "ŽO": "ZO", "UA": "URGENCA", "B1": "B1B2", "B2": "B1B2" };
 
-  // Berljiv zapis enote za prikaz: "ZO" se piše "ŽO", "B1B2" pa "B1,B2".
-  // Vrstni red je primarna enota najprej, dodatne sledijo le, če so različne.
-  function formatirajOddelke(primarni, dodatni) {
-    function key(value) {
-      return String(value || "")
-        .trim()
-        .toUpperCase()
-        .replace(/Ž/g, "Z")
-        .replace(/Š/g, "S")
-        .replace(/Č/g, "C")
-        .replace(/Ć/g, "C");
-    }
-    function display(value) {
-      var v = String(value || "").trim();
-      if (!v) return "";
-      return v
-        .replace(/ZO/gi, "ŽO")
-        .replace(/B1B2/gi, "B1,B2")
-        .replace(/\s*,\s*/g, ", ");
-    }
-    function norm(value) {
-      if (value == null) return [];
-      if (Array.isArray(value)) {
-        return value.reduce(function (out, item) {
-          return out.concat(norm(item));
-        }, []);
-      }
-      return String(value).split(/[\/,+]/)
-        .map(function (del) { return display(del); })
-        .filter(function (v) { return !!v; })
-        .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
-    }
-
-    var prim = norm(primarni);
-    var dod = norm(dodatni);
-    var pri = prim.length ? key(prim[0]) : "";
-    var vsi = prim.concat(dod);
-    var out = [];
-    var dodano = {};
-
-    function dodaj(v) {
-      if (!v || dodano[key(v)]) return;
-      dodano[key(v)] = true;
-      out.push(display(v));
-    }
-
-    if (prim.length) {
-      dodaj(prim[0]);
-    }
-    var mo = vsi.filter(function (v) { return key(v) === "MO"; });
-    var zo = vsi.filter(function (v) { return key(v) === "ZO"; });
-    var ostalo = vsi.filter(function (v) {
-      var k = key(v);
-      return k !== "MO" && k !== "ZO";
-    });
-
-    if (mo.length && zo.length) {
-      if (pri === "MO") {
-        dodaj("ŽO");
-      } else if (pri === "ZO") {
-        dodaj("MO");
-      } else {
-        dodaj("MO");
-        dodaj("ŽO");
-      }
-    }
-    ostalo.forEach(dodaj);
-
-    if (!out.length) {
-      var preostali = (prim.length ? prim : dod).filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
-      preostali.forEach(dodaj);
-    }
-
-    return out.filter(Boolean).join(", ");
+  // Berljiv zapis enot za prikaz.
+  //
+  // Dve pravili, obe uporabnikovi (avgust 2026):
+  //   1) NAJPREJ LASTNA (primarna) enota, šele nato prevzeta. Vrstni red v
+  //      razporedu je vrstni red stolpcev uradne predloge, zato je Bojić,
+  //      ki je doma na MO in tisti dan pokriva še ŽO, bral "ŽO/MO" - kot da
+  //      je MO postranski.
+  //   2) URADNI NAZIV, ne interna koda: "ZO" -> "ŽO" (ženski oddelek).
+  //
+  // Dvoje, na kar je treba paziti in kar je bilo v prvi različici narobe:
+  //   - zamenjava "ZO"->"ŽO" mora biti po CELI BESEDI, ne po podnizu, sicer
+  //     se "IZOB" (študijski dopust) izpiše kot "IŽOB";
+  //   - sestavljene enote se v uradni predlogi pišejo kot CELOTA ("UA/SA"
+  //     pomeni "ena od obeh", ne "UA in SA"), zato se lastne enote izpišejo
+  //     tako, kot so zapisane pri osebi, in se ne razbijejo.
+  //
+  // Neznan košček (npr. naziv oddelka "B – oddelek") se ohrani, kot je -
+  // ta funkcija se uporablja tudi za nazive iz šifranta, ne le za kode.
+  function popraviZo(besedilo) {
+    return String(besedilo).replace(/(^|[\/,+\s])ZO(?=$|[\/,+\s])/gi, "$1ŽO");
   }
 
-  function normalizirajNazivOddelka(value) {
-    var deli = String(value || "")
-      .split(/[\/,+]/)
-      .map(function (v) { return String(v).trim(); })
-      .filter(Boolean)
-      .map(function (v) { return v.replace(/ZO/gi, "ŽO"); })
-      .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; });
-    var imaMo = deli.some(function (v) { return String(v).replace(/Ž/g, "Z").toUpperCase() === "MO" || String(v).toUpperCase() === "MO"; });
-    var imaZo = deli.some(function (v) { return String(v).replace(/Ž/g, "Z").toUpperCase() === "ZO" || String(v).toUpperCase() === "ZO"; });
-    if (imaMo && imaZo) {
-      return ["MO", "ŽO"].filter(function (part) {
-        return deli.some(function (v) {
-          return String(v).replace(/Ž/g, "Z").toUpperCase() === (part === "MO" ? "MO" : "ZO");
-        });
-      }).join(", ");
+  function zapisEnot(kode, lastneEnote) {
+    var seznam = Array.isArray(kode)
+      ? kode.slice()
+      : String(kode == null ? "" : kode).split(/[\/,+]/);
+    seznam = seznam.map(function (x) { return String(x).trim(); }).filter(Boolean);
+
+    var videne = {}, ciste = [];
+    seznam.forEach(function (kos) {
+      // "veljavne" je nujno: enoteVKode vrne KATERI KOLI košček z velikimi
+      // črkami, tudi če ni koda enote. Brez tega bi se naziv iz šifranta
+      // ("B – oddelek") izpisal kot "B – ODDELEK".
+      var kode2 = enoteVKode(kos, null, KODE_STOLPCEV);
+      if (!kode2.length) {
+        // Ni znana koda enote (naziv iz šifranta, prosto besedilo) - ohrani.
+        var kljuc = kos.toUpperCase();
+        if (!videne[kljuc]) { videne[kljuc] = true; ciste.push({ neznan: popraviZo(kos) }); }
+        return;
+      }
+      kode2.forEach(function (koda) {
+        if (!videne[koda]) { videne[koda] = true; ciste.push({ koda: koda }); }
+      });
+    });
+
+    var lastne = enoteVKode(lastneEnote || "", null, null);
+    var jeLastna = {};
+    lastne.forEach(function (k) { jeLastna[k] = true; });
+    var prve = ciste.filter(function (v) { return v.koda && jeLastna[v.koda]; })
+      .sort(function (a, b) { return lastne.indexOf(a.koda) - lastne.indexOf(b.koda); });
+    var ostale = ciste.filter(function (v) { return !(v.koda && jeLastna[v.koda]); });
+    var izpis = function (v) { return v.koda ? nazivEnote(v.koda) : v.neznan; };
+
+    // Vse lastne enote so zajete -> izpiši jih z zapisom iz uradne predloge,
+    // dobesedno (samo "ZO" popravi v "ŽO"), prevzete pa za njimi.
+    if (lastne.length && prve.length === lastne.length) {
+      return [popraviZo(String(lastneEnote).trim())].concat(ostale.map(izpis)).join(", ");
     }
-    return formatirajOddelke(value, null);
+    return prve.concat(ostale).map(izpis).join(", ");
+  }
+
+  var NAZIV_ENOTE = null;
+  function nazivEnote(koda) {
+    if (!NAZIV_ENOTE) {
+      NAZIV_ENOTE = {};
+      STOLPCI.forEach(function (v) { NAZIV_ENOTE[v[0]] = v[1]; });
+    }
+    return NAZIV_ENOTE[koda] || koda;
+  }
+
+  // Zdruzljiva vmesnika za klicatelje, ki sta že v uporabi po straneh.
+  function formatirajOddelke(primarni, dodatni) {
+    var vsi = [].concat(primarni == null ? [] : primarni, dodatni == null ? [] : dodatni);
+    return zapisEnot(vsi, primarni);
+  }
+
+  // "lastneEnote" je neobvezen: kadar je znan, se po njem uredi vrstni red
+  // (lastna enota prva). Brez njega se zapis samo normalizira.
+  function normalizirajNazivOddelka(value, lastneEnote) {
+    return zapisEnot(value, lastneEnote || null);
   }
 
   if (typeof window !== "undefined") {

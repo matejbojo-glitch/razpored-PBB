@@ -170,3 +170,11 @@ select 'nzv-maticne-stevilke-vodij.sql' as skripta,
             and column_name = 'employee_code'
        ) then 'OK – stolpec obstaja'
        else 'MANJKA – poženi supabase/nzv-maticne-stevilke-vodij.sql' end as stanje;
+
+-- 12) Podvojena Lelič Dijana v lead_departments (dva zapisa istega imena)
+-- Če vrne "MANJKA" -> poženi supabase/pocisti-podvojeno-lelic.sql
+select 'pocisti-podvojeno-lelic.sql' as skripta,
+       case when (select count(*) from public.lead_departments
+                   where translate(upper(full_name), 'ČŠŽĆĐ', 'CSZCD') like 'LELIC%') > 1
+       then 'MANJKA – Lelič je v tabeli dvakrat, poženi supabase/pocisti-podvojeno-lelic.sql'
+       else 'OK – en sam zapis' end as stanje;
