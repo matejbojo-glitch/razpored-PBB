@@ -195,13 +195,21 @@
       return vir.pripravi ? vir.pripravi() : vir.listi;
     }
 
-    function izvoziExcel(vir) {
-      setMsg(null);
+    // Asinhrono (export-utils.js zdaj piše z ExcelJS, ne več sinhrono s
+    // SheetJS): "busy" med izvozom onemogoči gumb in prepreči dvojni klik,
+    // enako kot že velja za izvoziSheets spodaj. Pri velikem mesečnem
+    // razporedu export-utils.js sam dodaja vrstice po kosih, da zaslon vmes
+    // ostane odziven – tu samo pazimo, da uporabnik med tem ne sproži
+    // drugega izvoza čez prvega.
+    async function izvoziExcel(vir) {
+      setBusy("xlsx"); setMsg(null);
       try {
-        root.ExportUtils.izvoziXLSX(vir.naslov, podatki(vir));
+        await root.ExportUtils.izvoziXLSX(vir.naslov, podatki(vir));
         setOdprto(false);
       } catch (err) {
         setMsg({ ok: false, text: err.message || String(err) });
+      } finally {
+        setBusy(null);
       }
     }
 
@@ -242,7 +250,7 @@
           postavke.push(e("button", {
             key: "xlsx" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
             onClick: function () { izvoziExcel(vir); },
-          }, "⬇ Izvozi v Excel"));
+          }, busy === "xlsx" ? "Izvažam …" : "⬇ Izvozi v Excel"));
           postavke.push(e("button", {
             key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
             onClick: function () { izvoziSheets(vir); },
@@ -283,7 +291,11 @@
       e(
         "div",
         { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-        e("button", { className: "dlBtn", type: "button", onClick: function () { izvoziExcel(viri[0]); }, disabled: !!busy }, "⬇ Izvozi v Excel"),
+        e(
+          "button",
+          { className: "dlBtn", type: "button", onClick: function () { izvoziExcel(viri[0]); }, disabled: !!busy },
+          busy === "xlsx" ? "Izvažam …" : "⬇ Izvozi v Excel"
+        ),
         e(
           "button",
           { className: "dlBtn", type: "button", onClick: function () { izvoziSheets(viri[0]); }, disabled: !!busy },
