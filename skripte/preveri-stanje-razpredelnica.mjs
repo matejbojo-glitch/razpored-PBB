@@ -3,7 +3,7 @@
  * stanj, ki jih zahteva razpredelnica v Imeniku:
  *   1. na delu, 2. dežurstvo, 3. dopust, 4. bolniška, 5. prosto.
  *
- * Ključno je, da se koda izmene (schedule_entries.shift_code) razvrsti
+ * Ključno je, da se koda izmene (razpored.shift_code) razvrsti
  * PRAVILNO: to je prosto besedilo brez omejitve v bazi, zapisano tako, kot
  * ga uporabljajo uradne predloge ("dopoldan", "NOČNA od 19h", "DNEVNA12",
  * "KPU" …). Napačna razvrstitev bi v pregledu pokazala, da je nekdo prost,
@@ -104,9 +104,9 @@ console.log("4) odsotnosti");
   eq(stanjeIzKode("POR"), "dopust", '"POR" (porodniški) -> dopust');
   eq(stanjeIzKode("STI"), "dopust", '"STI" -> dopust');
   eq(stanjeIzKode("BS"), "bolniska", '"BS" -> bolniška');
-  eq(KIND_KRATICA.ld, "LD", "leave_entries kind 'ld' -> kratica LD");
-  eq(KIND_KRATICA.bs, "BS", "leave_entries kind 'bs' -> kratica BS");
-  eq(KIND_KRATICA.sti, "STI", "leave_entries kind 'sti' -> kratica STI");
+  eq(KIND_KRATICA.ld, "LD", "odsotnosti kind 'ld' -> kratica LD");
+  eq(KIND_KRATICA.bs, "BS", "odsotnosti kind 'bs' -> kratica BS");
+  eq(KIND_KRATICA.sti, "STI", "odsotnosti kind 'sti' -> kratica STI");
   trdi(KIND_KRATICA.omejitev === null, "'omejitev' (rumena želja) NI odsotnost - oseba je na delu, le z omejitvijo");
   ["LD", "BS", "STI"].forEach(k => trdi(!!vnosPoKratici(k),
     `kratica "${k}" iz Želja obstaja tudi v uradni legendi (sicer bi celica ostala brez barve)`));
@@ -315,7 +315,7 @@ console.log("16) legenda in menjave so v index.html res prikazane");
   trdi(/barvaBesedila\(barva\)/.test(html2), "legenda in celice uporabljajo berljivo pisavo");
   trdi(/kratica: izmenaKratica\(v\.shift_code\)/.test(html2), "kratica se računa iz kode izmene v razporedu");
   trdi(/barva: izmenaBarva\(v\.shift_code\)/.test(html2), "barva celice pride iz kratice");
-  // Menjava: izmene v schedule_entries zamenja baza (obrazec_potrdi_koordinator),
+  // Menjava: izmene v razpored zamenja baza (obrazec_potrdi_koordinator),
   // razpredelnica jih zato vidi samodejno - tu preverjamo samo vidno oznako.
   // Menjave se berejo iz pogleda menjave_javno (shema, sekcija 33), ne iz
   // obrazci: RLS na obrazci pokaže tuje menjave le za tekoči mesec, zato
@@ -351,9 +351,9 @@ console.log("16) legenda in menjave so v index.html res prikazane");
   trdi(/↔/.test(html2), "oznaka menjave (↔) je v celici in razložena v legendi");
 }
 
-console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
+console.log("17) seznam pokrivanj (nosilci_oddelkov) se poveže s pravo osebo");
 {
-  // lead_departments hrani ime kot prosto besedilo, brez povezave na
+  // nosilci_oddelkov hrani ime kot prosto besedilo, brez povezave na
   // profil. Uradne opombe ga pišejo po svoje - drug vrstni red besed in
   // druge strešice - zato primerjamo vrečo besed brez strešic.
   trdi(imenaSeUjemataBrezStresic("Lelič Dijana", "Dijana Lelić"),
@@ -372,7 +372,7 @@ console.log("17) seznam pokrivanj (lead_departments) se poveže s pravo osebo");
   eq(kratkoIme(""), "", "prazno ostane prazno");
 
   const html3 = readFileSync(join(koren, "index.html"), "utf8");
-  trdi(/from\("lead_departments"\)\.select\("full_name, inicialke, enote/.test(html3),
+  trdi(/from\("nosilci_oddelkov"\)\.select\("full_name, inicialke, enote/.test(html3),
     "razpredelnica bere nosilce oddelkov");
   // Pokrivanje je VZAJEMNO in VEČKRATNO (Alukića nadomeščata Bojić IN
   // Džamastagić), zato tabela parov in ne en sam stolpec.

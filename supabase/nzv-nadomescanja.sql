@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------
 -- Kdo koga nadomešča ob odsotnosti (LD, BS) - seznam pokrivanj
 --
--- Zakaj svoja tabela in ne stolpec: lead_departments.nadomesca hrani ENO
+-- Zakaj svoja tabela in ne stolpec: nosilci_oddelkov.nadomesca hrani ENO
 -- ime, v resnici pa je pokrivanje vzajemno in večkratno. Trije
 -- administratorji se pokrivajo navzkrižno:
 --
@@ -47,7 +47,7 @@
 create table if not exists public.nadomescanja (
   nosilec text not null,          -- kdo je odsoten (čigav oddelek je treba pokriti)
   nadomesca text not null,        -- kdo ga pokrije
-  enota text,                     -- katero enoto s tem pokrije (prosto besedilo, glej lead_departments.enote)
+  enota text,                     -- katero enoto s tem pokrije (prosto besedilo, glej nosilci_oddelkov.enote)
   prednost smallint not null default 1,
   primary key (nosilec, nadomesca)
 );

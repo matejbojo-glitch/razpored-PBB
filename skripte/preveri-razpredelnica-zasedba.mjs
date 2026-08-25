@@ -5,9 +5,9 @@
  * ljudje (Mušič Ines, Tomaževič Simona, Magdalena Mavri Tratnik) v celi
  * vrstici komaj kakšen vnos ali nobenega, razpored pa se je zdel, kot da
  * se konča sredi meseca. Vzrok je bil isti kot pri NZV mreži: mreža se
- * je polnila samo iz objavljenih schedule_entries, za vodje pa se dnevni
+ * je polnila samo iz objavljenih razpored, za vodje pa se dnevni
  * razpored ne objavlja – njihova enota je stalna in zapisana v
- * lead_departments.
+ * nosilci_oddelkov.
  *
  * Preverjamo:
  *   - nosilec ima vnos za VSAK delovni dan meseca, od prvega do zadnjega;
@@ -243,7 +243,7 @@ console.log("4d) Pod imenom je SAMO enota - nadomeščanja so spodaj v svojem pr
   // tabeli "Pregled nadomeščanj", '{o.full_name}' že v seznamu Imenika,
   // '{dnevi.map(' pa v glavi tabele - vsa tri režejo napačen kos. Zato
   // režemo od komentarja, ki stoji samo pri vrstici Razpredelnice.
-  const SIDRO = "nosilec = vrstica iz lead_departments";
+  const SIDRO = "nosilec = vrstica iz nosilci_oddelkov";
   trdi(src.split(SIDRO).length - 1 === 1, "(sidro je v index.html enolično)");
   const zacetek = src.indexOf(SIDRO);
   const glavaVrstice = src.slice(zacetek, src.indexOf("{dnevi.map(d => {", zacetek));

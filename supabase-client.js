@@ -22,7 +22,7 @@
   // med ogledom lokalno preslika na ciljno osebo, zato vsaka stran (ki
   // kliče requireAuth/requireRole) samodejno prikaže pogled/vloge/pravice
   // te osebe. Stanje živi v sessionStorage (izbriše se ob zaprtju zavihka),
-  // vsak začetek/konec pa se zabeleži v admin_view_as_log.
+  // vsak začetek/konec pa se zabeleži v dnevnik_ogledov.
   // ------------------------------------------------------------------
   var OGLED_KLJUC = "razpored-view-as";
 
@@ -37,7 +37,7 @@
     var { data: { session } } = await client.auth.getSession();
     if (!session) return { session: null, profile: null };
     var { data: profile, error } = await client
-      .from("profiles")
+      .from("profili")
       .select("*")
       .eq("id", session.user.id)
       .single();
@@ -45,7 +45,7 @@
 
     var ogled = trenutniOgled();
     if (ogled && profile && profile.role === "admin" && ogled.targetId !== profile.id) {
-      var { data: ciljniProfil } = await client.from("profiles").select("*").eq("id", ogled.targetId).single();
+      var { data: ciljniProfil } = await client.from("profili").select("*").eq("id", ogled.targetId).single();
       if (ciljniProfil) {
         return {
           session: { ...session, user: { ...session.user, id: ciljniProfil.id, email: ciljniProfil.email } },
@@ -64,7 +64,7 @@
   async function zacniOgled(target) {
     var { data: { user } } = await client.auth.getUser();
     if (!user) return { error: "Nisi prijavljen." };
-    var { data: mojProfil } = await client.from("profiles").select("role").eq("id", user.id).single();
+    var { data: mojProfil } = await client.from("profili").select("role").eq("id", user.id).single();
     if (!mojProfil || mojProfil.role !== "admin") return { error: "Samo administrator lahko uporabi ogled kot uporabnik." };
     if (target.id === user.id) return { error: "Ne moreš gledati kot sam sebe." };
     // client.auth.getUser() zgoraj vedno vrne PRAVEGA prijavljenega admina
@@ -75,11 +75,11 @@
     var prejsnji = trenutniOgled();
     if (prejsnji && prejsnji.logId) {
       try {
-        await client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", prejsnji.logId);
+        await client.from("dnevnik_ogledov").update({ ended_at: new Date().toISOString() }).eq("id", prejsnji.logId);
       } catch (e) { /* ni usodno – nov ogled se vseeno zabeleži spodaj */ }
     }
     var { data: vrstica, error } = await client
-      .from("admin_view_as_log")
+      .from("dnevnik_ogledov")
       .insert({
         admin_id: user.id, admin_email: user.email,
         target_profile_id: target.id, target_full_name: target.full_name, target_email: target.email,
@@ -115,7 +115,7 @@
     if (ogled && ogled.logId) {
       try {
         await zRokom(
-          client.from("admin_view_as_log").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId),
+          client.from("dnevnik_ogledov").update({ ended_at: new Date().toISOString() }).eq("id", ogled.logId),
           IZHOD_NAJVEC_MS
         );
       } catch (e) { /* ni usodno – sessionStorage je vseeno počiščen */ }
@@ -172,7 +172,7 @@
 
   async function unreadNotificationCount(userId) {
     var { count } = await client
-      .from("notifications")
+      .from("obvestila")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .is("read_at", null);

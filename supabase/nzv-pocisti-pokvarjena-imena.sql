@@ -27,8 +27,8 @@
 -- ---------------------------------------------------------------------
 
 -- Najprej POGLEJ, kaj bo izbrisano (ta poizvedba ničesar ne spremeni).
-select 'lead_departments' as tabela, full_name as vrednost
-  from public.lead_departments
+select 'nosilci_oddelkov' as tabela, full_name as vrednost
+  from public.nosilci_oddelkov
  where full_name ~ '[ÄÅÂ]'
 union all
 select 'nadomescanja (nosilec)', nosilec
@@ -44,8 +44,8 @@ order by 1, 2;
 delete from public.nadomescanja
  where nosilec ~ '[ÄÅÂ]' or nadomesca ~ '[ÄÅÂ]';
 
-delete from public.lead_departments
+delete from public.nosilci_oddelkov
  where full_name ~ '[ÄÅÂ]';
 
 -- Preverba: spodnja poizvedba mora vrniti 0 vrstic.
-select full_name from public.lead_departments where full_name ~ '[ÄÅÂ]';
+select full_name from public.nosilci_oddelkov where full_name ~ '[ÄÅÂ]';

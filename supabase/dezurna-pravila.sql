@@ -41,20 +41,20 @@ kljuc as (
 ujemanje as (
   select k.*, p.id as profile_id
   from kljuc k
-  join public.profiles p on (
+  join public.profili p on (
     select string_agg(d, ' ' order by d)
     from unnest(string_to_array(upper(regexp_replace(btrim(p.full_name), '\s+', ' ', 'g')), ' ')) d
   ) = k.k
 ),
 vpis as (
-  insert into public.profile_hr_details
+  insert into public.kadrovski_podatki
     (profile_id, duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)
   select profile_id, min_m, max_m, day_off, weekdays_only from ujemanje
   on conflict (profile_id) do update set
-    duty_min_monthly   = coalesce(public.profile_hr_details.duty_min_monthly, excluded.duty_min_monthly),
-    duty_max_monthly   = coalesce(public.profile_hr_details.duty_max_monthly, excluded.duty_max_monthly),
-    duty_day_off       = coalesce(public.profile_hr_details.duty_day_off, excluded.duty_day_off),
-    duty_weekdays_only = coalesce(public.profile_hr_details.duty_weekdays_only, excluded.duty_weekdays_only)
+    duty_min_monthly   = coalesce(public.kadrovski_podatki.duty_min_monthly, excluded.duty_min_monthly),
+    duty_max_monthly   = coalesce(public.kadrovski_podatki.duty_max_monthly, excluded.duty_max_monthly),
+    duty_day_off       = coalesce(public.kadrovski_podatki.duty_day_off, excluded.duty_day_off),
+    duty_weekdays_only = coalesce(public.kadrovski_podatki.duty_weekdays_only, excluded.duty_weekdays_only)
   returning profile_id
 )
 select 'nastavljenih' as kaj, count(*)::text as podrobnost from vpis
@@ -65,5 +65,5 @@ order by 1, 2;
 
 -- Kontrolni izpis po zagonu:
 --   select p.full_name, h.duty_min_monthly, h.duty_max_monthly, h.duty_weekdays_only, h.duty_day_off
---   from public.profiles p join public.profile_hr_details h on h.profile_id = p.id
+--   from public.profili p join public.kadrovski_podatki h on h.profile_id = p.id
 --   where h.duty_max_monthly is not null order by p.full_name;

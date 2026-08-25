@@ -22,7 +22,7 @@
 --
 -- PREDPOGOJ: v bazi mora biti odsek 30 iz supabase/schema.sql (povezave
 -- "kdo je vnesel/odobril" dobijo "on delete set null"). Brez njega izbris
--- ustavi tuji ključ na schedule_entries.created_by, polja pa ni mogoče niti
+-- ustavi tuji ključ na razpored.created_by, polja pa ni mogoče niti
 -- izprazniti, ker ga sprožilec schedule_entries_touch ob UPDATE vrne na
 -- staro vrednost. Odsek 30 je varno pognati večkrat.
 --
@@ -42,21 +42,21 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id, p.full_name from public.profiles p
+  select p.id, p.full_name from public.profili p
     join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id, p.full_name from public.profiles p, cilj c
+  select p.id, p.full_name from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 )
 select
   i.full_name as kaj,
   concat_ws(' · ',
-    'razpored: ' || (select count(*) from public.schedule_entries s where s.employee_id = i.id),
-    'menjave: '  || (select count(*) from public.swap_requests w where w.requester_id = i.id or w.target_id = i.id),
+    'razpored: ' || (select count(*) from public.razpored s where s.employee_id = i.id),
+    'menjave: '  || (select count(*) from public.zahtevki_za_menjavo w where w.requester_id = i.id or w.target_id = i.id),
     'obrazci: '  || (select count(*) from public.obrazci o where o.vlagatelj_id = i.id or o.sodelavec_id = i.id),
-    'dopust/omejitve: ' || (select count(*) from public.leave_entries l where public.imena_se_ujemata(l.full_name, i.full_name)),
-    'želje: '    || (select count(*) from public.employee_wishes z where z.profile_id = i.id)
+    'dopust/omejitve: ' || (select count(*) from public.odsotnosti l where public.imena_se_ujemata(l.full_name, i.full_name)),
+    'želje: '    || (select count(*) from public.zelje_zaposlenih z where z.profile_id = i.id)
   ) as podrobnost
 from ids i
 order by 1;
@@ -75,19 +75,19 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id from public.profiles p join auth.users u on u.id = p.id
+  select p.id from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id from public.profiles p, cilj c
+  select p.id from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 ),
 zbrisane as (
-  delete from public.swap_requests
+  delete from public.zahtevki_za_menjavo
   where requester_id in (select id from ids) or target_id in (select id from ids)
   returning 1
 ),
 sproscene as (
-  update public.swap_requests
+  update public.zahtevki_za_menjavo
   set lead_id = case when lead_id in (select id from ids) then null else lead_id end,
       admin_id = case when admin_id in (select id from ids) then null else admin_id end
   where lead_id in (select id from ids) or admin_id in (select id from ids)
@@ -109,10 +109,10 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id from public.profiles p join auth.users u on u.id = p.id
+  select p.id from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id from public.profiles p, cilj c
+  select p.id from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 ),
 zbrisani as (
@@ -138,31 +138,31 @@ with cilj(email, ime) as (values
 imena as (
   select c.ime from cilj c
   union
-  select p.full_name from public.profiles p join auth.users u on u.id = p.id
+  select p.full_name from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c2.email) from cilj c2)
 ),
 a as (
-  delete from public.leave_entries l
+  delete from public.odsotnosti l
   where exists (select 1 from imena i where public.imena_se_ujemata(l.full_name, i.ime))
   returning 1
 ),
 b as (
-  delete from public.employee_wishes z
+  delete from public.zelje_zaposlenih z
   where exists (select 1 from imena i where public.imena_se_ujemata(z.full_name, i.ime))
   returning 1
 ),
 c as (
-  delete from public.leave_balance_history h
+  delete from public.zgodovina_stanja_dopusta h
   where exists (select 1 from imena i where public.imena_se_ujemata(h.full_name, i.ime))
   returning 1
 ),
 d as (
-  delete from public.lead_departments ld
+  delete from public.nosilci_oddelkov ld
   where exists (select 1 from imena i where public.imena_se_ujemata(ld.full_name, i.ime))
   returning 1
 ),
 e as (
-  delete from public.contact_imports ci
+  delete from public.uvozi_kontaktov ci
   where lower(ci.email) in (select lower(c2.email) from cilj c2)
      or exists (select 1 from imena i where public.imena_se_ujemata(ci.full_name, i.ime))
   returning 1
@@ -187,17 +187,17 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id from public.profiles p join auth.users u on u.id = p.id
+  select p.id from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id from public.profiles p, cilj c
+  select p.id from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 ),
 a as (
-  delete from public.schedule_entries where employee_id in (select id from ids) returning 1
+  delete from public.razpored where employee_id in (select id from ids) returning 1
 ),
 b as (
-  update public.profiles set vodja_id = null
+  update public.profili set vodja_id = null
   where vodja_id in (select id from ids) returning 1
 )
 select 'vnosi v razporedu' as kaj, (select count(*) from a) as podrobnost
@@ -215,20 +215,20 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id from public.profiles p join auth.users u on u.id = p.id
+  select p.id from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id from public.profiles p, cilj c
+  select p.id from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 ),
 zbrisani as (
-  delete from public.schedule_entries_log where employee_id in (select id from ids) returning 1
+  delete from public.dnevnik_razporeda where employee_id in (select id from ids) returning 1
 )
 select 'dnevnik razporeda izbrisan' as kaj, (select count(*) from zbrisani) as podrobnost;
 
 
 -- ---------------------------------------------------------------------
--- 6) Izbris računa. profiles → auth.users je "on delete cascade", zato ta
+-- 6) Izbris računa. profili → auth.users je "on delete cascade", zato ta
 --    en ukaz odnese profil in vse, kar nanj kaskadno visi (oddelčna
 --    članstva, HR podatki, telefoni, obvestila, naročnine na potisna
 --    obvestila, koledarski žetoni, dnevnik ogledov).
@@ -240,10 +240,10 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id from public.profiles p join auth.users u on u.id = p.id
+  select p.id from public.profili p join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id from public.profiles p, cilj c
+  select p.id from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 ),
 zbrisani as (
@@ -265,12 +265,12 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 a as (
-  delete from public.leave_entries_log l
+  delete from public.dnevnik_odsotnosti l
   where exists (select 1 from cilj c where public.imena_se_ujemata(l.full_name, c.ime))
   returning 1
 ),
 b as (
-  delete from public.profiles_log g
+  delete from public.dnevnik_profilov g
   where exists (select 1 from cilj c where public.imena_se_ujemata(g.profile_name, c.ime))
      or exists (select 1 from cilj c where public.imena_se_ujemata(g.changed_by_name, c.ime))
   returning 1
@@ -288,25 +288,25 @@ with cilj(email, ime) as (values
   ('mija.balek@pb-begunje.si', 'Balek Mija'),
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 )
-select 'profiles' as kje, p.full_name as kdo from public.profiles p, cilj c
+select 'profili' as kje, p.full_name as kdo from public.profili p, cilj c
   where public.imena_se_ujemata(p.full_name, c.ime)
 union all
 select 'auth.users', u.email from auth.users u, cilj c where lower(u.email) = lower(c.email)
 union all
-select 'leave_entries', l.full_name from public.leave_entries l, cilj c
+select 'odsotnosti', l.full_name from public.odsotnosti l, cilj c
   where public.imena_se_ujemata(l.full_name, c.ime)
 union all
-select 'leave_entries_log', l.full_name from public.leave_entries_log l, cilj c
+select 'dnevnik_odsotnosti', l.full_name from public.dnevnik_odsotnosti l, cilj c
   where public.imena_se_ujemata(l.full_name, c.ime)
 union all
-select 'employee_wishes', z.full_name from public.employee_wishes z, cilj c
+select 'zelje_zaposlenih', z.full_name from public.zelje_zaposlenih z, cilj c
   where public.imena_se_ujemata(z.full_name, c.ime)
 union all
-select 'lead_departments', ld.full_name from public.lead_departments ld, cilj c
+select 'nosilci_oddelkov', ld.full_name from public.nosilci_oddelkov ld, cilj c
   where public.imena_se_ujemata(ld.full_name, c.ime)
 union all
-select 'profiles_log', g.profile_name from public.profiles_log g, cilj c
+select 'dnevnik_profilov', g.profile_name from public.dnevnik_profilov g, cilj c
   where public.imena_se_ujemata(g.profile_name, c.ime)
 union all
-select 'contact_imports', ci.full_name from public.contact_imports ci, cilj c
+select 'uvozi_kontaktov', ci.full_name from public.uvozi_kontaktov ci, cilj c
   where lower(ci.email) = lower(c.email) or public.imena_se_ujemata(ci.full_name, c.ime);

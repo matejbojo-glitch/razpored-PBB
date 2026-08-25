@@ -120,7 +120,7 @@ with vhod (email, polno) as (
     ('maja.miljkovic@pb-begunje.si', 'Vrevc Maja')
 ),
 posodobitev as (
-  update public.profiles p
+  update public.profili p
   set full_name = v.polno
   from vhod v
   join auth.users u on lower(u.email) = v.email
@@ -140,7 +140,7 @@ union all
 -- ročno v Imeniku – poizvedba jih namenoma ne ugiba, ker pri dvobesednem
 -- priimku ni mogoče vedeti, kje se priimek konča.
 select 'ročno preveri (zunaj seznama)', p.full_name || '  <' || u.email || '>'
-from public.profiles p
+from public.profili p
 join auth.users u on u.id = p.id
 where lower(u.email) not in (select email from vhod)
   and position(' ' in btrim(p.full_name)) > 0
@@ -246,7 +246,7 @@ ujemanje as (
   select v.employee_code, v.email, v.full_name,
          coalesce(
            (select u.id from auth.users u where lower(u.email) = v.email limit 1),
-           (select p.id from public.profiles p where upper(p.full_name) = upper(v.full_name) limit 1)
+           (select p.id from public.profili p where upper(p.full_name) = upper(v.full_name) limit 1)
          ) as profile_id
   from vhod v
 ),
@@ -260,7 +260,7 @@ enolicno as (
   order by profile_id, employee_code
 ),
 vpis as (
-  insert into public.profile_hr_details (profile_id, employee_code)
+  insert into public.kadrovski_podatki (profile_id, employee_code)
   select profile_id, employee_code from enolicno
   on conflict (profile_id) do update
     set employee_code = excluded.employee_code,
@@ -326,7 +326,7 @@ ujemanje as (
   select v.full_name, v.email,
          coalesce(
            (select u.id from auth.users u where lower(u.email) = v.email limit 1),
-           (select p.id from public.profiles p where upper(p.full_name) = upper(v.full_name) limit 1)
+           (select p.id from public.profili p where upper(p.full_name) = upper(v.full_name) limit 1)
          ) as profile_id
   from vhod v
 ),
@@ -337,10 +337,10 @@ enolicno as (
   order by profile_id
 ),
 dodaj as (
-  insert into public.profile_departments (profile_id, department_code, sort_order)
+  insert into public.pokriva_oddelek (profile_id, department_code, sort_order)
   select e.profile_id, 'DEZ',
          coalesce((select max(pd.sort_order) + 1
-                   from public.profile_departments pd
+                   from public.pokriva_oddelek pd
                    where pd.profile_id = e.profile_id), 1)
   from enolicno e
   on conflict (profile_id, department_code) do nothing

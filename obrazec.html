@@ -185,7 +185,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
 
   useEffect(() => {
     if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); return; }
-    client.from("schedule_entries").select("shift_code").eq("employee_id", myId).eq("work_date", datum).maybeSingle()
+    client.from("razpored").select("shift_code").eq("employee_id", myId).eq("work_date", datum).maybeSingle()
       .then(({ data }) => setMojaIzmena(data ? data.shift_code : ""));
     setKandidati(null); setIzbranSodelavec(null);
   }, [vrsta, datum, myId]);
@@ -234,7 +234,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     const od = dodaj(dnevi[0], -3), doo = dodaj(dnevi[dnevi.length - 1], 3);
     const jaz = myId, on = izbranSodelavec.profile_id;
 
-    client.from("schedule_entries")
+    client.from("razpored")
       .select("employee_id, work_date, shift_code")
       .in("employee_id", [jaz, on])
       .gte("work_date", od).lte("work_date", doo)
@@ -665,7 +665,7 @@ function App(){
     const prviDan = new Date(zdaj.getFullYear(), zdaj.getMonth(), 1).toISOString().slice(0, 10);
     const naslednjiPrviDan = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1).toISOString().slice(0, 10);
     client.from("obrazci")
-      .select("*, vlagatelj:profiles!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profiles!obrazci_sodelavec_id_fkey(full_name)")
+      .select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
       .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
       .filter("polja->>datum_a", "gte", prviDan).filter("polja->>datum_a", "lt", naslednjiPrviDan)
       .order("ustvarjen", { ascending: false })

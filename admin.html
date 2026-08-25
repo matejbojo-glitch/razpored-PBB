@@ -174,14 +174,14 @@ const { client } = RazporedAuth;
 
 // Oddelki za kreiranje/generiranje razporeda – na izrecno željo omejeno na
 // natanko teh 8 (glej supabase/schema.sql sekcija 23, isti seznam kot v
-// imenik.html/zelje.html). Stare kode ostanejo v bazi (schedule_entries jih
+// imenik.html/zelje.html). Stare kode ostanejo v bazi (razpored jih
 // zgodovinsko referencira), samo tu se jih ne ponuja več za dodeljevanje.
 const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
 // ---------------------------------------------------------------------
-// Objava generiranega razporeda naravnost v Supabase (schedule_entries),
+// Objava generiranega razporeda naravnost v Supabase (razpored),
 // poleg obstoječega ročnega prenosa JSON. Zaposlene poveže po polnem
-// imenu (profiles.full_name) – kdor se še ni registriral, se ne objavi
+// imenu (profili.full_name) – kdor se še ni registriral, se ne objavi
 // in je izpisan kot manjkajoč.
 // ---------------------------------------------------------------------
 // Po uspešni objavi obvesti vse prizadete zaposlene (obvestilo v
@@ -209,7 +209,7 @@ async function publishScheduleRows(deptCode, rows){
   // prek Imena.kljuc) - ne z dobesednim ujemanjem imena. Glej razlago pri
   // publishLeadScheduleRows: dobesedna primerjava tiho izgubi človeka, ki
   // je drugod zapisan z velikimi črkami ali brez strešic.
-  const { data: profili, error: perr } = await client.from("profiles").select("id, full_name, department_code");
+  const { data: profili, error: perr } = await client.from("profili").select("id, full_name, department_code");
   if (perr) throw perr;
   const kazalo = window.Imena.kazalo(profili || []);
   const byIme = {};
@@ -219,7 +219,7 @@ async function publishScheduleRows(deptCode, rows){
     employee_id: byIme[r.ime].id, department_code: deptCode, work_date: r.datum, shift_code: r.sifra || "",
   }));
   if (vrstice.length > 0){
-    const { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    const { error } = await client.from("razpored").upsert(vrstice, { onConflict: "employee_id,work_date" });
     if (error) throw error;
   }
   // POZOR: samo med ljudmi IZ TEGA RAZPOREDA. Poizvedba zgoraj zdaj vrne
@@ -228,7 +228,7 @@ async function publishScheduleRows(deptCode, rows){
   const brezOddelka = Object.values(byIme).filter(p => !p.department_code).map(p => p.id);
   let oddelekNapaka = null;
   if (brezOddelka.length > 0){
-    const { error } = await client.from("profiles").update({ department_code: deptCode }).in("id", brezOddelka);
+    const { error } = await client.from("profili").update({ department_code: deptCode }).in("id", brezOddelka);
     if (error) oddelekNapaka = error.message;
   }
   const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, deptCode) : null;
@@ -243,21 +243,21 @@ async function publishLeadScheduleRows(rows){
   // prek Imena.kljuc, ne dobesedno.
   //
   // Doslej je bilo tu .in("full_name", imena) proti PROFILES. Imena za
-  // razpored NZV pa prihajajo iz lead_departments, kjer so zapisana z
-  // velikimi črkami ("ALUKIĆ DINO"), v profiles pa so "Priimek Ime"
+  // razpored NZV pa prihajajo iz nosilci_oddelkov, kjer so zapisana z
+  // velikimi črkami ("ALUKIĆ DINO"), v profili pa so "Priimek Ime"
   // ("Alukić Dino", glej supabase/imena-priimek-prvi.sql, ki popravi samo
-  // profiles). Dobesedna primerjava zato ni našla nikogar: objava je
+  // profili). Dobesedna primerjava zato ni našla nikogar: objava je
   // "uspela" z 0 zapisi, vsi pa so bili poročani kot "brez profila".
   // Ista past čaka pri strešicah (Bećirović/Becirovic) in dvobesednih
   // priimkih.
   const [{ data: profili, error: perr }, { data: hrVrstice }, { data: vodjeVrstice }] = await Promise.all([
-    client.from("profiles").select("id, full_name"),
-    client.from("profile_hr_details").select("profile_id, employee_code")
+    client.from("profili").select("id, full_name"),
+    client.from("kadrovski_podatki").select("profile_id, employee_code")
       .then(r => r, () => ({ data: [] })),
     // Matična številka vodje (supabase/nzv-maticne-stevilke-vodij.sql). Če
     // stolpca še ni, poizvedba pade - takrat se preprosto išče po imenu,
     // objava pa vseeno dela.
-    client.from("lead_departments").select("full_name, employee_code")
+    client.from("nosilci_oddelkov").select("full_name, employee_code")
       .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
   ]);
   if (perr) throw perr;
@@ -273,7 +273,7 @@ async function publishLeadScheduleRows(rows){
   });
   const manjkajo = imena.filter(i => !byIme[i]);
   // Ista oseba je isti dan pogosto na VEČ enotah (npr. Džamastagić na PDZN,
-  // SOBO in U2), schedule_entries pa ima unique (employee_id, work_date).
+  // SOBO in U2), razpored pa ima unique (employee_id, work_date).
   // Brez združevanja je vsaka nadaljnja enota tiho prepisala prejšnjo -
   // razpored je pokazal eno enoto, druge pa so izginile. Isto pravilo in
   // ista koda kot pri uvozu NZV iz Sheets (nzv-zasedba.js): prva enota gre
@@ -287,14 +287,14 @@ async function publishLeadScheduleRows(rows){
       stolpec: r.jeEnota ? r.stolpec : undefined,
     })));
   if (vrstice.length > 0){
-    let { error } = await client.from("schedule_entries").upsert(vrstice, { onConflict: "employee_id,work_date" });
+    let { error } = await client.from("razpored").upsert(vrstice, { onConflict: "employee_id,work_date" });
     // Če stolpec pokriva_oddelek v bazi še ne obstaja (supabase/
     // dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne CEL
     // upsert. To ne sme pomeniti, da objava sploh ne dela: shrani brez
     // tega polja (ena enota na osebo/dan, kot je bilo doslej).
     if (error && /pokriva_oddelek/i.test((error.message || "") + (error.details || ""))) {
       const brez = vrstice.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
-      ({ error } = await client.from("schedule_entries").upsert(brez, { onConflict: "employee_id,work_date" }));
+      ({ error } = await client.from("razpored").upsert(brez, { onConflict: "employee_id,work_date" }));
     }
     if (error) throw error;
   }
@@ -310,8 +310,8 @@ const ANCHOR_MONDAY = "2026-09-28";
 // Oddelčna struktura (kode, nazivi, hsuffix) je stalna nastavitev – 6
 // SMS/TZN oddelkov se ne spreminja. Članstvo in rotacijska črka (A-E) sta
 // PREJ bila tu trdo kodirana skupaj s to strukturo (glej git zgodovino),
-// zdaj pa prihajata živo iz Supabase (profiles.department_code +
-// profiles.rotation_slot, urejljivo v Imeniku) – glej nalozizOddelek spodaj.
+// zdaj pa prihajata živo iz Supabase (profili.department_code +
+// profili.rotation_slot, urejljivo v Imeniku) – glej nalozizOddelek spodaj.
 const WARDS_META = {
   B:  { naziv:"B – oddelek",  hsuffix:false },
   C:  { naziv:"C – oddelek",  hsuffix:false },
@@ -361,17 +361,17 @@ function preberiNapotiloIzNaslova(search){
 async function nalozizOddelek(koda){
   // "id" je tu zato, da je ime v mreži lahko povezava na profil osebe
   // (imenik.html?id=...). Generator sam ga ne potrebuje.
-  const { data } = await client.from("profiles").select("id, full_name, rotation_slot")
+  const { data } = await client.from("profili").select("id, full_name, rotation_slot")
     .eq("department_code", koda).order("full_name");
   return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot, p.id]);
 }
 
-// Dnevne "rumene" omejitve (Razpredelnica Želje, leave_entries.kind="omejitev")
+// Dnevne "rumene" omejitve (Razpredelnica Želje, odsotnosti.kind="omejitev")
 // za dani razpon – Kalup generator jih uporabi za samodejno iskanje
 // nadomestila (glej generirajKalup v generator-core.js).
 // "imena" so imena osebja, kot jih pozna kalup - izid se vrne pod TEMI
-// imeni, ne pod tistimi iz leave_entries. Ujemanje gre prek imena.js
-// (isti modul kot NZV), ker so imena v leave_entries zapisana različno:
+// imeni, ne pod tistimi iz odsotnosti. Ujemanje gre prek imena.js
+// (isti modul kot NZV), ker so imena v odsotnosti zapisana različno:
 // ročni vnos v Razpredelnici tako kot v Imeniku, uvoz iz CSV pa z velikimi
 // črkami. Z dobesedno primerjavo se je prenesel le tisti del, ki se je
 // slučajno ujemal črko v črko.
@@ -383,7 +383,7 @@ async function nalozizOddelek(koda){
 const KALUP_ODSOTNOST_KIND = ["omejitev", "bs", "sti"];
 
 async function nalozizOmejitve(startISO, endISO, imena){
-  const { data } = await client.from("leave_entries").select("full_name, work_date")
+  const { data } = await client.from("odsotnosti").select("full_name, work_date")
     .in("kind", KALUP_ODSOTNOST_KIND).gte("work_date", startISO).lte("work_date", endISO);
   const poKljucu = {};
   (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
@@ -396,13 +396,13 @@ async function nalozizOmejitve(startISO, endISO, imena){
   return map;
 }
 
-// Letni dopust (Razpredelnica Želje, leave_entries.kind="ld") za dani
+// Letni dopust (Razpredelnica Želje, odsotnosti.kind="ld") za dani
 // razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
 // Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
 // dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
 // izpraznil cel teden rotacije.
 async function nalozizLdTedne(startISO, endISO, tedni, imena){
-  const { data } = await client.from("leave_entries").select("full_name, work_date")
+  const { data } = await client.from("odsotnosti").select("full_name, work_date")
     .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
   const poKljucu = {};
   (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
@@ -413,7 +413,7 @@ async function nalozizLdTedne(startISO, endISO, tedni, imena){
     d.setUTCDate(d.getUTCDate() - zamik);
     const mo = d.toISOString().slice(0, 10);
     if (!tedni.includes(mo)) return;
-    // Ključ pod IMENOM OSEBJA (ne pod imenom iz leave_entries) - ročni
+    // Ključ pod IMENOM OSEBJA (ne pod imenom iz odsotnosti) - ročni
     // popravki v razpredelnici uporabljajo isti zapis in se morajo z
     // izpeljanimi tedni sešteti, ne izključevati.
     const ime = poKljucu[kljucImena(r.full_name)];
@@ -432,10 +432,10 @@ async function nalozizLdTedne(startISO, endISO, tedni, imena){
 // roster/analiza-razporedov.md §1a). To obdobje je pred obstojem te
 // aplikacije, zato ostaja tu kot fiksna osnova (se ne bo več spreminjalo) –
 // vse OD 1. 9. 2026 naprej nalozizDezurniKader spodaj prišteje živo iz
-// schedule_entries, tako da se stevilo/zadnje ne bosta nikoli več ročno
+// razpored, tako da se stevilo/zadnje ne bosta nikoli več ročno
 // prepisovala. Članstvo (kdo je dežurni kader) in osebne nastavitve
 // (min/maks mesečno, prost dan, samo med tednom) so od te spremembe dalje v
-// Supabase (profiles.department_code="DEZ" + profile_hr_details.duty_*).
+// Supabase (profili.department_code="DEZ" + kadrovski_podatki.duty_*).
 const DEZURNI_OSNOVA_DO_31_8_2026 = {
   "ALUKIĆ DINO": { stevilo:21, zadnje:"2026-08-20" },
   "ARNEŽ GREGA": { stevilo:18, zadnje:"2026-08-03" },
@@ -454,7 +454,7 @@ const DEZURNI_OSNOVA_DO_31_8_2026 = {
 };
 
 // Zgornji slovar je ključen po "PRIIMEK IME" z velikimi črkami (tako je
-// zapisan uradni seznam dežurstev). profiles.full_name pa je lahko zapisan
+// zapisan uradni seznam dežurstev). profili.full_name pa je lahko zapisan
 // drugače – "Dino Alukić" namesto "ALUKIĆ DINO". Iskanje po točnem ključu
 // bi v takem primeru tiho vrnilo nič in osebi ponastavilo zgodovino na 0
 // dežurstev; generator pravičnosti bi ji nato naložil preveč dežurstev,
@@ -473,19 +473,19 @@ const DEZURNI_OSNOVA_PO_KLJUCU = Object.fromEntries(
   Object.entries(DEZURNI_OSNOVA_DO_31_8_2026).map(([ime, v]) => [kljucImena(ime), v])
 );
 
-// Vrne polni začetni roster za DezurstvaTab: članstvo iz profiles (primarni
-// department_code ali profile_departments "DEZ" – nekdo je lahko hkrati na
+// Vrne polni začetni roster za DezurstvaTab: članstvo iz profili (primarni
+// department_code ali pokriva_oddelek "DEZ" – nekdo je lahko hkrati na
 // svojem oddelku IN v dežurnem kadru), stevilo/zadnje = zaprta osnova do
-// 31. 8. 2026 + živo prišteti schedule_entries od 1. 9. 2026 do startISO
-// (izključno), osebne nastavitve iz profile_hr_details.duty_*.
+// 31. 8. 2026 + živo prišteti razpored od 1. 9. 2026 do startISO
+// (izključno), osebne nastavitve iz kadrovski_podatki.duty_*.
 async function nalozizDezurniKader(startISO){
-  const { data: profili } = await client.from("profiles")
-    .select("id, full_name, department_code, profile_departments(department_code), profile_hr_details(duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)")
+  const { data: profili } = await client.from("profili")
+    .select("id, full_name, department_code, pokriva_oddelek(department_code), kadrovski_podatki(duty_min_monthly, duty_max_monthly, duty_day_off, duty_weekdays_only)")
     .order("full_name");
   const dezurni = (profili || []).filter(p =>
-    p.department_code === "DEZ" || (p.profile_departments || []).some(d => d.department_code === "DEZ")
+    p.department_code === "DEZ" || (p.pokriva_oddelek || []).some(d => d.department_code === "DEZ")
   );
-  const { data: entries } = await client.from("schedule_entries").select("employee_id, work_date")
+  const { data: entries } = await client.from("razpored").select("employee_id, work_date")
     .eq("department_code", "DEZ").gte("work_date", "2026-09-01").lt("work_date", startISO);
   const odZivih = {};
   (entries || []).forEach(e => {
@@ -494,7 +494,7 @@ async function nalozizDezurniKader(startISO){
     if (!s.zadnje || e.work_date > s.zadnje) s.zadnje = e.work_date;
   });
   return dezurni.map(p => {
-    const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+    const hr = Array.isArray(p.kadrovski_podatki) ? p.kadrovski_podatki[0] : p.kadrovski_podatki;
     const osnova = DEZURNI_OSNOVA_PO_KLJUCU[kljucImena(p.full_name)] || { stevilo:0, zadnje:null };
     const ziv = odZivih[p.id] || { stevilo:0, zadnje:null };
     return {
@@ -518,7 +518,7 @@ async function nalozizDezurniKader(startISO){
 const classify = window.Izmene.skupinaGeneratorja;
 const BARVE = window.Izmene.SKUPINA_BARVA;
 
-// Izmenski "vedri" za primerjavo z department_shift_minimums (natančnejše
+// Izmenski "vedri" za primerjavo z minimalna_zasedba (natančnejše
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" – tu ju
 // razdelimo, ker dnevni 12-urni izmeni (DNEVNA12 05:50-18:00 in DNEVNA12F
 // 07:00-19:00) pokrivata dan in štejeta k DOPOLDNE, nočna12 pa k PONOCI.
@@ -546,7 +546,7 @@ function shiftBucket(sifra){
 const IZMENA_LABEL = { DOPOLDNE: "Dopoldne", POPOLDNE: "Popoldne", PONOCI: "Nočna" };
 
 async function nalozizMinimume(koda){
-  const { data, error } = await client.from("department_shift_minimums").select("*").eq("department_code", koda);
+  const { data, error } = await client.from("minimalna_zasedba").select("*").eq("department_code", koda);
   if (error) { console.error("Nalaganje minimumov ni uspelo:", error); return {}; }
   const map = {};
   (data || []).forEach(row => { map[row.shift_bucket] = row; });
@@ -700,7 +700,7 @@ function PrednostniPanel({ staff, stanje, tedni, onPredlagaj, kvote, setKvote })
 // običajno zasedel ta dan brez odsotnosti. Prag je samodejno izračunan,
 // a ostaja ročno popravljiv na dan, ker "pričakovano" ni vedno enoznačno
 // (npr. namerno tanjša zasedba ob znanih mirnejših dnevih).
-// Urejevalnik minimumov (department_shift_minimums) – admin ureja natančen
+// Urejevalnik minimumov (minimalna_zasedba) – admin ureja natančen
 // minimum po izmeni za trenutni oddelek. Osnutek vrednosti je bil seed-an
 // prek schema.sql (§17, iz starega analiznega prototipa) – ni potrjen,
 // zato je tu vedno urejljiv, ne prikazan kot trdno pravilo.
@@ -726,7 +726,7 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
           updated_at: new Date().toISOString(),
         };
       });
-      const { error } = await client.from("department_shift_minimums").upsert(rows, { onConflict: "department_code,shift_bucket" });
+      const { error } = await client.from("minimalna_zasedba").upsert(rows, { onConflict: "department_code,shift_bucket" });
       if (error) throw error;
       setMsg({ ok: true, text: "Minimumi shranjeni." });
     } catch (e) {
@@ -1080,7 +1080,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   }, [staffList]);
   useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
   const [genBusy, setGenBusy] = useState(false);
-  // Minimumi po izmeni (department_shift_minimums) – natančnejša osnova za
+  // Minimumi po izmeni (minimalna_zasedba) – natančnejša osnova za
   // "Pokritost po dnevih" kot bazni-kalup primerjava, glej PokritostPoDnevih.
   const [minimumi, setMinimumi] = useState({});
   useEffect(() => { setMinimumi({}); nalozizMinimume(koda).then(setMinimumi); }, [koda]);
@@ -1680,16 +1680,16 @@ function DezurstvaTab({ zacetniMesec }){
     setRoster(r => r.map(z => z.ime===ime ? {...z, [field]: value} : z));
   };
 
-  // Prebere barvno razpredelnico "Želje" (leave_entries) za izbrani mesec in
+  // Prebere barvno razpredelnico "Želje" (odsotnosti) za izbrani mesec in
   // vrne { IME: { dopust:[iso,...], omejitve:[iso,...] } }. "bs"/"sti" se
   // obravnavata kot omejitve (blokiran samo ta dan, brez pravila "dan prej").
   const nalozitIzZelja = async (mesec) => {
     const { startISO: s, endISO: e } = monthRange(mesec);
-    const { data, error } = await client.from("leave_entries").select("full_name, work_date, kind")
+    const { data, error } = await client.from("odsotnosti").select("full_name, work_date, kind")
       .gte("work_date", s).lte("work_date", e);
     if (error || !data) return null;
     // Ključ prek imena.js in NE surovega imena z velikimi črkami: v
-    // leave_entries so imena zapisana različno - ročni vnos v Razpredelnici
+    // odsotnosti so imena zapisana različno - ročni vnos v Razpredelnici
     // jih shrani tako, kot so v Imeniku ("Bojić Matej"), uvoz iz CSV pa z
     // VELIKIMI ("BOJIĆ MATEJ"). Prej se je iskalo z izZelja[z.ime], torej
     // surovo ime proti velikim črkam - ujemanja ni bilo NIKOLI in dopusti
@@ -1783,13 +1783,13 @@ function DezurstvaTab({ zacetniMesec }){
   // tisti del, ki je bil že potrjen in sporočen ljudem.
   const nalozitObjavljena = async (mesec) => {
     const { startISO: s2, endISO: e2 } = monthRange(mesec);
-    const { data } = await client.from("schedule_entries")
-      .select("work_date, shift_code, profiles!employee_id(full_name)")
+    const { data } = await client.from("razpored")
+      .select("work_date, shift_code, profili!employee_id(full_name)")
       .eq("department_code", "DEZ").gte("work_date", s2).lte("work_date", e2);
     const m = {};
     (data || []).forEach(r => {
-      if (!r.profiles || !jeDezurstvoSifra(r.shift_code)) return;
-      m[r.work_date] = (r.profiles.full_name || "").toUpperCase();
+      if (!r.profili || !jeDezurstvoSifra(r.shift_code)) return;
+      m[r.work_date] = (r.profili.full_name || "").toUpperCase();
     });
     return m;
   };
@@ -2063,9 +2063,9 @@ function DezurstvaTab({ zacetniMesec }){
 // VodjeTab – mesečna zasedenost 22 vodij/nosilcev oddelkov (iz "Predloga
 // razporeda vodje NZV"). Za razliko od Kalupa/Dežurstev to ni rotacijski
 // generator: vsak vodja je vsak delavnik privzeto na SVOJIH ENOTAH
-// (stolpec lead_departments.enote, ki je lahko sestavljen: "UA/SA/B2"),
+// (stolpec nosilci_oddelkov.enote, ki je lahko sestavljen: "UA/SA/B2"),
 // razen če ima za ta dan LD/BS/STI vnos v razpredelnici "Želje"
-// (leave_entries) – takrat se to prikaže v ustreznem stolpcu namesto
+// (odsotnosti) – takrat se to prikaže v ustreznem stolpcu namesto
 // oddelka. Stolpec DEŽURSTVO se prekriva z generatorjem dežurstev (če je
 // bil za ta mesec že objavljen v Supabase, se prebere od tam).
 function kratica(imePolno){
@@ -2153,8 +2153,8 @@ function VodjeTab({ zacetniMesec }){
   const wardRef = useRef();
 
   useEffect(() => {
-    client.from("lead_departments").select("*").order("full_name").then(({ data }) => setVodje(data || []));
-    client.from("departments").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
+    client.from("nosilci_oddelkov").select("*").order("full_name").then(({ data }) => setVodje(data || []));
+    client.from("oddelki").select("code, name").order("code").then(({ data }) => setOddelki(data || []));
   }, []);
 
   const imeOddelka = {};
@@ -2165,21 +2165,21 @@ function VodjeTab({ zacetniMesec }){
     setNalagam(true);
     const { startISO, endISO } = monthRange(month);
     const [{ data: leaveRows }, { data: dezRows }, { data: pariRows }, { data: nastRows }] = await Promise.all([
-      client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
-      // "profiles!employee_id(...)": schedule_entries ima tri tuje ključe na
-      // profiles (employee_id, created_by, updated_by), zato nedoločen
+      client.from("odsotnosti").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
+      // "profili!employee_id(...)": razpored ima tri tuje ključe na
+      // profili (employee_id, created_by, updated_by), zato nedoločen
       // vgnezden zapis PostgREST zavrne kot dvoumen in vrne napako namesto
       // vrstic - dežurstva v razporedu vodij so zato ostala prazna. Isti
       // popravek kot v nalozizPodatkeNzv (index.html).
-      client.from("schedule_entries").select("work_date, profiles!employee_id(full_name)").eq("department_code", "DEZ")
+      client.from("razpored").select("work_date, profili!employee_id(full_name)").eq("department_code", "DEZ")
         .gte("work_date", startISO).lte("work_date", endISO),
       // Nadomeščanja in nastavitve SA: doslej ju generator NI bral, zato je
       // delal po drugih pravilih kot prikaz v Imeniku/Razporedu.
       client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
     ]);
-    // Ključ prek imena.js in NE surovega imena: lead_departments ima imena
-    // z VELIKIMI črkami ("ALUKIĆ DINO"), leave_entries pa tako, kot so v
+    // Ključ prek imena.js in NE surovega imena: nosilci_oddelkov ima imena
+    // z VELIKIMI črkami ("ALUKIĆ DINO"), odsotnosti pa tako, kot so v
     // Imeniku ("Alukić Dino"). Iskalo se je z leaveMap[v.full_name + "|" +
     // iso], torej ime iz ene tabele proti ključu iz druge - zadetka ni bilo
     // NIKOLI in generator NZV je osebo na dopustu vseeno razporedil na
@@ -2191,7 +2191,7 @@ function VodjeTab({ zacetniMesec }){
       leaveMap[window.Imena.kljuc(r.full_name) + "|" + r.work_date] = r.kind;
     });
     const dezMap = {};
-    (dezRows || []).forEach(r => { if (r.profiles) dezMap[r.work_date] = r.profiles.full_name; });
+    (dezRows || []).forEach(r => { if (r.profili) dezMap[r.work_date] = r.profili.full_name; });
     const saNast = window.NzvZasedba.saNastavitveIz(nastRows || []);
 
     const kljucIme = window.Imena.kljuc;
@@ -2199,7 +2199,7 @@ function VodjeTab({ zacetniMesec }){
     const veljavne = NZ.KODE_STOLPCEV;
 
     // Odsotnost za izračun: enodnevni LD/BS/STI iz Želja + daljša
-    // odsotnost (porodniška …) iz lead_departments. "Omejitev" (rumena)
+    // odsotnost (porodniška …) iz nosilci_oddelkov. "Omejitev" (rumena)
     // NI odsotnost - tisti dan oseba dela, koordinator le presodi obseg.
     const poImenu = {};
     vodje.forEach(v => { poImenu[kljucIme(v.full_name)] = v; });
@@ -2560,15 +2560,15 @@ function UporabnikiTab(){
   const uvozRef = useRef();
 
   const reload = () => {
-    client.from("profiles").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
-    client.from("departments").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
+    client.from("profili").select("id, full_name, role, department_code").order("full_name").then(({ data }) => setProfili(data || []));
+    client.from("oddelki").select("code, name").in("code", RAZPORED_ODDELKI).order("code")
       .then(({ data }) => setOddelki(data || []));
   };
   useEffect(() => { reload(); }, []);
 
   const posodobi = async (id, patch) => {
     setStatus(s => ({ ...s, [id]: "shranjujem …" }));
-    const { error } = await client.from("profiles").update(patch).eq("id", id);
+    const { error } = await client.from("profili").update(patch).eq("id", id);
     setStatus(s => ({ ...s, [id]: error ? ("napaka: " + error.message) : "shranjeno" }));
     setProfili(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
     return error;
@@ -2576,7 +2576,7 @@ function UporabnikiTab(){
 
   // Množično ponastavi vlogo/oddelek vsem RAZEN treh stalnih administratorjev
   // (na izrecno željo). Prijava (e-pošta/geslo) ostane nedotaknjena – ureja se
-  // samo public.profiles prek te iste, že delujoče prijavljene povezave, zato
+  // samo public.profili prek te iste, že delujoče prijavljene povezave, zato
   // ni tveganja napačnega Supabase projekta kot pri ročnem SQL.
   const ponastaviVse = async () => {
     if (profili === null) return;
@@ -2729,9 +2729,9 @@ function UporabnikiTab(){
 // Dopust: mesečni uvoz stanja dopusta iz Kadrisa (ime, šifra zaposlenega/
 // "Mat.št", leto, mesec, DOPUST) + pregled z mesečnim trendom. employee_code
 // je edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
-// včasih zapišejo drugače) - povezuje se s profile_hr_details.employee_code,
+// včasih zapišejo drugače) - povezuje se s kadrovski_podatki.employee_code,
 // če je znan, sicer poskusi ujemanje po imenu (vreča besed). Ob vsakem uvozu
-// sprožilec v shemi drži profile_hr_details.leave_balance_days/asof
+// sprožilec v shemi drži kadrovski_podatki.leave_balance_days/asof
 // usklajena z najnovejšim mesecem (Imenik torej vedno kaže isto stanje).
 // ---------------------------------------------------------------------
 const DOPUST_GLAVE_MAPA = {
@@ -2755,7 +2755,7 @@ function DopustTab(){
   const fileRef = useRef();
 
   const nalozi = async () => {
-    const { data } = await client.from("leave_balance_obdobja").select("*");
+    const { data } = await client.from("stanje_dopusta_obdobja").select("*");
     setObdobja(data || []);
     if (data && data.length && !obdobje) setObdobje(data[0].leto + "-" + data[0].mesec);
   };
@@ -2764,7 +2764,7 @@ function DopustTab(){
   useEffect(() => {
     if (!obdobje) { setVrstice([]); return; }
     const [leto, mesec] = obdobje.split("-").map(Number);
-    client.from("leave_balance_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
+    client.from("stanje_dopusta_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
       .then(({ data }) => setVrstice(data || []));
   }, [obdobje]);
 
@@ -2797,16 +2797,16 @@ function DopustTab(){
       const mesec = zapisi.find(z => z.mesec)?.mesec || (zdaj.getMonth() + 1);
 
       // Zadnje znano stanje vsake osebe (za primerjavo novo/spremenjeno/enako).
-      const { data: zgodovina } = await client.from("leave_balance_history")
+      const { data: zgodovina } = await client.from("zgodovina_stanja_dopusta")
         .select("employee_code, leto, mesec, dnevi")
         .order("leto", { ascending: false }).order("mesec", { ascending: false });
       const zadnje = new Map();
       (zgodovina || []).forEach(r => { if (!zadnje.has(r.employee_code)) zadnje.set(r.employee_code, Number(r.dnevi)); });
 
       // Poveži z obstoječimi profili: najprej po employee_code
-      // (profile_hr_details), sicer po imenu (vreča besed).
-      const { data: hrPodatki } = await client.from("profile_hr_details").select("profile_id, employee_code");
-      const { data: profili } = await client.from("profiles").select("id, full_name");
+      // (kadrovski_podatki), sicer po imenu (vreča besed).
+      const { data: hrPodatki } = await client.from("kadrovski_podatki").select("profile_id, employee_code");
+      const { data: profili } = await client.from("profili").select("id, full_name");
       const poEmployeeCode = new Map((hrPodatki || []).filter(h => h.employee_code).map(h => [h.employee_code, h.profile_id]));
 
       const zVsebino = zapisi.map(z => {
@@ -2820,9 +2820,9 @@ function DopustTab(){
         return { ...z, leto, mesec, profile_id, prej, vrsta };
       });
 
-      const obstojeci = await client.from("leave_balance_history").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
+      const obstojeci = await client.from("zgodovina_stanja_dopusta").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
       const vNovem = new Set(zVsebino.map(z => z.employee_code));
-      const { data: vsiZgodovina } = await client.from("leave_balance_history").select("employee_code, full_name").order("full_name");
+      const { data: vsiZgodovina } = await client.from("zgodovina_stanja_dopusta").select("employee_code, full_name").order("full_name");
       const znaniZaEnkrat = new Map();
       (vsiZgodovina || []).forEach(r => { if (!znaniZaEnkrat.has(r.employee_code)) znaniZaEnkrat.set(r.employee_code, r.full_name); });
       const manjkajoci = [...znaniZaEnkrat.entries()].filter(([koda]) => !vNovem.has(koda)).map(([, ime]) => ime);
@@ -2852,7 +2852,7 @@ function DopustTab(){
         dnevi: z.dnevi, profile_id: z.profile_id, uvozeno: new Date().toISOString(), uvozil: user ? user.id : null,
       }));
       for (let i = 0; i < zapisi.length; i += 200) {
-        const { error } = await client.from("leave_balance_history").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
+        const { error } = await client.from("zgodovina_stanja_dopusta").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
         if (error) throw error;
       }
       setUvozMsg(`Uvoženih ${zapisi.length} vrstic za ${MESECI_SL2[predogled.mesec - 1]} ${predogled.leto}.`);
@@ -3089,16 +3089,16 @@ function PlaceTab(){
       const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
       const prazniki = slovenskiPrazniki(leto);
       const [{ data: entries, error }, { data: profili }] = await Promise.all([
-        client.from("schedule_entries").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
+        client.from("razpored").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
         // Matična številka je ključ, po katerem osebo prepozna računovodstvo
         // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
-        client.from("profiles").select("id, full_name, profile_hr_details(employee_code)"),
+        client.from("profili").select("id, full_name, kadrovski_podatki(employee_code)"),
       ]);
       if (error) throw error;
       const imePoId = {}, matPoId = {};
       (profili || []).forEach(p => {
         imePoId[p.id] = p.full_name;
-        const hr = Array.isArray(p.profile_hr_details) ? p.profile_hr_details[0] : p.profile_hr_details;
+        const hr = Array.isArray(p.kadrovski_podatki) ? p.kadrovski_podatki[0] : p.kadrovski_podatki;
         matPoId[p.id] = (hr && hr.employee_code) || "";
       });
       const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
@@ -3237,7 +3237,7 @@ function PlaceTab(){
 }
 
 // ---------------------------------------------------------------------
-// Revizijska sled sprememb PRAVIC (profiles_log - schema.sql sekcija 28).
+// Revizijska sled sprememb PRAVIC (dnevnik_profilov - schema.sql sekcija 28).
 // Ločena od revizije razporeda spodaj, ker odgovarja na drugo vprašanje:
 // ne "kdo je komu spremenil izmeno", ampak "kdo je komu podelil ali
 // odvzel dostop". Tudi tu piše izključno sprožilec v bazi.
@@ -3265,7 +3265,7 @@ function RevizijaPravic(){
 
   useEffect(() => {
     let cancelled = false;
-    client.from("profiles_log").select("*").order("changed_at", { ascending: false }).limit(300)
+    client.from("dnevnik_profilov").select("*").order("changed_at", { ascending: false }).limit(300)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) { setNapaka(error.message); setVnosi([]); return; }
@@ -3331,7 +3331,7 @@ function RevizijaPravic(){
 
 // ---------------------------------------------------------------------
 // Revizijska sled: kdo, kdaj in kaj je spremenil v razporedu
-// (schedule_entries_log - glej schema.sql sekcija 26, piše ga izključno
+// (dnevnik_razporeda - glej schema.sql sekcija 26, piše ga izključno
 // sprožilec ob vsakem vpisu/spremembi/izbrisu shift_code/department_code,
 // ne aplikacijska koda - velja za VSE poti pisanja).
 // ---------------------------------------------------------------------
@@ -3356,11 +3356,11 @@ function RevizijaRazporeda(){
 
   useEffect(() => {
     let cancelled = false;
-    client.from("schedule_entries_log").select("*").order("changed_at", { ascending: false }).limit(300)
+    client.from("dnevnik_razporeda").select("*").order("changed_at", { ascending: false }).limit(300)
       .then(async ({ data, error }) => {
         if (cancelled) return;
         if (error) { setNapaka(error.message); setVnosi([]); return; }
-        const { data: profili } = await client.from("profiles").select("id, full_name");
+        const { data: profili } = await client.from("profili").select("id, full_name");
         const imePoId = {}; (profili || []).forEach(p => { imePoId[p.id] = p.full_name; });
         setVnosi((data || []).map(v => ({
           ...v,
@@ -3382,7 +3382,7 @@ function RevizijaRazporeda(){
 
   return (
     <div>
-      <p className="hint">Zadnjih 300 sprememb v razporedu (schedule_entries) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
+      <p className="hint">Zadnjih 300 sprememb v razporedu (razpored) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
       <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
       {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
       {vnosi === null ? <p className="hint">Nalagam …</p> : (

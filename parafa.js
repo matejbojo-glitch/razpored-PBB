@@ -13,8 +13,8 @@
 window.Parafa = (function () {
 
   // Parafa se je za del kadra spremenila z veljavnostjo od 1.10.2026
-  // (uradna prenova, ne popravek napake): profiles.parafa hrani NOVO
-  // (velja od tega datuma dalje), profiles.parafa_pred_oktobrom_2026 pa
+  // (uradna prenova, ne popravek napake): profili.parafa hrani NOVO
+  // (velja od tega datuma dalje), profili.parafa_pred_oktobrom_2026 pa
   // STARO (veljala do 30.9.2026), in sicer SAMO za osebe, ki jim je bila
   // dejansko spremenjena (glej supabase/posodobi-parafe-oktober-2026.sql).
   var PRESTOP = "2026-10";

@@ -3,7 +3,7 @@
 -- izvoza "Parafe_ZN_14.08.2026.xlsx" (69 oseb, zavihek "ZN": Priimek in
 -- ime | PARAFA | DM).
 --
--- profiles.parafa je admin-urejljivo polje (Imenik) - uporablja ga uradna
+-- profili.parafa je admin-urejljivo polje (Imenik) - uporablja ga uradna
 -- predloga "Letni dopusti in omejitve za NZV" namesto polnega imena v
 -- celicah (glej NzvView/parafaOd v index.html). Brez tega vnosa aplikacija
 -- za NZV celice izpelje grobo SAMODEJNO privzeto parafo iz priimka
@@ -96,7 +96,7 @@ with vhod (full_name, parafa) as (
   ('KOGOJ EVA', 'KE')
 ),
 posodobljeno as (
-  update public.profiles p
+  update public.profili p
   set parafa = v.parafa
   from vhod v
   where public.imena_se_ujemata(p.full_name, v.full_name)
@@ -110,6 +110,6 @@ where not exists (select 1 from posodobljeno u where public.imena_se_ujemata(u.f
 union all
 select 'POZOR: dve vrstici iz izvoza sta se ujemali z istim profilom', string_agg(v.full_name || '=' || v.parafa, ' / ' order by v.full_name)
 from vhod v
-join public.profiles p on public.imena_se_ujemata(p.full_name, v.full_name)
+join public.profili p on public.imena_se_ujemata(p.full_name, v.full_name)
 group by p.id having count(*) > 1
 order by 1, 2;

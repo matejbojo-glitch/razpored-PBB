@@ -9,7 +9,7 @@
  * kot vse ostale (iskal parafo) - vsak dežurstveni vpis je zato TIHO
  * odpadel (v poročilu se je izgubil med pričakovanimi "neujemanji"), zato
  * dežurstvo ni bilo nikoli vidno v NZV pregledu niti v "Moj razpored" -
- * ne glede na to, da MyScheduleView pravilno prikaže VSAK schedule_entries
+ * ne glede na to, da MyScheduleView pravilno prikaže VSAK razpored
  * zapis (glej preveri-nzv-dezurstvo-datum.mjs) - vpisa preprosto ni bilo.
  *
  * Preverja:

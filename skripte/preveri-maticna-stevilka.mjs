@@ -2,13 +2,13 @@
 /* Preizkus povezovanja oseb med viri po MATIČNI ŠTEVILKI.
  *
  * Aplikacija je ljudi doslej povezovala skoraj izključno po imenu. To je
- * tih vir izgub, ne kozmetika: lead_departments (od koder pridejo imena za
- * razpored NZV) ima imena z VELIKIMI črkami ("ALUKIĆ DINO"), profiles pa
+ * tih vir izgub, ne kozmetika: nosilci_oddelkov (od koder pridejo imena za
+ * razpored NZV) ima imena z VELIKIMI črkami ("ALUKIĆ DINO"), profili pa
  * "Priimek Ime" ("Alukić Dino" — supabase/imena-priimek-prvi.sql popravi
- * samo profiles). Dobesedna primerjava zato ne najde nikogar. Enako
+ * samo profili). Dobesedna primerjava zato ne najde nikogar. Enako
  * razhajanje delajo strešice (Bećirović/Becirovic) in dvobesedni priimki.
  *
- * Matična številka (profile_hr_details.employee_code) je stabilen ključ iz
+ * Matična številka (kadrovski_podatki.employee_code) je stabilen ključ iz
  * Kadrisa, zato ima prednost; ime je rezerva, kadar številke ni — in tudi
  * takrat gre iskanje prek Imena.kljuc, ne dobesedno.
  *
@@ -53,7 +53,7 @@ eq(id("Nihče", "999"), null, "neznana številka ne najde nikogar");
 
 console.log("2) ime kot rezerva – in ne dobesedno");
 // Prav to razhajanje je pri objavi razporeda NZV izgubilo vseh 22 vodij.
-eq(id("ALUKIĆ DINO"), "a", "velike črke (tako so imena v lead_departments)");
+eq(id("ALUKIĆ DINO"), "a", "velike črke (tako so imena v nosilci_oddelkov)");
 eq(id("ALUKIC DINO"), "a", "izgubljene strešice");
 eq(id("alukić dino"), "a", "male črke");
 eq(id("  Alukić   Dino  "), "a", "odvečni presledki");
@@ -117,7 +117,7 @@ const aliasi = sandbox.GLAVE_MAPA.employee_code.map(a => a.toLowerCase());
 console.log("6) objava razporeda NZV to res uporablja");
 const admin = readFileSync(join(koren, "admin.html"), "utf8");
 trdi(/window\.Imena\.kazalo\(/.test(admin), "admin.html gradi kazalo oseb");
-// Stara pot ne sme ostati: dobesedno iskanje imen v profiles. Komentarji
+// Stara pot ne sme ostati: dobesedno iskanje imen v profili. Komentarji
 // se izpustijo - o stari poti se sme PISATI (razlaga, zakaj je bila
 // napačna), ne sme pa se je več klicati.
 const adminBrezKomentarjev = admin.split("\n").filter(v => !/^\s*\/\//.test(v)).join("\n");

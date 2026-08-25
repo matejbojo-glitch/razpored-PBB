@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 /* Preveri, da noben vgnezden ("embed") zapis v poizvedbah ni DVOUMEN.
  *
- * Ozadje resnične napake: `schedule_entries` ima TRI tuje ključe na
- * `profiles` - `employee_id` (od začetka) ter `created_by` in `updated_by`
+ * Ozadje resnične napake: `razpored` ima TRI tuje ključe na
+ * `profili` - `employee_id` (od začetka) ter `created_by` in `updated_by`
  * (dodana pozneje, sekcija 30 sheme). PostgREST ob zapisu
- *     .select("…, profiles(full_name)")
+ *     .select("…, profili(full_name)")
  * ne more vedeti, po katerem od treh naj pripne, zato vrne NAPAKO namesto
  * vrstic. V aplikaciji se to ni pokazalo kot napaka, ampak kot TIHO PRAZEN
  * prikaz: NZV mreža (enote + DEŽURSTVO) je ostala prazna, čeprav je uvoz
  * javil, da je vpisal več sto vrstic - stolpec LD je deloval le zato, ker
- * se bere iz `leave_entries` prek ločene poizvedbe brez vgnezdenja. Enaka
+ * se bere iz `odsotnosti` prek ločene poizvedbe brez vgnezdenja. Enaka
  * napaka je tiho praznila dežurstva v razporedu vodij (admin.html).
  *
  * Ker gre za napako, ki se NE pokaže kot sporočilo o napaki (samo prazen
  * zaslon), jo je edino zanesljivo loviti staticno: vsak vgnezden zapis nad
  * tabelo z več tujimi ključi na isto ciljno tabelo MORA imeti namig
- * ("profiles!employee_id(...)" ali "profiles!ime_kljuca(...)").
+ * ("profili!employee_id(...)" ali "profili!ime_kljuca(...)").
  *
  * Zagon: node skripte/preveri-vgnezdeni-join.mjs
  */
@@ -64,9 +64,9 @@ const veckratniMapa = new Map(veckratni.map(([k, s]) => [k, s]));
 
 console.log("1) shema: prepoznaj tabele z več tujimi ključi na isto ciljno tabelo");
 {
-  const se = veckratniMapa.get("schedule_entries->profiles");
+  const se = veckratniMapa.get("razpored->profili");
   trdi(!!se && se.length >= 3,
-    `schedule_entries -> profiles ima več ključev (${se ? se.join(", ") : "NI NAJDENO"}) - vgnezden zapis brez namiga je tu dvoumen`);
+    `razpored -> profili ima več ključev (${se ? se.join(", ") : "NI NAJDENO"}) - vgnezden zapis brez namiga je tu dvoumen`);
 }
 
 console.log("2) nobena stran ne uporablja dvoumnega vgnezdenega zapisa");

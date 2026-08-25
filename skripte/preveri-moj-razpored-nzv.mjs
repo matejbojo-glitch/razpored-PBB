@@ -195,7 +195,7 @@ console.log("7) Gosta mreža ('Po oddelkih'): kratica za odsotnosti, cel naziv z
 console.log("8) Delovišče na DEŽURNI dan je oddelek, ne 'DEZ'");
 {
   // Uporabnik je javil: na dežurni dan je pisalo "Dopoldne (DEZ)".
-  // schedule_entries.department_code je tisti dan 'DEZ' - to je
+  // razpored.department_code je tisti dan 'DEZ' - to je
   // pripadnost obtoku dežurstev, ne kraj dela. Dopoldne oseba dela na
   // svoji enoti (MO), dežurstvo je šele zvečer.
   //

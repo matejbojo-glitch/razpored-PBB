@@ -229,7 +229,7 @@ const RAZPOREDNICA_ODDELKI = [
 
 async function nalozizRoster(){
   const { data, error } = await RazporedAuth.client
-    .from("profiles").select("full_name, role, department_code")
+    .from("profili").select("full_name, role, department_code")
     .order("full_name");
   if (error) throw error;
   const skupine = RAZPOREDNICA_ODDELKI.map(([koda, naziv]) => ({ koda, naziv, ljudje: [] }));
@@ -271,7 +271,7 @@ function compressImage(file){
 
 // ---------------------------------------------------------------------
 // Razpredelnica dopustov/omejitev – barvna, po dnevih, vezana na Supabase
-// (leave_entries). Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02"
+// (odsotnosti). Nadomešča prejšnji ročni vnos "2026-09-01, 2026-09-02"
 // v admin.html: koordinator tu klikne/povleče čez dneve, generator
 // dežurstev pa te vnose samodejno prebere (glej admin.html "Osveži iz Želje").
 // ---------------------------------------------------------------------
@@ -308,13 +308,13 @@ function steviloVnosov(n){
 
 // Ujemanje imen med viri je v imena.js - en sam vir za vse zaslone.
 // Roster uporablja "PRIIMEK IME" ("MAVRI TRATNIK MAGDALENA"),
-// profiles.full_name pa karkoli je oseba vpisala ob registraciji
+// profili.full_name pa karkoli je oseba vpisala ob registraciji
 // ("Magdalena Mavri Tratnik"), izvozi pa vmes izgubijo še strešice.
 const imenaSeUjemata = window.Imena.seUjemata;
 
 // ---------------------------------------------------------------------
 // Uvoz barvnega koledarja odsotnosti (Kadris) – glej uvoziBarvniExcel spodaj.
-// Nekateri oddelki v profiles.full_name uporabljajo okrajšano ime ("VREVC M."), Kadris
+// Nekateri oddelki v profili.full_name uporabljajo okrajšano ime ("VREVC M."), Kadris
 // pa vedno polno ("VREVC MARJETA"), zato navadno imenaSeUjemata (vreča
 // besed, cele besede) tu ne zadošča – beseda z "." na koncu šteje kot
 // ujemanje po prvih črkah (okrajšava), ne kot cela beseda.
@@ -422,7 +422,7 @@ function zdruziBarve(rgbji, prag) {
 }
 
 // Fotografirana barva nikoli ni natanko enaka shranjeni. Zato se najprej
-// poskusi ujeti na že znano barvo iz absence_color_map (v polmeru PRAG) –
+// poskusi ujeti na že znano barvo iz barvne_oznake (v polmeru PRAG) –
 // brez tega bi admin isto rdečo določal znova ob vsaki fotografiji.
 const PRAG_UJEMANJA = 60;
 function kljucBarve(rgb, barvnaMapa) {
@@ -642,7 +642,7 @@ function barvaCSS(barva){
 // prvimi 15 vrsticami (tista z največ celoštevilskimi dnevi 1–31 v
 // stolpcih), prvi stolpec vsake naslednje vrstice je ime osebe, barva
 // vsake dnevne celice pa določa vrsto odsotnosti (preslikava se določi
-// pozneje, glede na absence_color_map).
+// pozneje, glede na barvne_oznake).
 async function parsirajBarvniExcel(file){
   const buf = await file.arrayBuffer();
   const wb = new ExcelJS.Workbook();
@@ -981,7 +981,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   const nalozi = () => {
     setNalagam(true);
-    RazporedAuth.client.from("leave_entries").select("full_name, work_date, kind")
+    RazporedAuth.client.from("odsotnosti").select("full_name, work_date, kind")
       .gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data }) => {
         // Ključ prek imena.js in NE surovega imena: uvoz iz CSV shrani imena
@@ -1004,7 +1004,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         setZapisanoIme(zapisano);
         setNalagam(false);
       });
-    RazporedAuth.client.from("leave_entries_log").select("*").order("created_at", { ascending:false }).limit(80)
+    RazporedAuth.client.from("dnevnik_odsotnosti").select("*").order("created_at", { ascending:false }).limit(80)
       .then(({ data }) => setLog(data || []));
   };
   useEffect(() => { nalozi(); }, [view.year, view.month]);
@@ -1027,17 +1027,17 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
       // isti dan, in v bazi bi ostala dva zapisa, ki si nasprotujeta.
       const staroIme = zapisanoIme[ime + "|" + iso];
       if (staroIme && staroIme !== ime) {
-        await RazporedAuth.client.from("leave_entries")
+        await RazporedAuth.client.from("odsotnosti")
           .delete().eq("full_name", staroIme).eq("work_date", iso);
         setZapisanoIme(z => { const n = { ...z }; delete n[ime + "|" + iso]; return n; });
       }
       if (vrednost) {
-        ({ error } = await RazporedAuth.client.from("leave_entries").upsert(
+        ({ error } = await RazporedAuth.client.from("odsotnosti").upsert(
           { full_name: ime, work_date: iso, kind: vrednost, created_by: myId },
           { onConflict: "full_name,work_date" }
         ));
       } else {
-        ({ error } = await RazporedAuth.client.from("leave_entries").delete().eq("full_name", ime).eq("work_date", iso));
+        ({ error } = await RazporedAuth.client.from("odsotnosti").delete().eq("full_name", ime).eq("work_date", iso));
       }
       if (error) throw error;
       setStatus("Shranjeno " + window.Datum.cas(new Date()));
@@ -1048,7 +1048,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   // Množičen uvoz iz datoteke (samo admin, gumb spodaj je gatiran na jeAdmin) –
   // ista oblika kot v admin.html DezurstvaTab: ime,dopust,omejitve (datumi v
-  // enem polju ločeni s podpičjem). Piše neposredno v Supabase (leave_entries),
+  // enem polju ločeni s podpičjem). Piše neposredno v Supabase (odsotnosti),
   // zato ga takoj vidijo vsi uporabniki, ne samo lokalni generator.
   // Skupno jedro za vse tri poti do istega uvoza (datoteka, Google Sheets,
   // prilepljeno besedilo) – da se oblika stolpcev in zapis v bazo ne
@@ -1067,7 +1067,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         });
       });
       if (!zapisi.length) { setUvozMsg("Ni uporabnih vrstic (pričakovano: ime,dopust,omejitve)."); return; }
-      const { error } = await RazporedAuth.client.from("leave_entries").upsert(zapisi, { onConflict: "full_name,work_date" });
+      const { error } = await RazporedAuth.client.from("odsotnosti").upsert(zapisi, { onConflict: "full_name,work_date" });
       if (error) throw error;
       setUvozMsg(`Uvoženih ${zapisi.length} vnosov iz "${izvor}".`);
       nalozi();
@@ -1110,7 +1110,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   useEffect(() => {
     if (!jeAdmin) return;
-    RazporedAuth.client.from("absence_color_map").select("*").then(({ data }) => {
+    RazporedAuth.client.from("barvne_oznake").select("*").then(({ data }) => {
       const m = {};
       (data || []).forEach(r => { m[r.barva] = { kind: r.kind, prezri: r.prezri }; });
       setBarvnaMapa(m);
@@ -1118,7 +1118,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
   }, [jeAdmin]);
 
   // Uvoz barvnega koledarja (Kadris): prebere datoteko, poišče znane barve
-  // (absence_color_map) in prikaže predogled + nove, še ne preslikane barve
+  // (barvne_oznake) in prikaže predogled + nove, še ne preslikane barve
   // za potrditev spodaj – glej potrdiBarvniUvoz.
   const uvoziBarvniExcel = async (file) => {
     if (!file || !barvnaMapa) return;
@@ -1178,7 +1178,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         posodobil: myId,
       }));
       if (noveMape.length) {
-        const { error } = await RazporedAuth.client.from("absence_color_map").upsert(noveMape, { onConflict: "barva" });
+        const { error } = await RazporedAuth.client.from("barvne_oznake").upsert(noveMape, { onConflict: "barva" });
         if (error) throw error;
       }
       const polnaMapa = { ...barvnaMapa };
@@ -1203,7 +1203,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         return;
       }
       for (let i = 0; i < zapisi.length; i += 200) {
-        const { error } = await RazporedAuth.client.from("leave_entries").upsert(zapisi.slice(i, i + 200), { onConflict: "full_name,work_date" });
+        const { error } = await RazporedAuth.client.from("odsotnosti").upsert(zapisi.slice(i, i + 200), { onConflict: "full_name,work_date" });
         if (error) throw error;
       }
       setBarvnaMapa(polnaMapa);
@@ -1517,7 +1517,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 // izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
 // pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster) – NZV
 // je tam že pravilno napolnjen (vsi z vlogo vodja/admin), enako kot
-// ostalih 7 skupin, zato ni več potreben poseben primer za lead_departments.
+// ostalih 7 skupin, zato ni več potreben poseben primer za nosilci_oddelkov.
 function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded }){
   const [imena, setImena] = useState(null); // null dokler se ne naloži
   useEffect(() => {
@@ -1552,7 +1552,7 @@ function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded 
     if (!obdobje.trim() && !opis.trim() && !slika) return;
     setBusy(true); setMsg(null);
     try {
-      const { error } = await RazporedAuth.client.from("employee_wishes").insert({
+      const { error } = await RazporedAuth.client.from("zelje_zaposlenih").insert({
         profile_id: jeKoordinator ? null : myId,
         full_name: (ime || myFullName || "").trim(),
         department_code: oddelek,
@@ -1621,14 +1621,14 @@ function SeznamZeljTab({ role, myId, myFullName, oddelek, skupine }){
   const nalozi = () => {
     if (!oddelek) { setZapisi([]); setNalagam(false); return; }
     setNalagam(true);
-    RazporedAuth.client.from("employee_wishes").select("*").eq("department_code", oddelek)
+    RazporedAuth.client.from("zelje_zaposlenih").select("*").eq("department_code", oddelek)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setZapisi(data || []); setNalagam(false); });
   };
   useEffect(() => { nalozi(); }, [oddelek]);
 
   const obrisi = async (id) => {
-    const { error } = await RazporedAuth.client.from("employee_wishes").delete().eq("id", id);
+    const { error } = await RazporedAuth.client.from("zelje_zaposlenih").delete().eq("id", id);
     if (error) { alert(error.message); return; }
     nalozi();
   };

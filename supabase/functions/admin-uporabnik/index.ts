@@ -17,9 +17,9 @@
 // v telesu zahteve).
 //
 // "izbrisi" kliče auth.admin.deleteUser(), kar se prek "on delete cascade"
-// (supabase/schema.sql) razširi na profiles in od tam naprej na
-// schedule_entries, employee_wishes, contact_phones itd. Osebe, ki imajo
-// menjave/obrazce (swap_requests.requester_id/target_id, obrazci.
+// (supabase/schema.sql) razširi na profili in od tam naprej na
+// razpored, zelje_zaposlenih, telefoni_kontaktov itd. Osebe, ki imajo
+// menjave/obrazce (zahtevki_za_menjavo.requester_id/target_id, obrazci.
 // vlagatelj_id/sodelavec_id – NAMENOMA brez kaskade) izbris zavrne s
 // tujim-ključnim napako. To je namerno varovalo, ne hrošč: Postgres izvede
 // izbris v eni transakciji, zato ob taki napaki NIČ ni delno izbrisano.
@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
   if (userErr || !user) return odgovor({ napaka: "Neveljavna seja – prijavi se znova." }, 401);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data: klicatelj } = await svc.from("profiles").select("role").eq("id", user.id).single();
+  const { data: klicatelj } = await svc.from("profili").select("role").eq("id", user.id).single();
   if (!klicatelj || klicatelj.role !== "admin") {
     return odgovor({ napaka: "Samo administrator lahko ureja uporabnike." }, 403);
   }
@@ -119,16 +119,16 @@ Deno.serve(async (req: Request) => {
 
     const noviId = ustvarjen.user.id;
     // handle_new_user() (schema.sql) je ob zgornjem vstavljanju v auth.users
-    // že ustvaril vrstico v profiles (role='user', full_name/email iz
+    // že ustvaril vrstico v profili (role='user', full_name/email iz
     // metapodatkov) – tu jo samo dopolnimo z vlogo/oddelkom, ki ju je admin
     // izbral v obrazcu.
-    const { error: posodobiErr } = await svc.from("profiles")
+    const { error: posodobiErr } = await svc.from("profili")
       .update({ role: vloga, department_code: oddelek })
       .eq("id", noviId);
     if (posodobiErr) return odgovor({ napaka: posodobiErr.message }, 500);
 
     if (telefon) {
-      await svc.from("contact_phones")
+      await svc.from("telefoni_kontaktov")
         .upsert({ profile_id: noviId, phone: telefon, updated_at: new Date().toISOString() });
     }
 

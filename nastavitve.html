@@ -115,14 +115,14 @@ function MojProfil({ profile, myId }){
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
-    client.from("contact_phones").select("phone").eq("profile_id", myId).maybeSingle()
+    client.from("telefoni_kontaktov").select("phone").eq("profile_id", myId).maybeSingle()
       .then(({ data }) => { setTelefon(data ? (data.phone || "") : ""); setNalozeno(true); });
   }, [myId]);
 
   const shrani = async () => {
     setBusy(true); setMsg(null);
     try {
-      const { error } = await client.from("contact_phones")
+      const { error } = await client.from("telefoni_kontaktov")
         .upsert({ profile_id: myId, phone: telefon.trim() || null, updated_at: new Date().toISOString() });
       if (error) throw error;
       setMsg({ ok:true, text:"Shranjeno." });
@@ -217,7 +217,7 @@ function Obvestila({ myId }){
 }
 
 // ---------------------------------------------------------------------
-// Kanali obveščanja po OSEBI (notification_settings, schema.sql sekcija
+// Kanali obveščanja po OSEBI (nastavitve_obvestil, schema.sql sekcija
 // 30). Ločeno od gumba zgoraj, ki velja za posamezno NAPRAVO: tu se
 // odloči, po katerih poteh naj obvestilo sploh pride.
 //
@@ -231,7 +231,7 @@ function Kanali({ myId, email }){
 
   useEffect(() => {
     let cancelled = false;
-    client.from("notification_settings").select("*").eq("profile_id", myId).maybeSingle()
+    client.from("nastavitve_obvestil").select("*").eq("profile_id", myId).maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
         // Če tabele še ni (sekcija 30 sheme še ni pognana), ne kaži stikal:
@@ -246,7 +246,7 @@ function Kanali({ myId, email }){
   const preklopi = async (polje) => {
     const novo = { ...n, [polje]: !n[polje] };
     setN(novo); setMsg(null);
-    const { error } = await client.from("notification_settings").upsert({
+    const { error } = await client.from("nastavitve_obvestil").upsert({
       profile_id: myId,
       email_enabled: novo.email_enabled,
       push_enabled: novo.push_enabled,
@@ -321,7 +321,7 @@ function Koledar(){
   // Beremo samo stanje, ne žetona - ta se naloži šele na klik.
   useEffect(() => {
     let cancelled = false;
-    client.from("calendar_tokens").select("enabled").maybeSingle()
+    client.from("koledarski_zetoni").select("enabled").maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
         // Tabele še ni (sekcija 29 sheme ni pognana) - glej razlago pri Kanali.

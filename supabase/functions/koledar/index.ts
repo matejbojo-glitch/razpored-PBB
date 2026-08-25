@@ -126,7 +126,7 @@ function sestaviICS(ime: string, vrstice: Vrstica[]): string {
     // UID mora biti STABILEN med osveževanji. Če bi se ob vsakem klicu
     // spremenil (npr. z naključjem), bi odjemalec vsakič pobrisal in znova
     // ustvaril vse dogodke – kar pomeni podvojene vnose in odveč opozorila.
-    // Oseba+dan je naravni ključ (schedule_entries ima unique na
+    // Oseba+dan je naravni ključ (razpored ima unique na
     // (employee_id, work_date)), zato je dovolj za enoličnost.
     const uid = "pbb-" + r.work_date + "-" + encodeURIComponent(ime) + "@razpored.netlify.app";
     const podatki = DelovniCas.podatkiIzmene(sifra);

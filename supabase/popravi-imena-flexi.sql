@@ -45,14 +45,14 @@ begin
     -- 1) po e-pošti (enolično)
     if v.email is not null then
       select id, full_name into v_id, v_staro
-      from public.profiles where lower(email) = lower(v.email) limit 1;
+      from public.profili where lower(email) = lower(v.email) limit 1;
       v_kako := 'po e-pošti';
     end if;
 
     -- 2) sicer po imenu brez strešic, ne glede na vrstni red besed
     if v_id is null then
       select id, full_name into v_id, v_staro
-      from public.profiles p
+      from public.profili p
       where (
         select array_agg(w order by w) from unnest(regexp_split_to_array(
           translate(upper(trim(p.full_name)), 'ČĆŠŽĐ', 'CCSZD'), '\s+')) w
@@ -67,7 +67,7 @@ begin
     if v_id is null then
       v_manjka := v_manjka || '  - ' || v.pravo_ime || coalesce(' (' || v.email || ')', '') || E'\n';
     elsif v_staro is distinct from v.pravo_ime then
-      update public.profiles set full_name = v.pravo_ime where id = v_id;
+      update public.profili set full_name = v.pravo_ime where id = v_id;
       v_popravljenih := v_popravljenih + 1;
       raise notice 'POPRAVLJENO (%): "%" -> "%"', v_kako, v_staro, v.pravo_ime;
     else
@@ -101,7 +101,7 @@ do $$
 declare v_st int;
 begin
   with popravljeni as (
-    update public.profiles
+    update public.profili
     set full_name = initcap(full_name)
     where full_name is not null
       and full_name <> ''
@@ -115,7 +115,7 @@ end $$;
 
 -- Kontrola: kako so te osebe zapisane zdaj.
 select full_name, email, department_code
-from public.profiles
+from public.profili
 where translate(upper(full_name), 'ČĆŠŽĐ', 'CCSZD') in
   ('BECIROVIC NELVEDIN','SUSNIK JAKA','RANT LUKA','SODJA BARBARA',
    'KVRZIC MARKO','HUSEINBASIC AJLA','VREVC MAJA')

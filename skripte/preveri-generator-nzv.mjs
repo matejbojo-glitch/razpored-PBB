@@ -4,7 +4,7 @@
  * Zakaj obstaja: uporabnik je vprašal, ali bo generator upošteval vse
  * tisto, kar smo uredili v Razpredelnici. Ni ga - imel je SVOJO, drugo
  * kopijo pravil:
- *   - bral je lead_departments.department_code (ena koda) namesto enote
+ *   - bral je nosilci_oddelkov.department_code (ena koda) namesto enote
  *     (lahko sestavljene, "UA/SA/B2"), zato oseba na treh enotah ni bila
  *     nikjer razen na eni;
  *   - nadomeščanja ni poznal sploh - ob dopustu je enota ostala prazna;

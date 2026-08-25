@@ -3,7 +3,7 @@
 // ki jih index.html uporablja za že objavljen razpored (glej tam
 // pripraviPosodobitveOddelka/zapisiOddelekVSheets - ista logika iskanja
 // bloka/glave po datumu, tu prirejena za osnutek iz generatorja namesto za
-// vrstice iz schedule_entries). Namenoma LOČENA kopija teh pomožnih funkcij
+// vrstice iz razpored). Namenoma LOČENA kopija teh pomožnih funkcij
 // (ne <script src> iz index.html), ker je index.html samostojna, testirana
 // Babel/React stran brez izvoza svojih funkcij navzven - admin.html je
 // ločena stran in tako do njih ne more priti. Glej
@@ -59,7 +59,7 @@ window.SheetsMreza = (function () {
     return null;
   }
 
-  // staff: [{ime}, ...] (profiles.full_name) - isti seznam, ki ga prikazuje
+  // staff: [{ime}, ...] (profili.full_name) - isti seznam, ki ga prikazuje
   // predogled v Admin → Kalup. vrednostZa(ime, datum) -> trenutna vrednost
   // CELICE V PREDOGLEDU (torej z upoštevanimi ročnimi popravki, ista
   // funkcija "celica" kot uporablja tabela na zaslonu) - zato zapis v Sheets

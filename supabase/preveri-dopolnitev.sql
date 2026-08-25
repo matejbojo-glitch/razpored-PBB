@@ -3,23 +3,23 @@
 -- Poženi v Supabase → SQL Editor PO tem, ko si pognal dopolnitev.
 -- Vsaka vrstica mora imeti "OK".
 -- =====================================================================
-select 'Tabela profiles_log (revizija pravic)' as kaj,
-       case when to_regclass('public.profiles_log') is not null then 'OK' else 'MANJKA' end as stanje
+select 'Tabela dnevnik_profilov (revizija pravic)' as kaj,
+       case when to_regclass('public.dnevnik_profilov') is not null then 'OK' else 'MANJKA' end as stanje
 union all
-select 'Tabela calendar_tokens (koledar)',
-       case when to_regclass('public.calendar_tokens') is not null then 'OK' else 'MANJKA' end
+select 'Tabela koledarski_zetoni (koledar)',
+       case when to_regclass('public.koledarski_zetoni') is not null then 'OK' else 'MANJKA' end
 union all
-select 'Tabela notification_settings (kanali)',
-       case when to_regclass('public.notification_settings') is not null then 'OK' else 'MANJKA' end
+select 'Tabela nastavitve_obvestil (kanali)',
+       case when to_regclass('public.nastavitve_obvestil') is not null then 'OK' else 'MANJKA' end
 union all
-select 'Stolpec calendar_tokens.enabled',
+select 'Stolpec koledarski_zetoni.enabled',
        case when exists (select 1 from information_schema.columns
-              where table_schema='public' and table_name='calendar_tokens' and column_name='enabled')
+              where table_schema='public' and table_name='koledarski_zetoni' and column_name='enabled')
             then 'OK' else 'MANJKA' end
 union all
-select 'Stolpec notifications.email_sent_at',
+select 'Stolpec obvestila.email_sent_at',
        case when exists (select 1 from information_schema.columns
-              where table_schema='public' and table_name='notifications' and column_name='email_sent_at')
+              where table_schema='public' and table_name='obvestila' and column_name='email_sent_at')
             then 'OK' else 'MANJKA' end
 union all
 select 'Sprozilec profiles_audit',
@@ -43,5 +43,5 @@ union all
 select 'RLS vklopljen na novih tabelah (3)',
        case when (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
                   where n.nspname='public' and c.relrowsecurity
-                  and c.relname in ('profiles_log','calendar_tokens','notification_settings')) = 3
+                  and c.relname in ('dnevnik_profilov','koledarski_zetoni','nastavitve_obvestil')) = 3
             then 'OK' else 'MANJKA' end;

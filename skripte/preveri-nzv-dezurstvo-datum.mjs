@@ -3,7 +3,7 @@
  * konca": realen datumski zapis z znano plavajočo napako (glej
  * preveri-xlsx-datum.mjs) -> xlsxVsiListi/xlsxCelicaVBesedilo
  * (import-utils.js) -> obdelajNzvVrstice (index.html) -> zapis za
- * schedule_entries.
+ * razpored.
  *
  * Uporabnik je izrecno prosil, naj preverim NATANČNO, da (a) je popravek
  * datuma (preveri-xlsx-datum.mjs) veljaven tudi za NZV uvoz (ne samo za
@@ -159,7 +159,7 @@ console.log("1) datumsko besedilo iz PRAVE .xlsx celice, z resnično velikostjo 
   jseq(datum1sept, "2026-09-01", "1. 9. 2026 s plavajočo napako -> pravilno prebran datum (ne 31. 8.)");
 }
 
-console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih celic -> pravi zapis za schedule_entries");
+console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih celic -> pravi zapis za razpored");
 {
   const GLAVA = ["PDZN", "SOBO", "ŽO", "E1", "E2", "D", "MO", "B", "C", "C1", "PO", "A", "B1,B2", "DB", "SA DOP", "SA POP", "URGENCA", "U2", "DEŽURSTVO", "LD", "IZOB", "BS"];
   function prazneVrednosti() { return GLAVA.map(() => ""); }
@@ -199,7 +199,7 @@ console.log("2) cela NZV vrstica (Dežurstvo stolpec) iz PRAVIH .xlsx datumskih 
 
   // KLJUČNO za "Moj razpored": zapis NE VSEBUJE nobenega polja, ki bi
   // izmenjavo omejilo na oddelek - MyScheduleView v index.html bere
-  // schedule_entries SAMO prek .eq("employee_id", userId), brez
+  // razpored SAMO prek .eq("employee_id", userId), brez
   // .eq("department_code", ...), zato department_code="DEZ" ne prepreči
   // prikaza v "Moj razpored" (potrjeno z branjem kode, glej opombo zgoraj).
   trdi("employee_id" in dez1 && "work_date" in dez1 && "shift_code" in dez1,

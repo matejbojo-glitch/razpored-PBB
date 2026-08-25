@@ -4,7 +4,7 @@
  *
  * Zakaj obstaja: uporabnik je javil, da pri kreiranju oktobra dopustov in
  * omejitev iz razpredelnice ne prenese v razpored. Vzrok je bil, da so
- * imena v leave_entries zapisana RAZLIČNO:
+ * imena v odsotnosti zapisana RAZLIČNO:
  *
  *   ročni vnos v Razpredelnici  ->  tako kot v Imeniku   ("Bojić Matej")
  *   uvoz iz CSV (zelje.html)    ->  z VELIKIMI črkami    ("BOJIĆ MATEJ")
@@ -51,7 +51,7 @@ function jseq(a, b, opis) {
 
 // Osebje, kot ga pozna Imenik.
 const OSEBJE = ["Bojić Matej", "Hrovat Nina", "Arnež Grega"];
-// leave_entries: namenoma MEŠANI zapisi, kot v resnični bazi.
+// odsotnosti: namenoma MEŠANI zapisi, kot v resnični bazi.
 const LEAVE = [
   { full_name: "Bojić Matej", work_date: "2026-10-05", kind: "ld" },        // ročni vnos
   { full_name: "HROVAT NINA", work_date: "2026-10-06", kind: "ld" },        // uvoz CSV
@@ -108,7 +108,7 @@ console.log("2) KALUP – omejitve (rumeno) pridejo do generatorja");
     "kdor ni med osebjem tega oddelka, se ne prilepi nikomur");
   const podKljuci = Object.keys(m);
   trdi(podKljuci.every(k => OSEBJE.includes(k)),
-    "izid je pod IMENI OSEBJA, ne pod imeni iz leave_entries – " + JSON.stringify(podKljuci));
+    "izid je pod IMENI OSEBJA, ne pod imeni iz odsotnosti – " + JSON.stringify(podKljuci));
 }
 
 console.log("3) KALUP – letni dopust se pretvori v cele tedne pod imenom osebja");
@@ -166,7 +166,7 @@ console.log("6) NZV – ostaja na skupnem modulu (tu je delovalo že prej)");
     "izpeljava odsotnosti prav tako");
 }
 
-console.log("7) Nikjer v adminu ni več dobesedne primerjave imen iz leave_entries");
+console.log("7) Nikjer v adminu ni več dobesedne primerjave imen iz odsotnosti");
 {
   trdi(!/\(row\.full_name \|\| ""\)\.toUpperCase\(\)/.test(admin),
     "ni več ključa 'surovo ime z velikimi črkami'");
@@ -217,8 +217,8 @@ console.log("9) NZV GENERATOR (Admin → NZV) upošteva dopuste");
   // Alukić, Arnež in Džamastagić 1. in 2. 10. 2026 v Željah rdeči (LD),
   // generator pa jih vseeno postavi na PDZN/ŽO/E1.
   //
-  // Vzrok: leaveMap je bil ključen s SUROVIM imenom iz leave_entries
-  // ("Alukić Dino"), iskalo pa se je z imenom iz lead_departments
+  // Vzrok: leaveMap je bil ključen s SUROVIM imenom iz odsotnosti
+  // ("Alukić Dino"), iskalo pa se je z imenom iz nosilci_oddelkov
   // ("ALUKIĆ DINO"). Dve tabeli, dve pisavi, dobesedna primerjava.
   trdi(/leaveMap\[window\.Imena\.kljuc\(r\.full_name\) \+ "\|" \+ r\.work_date\]/.test(admin),
     "leaveMap je ključen prek imena.js");
@@ -231,7 +231,7 @@ console.log("9) NZV GENERATOR (Admin → NZV) upošteva dopuste");
 
   // Konkretno: imeni iz obeh tabel se morata zvesti na isti ključ.
   jseq(sb.window.Imena.kljuc("ALUKIĆ DINO"), sb.window.Imena.kljuc("Alukić Dino"),
-    "'ALUKIĆ DINO' (lead_departments) in 'Alukić Dino' (leave_entries) sta ista oseba");
+    "'ALUKIĆ DINO' (nosilci_oddelkov) in 'Alukić Dino' (odsotnosti) sta ista oseba");
 
   // Rumena omejitev za NZV NI odsotnost - to ostane.
   const kolona = admin.match(/const LEAVE_KOLONA = \{[^}]*\}/)[0];

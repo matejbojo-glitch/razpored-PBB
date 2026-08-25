@@ -4,7 +4,7 @@
  * Ozadje: uporabnik je večkrat javil, da mu aplikacija ob dežurstvu ne
  * pokaže, s katerim ZDRAVNIKOM je dežuren. Prikaz sam je bil ves čas
  * pravilen - tiho pa je odpovedalo pridobivanje podatkov: če tabele
- * duty_doctors v bazi ni (shema še ni pognana) ali za prikazani mesec ni
+ * dezurni_zdravniki v bazi ni (shema še ni pognana) ali za prikazani mesec ni
  * naloženega uradnega PDF-ja, poizvedba ni vrnila nič, koda pa je rezultat
  * zavrgla brez sledi. Uporabnik ni imel NAČINA izvedeti, zakaj imena ni.
  *
@@ -89,9 +89,9 @@ console.log("6) index.html napako iz Supabase res prebere in shrani");
   trdi(/setZdravnikiStanje/.test(html), "stanje poizvedbe se sploh hrani");
   trdi(/42P01/.test(html), "manjkajoča tabela se prepozna po kodi 42P01");
   trdi(/schema cache/.test(html), "prepozna tudi PostgREST sporočilo o predpomnilniku sheme");
-  const ucinek = html.slice(html.indexOf('client.from("duty_doctors")'));
+  const ucinek = html.slice(html.indexOf('client.from("dezurni_zdravniki")'));
   trdi(/\{ data, error \}/.test(ucinek.slice(0, 400)),
-    "poizvedba duty_doctors prebere tudi 'error', ne samo 'data'");
+    "poizvedba dezurni_zdravniki prebere tudi 'error', ne samo 'data'");
   trdi(/zdravnikiOpozorilo && \(/.test(html), "opozorilo se v Moj razpored tudi izriše");
   trdi(/const zdravnikiOpozorilo = zdravnikiOpozoriloBesedilo\(imamDezurstvo, zdravnikiStanje\)/.test(html),
     "prikaz uporablja preizkušeno funkcijo (ne podvojene logike)");

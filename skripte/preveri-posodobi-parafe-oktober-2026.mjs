@@ -5,7 +5,7 @@
  *   1. da se VSEH vrstic iz izvoza pravilno ujema s profili;
  *   2. da OSEBA BREZ profila konča v poročilu "NI NAJDEN PROFIL", ne tiho
  *      izpade;
- *   3. da profiles.parafa dobi NOVO parafo (velja od 1.10.2026), profiles.
+ *   3. da profili.parafa dobi NOVO parafo (velja od 1.10.2026), profili.
  *      parafa_pred_oktobrom_2026 pa STARO (veljala do 30.9.2026) - za obe
  *      osebi, ki se jima parafa dejansko ni spremenila (Bojić Matej,
  *      Maglić Aleksander), sta stara in nova enaki;
@@ -99,12 +99,12 @@ trdi(nespremenjeni.length === 1 && nespremenjeni.includes("MAGLIĆ ALEKSANDER"),
 const izpuscen = vhodImena[vhodImena.length - 1];
 const zaSeed = vhodImena.slice(0, -1);
 // handle_new_user() sprožilec ob insert v auth.users SAM ustvari ujemajočo
-// vrstico v public.profiles (glej schema.sql) - profiles.id ima FK na
+// vrstico v public.profili (glej schema.sql) - profili.id ima FK na
 // auth.users.id, zato profila ni mogoče vstaviti neposredno brez tega.
 const seedSql = zaSeed.map((v, i) =>
   `insert into auth.users (id, email) values (gen_random_uuid(), 'oseba${i}@test.local');`
 ).join("\n") + "\n" + zaSeed.map((v, i) =>
-  `update public.profiles set full_name = '${v.full_name.replace(/'/g, "''")}' where email = 'oseba${i}@test.local';`
+  `update public.profili set full_name = '${v.full_name.replace(/'/g, "''")}' where email = 'oseba${i}@test.local';`
 ).join("\n");
 psql(seedSql);
 trdi(true, `zasejanih ${zaSeed.length} profilov (izpuščen: "${izpuscen.full_name}", za test 'ni najden profil')`);
@@ -115,7 +115,7 @@ console.log(izhod.trim().split("\n").map(l => "    " + l).join("\n"));
 
 console.log("4) preveri rezultat");
 {
-  const stevilo = psql(`select count(*) from public.profiles where parafa is not null and parafa_pred_oktobrom_2026 is not null;`).trim();
+  const stevilo = psql(`select count(*) from public.profili where parafa is not null and parafa_pred_oktobrom_2026 is not null;`).trim();
   trdi(stevilo === String(zaSeed.length), `vseh ${zaSeed.length} zasejanih profilov ima izpolnjeni OBE polji (dobil: ${stevilo})`);
 }
 {
@@ -123,18 +123,18 @@ console.log("4) preveri rezultat");
   const spremenjeni = zaSeed.filter(v => v.nova !== v.stara);
   const preveri = [spremenjeni[0], spremenjeni[Math.floor(spremenjeni.length / 2)], spremenjeni[spremenjeni.length - 1]];
   preveri.forEach(v => {
-    const vrstica = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profiles where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
+    const vrstica = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
     const [nova, stara] = vrstica.split("|");
     trdi(nova === v.nova && stara === v.stara, `"${v.full_name}" -> nova "${nova}", stara "${stara}" (pričakovano nova "${v.nova}", stara "${v.stara}")`);
   });
 }
 {
-  const bojic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profiles where full_name = 'BOJIĆ MATEJ';`).trim();
+  const bojic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = 'BOJIĆ MATEJ';`).trim();
   const [nova, stara] = bojic.split("|");
   trdi(nova === "MBO" && stara === "BOJ", `"BOJIĆ MATEJ" -> nova "${nova}" (pričakovano "MBO"), stara "${stara}" (pričakovano "BOJ", starejši NZV zapis)`);
 }
 {
-  const maglic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profiles where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
+  const maglic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
   const [nova, stara] = maglic.split("|");
   trdi(nova === "MAG" && stara === "MAG", `"MAGLIĆ ALEKSANDER" (parafa se ni spremenila) -> nova "${nova}", stara "${stara}" (obe "MAG")`);
 }
@@ -148,7 +148,7 @@ console.log("4) preveri rezultat");
 console.log("5) varno za ponovni zagon (drugi zagon ne podvoji/pokvari ničesar)");
 {
   const izhod2 = psql(readFileSync(join(DELO, "posodobi-parafe-oktober-2026.sql"), "utf8"));
-  const stevilo2 = psql(`select count(*) from public.profiles where parafa is not null and parafa_pred_oktobrom_2026 is not null;`).trim();
+  const stevilo2 = psql(`select count(*) from public.profili where parafa is not null and parafa_pred_oktobrom_2026 is not null;`).trim();
   trdi(stevilo2 === String(zaSeed.length), "drugi zagon ne spremeni števila izpolnjenih paraf");
   trdi(!izhod2.toUpperCase().includes("POZOR"), "drugi zagon prav tako brez 'POZOR' vrstice");
 }

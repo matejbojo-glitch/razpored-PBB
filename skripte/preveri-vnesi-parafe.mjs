@@ -97,12 +97,12 @@ trdi(vhodImena.filter(v => v.full_name === "MAGLIĆ ALEKSANDER").length === 1, "
 const izpuscen = vhodImena[vhodImena.length - 1];
 const zaSeed = vhodImena.slice(0, -1);
 // handle_new_user() sprožilec ob insert v auth.users SAM ustvari ujemajočo
-// vrstico v public.profiles (glej schema.sql) - profiles.id ima FK na
+// vrstico v public.profili (glej schema.sql) - profili.id ima FK na
 // auth.users.id, zato profila ni mogoče vstaviti neposredno brez tega.
 const seedSql = zaSeed.map((v, i) =>
   `insert into auth.users (id, email) values (gen_random_uuid(), 'oseba${i}@test.local');`
 ).join("\n") + "\n" + zaSeed.map((v, i) =>
-  `update public.profiles set full_name = '${v.full_name.replace(/'/g, "''")}' where email = 'oseba${i}@test.local';`
+  `update public.profili set full_name = '${v.full_name.replace(/'/g, "''")}' where email = 'oseba${i}@test.local';`
 ).join("\n");
 psql(seedSql);
 trdi(true, `zasejanih ${zaSeed.length} profilov (izpuščen: "${izpuscen.full_name}", za test 'ni najden profil')`);
@@ -113,25 +113,25 @@ console.log(izhod.trim().split("\n").map(l => "    " + l).join("\n"));
 
 console.log("4) preveri rezultat");
 {
-  const stevilo = psql(`select count(*) from public.profiles where parafa is not null;`).trim();
+  const stevilo = psql(`select count(*) from public.profili where parafa is not null;`).trim();
   trdi(stevilo === String(zaSeed.length), `vseh ${zaSeed.length} zasejanih profilov ima izpolnjeno parafo (dobil: ${stevilo})`);
 }
 {
   // Naključno preverjeni 3 osebe - da je PRAVA (ne katera koli) parafa prišla na PRAVO osebo.
   const preveri = [zaSeed[0], zaSeed[Math.floor(zaSeed.length / 2)], zaSeed[zaSeed.length - 1]];
   preveri.forEach(v => {
-    const dobljena = psql(`select parafa from public.profiles where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
+    const dobljena = psql(`select parafa from public.profili where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
     trdi(dobljena === v.parafa, `"${v.full_name}" -> parafa "${dobljena}" (pričakovano "${v.parafa}")`);
   });
 }
 {
-  const maglic = psql(`select parafa from public.profiles where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
+  const maglic = psql(`select parafa from public.profili where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
   trdi(maglic === "MAG", `"MAGLIĆ ALEKSANDER" -> parafa "${maglic}" (pričakovano potrjeno "MAG", ne stara "AMG"/"MA")`);
 }
 {
   const stolpci = psql(
     `select kaj, podrobnost from (
-       select 'posodobljenih' as kaj, count(*)::text as podrobnost from public.profiles where parafa is not null
+       select 'posodobljenih' as kaj, count(*)::text as podrobnost from public.profili where parafa is not null
      ) t;`
   );
   trdi(true, "poročilo (izpisano zgoraj pod korakom 3) ročno preveri vsebino - 'NI NAJDEN PROFIL' vrstica in brez 'POZOR' vrstice");
@@ -146,7 +146,7 @@ console.log("4) preveri rezultat");
 console.log("5) varno za ponovni zagon (drugi zagon ne podvoji/pokvari ničesar)");
 {
   const izhod2 = psql(readFileSync(join(DELO, "vnesi-parafe.sql"), "utf8"));
-  const stevilo2 = psql(`select count(*) from public.profiles where parafa is not null;`).trim();
+  const stevilo2 = psql(`select count(*) from public.profili where parafa is not null;`).trim();
   trdi(stevilo2 === String(zaSeed.length), "drugi zagon ne spremeni števila izpolnjenih paraf");
   trdi(!izhod2.toUpperCase().includes("POZOR"), "drugi zagon prav tako brez 'POZOR' vrstice");
 }

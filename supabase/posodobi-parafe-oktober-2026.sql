@@ -3,8 +3,8 @@
 -- (uradna prenova poimenovanja, ne popravek napake) - spodnjih 21 oseb je
 -- do 30.9.2026 imelo eno parafo, od 1.10.2026 dalje pa drugo. Ta skripta
 -- zapiše OBE vrednosti:
---   * profiles.parafa                     = nova (velja od 1.10.2026 dalje)
---   * profiles.parafa_pred_oktobrom_2026  = stara (veljala do 30.9.2026)
+--   * profili.parafa                     = nova (velja od 1.10.2026 dalje)
+--   * profili.parafa_pred_oktobrom_2026  = stara (veljala do 30.9.2026)
 --
 -- Aplikacija (index.html, parafaOd()) med njima izbira glede na dejanski
 -- datum razporeda/dopusta, ne glede na to, kdaj je bila skripta pognana:
@@ -47,7 +47,7 @@ with vhod (full_name, nova, stara) as (
   ('SOFRIĆ NIKOLINA', 'NSO', 'SOF')
 ),
 posodobljeno as (
-  update public.profiles p
+  update public.profili p
   set parafa = v.nova,
       parafa_pred_oktobrom_2026 = v.stara
   from vhod v
@@ -62,6 +62,6 @@ where not exists (select 1 from posodobljeno u where public.imena_se_ujemata(u.f
 union all
 select 'POZOR: dve vrstici iz izvoza sta se ujemali z istim profilom', string_agg(v.full_name, ' / ' order by v.full_name)
 from vhod v
-join public.profiles p on public.imena_se_ujemata(p.full_name, v.full_name)
+join public.profili p on public.imena_se_ujemata(p.full_name, v.full_name)
 group by p.id having count(*) > 1
 order by 1, 2;

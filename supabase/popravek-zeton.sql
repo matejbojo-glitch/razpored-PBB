@@ -33,12 +33,12 @@ begin
   if auth.uid() is null then
     raise exception 'Ni prijave.';
   end if;
-  select token into v_token from public.calendar_tokens where profile_id = auth.uid();
+  select token into v_token from public.koledarski_zetoni where profile_id = auth.uid();
   if v_token is not null then
     return v_token;
   end if;
   v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
-  insert into public.calendar_tokens (profile_id, token) values (auth.uid(), v_token)
+  insert into public.koledarski_zetoni (profile_id, token) values (auth.uid(), v_token)
   on conflict (profile_id) do update set token = excluded.token
   returning token into v_token;
   return v_token;
@@ -62,7 +62,7 @@ begin
     raise exception 'Ni prijave.';
   end if;
   -- Če vrstice še ni in se vklaplja, jo ustvarimo z novim žetonom.
-  insert into public.calendar_tokens (profile_id, token, enabled)
+  insert into public.koledarski_zetoni (profile_id, token, enabled)
   values (auth.uid(), replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''), p_vklop)
   on conflict (profile_id) do update set enabled = excluded.enabled
   returning enabled into v_stanje;
@@ -85,7 +85,7 @@ begin
     raise exception 'Ni prijave.';
   end if;
   v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
-  insert into public.calendar_tokens (profile_id, token, created_at, last_used_at)
+  insert into public.koledarski_zetoni (profile_id, token, created_at, last_used_at)
   values (auth.uid(), v_token, now(), null)
   on conflict (profile_id) do update
     set token = excluded.token, created_at = now(), last_used_at = null

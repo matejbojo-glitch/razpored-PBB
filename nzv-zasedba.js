@@ -1,7 +1,7 @@
 /* Stalna zasedba NZV – EN SAM VIR pravila.
  *
  * Za vodje in administratorje se dnevni razpored ne objavlja: njihova
- * enota je stalna in zapisana v lead_departments.enote. Zato se njihova
+ * enota je stalna in zapisana v nosilci_oddelkov.enote. Zato se njihova
  * prisotnost IZPELJE. Isto pravilo potrebujeta dva zaslona:
  *
  *   - index.html  → Po oddelkih → NZV  (dnevi × enote)
@@ -25,7 +25,7 @@ window.NzvZasedba = (function () {
   function jeNzvVloga(vloga) { return VLOGE.indexOf(vloga) >= 0; }
 
   // --- Kaj je DELOVIŠČE in kaj le pripadnost -----------------------------
-  // schedule_entries.department_code ne pove vedno, KJE oseba tisti dan
+  // razpored.department_code ne pove vedno, KJE oseba tisti dan
   // dela. Štiri kode so pripadnost skupini, ne kraj dela:
   //
   //   DEZ / NEDEZ  dežurni oz. nedežurni kader (kdo je v obtoku dežurstev)
@@ -196,7 +196,7 @@ window.NzvZasedba = (function () {
 
   // --- Odsotnost -------------------------------------------------------
   // Daljša odsotnost je zapisana pri nosilcu samem (odsotnost_tip +
-  // odsotnost_do), ne po posameznih dnevih v leave_entries – npr.
+  // odsotnost_do), ne po posameznih dnevih v odsotnosti – npr.
   // porodniška do julija 2027. Brez "do" velja odprto naprej.
   function trajnoOdsoten(zapisNosilca, datum) {
     var v = zapisNosilca;
@@ -223,7 +223,7 @@ window.NzvZasedba = (function () {
   // kam in kako se vpišejo, je stvar klicatelja, ker vsak od treh
   // zaslonov riše drugače (šifra izmene, celica z barvo, parafa).
   //
-  //   zapisNosilca  vrstica iz lead_departments (enote, odsotnost_tip/do)
+  //   zapisNosilca  vrstica iz nosilci_oddelkov (enote, odsotnost_tip/do)
   //   datumi        seznam ISO datumov (npr. cel mesec)
   //   jeZapolnjen   f(datum) -> true, če dan že ima objavljen vnos
   //
@@ -259,7 +259,7 @@ window.NzvZasedba = (function () {
   //      dobi POLEG svoje. Tu se veriga ustavi.
   //
   // Vhod:
-  //   nosilci      vrstice lead_departments (full_name, enote, odsotnost_*)
+  //   nosilci      vrstice nosilci_oddelkov (full_name, enote, odsotnost_*)
   //   pari         vrstice nadomescanja (nosilec, nadomesca, enota, prednost)
   //   kljuc(ime)   normalizacija imena v primerljiv ključ (glej imena.js)
   //   jeOdsoten(ime) -> bool za ta dan
@@ -288,7 +288,7 @@ window.NzvZasedba = (function () {
   var KODE_STOLPCEV = STOLPCI.map(function (v) { return v[0]; });
 
   // Zadnji trije stolpci uradne predloge niso enote, ampak POVZETEK
-  // odsotnosti tega dne (glej leave_entries.kind).
+  // odsotnosti tega dne (glej odsotnosti.kind).
   var KIND_KODA = { ld: "LD", sti: "IZOB", bs: "BS" };
   var KIND_KODA_VREDNOSTI = Object.keys(KIND_KODA).map(function (k) { return KIND_KODA[k]; });
 
@@ -585,7 +585,7 @@ window.NzvZasedba = (function () {
   // v avgustu 2026 (npr. 1. 9. je Džamastagić na PDZN, SOBO IN U2, Lelič na
   // E1 in E2, Arnež na B in C). To je normalno stanje, ne napaka v predlogi.
   //
-  // schedule_entries pa ima unique (employee_id, work_date): en zapis na
+  // razpored pa ima unique (employee_id, work_date): en zapis na
   // osebo in dan. Vsaka nadaljnja enota iste osebe je bila zato ob shranjevanju
   // ali zavrnjena ("ON CONFLICT DO UPDATE command cannot affect row a second
   // time") ali tiho prepisana - natanko to so "pomanjkljive celice".
@@ -650,7 +650,7 @@ window.NzvZasedba = (function () {
   // je tako hkrati na B in na C. Tudi če gre za en sam dan.
   //
   // opts:
-  //   nosilci     vrstice lead_departments
+  //   nosilci     vrstice nosilci_oddelkov
   //   pari        vrstice nadomescanja
   //   kljuc       window.Imena.kljuc
   //   datumi      [ISO, ...]
@@ -706,7 +706,7 @@ window.NzvZasedba = (function () {
 
   // Katere enote nosi EN objavljen zapis razporeda.
   //
-  // schedule_entries ima en zapis na osebo in dan, oseba pa je pogosto na
+  // razpored ima en zapis na osebo in dan, oseba pa je pogosto na
   // več enotah - dodatne so v pokriva_oddelek (glej zdruziNzvZapise). Če
   // je pokriva_oddelek izpolnjen, je v njem CEL seznam enot tega dne in je
   // merodajen; sicer velja department_code. Kode, ki niso delovišče

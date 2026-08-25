@@ -16,21 +16,21 @@ with cilj(email, ime) as (values
   ('luka.stare@pb-begunje.si', 'Stare Luka')
 ),
 ids as (
-  select p.id, p.full_name from public.profiles p
+  select p.id, p.full_name from public.profili p
     join auth.users u on u.id = p.id
     where lower(u.email) in (select lower(c.email) from cilj c)
   union
-  select p.id, p.full_name from public.profiles p, cilj c
+  select p.id, p.full_name from public.profili p, cilj c
     where public.imena_se_ujemata(p.full_name, c.ime)
 )
 select
   i.full_name as kaj,
   concat_ws(' · ',
-    'razpored: ' || (select count(*) from public.schedule_entries s where s.employee_id = i.id),
-    'menjave: '  || (select count(*) from public.swap_requests w where w.requester_id = i.id or w.target_id = i.id),
+    'razpored: ' || (select count(*) from public.razpored s where s.employee_id = i.id),
+    'menjave: '  || (select count(*) from public.zahtevki_za_menjavo w where w.requester_id = i.id or w.target_id = i.id),
     'obrazci: '  || (select count(*) from public.obrazci o where o.vlagatelj_id = i.id or o.sodelavec_id = i.id),
-    'dopust/omejitve: ' || (select count(*) from public.leave_entries l where public.imena_se_ujemata(l.full_name, i.full_name)),
-    'želje: '    || (select count(*) from public.employee_wishes z where z.profile_id = i.id)
+    'dopust/omejitve: ' || (select count(*) from public.odsotnosti l where public.imena_se_ujemata(l.full_name, i.full_name)),
+    'želje: '    || (select count(*) from public.zelje_zaposlenih z where z.profile_id = i.id)
   ) as podrobnost
 from ids i
 order by 1;

@@ -222,7 +222,7 @@ function priimekZacetnica(fullName){
 }
 
 // Parafa za NZV celice (po vzoru "Letni dopusti in omejitve za NZV" -
-// "BOJ", "DŽA" ipd.) - uporabi ročno nastavljeno profiles.parafa (Imenik),
+// "BOJ", "DŽA" ipd.) - uporabi ročno nastavljeno profili.parafa (Imenik),
 // sicer groba samodejna privzeta vrednost (prve 3 črke priimka), ki jo
 // admin lahko ročno popravi, če se dve osebi ujemata.
 // PREDPOSTAVKA: full_name je zapisan kot "Priimek Ime" (tako je povsod v
@@ -367,7 +367,7 @@ const daysInRange = window.Datum.dnevi;
 //     DEŽURSTVO". Vikend dežurstvo traja 07:00-07:00 in redne prisotnosti
 //     ob njem ni, zato ostane samo "DEŽURSTVO".
 //
-// Zakaj je to prikazno pravilo in ne popravek podatkov: schedule_entries
+// Zakaj je to prikazno pravilo in ne popravek podatkov: razpored
 // ima na (employee_id, work_date) en sam zapis, zato prisotnost in
 // dežurstvo istega dne ne moreta obstajati kot dve vrstici - ob uvozu
 // zadnji prepiše prejšnjega. Ker je "med tednom dežuren" po definiciji
@@ -457,7 +457,7 @@ function zdravnikiZaDan(zapis){
 // Zakaj imena dežurnega zdravnika ni - kot besedilo, ki ga vidi uporabnik.
 // Vrne null, kadar opozorila NI treba prikazati.
 //
-// Brez tega je odpoved TIHA: če tabele duty_doctors ni (shema še ni
+// Brez tega je odpoved TIHA: če tabele dezurni_zdravniki ni (shema še ni
 // pognana) ali za mesec ni naloženega PDF-ja, poizvedba ne vrne nič in
 // poleg DEŽURSTVA se preprosto ne izpiše nič - uporabnik nima načina
 // izvedeti, zakaj. Isti razred napake kot prazna NZV mreža ob dvoumnem
@@ -480,7 +480,7 @@ function zdravnikiOpozoriloBesedilo(imamDezurstvo, stanje){
 
 function MyScheduleView({ userId, month, jeNzv }){
   const [entries, setEntries] = useState(null);
-  const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po leave_entries
+  const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po odsotnosti
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
 
@@ -492,12 +492,12 @@ function MyScheduleView({ userId, month, jeNzv }){
     // v pokriva_oddelek (department_code je takrat "FLEXI"). Ta stolpec v
     // starejših bazah morda še ne obstaja, zato ob napaki poizvedbo
     // ponovimo brez njega - prikaz izmene ne sme pasti zaradi delovišča.
-    client.from("schedule_entries").select("work_date, shift_code, department_code, pokriva_oddelek")
+    client.from("razpored").select("work_date, shift_code, department_code, pokriva_oddelek")
       .eq("employee_id", userId).gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (!error) { setEntries(data || []); return; }
-        client.from("schedule_entries").select("work_date, shift_code, department_code")
+        client.from("razpored").select("work_date, shift_code, department_code")
           .eq("employee_id", userId).gte("work_date", startISO).lte("work_date", endISO)
           .then(({ data: d2 }) => { if (!cancelled) setEntries(d2 || []); });
       });
@@ -505,17 +505,17 @@ function MyScheduleView({ userId, month, jeNzv }){
   }, [userId, startISO, endISO]);
 
   // LD (letni dopust) je za marsikoga vpisan samo v Želje → Razpredelnica
-  // (leave_entries), ne v schedule_entries (za NZV/vodje objavljen razpored
+  // (odsotnosti), ne v razpored (za NZV/vodje objavljen razpored
   // ne piše po osebi kot pri SMS oddelkih, glej nalozizPodatkeNzv zgoraj) -
   // brez tega je "Moj razpored" za te osebe kazal dopust kot navaden prost
-  // dan. Dopolnimo SAMO dneve, ki v schedule_entries še nimajo vrednosti
+  // dan. Dopolnimo SAMO dneve, ki v razpored še nimajo vrednosti
   // (glej byDate spodaj) - objavljene izmene se nikoli ne prepišejo.
   useEffect(() => {
     let cancelled = false;
     setDopustiLD([]);
-    client.from("profiles").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
+    client.from("profili").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
       if (cancelled || !profil) return Promise.resolve();
-      return client.from("leave_entries").select("full_name, work_date")
+      return client.from("odsotnosti").select("full_name, work_date")
         .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO)
         .then(({ data }) => {
           if (cancelled) return;
@@ -525,7 +525,7 @@ function MyScheduleView({ userId, month, jeNzv }){
     return () => { cancelled = true; };
   }, [userId, startISO, endISO]);
 
-  // Dežurni zdravniki (duty_doctors, glej uvoziZdravnike) - samo za prikaz
+  // Dežurni zdravniki (dezurni_zdravniki, glej uvoziZdravnike) - samo za prikaz
   // poleg DEŽURSTVA, niso vezani na osebo/employee_id (zdravniki nimajo
   // profila). Uradni dokument ima DVA ločena stolpca - "Urgenca ZDR" in
   // "Dežurstvo ZDR" - in isti dan sta lahko zasedena z RAZLIČNIMA
@@ -542,7 +542,7 @@ function MyScheduleView({ userId, month, jeNzv }){
     let cancelled = false;
     setZdravnikiPoDatumu({});
     setZdravnikiStanje("nalagam");
-    client.from("duty_doctors").select("work_date, kind, full_name")
+    client.from("dezurni_zdravniki").select("work_date, kind, full_name")
       .gte("work_date", startISO).lte("work_date", endISO)
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -576,10 +576,10 @@ function MyScheduleView({ userId, month, jeNzv }){
     let cancelled = false;
     setMojNosilec(null); setMojeIme(null);
     if (!jeNzv) return;
-    client.from("profiles").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
+    client.from("profili").select("full_name").eq("id", userId).maybeSingle().then(({ data: profil }) => {
       if (cancelled || !profil) return;
       setMojeIme(profil.full_name);
-      return client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do")
+      return client.from("nosilci_oddelkov").select("full_name, enote, odsotnost_tip, odsotnost_do")
         .then(({ data }) => {
           if (cancelled) return;
           const moj = (data || []).find(n => n.enote && imenaSeUjemataNzv(n.full_name, profil.full_name));
@@ -598,10 +598,10 @@ function MyScheduleView({ userId, month, jeNzv }){
     setEnotaNaDan({});
     if (!jeNzv || !mojeIme) return;
     Promise.all([
-      client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
+      client.from("nosilci_oddelkov").select("full_name, enote, odsotnost_tip, odsotnost_do"),
       client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
       client.from("nzv_nastavitve").select("*").then(r => r, () => ({ data: [] })),
-      client.from("leave_entries").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
+      client.from("odsotnosti").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
     ]).then(([{ data: nosilci }, { data: pari }, { data: nast }, { data: odsotnosti }]) => {
       if (cancelled) return;
       const kljucIme = window.Imena.kljuc;
@@ -642,7 +642,7 @@ function MyScheduleView({ userId, month, jeNzv }){
   //      FLEXI so pripadnost skupini, ne kraj dela (glej nzv-zasedba.js).
   //      Prav zato je na dežurni dan pisalo "Dopoldne (DEZ)" - dopoldne
   //      oseba dela na svoji enoti, dežurstvo je šele zvečer.
-  //   3. lastna stalna enota iz lead_departments.
+  //   3. lastna stalna enota iz nosilci_oddelkov.
   const enotaZaDan = useMemo(() => {
     const jeDelovisce = window.NzvZasedba.jeDelovisce;
     const izVnosa = {};
@@ -789,7 +789,7 @@ function MyScheduleView({ userId, month, jeNzv }){
 // razpored prvič objavil); "Zadnja sprememba" iz max(updated_at); oboje
 // samodejno vzdržuje schedule_entries_touch() sprožilec (schema.sql sekcija
 // 25) - velja za VSE poti pisanja (generator v admin.html, ta uvoz), ne
-// samo za novo kodo. "Pregledal in odobril" = koordinator (profiles.
+// samo za novo kodo. "Pregledal in odobril" = koordinator (profili.
 // is_koordinator). Naziv za podpis (job_title) je admin-urejljiv v Imeniku.
 function RazporedPodpisi({ entries }){
   const [koordinator, setKoordinator] = useState(null);
@@ -797,7 +797,7 @@ function RazporedPodpisi({ entries }){
 
   useEffect(() => {
     let cancelled = false;
-    client.from("profiles").select("full_name, job_title").eq("is_koordinator", true).limit(1).maybeSingle()
+    client.from("profili").select("full_name, job_title").eq("is_koordinator", true).limit(1).maybeSingle()
       .then(({ data }) => { if (!cancelled) setKoordinator(data || null); });
     return () => { cancelled = true; };
   }, []);
@@ -816,7 +816,7 @@ function RazporedPodpisi({ entries }){
   useEffect(() => {
     let cancelled = false;
     if (!pripravilId) { setPripravil(null); return; }
-    client.from("profiles").select("full_name, job_title").eq("id", pripravilId).maybeSingle()
+    client.from("profili").select("full_name, job_title").eq("id", pripravilId).maybeSingle()
       .then(({ data }) => { if (!cancelled) setPripravil(data || null); });
     return () => { cancelled = true; };
   }, [pripravilId]);
@@ -845,7 +845,7 @@ function RazporedPodpisi({ entries }){
 // MenjaveMeseca v obrazec.html (obrazci, vrsta "menjava_sluzbe", brez
 // osnutkov), le da je filtrirana na PRIKAZANI mesec (ne na tekoči).
 //
-// POMEMBNO: ko koordinator menjavo potrdi, se izmeni v schedule_entries
+// POMEMBNO: ko koordinator menjavo potrdi, se izmeni v razpored
 // zamenjata SAMODEJNO (obrazec_potrdi_koordinator, schema.sql sekcija 22) -
 // ta seznam je torej pregled/revizija ("kdo je zamenjal s kom"), ne korak,
 // ki bi ga bilo treba ročno prenesti v razpored. Zato je tudi tik pod
@@ -871,7 +871,7 @@ function MenjaveVMesecu({ month }){
     let cancelled = false;
     setVrstice(null);
     client.from("obrazci")
-      .select("id, status, je_dezurstvo, polja, vlagatelj:profiles!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profiles!obrazci_sodelavec_id_fkey(full_name)")
+      .select("id, status, je_dezurstvo, polja, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
       .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
       .filter("polja->>datum_a", "gte", startISO).filter("polja->>datum_a", "lte", endISO)
       .order("ustvarjen", { ascending: false })
@@ -936,7 +936,7 @@ const imenaSeUjemataBrezStresic = window.Imena.seUjemata;
 // "MAVRI TRATNIK MAGDALENA" -> "Mavri": v ozkem stolpcu pregleda
 // nadomeščanj zadošča priimek, polno ime je v opisu ob kazalcu.
 const kratkoIme = window.Imena.kratkoIme;
-// leave_entries.kind -> kratica iz uradne legende. "omejitev" (rumena
+// odsotnosti.kind -> kratica iz uradne legende. "omejitev" (rumena
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
 const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
 
@@ -947,9 +947,9 @@ function NadomescanjaPregled(){
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      client.from("lead_departments").select("full_name, enote").order("full_name"),
+      client.from("nosilci_oddelkov").select("full_name, enote").order("full_name"),
       client.from("nadomescanja").select("*"),
-      client.from("profiles").select("full_name"),
+      client.from("profili").select("full_name"),
     ]).then(([{ data: nosilci }, { data: pary }, { data: osebe }]) => {
       if (cancelled) return;
       const p = [...(pary || [])].sort((a, b) => (a.prednost || 1) - (b.prednost || 1));
@@ -1025,15 +1025,15 @@ function NadomescanjaPregled(){
 // zaposlenih v urgentno ambulanto in neprekinjeno zdravstveno varstvo".
 //
 // Trije stolpci, kot jih ima uradni PDF:
-//   Urgenca ZDR              zdravnik (duty_doctors, kind "urgenca")
-//   Dežurstvo ZDR            zdravnik (duty_doctors, kind "dezurstvo")
+//   Urgenca ZDR              zdravnik (dezurni_zdravniki, kind "urgenca")
+//   Dežurstvo ZDR            zdravnik (dezurni_zdravniki, kind "dezurstvo")
 //   Dežurstvo dipl. m.s./zn. negovalni kader
 //
-// Negovalni kader se bere iz OBJAVLJENEGA razporeda (schedule_entries,
+// Negovalni kader se bere iz OBJAVLJENEGA razporeda (razpored,
 // izmena DEŽURSTVO), ne iz uvoženega PDF-ja: potrjena menjava dežurstva
 // izmeni v razporedu zamenja samodejno (obrazec_potrdi_koordinator,
 // schema.sql sekcija 22), zato je razpored edini vir, ki menjave že
-// vsebuje. Uradni PDF (duty_doctors, kind "sestra") se uporabi samo kot
+// vsebuje. Uradni PDF (dezurni_zdravniki, kind "sestra") se uporabi samo kot
 // rezerva za dneve, za katere razpored še ni objavljen - da mesec ni
 // prazen, dokler ga koordinator ne objavi.
 //
@@ -1053,13 +1053,13 @@ function DezurstvoPregled({ month, myId }){
     let cancelled = false;
     setDnevi(null); setNapaka(null);
     Promise.all([
-      // "profiles!employee_id(...)": schedule_entries ima tri tuje ključe na
-      // profiles, zato bi nedoločen vgnezden zapis PostgREST zavrnil kot
+      // "profili!employee_id(...)": razpored ima tri tuje ključe na
+      // profili, zato bi nedoločen vgnezden zapis PostgREST zavrnil kot
       // dvoumen (glej preveri-vgnezdeni-join.mjs).
-      client.from("schedule_entries")
-        .select("employee_id, work_date, shift_code, profiles!employee_id(full_name)")
+      client.from("razpored")
+        .select("employee_id, work_date, shift_code, profili!employee_id(full_name)")
         .gte("work_date", startISO).lte("work_date", endISO),
-      client.from("duty_doctors").select("work_date, kind, full_name")
+      client.from("dezurni_zdravniki").select("work_date, kind, full_name")
         .gte("work_date", startISO).lte("work_date", endISO)
         .then(r => (r.error ? { data: [], error: r.error } : r), () => ({ data: [], error: null })),
       // Potrjene menjave - samo za oznako ↔ ob imenu. Sama izmena je v
@@ -1080,9 +1080,9 @@ function DezurstvoPregled({ month, myId }){
       });
       (vpisi || []).forEach(v => {
         if (window.Izmene.stanje(v.shift_code) !== "dezurstvo") return;
-        if (!v.profiles) return;
+        if (!v.profili) return;
         (sestraIzRazporeda[v.work_date] = sestraIzRazporeda[v.work_date] || []).push({
-          ime: v.profiles.full_name,
+          ime: v.profili.full_name,
           id: v.employee_id,
           zamenjano: menjaniDnevi.has(v.employee_id + "|" + v.work_date),
         });
@@ -1096,7 +1096,7 @@ function DezurstvoPregled({ month, myId }){
         const manjkaTabela = napakaZdravnikov.code === "42P01"
           || /does not exist|schema cache/i.test(napakaZdravnikov.message || "");
         setNapaka(manjkaTabela
-          ? "Zdravnikov ni: tabela duty_doctors še ne obstaja (poženi supabase/schema.sql, razdelek 32)."
+          ? "Zdravnikov ni: tabela dezurni_zdravniki še ne obstaja (poženi supabase/schema.sql, razdelek 32)."
           : "Zdravnikov ni bilo mogoče prebrati: " + (napakaZdravnikov.message || ""));
       }
 
@@ -1194,14 +1194,14 @@ function StanjeRazpredelnica({ oddelki }){
   // uradne legende (IZMENA_KRATICE), stanje pa služi razvrstitvi v legendi.
   const [poDnevih, setPoDnevih] = useState({});
   // "id|datum" za dneve, ki jih je spremenila POTRJENA menjava. Sama izmena
-  // je v schedule_entries že zamenjana (to naredi obrazec_potrdi_koordinator
+  // je v razpored že zamenjana (to naredi obrazec_potrdi_koordinator
   // v bazi), tu gre samo za vidno oznako, da se menjava tudi opazi.
   // Vidna je vsem zaposlenim in za vse mesece (pogled menjave_javno).
   const [menjani, setMenjani] = useState({});
   // Legenda je privzeto zložena: na telefonu je odprta zavzela skoraj cel
   // prvi zaslon in tabela je padla pod rob.
   const [legendaOdprta, setLegendaOdprta] = useState(false);
-  // "id osebe" -> vrstica iz lead_departments (enote, nadomešča …)
+  // "id osebe" -> vrstica iz nosilci_oddelkov (enote, nadomešča …)
   const [nosilci, setNosilci] = useState({});
   // "ENOTA|datum" -> [id osebe]: kdo iz NZV tisti dan pokriva to enoto.
   // Obratna smer od enotaNaDan (ta pove, kje je posamezna oseba) - rabimo
@@ -1225,27 +1225,27 @@ function StanjeRazpredelnica({ oddelki }){
     setOsebe(null); setPoDnevih({});
     const { startISO, endISO } = window.Datum.obseg(mesec);
     Promise.all([
-      client.from("profiles").select("id, full_name, role, department_code").order("full_name"),
+      client.from("profili").select("id, full_name, role, department_code").order("full_name"),
       // Nosilci oddelkov (vodje/administratorji): katere enote pokrivajo in
       // KDO jih nadomešča ob odsotnosti. Vir je uradna predloga NZV, glej
-      // supabase/nzv-nosilci-oddelkov.sql. Ločena tabela od profiles, ker
+      // supabase/nzv-nosilci-oddelkov.sql. Ločena tabela od profili, ker
       // gre za organizacijsko vlogo, ne za uporabniški račun.
-      client.from("lead_departments").select("full_name, inicialke, enote, odsotnost_tip, odsotnost_do"),
+      client.from("nosilci_oddelkov").select("full_name, inicialke, enote, odsotnost_tip, odsotnost_do"),
       // Pokrivanja so VZAJEMNA in VEČKRATNA (npr. Alukića nadomeščata
       // Bojić IN Džamastagić), zato svoja tabela parov, ne en stolpec -
       // glej supabase/nzv-nadomescanja.sql.
       client.from("nadomescanja").select("*"),
-      // "profiles!employee_id" je nujno: schedule_entries ima več tujih
-      // ključev na profiles, zato bi nedoločen vgnezden zapis PostgREST
+      // "profili!employee_id" je nujno: razpored ima več tujih
+      // ključev na profili, zato bi nedoločen vgnezden zapis PostgREST
       // zavrnil kot dvoumen (glej preveri-vgnezdeni-join.mjs).
       // department_code/pokriva_oddelek: OBJAVLJEN razpored NZV pove, na
       // kateri enoti kdo tisti dan je. Koordinator v mreži NZV marsikaj
       // določi ročno, zato mora objavljeno prevladati nad izpeljavo po
       // pravilih nadomeščanja - sicer bi ta zaslon kazal pravilo, mreža
       // NZV pa dejansko stanje.
-      client.from("schedule_entries").select("employee_id, work_date, shift_code, department_code, pokriva_oddelek")
+      client.from("razpored").select("employee_id, work_date, shift_code, department_code, pokriva_oddelek")
         .gte("work_date", startISO).lte("work_date", endISO),
-      client.from("leave_entries").select("full_name, work_date, kind")
+      client.from("odsotnosti").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
       // Potrjene menjave - samo za oznako v celici. Beremo iz pogleda
       // menjave_javno (shema, sekcija 33), ne iz obrazci: RLS na obrazci
@@ -1260,7 +1260,7 @@ function StanjeRazpredelnica({ oddelki }){
       const seznam = profili || [];
       setOsebe(seznam);
 
-      // Nosilce povežemo z osebami po imenu: lead_departments hrani ime kot
+      // Nosilce povežemo z osebami po imenu: nosilci_oddelkov hrani ime kot
       // besedilo (nima povezave na profil), zapis pa se lahko razlikuje po
       // vrstnem redu besed in po strešicah ("Dijana Lelić" / "Lelič
       // Dijana"), zato primerjamo vrečo besed brez strešic.
@@ -1315,7 +1315,7 @@ function StanjeRazpredelnica({ oddelki }){
           sifra: v.shift_code,
         };
       });
-      // Odsotnosti se vpisujejo po IMENU (leave_entries nima employee_id),
+      // Odsotnosti se vpisujejo po IMENU (odsotnosti nima employee_id),
       // zato jih povežemo prek imena; razpored ima prednost samo tam, kjer
       // je izmena/dežurstvo - odsotnost prepiše privzeto "delo".
       const poImenu = {};
@@ -1337,7 +1337,7 @@ function StanjeRazpredelnica({ oddelki }){
       });
       // ---- Stalna zasedba nosilcev enot -----------------------------
       // Za vodje in administratorje se dnevni razpored ne objavlja -
-      // njihova enota je stalna in zapisana v lead_departments. Brez tega
+      // njihova enota je stalna in zapisana v nosilci_oddelkov. Brez tega
       // so cele vrstice ostajale prazne (Mušič, Tomaževič, Pogačnik …),
       // razpored pa je bil videti, kot da se konča sredi meseca.
       //
@@ -1357,7 +1357,7 @@ function StanjeRazpredelnica({ oddelki }){
       const enotaNaDan = {}; // "id|datum" -> "C1" oz. "B, C"
       const poEnotiId = {};  // "ENOTA|datum" -> [id osebe]
       // Ime -> id po VSEH profilih, ne le po nosilcih enot: objavljen
-      // razpored lahko na enoto postavi tudi koga, ki v lead_departments
+      // razpored lahko na enoto postavi tudi koga, ki v nosilci_oddelkov
       // ni zapisan kot nosilec (vskoči nekdo tretji). Če bi se iskalo samo
       // med nosilci, bi tak vpis tiho izpadel iz seznama pod oddelkom.
       const idPoImenuNzv = {};
@@ -1607,7 +1607,7 @@ function StanjeRazpredelnica({ oddelki }){
               {prikazane.map(o => {
                 const nosilec = nosilci[o.id];
                 return (
-                <tr key={o.id}>{/* nosilec = vrstica iz lead_departments, če oseba to je */}
+                <tr key={o.id}>{/* nosilec = vrstica iz nosilci_oddelkov, če oseba to je */}
                   <td className="name">
                     <a href={"imenik.html?id=" + o.id} style={{color:"inherit"}}
                        title="Odpri profil">{o.full_name}</a>
@@ -1749,7 +1749,7 @@ function WardView({ deptCode, month, myId }){
   useEffect(() => {
     let cancelled = false;
     setEmployees(null); setEntries(null);
-    client.from("profiles").select("id, full_name, role").eq("department_code", deptCode).order("full_name")
+    client.from("profili").select("id, full_name, role").eq("department_code", deptCode).order("full_name")
       .then(({ data }) => {
         if (cancelled) return;
         const osebe = data || [];
@@ -1766,7 +1766,7 @@ function WardView({ deptCode, month, myId }){
         //
         // Kje oseba tisti dan dejansko dela, se izpiše nad izmeno (glej
         // "pokriva" v celici spodaj).
-        client.from("schedule_entries")
+        client.from("razpored")
           .select("employee_id, work_date, shift_code, department_code, pokriva_oddelek, created_at, created_by, updated_at")
           .in("employee_id", osebe.map(o => o.id))
           .gte("work_date", startISO).lte("work_date", endISO)
@@ -1782,17 +1782,17 @@ function WardView({ deptCode, month, myId }){
     if (!window.NzvZasedba.jeDelovisce(deptCode)) { setNzvPoDnevih({}); return; }
     cancelled = false;
     Promise.all([
-      client.from("lead_departments").select("full_name, enote, odsotnost_tip, odsotnost_do"),
+      client.from("nosilci_oddelkov").select("full_name, enote, odsotnost_tip, odsotnost_do"),
       client.from("nadomescanja").select("*").then(r => r, () => ({ data: [] })),
-      client.from("leave_entries").select("full_name, work_date, kind")
+      client.from("odsotnosti").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
       // OBJAVLJEN razpored NZV. Koordinator v mreži NZV marsikaj določi
       // ročno (vskoči nekdo tretji, dogovor se sklene sproti) - kar objavi,
       // mora veljati tudi tu, sicer bi oddelek kazal pravilo, mreža NZV pa
       // dejansko stanje. Pravilo nadomeščanja se uporabi le za dneve, za
       // katere objave še ni.
-      client.from("schedule_entries")
-        .select("work_date, department_code, pokriva_oddelek, profiles!employee_id(full_name, role)")
+      client.from("razpored")
+        .select("work_date, department_code, pokriva_oddelek, profili!employee_id(full_name, role)")
         .gte("work_date", startISO).lte("work_date", endISO)
         .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
     ]).then(([{ data: nosilci }, { data: pari }, { data: odsotnosti }, { data: objavljeniVpisi }]) => {
@@ -1811,11 +1811,11 @@ function WardView({ deptCode, month, myId }){
       // enotah ne dela, dežurstvo pa ni enota.
       const objavljeno = {};
       (objavljeniVpisi || []).forEach(r => {
-        if (!r.profiles || !JE_NZV_VLOGA.has(r.profiles.role)) return;
+        if (!r.profili || !JE_NZV_VLOGA.has(r.profili.role)) return;
         if (window.Prazniki.jeVikend(r.work_date) || window.Prazniki.jePraznik(r.work_date)) return;
         const kode = window.NzvZasedba.enoteIzZapisa(r);
         if (!kode.length) return;
-        (objavljeno[r.work_date] = objavljeno[r.work_date] || []).push({ ime: r.profiles.full_name, kode });
+        (objavljeno[r.work_date] = objavljeno[r.work_date] || []).push({ ime: r.profili.full_name, kode });
       });
       const poEnoti = window.NzvZasedba.zasedbaEnot({
         objavljeno,
@@ -1984,9 +1984,9 @@ function WardView({ deptCode, month, myId }){
 
 // NZV: dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe kot pri
 // WardView) - po uradni predlogi "Letni dopusti in omejitve za NZV". Celica
-// = kdo pokriva to enoto ta dan (schedule_entries.department_code je še
+// = kdo pokriva to enoto ta dan (razpored.department_code je še
 // vedno lahko ena od teh starih kod - glej supabase/schema.sql sekcija 23,
-// namenoma niso izbrisane iz departments prav zaradi te uporabe). Ločeno
+// namenoma niso izbrisane iz oddelki prav zaradi te uporabe). Ločeno
 // od WardView, ker gre za popolnoma drugačno obliko (enote, ne osebe).
 // Seznam enot je v skupnem nzv-zasedba.js, ker ga poleg tega prikaza
 // potrebuje tudi generator (admin.html). Prej je bil samo tu in generator
@@ -2009,7 +2009,7 @@ function razvrstiSA(sifra){
 // vrstnega reda stolpcev).
 const NZV_STOLPCI = window.NzvZasedba.STOLPCI;
 // Zadnji trije stolpci uradne predloge ("LD", "IZOB", "BS") niso enote, ampak
-// POVZETEK odsotnosti tega dne (glej leave_entries.kind) - kdo je ta dan na
+// POVZETEK odsotnosti tega dne (glej odsotnosti.kind) - kdo je ta dan na
 // letnem dopustu / strokovnem izobraževanju / bolniški. Isti vir kot Želje →
 // Razpredelnica (zelje.html), tu prikazan skupaj s končnim razporedom, ker
 // gre za "omejitve, ki se vežejo na razpored za določen mesec".
@@ -2051,17 +2051,17 @@ function nzvEnoteVKode(enote, saKoda){
 
 // Skupno nalaganje podatkov za izris/izvoz/pisanje-nazaj NZV pogleda -
 // "podatki" = { "KODA|datum": "parafa, parafa2" } za vse enote + DEZ +
-// LD/IZOB/BS (iz leave_entries, ujemano po imenu na profiles).
+// LD/IZOB/BS (iz odsotnosti, ujemano po imenu na profili).
 async function nalozizPodatkeNzv(startISO, endISO){
   const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
   const [{ data: entries }, { data: dopusti }, { data: profili }, { data: vodje }, { data: nadomescanja }, { data: nastavitveVrstice }] = await Promise.all([
-    // "profiles!employee_id(...)" in NE samo "profiles(...)": schedule_entries
-    // ima TRI tuje ključe na profiles (employee_id, created_by, updated_by -
+    // "profili!employee_id(...)" in NE samo "profili(...)": razpored
+    // ima TRI tuje ključe na profili (employee_id, created_by, updated_by -
     // zadnja dva dodana pozneje, sekcija 30 sheme). Ob nedoločenem vgnezdenem
     // branju PostgREST ne more vedeti, po katerem naj pripne, in vrne napako
     // namesto vrstic - posledica je bila PRAZNA NZV mreža (enote in
     // DEŽURSTVO), medtem ko je stolpec LD deloval, ker se bere iz
-    // leave_entries prek ločene poizvedbe. Namig mora ostati tudi ob
+    // odsotnosti prek ločene poizvedbe. Namig mora ostati tudi ob
     // morebitnem preimenovanju omejitve, zato je vezan na IME STOLPCA, ne na
     // ime tujega ključa.
     // "pokriva_oddelek": ista oseba je isti dan pogosto na več enotah
@@ -2070,15 +2070,15 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // tega stolpca bi se v mreži videla samo prva enota. V starejših bazah
     // stolpca še ni - takrat poizvedbo ponovimo brez njega, da mreža deluje
     // kot prej, namesto da bi ostala prazna.
-    client.from("schedule_entries").select("department_code, pokriva_oddelek, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
+    client.from("razpored").select("department_code, pokriva_oddelek, work_date, shift_code, created_at, created_by, updated_at, profili!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
       .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
       .then(r => r.error
-        ? client.from("schedule_entries").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profiles!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
+        ? client.from("razpored").select("department_code, work_date, shift_code, created_at, created_by, updated_at, profili!employee_id(full_name, role, parafa, parafa_pred_oktobrom_2026)")
             .in("department_code", kode).gte("work_date", startISO).lte("work_date", endISO)
         : r),
-    client.from("leave_entries").select("full_name, work_date, kind")
+    client.from("odsotnosti").select("full_name, work_date, kind")
       .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
-    client.from("profiles").select("full_name, role, parafa, parafa_pred_oktobrom_2026"),
+    client.from("profili").select("full_name, role, parafa, parafa_pred_oktobrom_2026"),
     // Nosilci enot in seznam pokrivanj - vir izpeljane prisotnosti spodaj.
     // Če stolpca/tabele (še) ni, PostgREST vrne napako in data = null;
     // "|| []" spodaj poskrbi, da mreža v tem primeru dela kot prej (samo
@@ -2087,7 +2087,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // dezurstvo_dovoljeno (kdo je v krogu dežurnih), tabela pa dobiva nove
     // stolpce sproti. Z naštevanjem bi manjkajoč stolpec vrnil napako in
     // mreža bi ostala prazna, namesto da bi samo izpustila eno preverbo.
-    client.from("lead_departments").select("*"),
+    client.from("nosilci_oddelkov").select("*"),
     client.from("nadomescanja").select("*"),
     client.from("nzv_nastavitve").select("kljuc, vrednost"),
   ]);
@@ -2100,7 +2100,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
   const objavljeno = new Set(); // "koda|datum" celice, ki imajo izrecen vnos - izpeljava vanje ne piše
   const zeVpisan = new Set(); // "kljucImenaNzv|datum" - kdo je že v mreži iz objavljenega razporeda
   (entries || []).forEach(r => {
-    if (!r.profiles) return;
+    if (!r.profili) return;
     // Delovnik NZV je PON-PET; sobota in nedelja sta prosti, razen če je
     // oseba tisti dan DEŽURNA. Isto pravilo kot nzvPrikaz v "Moj
     // razpored" - brez njega je mreža ob vikendih kazala vodje na
@@ -2112,9 +2112,9 @@ async function nalozizPodatkeNzv(startISO, endISO){
     // kadrom: kode B/C/C1/D/E1/E2 so hkrati oddelki SMS/TZN kadra IN imena
     // stolpcev v NZV predlogi, zato je stolpec "D" prikazal vseh devet
     // sester oddelka D namesto vodij, ki to enoto tisti dan pokrivajo.
-    if (!JE_NZV_VLOGA.has(r.profiles.role)) return;
-    const parafa = parafaOd(r.profiles, r.work_date);
-    zeVpisan.add(kljucImenaNzv(r.profiles.full_name) + "|" + r.work_date);
+    if (!JE_NZV_VLOGA.has(r.profili.role)) return;
+    const parafa = parafaOd(r.profili, r.work_date);
+    zeVpisan.add(kljucImenaNzv(r.profili.full_name) + "|" + r.work_date);
     // Vse enote te osebe za ta dan: primarna iz department_code, dodatne iz
     // pokriva_oddelek. Dežurstvo se prebere iz IZMENE in ne iz oddelka -
     // dežurni vodja je med tednom hkrati na svoji enoti, zato njegov zapis
@@ -2144,7 +2144,7 @@ async function nalozizPodatkeNzv(startISO, endISO){
     const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
     // Isto pravilo kot za enote zgoraj: stolpci LD/IZOB/BS uradne predloge
     // se nanašajo na NZV kader, ne na oddelčne sestre. Oseba, ki je v
-    // leave_entries, a je ni med vodji/administratorji, sem ne sodi.
+    // odsotnosti, a je ni med vodji/administratorji, sem ne sodi.
     if (!ujem || !JE_NZV_VLOGA.has(ujem.role)) return;
     const parafa = parafaOd(ujem, d.work_date);
     const key = koda + "|" + d.work_date;
@@ -2152,10 +2152,10 @@ async function nalozizPodatkeNzv(startISO, endISO){
   });
 
   // ---- Izpeljana prisotnost nosilcev enot -------------------------------
-  // Mreža se je doslej polnila IZKLJUČNO iz objavljenih schedule_entries,
+  // Mreža se je doslej polnila IZKLJUČNO iz objavljenih razpored,
   // zato so stolpci enot (PDZN, SOBO, MO, ŽO …) ostajali prazni: za vodje
   // se dnevni razpored ne objavlja - njihova enota je stalna in znana iz
-  // lead_departments.enote (glej supabase/nzv-nosilci-oddelkov.sql).
+  // nosilci_oddelkov.enote (glej supabase/nzv-nosilci-oddelkov.sql).
   // Zato jo tu izpeljemo: nosilec je na svoji enoti vsak DELOVNI dan, ob
   // njegovi odsotnosti pa se vpiše nadomeščevalec iz tabele nadomescanja
   // (prvi po "prednost", ki tisti dan ni tudi sam odsoten).
@@ -2173,8 +2173,8 @@ async function nalozizPodatkeNzv(startISO, endISO){
   const nosilci = (vodje || []).filter(v => v.enote);
   if (nosilci.length) {
     const profilZaIme = ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime));
-    // Kdo je kdaj odsoten: posamezni dnevi iz leave_entries (LD/IZOB/BS) +
-    // daljša odsotnost iz lead_departments (npr. porodniška do julija 2027).
+    // Kdo je kdaj odsoten: posamezni dnevi iz odsotnosti (LD/IZOB/BS) +
+    // daljša odsotnost iz nosilci_oddelkov (npr. porodniška do julija 2027).
     const odsotenDan = new Set();
     (dopusti || []).forEach(d => odsotenDan.add(kljucImenaNzv(d.full_name) + "|" + d.work_date));
     const vodjaZaIme = {};
@@ -2278,7 +2278,7 @@ const ODSTOPANJA_PRESKOCI = new Set(["DEZ", "LD", "IZOB", "BS"]);
 // dežuramo ... zato je tako". Vpis takega človeka tam torej ni napaka, in
 // pravila zanj ni mogoče vnaprej zapisati - odloči se sproti.
 //
-// Kdo je v krogu, pove lead_departments.dezurstvo_dovoljeno (isti podatek,
+// Kdo je v krogu, pove nosilci_oddelkov.dezurstvo_dovoljeno (isti podatek,
 // po katerem se sestavlja razpored dežurstev).
 const ENOTE_KROGA_DEZURNIH = new Set(["URGENCA"]);
 
@@ -2317,7 +2317,7 @@ function odstopanjaNzv(opts){
     if (v.dezurstvo_dovoljeno) parafeDezurnih.add(parafa);
   });
 
-  // Enote, ki jih po lead_departments sploh nima nihče (npr. U2, SA POP).
+  // Enote, ki jih po nosilci_oddelkov sploh nima nihče (npr. U2, SA POP).
   // Zanje pravila NI, zato vpis tam ni odstopanje - to je vrzel v podatkih
   // o nosilcih in ne napaka v razporedu. Povemo jo posebej, enkrat.
   const zNosilcem = new Set();
@@ -2601,8 +2601,8 @@ function nzvUrejanjeStanje({ month, podatki, izpeljano, days, naObjavljeno }){
     let cancelled = false;
     setUrejeno({}); setSporocilo(null); setNapaka(null);
     Promise.all([
-      client.from("profiles").select("id, full_name, role, parafa, parafa_pred_oktobrom_2026"),
-      client.from("leave_entries").select("full_name, work_date, kind")
+      client.from("profili").select("id, full_name, role, parafa, parafa_pred_oktobrom_2026"),
+      client.from("odsotnosti").select("full_name, work_date, kind")
         .in("kind", ["ld", "sti", "bs"]).gte("work_date", startISO).lte("work_date", endISO),
     ]).then(([{ data: profili }, { data: dopusti }]) => {
       if (cancelled) return;
@@ -2662,7 +2662,7 @@ function nzvUrejanjeStanje({ month, podatki, izpeljano, days, naObjavljeno }){
       // CELIH oddelkov za ta mesec, ne le vodij.
       const ostajajo = new Set(zapisi.map(z => z.employee_id + "|" + z.work_date));
       if (!nzvIdji.length) throw new Error("Ne najdem NZV kadra – objava prekinjena, da ne bi pobrisala razporeda oddelkov.");
-      const { data: obstojeci, error: napakaBranja } = await client.from("schedule_entries")
+      const { data: obstojeci, error: napakaBranja } = await client.from("razpored")
         .select("id, employee_id, work_date")
         .in("employee_id", nzvIdji)
         .gte("work_date", startISO).lte("work_date", endISO);
@@ -2670,7 +2670,7 @@ function nzvUrejanjeStanje({ month, podatki, izpeljano, days, naObjavljeno }){
       const zaBrisanje = (obstojeci || [])
         .filter(r => !ostajajo.has(r.employee_id + "|" + r.work_date)).map(r => r.id);
       if (zaBrisanje.length) {
-        const { error } = await client.from("schedule_entries").delete().in("id", zaBrisanje);
+        const { error } = await client.from("razpored").delete().in("id", zaBrisanje);
         if (error) throw error;
       }
       setUrejeno({});
@@ -2860,7 +2860,7 @@ function preberiUvozIzNaslova(search){
 // ogleda"), brez OAuth, isti mehanizem kot imenik.html (ImportUtils.
 // preberiGoogleSheet). Namenoma ISTA oblika, ki jo ta stran tudi izvozi
 // (glava "Datum, Dan, ..."), da je krog izvozi→uredi v Sheets→uvozi
-// nazaj preprost in predvidljiv. Piše naravnost v schedule_entries -
+// nazaj preprost in predvidljiv. Piše naravnost v razpored -
 // dovoljeno samo adminu (RLS schedule_write_admin to tudi vsili na
 // strežniku, ne samo tu).
 // ---------------------------------------------------------------------
@@ -2880,38 +2880,38 @@ function jeManjkajocPokrivaOddelek(error){
 async function shraniZapiseRazporeda(zapisi){
   for (let i = 0; i < zapisi.length; i += 200) {
     const kos = zapisi.slice(i, i + 200);
-    const { error } = await client.from("schedule_entries").upsert(kos, { onConflict: "employee_id,work_date" });
+    const { error } = await client.from("razpored").upsert(kos, { onConflict: "employee_id,work_date" });
     if (!error) continue;
     if (!jeManjkajocPokrivaOddelek(error)) throw error;
     opozoriloPokrivaOddelek = "Stolpca za pokriti oddelek (FLEXI) v bazi še ni, zato je razpored shranjen brez njega. "
       + "Administrator naj v Supabase požene supabase/dodaj-pokriva-oddelek.sql in uvoz ponovi.";
     const brez = kos.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
-    const { error: e2 } = await client.from("schedule_entries").upsert(brez, { onConflict: "employee_id,work_date" });
+    const { error: e2 } = await client.from("razpored").upsert(brez, { onConflict: "employee_id,work_date" });
     if (e2) throw e2;
   }
 }
 
-// Isti upsert vzorec kot zelje.html (leave_entries, ključ full_name+work_date) -
+// Isti upsert vzorec kot zelje.html (odsotnosti, ključ full_name+work_date) -
 // za NZV uvoz stolpcev LD/IZOB/BS (glej uvoziNzv).
 async function shraniDopusteNzv(dopusti){
   for (let i = 0; i < dopusti.length; i += 200) {
-    const { error } = await client.from("leave_entries").upsert(dopusti.slice(i, i + 200), { onConflict: "full_name,work_date" });
+    const { error } = await client.from("odsotnosti").upsert(dopusti.slice(i, i + 200), { onConflict: "full_name,work_date" });
     if (error) throw error;
   }
 }
 
-// duty_doctors (glej obdelajZdravnikiVrstice) - ključ work_date+kind, ni
+// dezurni_zdravniki (glej obdelajZdravnikiVrstice) - ključ work_date+kind, ni
 // vezan na profile.id (zdravniki nimajo profila).
 async function shraniZapiseZdravnikov(zapisi){
   for (let i = 0; i < zapisi.length; i += 200) {
-    const { error } = await client.from("duty_doctors").upsert(zapisi.slice(i, i + 200), { onConflict: "work_date,kind" });
+    const { error } = await client.from("dezurni_zdravniki").upsert(zapisi.slice(i, i + 200), { onConflict: "work_date,kind" });
     if (error) throw error;
   }
 }
 
 // Uvoz uradnega PDF "Razporeditev zaposlenih v UA in DEŽ" (glej
 // obdelajZdravnikiVrstice) - na voljo ne glede na izbrani oddelek/kontekst
-// zgoraj, ker duty_doctors ni vezan na oddelek.
+// zgoraj, ker dezurni_zdravniki ni vezan na oddelek.
 async function uvoziZdravnike(file, ciljniMesec){
   const { vrsteVrstic } = await window.ImportUtils.preberiDatoteko(file);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
@@ -3037,7 +3037,7 @@ function kratkaImenaMapa(profili){
 
 // Čist izračun (brez omrežja/baze) - iz surovih vrstic (vira ni pomembno, ali
 // so prišle prek Google Sheets URL-ja ali iz naloženega Excela, glej
-// uvoziDatotekoPametno spodaj) izračuna zapise za schedule_entries. Ločeno od
+// uvoziDatotekoPametno spodaj) izračuna zapise za razpored. Ločeno od
 // uvoziOddelek, da isto logiko lahko uporabita OBA vira vrstic.
 function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
   const { startISO, endISO } = monthRange(ciljniMesec);
@@ -3090,7 +3090,7 @@ function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka){
 //
 // Prej je šel v department_code pokriti oddelek, kar je imelo dve slabi
 // posledici: (1) kombinirane oznake ("C/E2", "C1/D" - oseba tisti dan
-// pokriva dva oddelka) tuji ključ na departments zavrne, zato jih je uvoz
+// pokriva dva oddelka) tuji ključ na oddelki zavrne, zato jih je uvoz
 // PRESKOČIL - na avgustu 2026 je tako odpadlo 87 vpisov; (2) tisti, ki so
 // se shranili, so pristali pod tujim oddelkom, zato je zavihek FLEXI ostal
 // PRAZEN, čeprav je uvoz javil "FLEXI (87)".
@@ -3118,7 +3118,7 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
         // preostalih 19 pa na njenem matičnem oddelčnem zavihku (npr. Jereb
         // S. 13. 6. -> zavihek C "DNEVNA12", Šabić 25. 7. -> C "DNEVNA12
         // C/E2"). Vpisati ga posebej bi zato pomenilo PREPISATI oddelčno
-        // izmeno iste osebe (schedule_entries dovoli en zapis na oseba/dan).
+        // izmeno iste osebe (razpored dovoli en zapis na oseba/dan).
         // Ne uvozimo ga, a v poročilu povemo, da obstaja.
         if (/^DODATNO\b/i.test(ime)) {
           if ((vrstica[c] || "").trim()) steviloDodatnih++; // štej samo izpolnjene celice, ne praznih dni
@@ -3152,12 +3152,12 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
 async function uvoziOddelek(url, wardCode, ciljniMesec){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const { data: profili } = await client.from("profiles").select("id, full_name");
+  const { data: profili } = await client.from("profili").select("id, full_name");
   const { poKratkem, podvojena } = kratkaImenaMapa(profili);
   // FLEXI ima drugačno obliko (par stolpcev oddelek+izmena na osebo,
   // department_code se prebere iz podatkov, ne fiksen za ves list) - glej
   // obdelajFlexiVrstice. Potrebuje tudi seznam veljavnih kod oddelkov
-  // (tuji ključ na departments), da neznana/kombinirana oznaka (npr. "C/E2",
+  // (tuji ključ na oddelki), da neznana/kombinirana oznaka (npr. "C/E2",
   // opažena v pravi datoteki) ne zavrne celotnega zapisa.
   let zapisiRes;
   if (wardCode === "FLEXI") {
@@ -3232,8 +3232,8 @@ async function zapisiOddelekVSheets(url, wardCode, ciljniMesec){
   }
   const { startISO, endISO } = monthRange(ciljniMesec);
   const [{ data: employees }, { data: entries }] = await Promise.all([
-    client.from("profiles").select("id, full_name").eq("department_code", wardCode).order("full_name"),
-    client.from("schedule_entries").select("employee_id, work_date, shift_code")
+    client.from("profili").select("id, full_name").eq("department_code", wardCode).order("full_name"),
+    client.from("razpored").select("employee_id, work_date, shift_code")
       .eq("department_code", wardCode).gte("work_date", startISO).lte("work_date", endISO),
   ]);
   if (!employees || !employees.length) throw new Error("Za ta oddelek še ni dodeljenih zaposlenih.");
@@ -3302,8 +3302,8 @@ function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
   return null;
 }
 
-// Stolpci LD/IZOB/BS niso razpored (schedule_entries), ampak odsotnost
-// (leave_entries) - glej NZV_KIND_KODA. Zapisi zanje gredo v drugo tabelo,
+// Stolpci LD/IZOB/BS niso razpored (razpored), ampak odsotnost
+// (odsotnosti) - glej NZV_KIND_KODA. Zapisi zanje gredo v drugo tabelo,
 // zato jih uvoziNzv loči na dva izhodna seznama (zapisi/dopusti).
 const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
 
@@ -3314,7 +3314,7 @@ const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
 // m.s./zn." - zadnji stolpec je isti 14-osebni krog, ki ga aplikacija že
 // pozna prek NZV uvoza (obdelajNzvVrstice, DEZ oddelek), zato ga TU
 // namenoma NE uvažamo ponovno - samo prva dva, ki ju aplikacija doslej ni
-// poznala (zdravniki nimajo profila/računa, glej duty_doctors v
+// poznala (zdravniki nimajo profila/računa, glej dezurni_zdravniki v
 // schema.sql - namenjena SAMO prikazu imena, ne pravemu uporabniku).
 // Uradni dokument "Razporeditev zaposlenih v UA in DEŽ" ima PET stolpcev:
 //   datum | dan | Urgenca ZDR | Dežurstvo ZDR | Dežurstvo dipl. m.s./zn.
@@ -3484,7 +3484,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
            najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
 }
 
-// Kaj se za dani stolpec NZV mreže zapiše v schedule_entries.
+// Kaj se za dani stolpec NZV mreže zapiše v razpored.
 //
 // SA DOP in SA POP pišeta isto department_code "SA", ločeno samo prek
 // shift_code (glej razvrstiSA) - "SA" sama ni prava izbirna koda oddelka.
@@ -3500,7 +3500,7 @@ function nzvZapisZaStolpec(koda){
   return { department_code: koda, shift_code: window.NzvZasedba.IZMENA_PRISOTEN };
 }
 
-// Vpisi za schedule_entries iz CELE mreže enega meseca - obratna smer od
+// Vpisi za razpored iz CELE mreže enega meseca - obratna smer od
 // nalozizPodatkeNzv. Uporablja jo urejanje NZV mreže v aplikaciji.
 //
 // "vrednost(koda, datum)" vrne to, kar v celici piše ("DŽA, ALU").
@@ -3530,7 +3530,7 @@ function nzvVnosiIzMreze(opts){
   return { zapisi: zdruziNzvZapise(surovi), neznane: [...neznane] };
 }
 
-// Združevanje zapisov iste osebe in dneva (schedule_entries ima unique
+// Združevanje zapisov iste osebe in dneva (razpored ima unique
 // (employee_id, work_date), oseba pa je pogosto na več enotah) je zdaj v
 // skupnem nzv-zasedba.js, ker isto pravilo potrebuje tudi objava razporeda
 // NZV iz Generatorja. Dve izvedbi istega pravila sta pri razporedu
@@ -3540,7 +3540,7 @@ const zdruziNzvZapise = window.NzvZasedba.zdruziNzvZapise;
 async function uvoziNzv(url, ciljniMesec, myId){
   const { vrsteVrstic } = await window.ImportUtils.preberiGoogleSheet(url);
   if (!vrsteVrstic.length) throw new Error("Prazna datoteka.");
-  const { data: profili } = await client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026");
+  const { data: profili } = await client.from("profili").select("id, full_name, parafa, parafa_pred_oktobrom_2026");
   const { poParafi, podvojene } = parafaMapa(profili, ciljniMesec);
   const { zapisi, dopusti, neujemanja, najdenDatum, najdenaGlava } = obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili);
   podvojene.forEach(k => neujemanja.add(k + " (parafa se ujema z več osebami - popravi v Imeniku)"));
@@ -3565,7 +3565,7 @@ async function uvoziNzv(url, ciljniMesec, myId){
 //   - ime lista se ujema z znano kodo oddelka (PO_ODDELKIH_KODE, npr. "C1",
 //     "FLEXI") -> oddelčni razpored (obdelajOddelekVrstice) - IME lista je
 //     tu edini zanesljiv način vedeti, kateri oddelek gre v ta stolpec
-//     schedule_entries (vsebina sama po sebi tega ne pove);
+//     razpored (vsebina sama po sebi tega ne pove);
 //   - sicer poskusi NZV obliko (obdelajNzvVrstice) - ta je prepoznana po
 //     VSEBINI glave (enote kot PDZN/SOBO/... so že v vrsticah), zato ne
 //     potrebuje imena lista po vzorcu - obdrži se samo, če je za izbrani
@@ -3611,8 +3611,8 @@ async function uvoziDatotekoPametno(file, ciljniMesec, myId){
 
   opozoriloPokrivaOddelek = null;
   const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
-    client.from("profiles").select("id, full_name"),
-    client.from("profiles").select("id, full_name, parafa, parafa_pred_oktobrom_2026"),
+    client.from("profili").select("id, full_name"),
+    client.from("profili").select("id, full_name, parafa, parafa_pred_oktobrom_2026"),
   ]);
   const { poKratkem, podvojena } = kratkaImenaMapa(profiliKratki);
   const { poParafi, podvojene } = parafaMapa(profiliParafa, ciljniMesec);
@@ -3790,7 +3790,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
   };
 
   // Ločen uvoz za "Razporeditev zaposlenih v UA in DEŽ" (dežurni zdravniki -
-  // glej obdelajZdravnikiVrstice/duty_doctors) - na voljo ne glede na
+  // glej obdelajZdravnikiVrstice/dezurni_zdravniki) - na voljo ne glede na
   // izbrani oddelek/kontekst, ker ti podatki niso vezani na oddelek.
   const nalozizZdravnike = async (e) => {
     const file = e.target.files && e.target.files[0];
@@ -4144,7 +4144,7 @@ function App(){
   }, []);
 
   useEffect(() => {
-    client.from("departments").select("code, name").order("code").then(({ data }) => {
+    client.from("oddelki").select("code, name").order("code").then(({ data }) => {
       const imenaPoKodi = {};
       (data || []).forEach(d => { imenaPoKodi[d.code] = d.name; });
       const seznam = PO_ODDELKIH_KODE.map(k => ({ code: k, name: imenaPoKodi[k] || k }));
@@ -4187,9 +4187,9 @@ function App(){
     const objava = (entries || []).reduce((min, e) => (e.created_at && (!min || e.created_at < min.created_at)) ? e : min, null);
     const zadnja = (entries || []).reduce((max, e) => (e.updated_at && (!max || e.updated_at > max)) ? e.updated_at : max, null);
     const [{ data: koord }, { data: pripravilProfil }] = await Promise.all([
-      client.from("profiles").select("full_name, job_title").eq("is_koordinator", true).limit(1).maybeSingle(),
+      client.from("profili").select("full_name, job_title").eq("is_koordinator", true).limit(1).maybeSingle(),
       objava && objava.created_by
-        ? client.from("profiles").select("full_name, job_title").eq("id", objava.created_by).maybeSingle()
+        ? client.from("profili").select("full_name, job_title").eq("id", objava.created_by).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
     const nazivIme = (p) => p ? p.full_name + (p.job_title ? ", " + p.job_title : "") : "";
@@ -4205,7 +4205,7 @@ function App(){
     const { startISO, endISO } = monthRange(month);
     const days = daysInRange(startISO, endISO);
     if (view === "my") {
-      const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+      const { data } = await client.from("razpored").select("work_date, shift_code")
         .eq("employee_id", auth.session.user.id).gte("work_date", startISO).lte("work_date", endISO);
       const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
       // Isto dopolnjevanje kot na zaslonu (glej MyScheduleView): brez tega
@@ -4215,7 +4215,7 @@ function App(){
       // v vrstni red - tu ni razloga za to negotovost.
       const jaz = auth.profile;
       if (jaz && jaz.department_code === "NZV" && jaz.full_name) {
-        const { data: nosilci } = await client.from("lead_departments")
+        const { data: nosilci } = await client.from("nosilci_oddelkov")
           .select("full_name, enote, odsotnost_tip, odsotnost_do");
         const moj = (nosilci || []).find(n => n.enote && imenaSeUjemataNzv(n.full_name, jaz.full_name));
         window.NzvZasedba.stalnaZasedba(moj, days.map(dn => dn.datum), d => !!byDate[d])
@@ -4260,17 +4260,17 @@ function App(){
     // vrstica podatkov (prazen Datum/Dan) je vloga vsake osebe (SMS/TZN ali
     // DMS/DZN), po vzoru iste predloge.
     const naslovOddelka = (depts.find(d => d.code === wardCode) || {}).name || wardCode;
-    // Vnosi se berejo PO OSEBAH, ne po schedule_entries.department_code -
+    // Vnosi se berejo PO OSEBAH, ne po razpored.department_code -
     // ista razlika kot v WardView: FLEXI kader ima vnose zapisane pod
     // oddelkom, ki ga tisti dan pokriva (department_code = "FLEXI",
     // pokriva_oddelek = ciljni oddelek), pri starejših uvozih pa celo pod
     // samim ciljnim oddelkom. Filtriranje po department_code je zato
     // puščalo cele stolpce prazne.
-    const { data: profili } = await client.from("profiles")
+    const { data: profili } = await client.from("profili")
       .select("id, full_name, role").eq("department_code", wardCode).order("full_name");
     const zaposleni = profili || [];
     const { data } = zaposleni.length
-      ? await client.from("schedule_entries")
+      ? await client.from("razpored")
           .select("employee_id, work_date, shift_code, department_code, pokriva_oddelek, created_at, created_by, updated_at")
           .in("employee_id", zaposleni.map(z => z.id))
           .gte("work_date", startISO).lte("work_date", endISO)
@@ -4330,7 +4330,7 @@ function App(){
           ical={view === "my" ? {
             onClick: async () => {
               const { startISO, endISO } = monthRange(month);
-              const { data } = await client.from("schedule_entries").select("work_date, shift_code")
+              const { data } = await client.from("razpored").select("work_date, shift_code")
                 .eq("employee_id", session.user.id).gte("work_date", startISO).lte("work_date", endISO);
               const byDate = {}; (data || []).forEach(r => { byDate[r.work_date] = r.shift_code; });
               const dnevi = daysInRange(startISO, endISO);
