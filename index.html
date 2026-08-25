@@ -1,4 +1,7 @@
-<!doctype html>
+window.normalizirajNazivOddelka = window.normalizirajNazivOddelka || function(naziv) {
+  if (!naziv) return '';
+  return String(naziv).trim();
+};<!doctype html>
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
