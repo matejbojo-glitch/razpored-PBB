@@ -6,6 +6,17 @@
  * (samo za izračun plač) – dve definiciji istega dejstva, ki bi se ob
  * spremembi urnika zlahka razšli. Tu sta združeni.
  *
+ * Kanonični vir te logike je zdaj src/shared/delovni-cas.js (pravi ES
+ * modul, uvožen v Edge funkcije in Node skripte prek `import`). Ta
+ * datoteka je njegova ROČNO usklajena različica za brskalnik: mora ostati
+ * brez `import`/`export`, da jo brskalnik izvede kot navaden, SINHRON
+ * <script>, v točno določenem vrstnem redu z ostalimi <script> značkami na
+ * strani (pravi ES modul se nalaga odloženo/asinhrono in bi ta vrstni red
+ * podrl). skripte/preveri-delovni-cas.mjs preverja, da src/shared/
+ * delovni-cas.js in supabase/functions/_shared/delovni-cas.js (kopija za
+ * namestitev) ostajata usklajena; to datoteko je treba ob spremembi logike
+ * ročno posodobiti zraven.
+ *
  * Ure so iz uradne legende "Razpored delovnega časa – Služba za ZN in
  * oskrbo" (velja od 1. 7. 2022).
  *
@@ -66,7 +77,7 @@
   // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih
   // mora potrditi kadrovska – tu so samo izhodiščne vrednosti.
   var PRIVZETA_PRAVILA = {
-    minPocitekUr: 12,          // najmanj ur med koncem ene in začetkom naslednje izmene
+    minPocitekUr: 10.7,        // najmanj ur med koncem ene in začetkom naslednje izmene
     maxZaporednihNocnih: 2,    // največ zaporednih nočnih izmen
     maxTedenskihUr: 56,        // zgornja meja ur v 7 zaporednih dneh (opozorilo)
     zahtevajProstDanNaTeden: true, // vsaj en dan brez izmene v vsakem oknu 7 dni
@@ -118,6 +129,16 @@
     return Number(d[0]) * 60 + Number(d[1]);
   }
 
+  // Trajanje med dvema urama znotraj enega dne, s prehodom čez polnoč: če
+  // je "konec" <= "zacetek", se šteje, da izmena traja do te ure NASLEDNJI
+  // dan.
+  function trajanjeUr(zacetekHHMM, konecHHMM) {
+    var z = vMinute(zacetekHHMM), k = vMinute(konecHHMM);
+    var minute = k - z;
+    if (minute <= 0) minute += 24 * 60;
+    return minute / 60;
+  }
+
   // Vrne { zacetek: Date, konec: Date } za izmeno na dani ISO dan.
   // Če se izmena konča ob uri, ki je <= začetku, se konča naslednji dan.
   function casovniOkvir(isoDan, sifra) {
@@ -137,6 +158,45 @@
     var d = new Date(isoDan + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().slice(0, 10);
+  }
+
+  // Koliko ur izmene pade v nočni okvir 22:00-06:00. Ločeno od
+  // IZMENE[...].ure (skupno trajanje, za obračun plač) in od
+  // IZMENE[...].nocna (samo da/ne) - dejansko preštetih ur v uradnem
+  // nočnem oknu, npr. za izmene, ki se le deloma prekrivajo z njim.
+  function nocneUreIzmene(isoDan, sifra) {
+    var okvir = casovniOkvir(isoDan, sifra);
+    if (!okvir) return 0;
+    var ure = 0;
+    [dodajDni(isoDan, -1), isoDan].forEach(function (dan) {
+      var nocZacetek = new Date(dan + "T00:00:00Z");
+      nocZacetek.setUTCHours(22, 0, 0, 0);
+      var nocKonec = new Date(dan + "T00:00:00Z");
+      nocKonec.setUTCDate(nocKonec.getUTCDate() + 1);
+      nocKonec.setUTCHours(6, 0, 0, 0);
+      var od = okvir.zacetek > nocZacetek ? okvir.zacetek : nocZacetek;
+      var doInc = okvir.konec < nocKonec ? okvir.konec : nocKonec;
+      if (doInc > od) ure += razlikaUr(od, doInc);
+    });
+    return ure;
+  }
+
+  // Prazniki/vikendi: EN SAM VIR je prazniki.js (window.Prazniki), ki se
+  // na vseh straneh nalaga PRED delovni-cas.js - glej vrstni red <script>
+  // značk. Tu samo posredujemo, da ima klicatelj vse na enem mestu
+  // (window.DelovniCas), brez podvajanja logike velikonočnega algoritma.
+  function jePraznik(iso) { return !!(root.Prazniki && root.Prazniki.jePraznik(iso)); }
+  function jeVikend(iso) { return !!(root.Prazniki && root.Prazniki.jeVikend(iso)); }
+  function jeDelaProstDan(iso) { return !!(root.Prazniki && root.Prazniki.jeDelaProstDan(iso)); }
+  function nazivPraznika(iso) { return root.Prazniki ? root.Prazniki.naziv(iso) : ""; }
+
+  // Počitek (v urah) med koncem prejšnje in začetkom naslednje izmene iste
+  // osebe. Vrne null, če ene od obeh šifer ne pozna.
+  function pocitekMedIzmenama(prejDatum, prejSifra, datumDatum, datumSifra) {
+    var prej = casovniOkvir(prejDatum, prejSifra);
+    var zdaj = casovniOkvir(datumDatum, datumSifra);
+    if (!prej || !zdaj) return null;
+    return razlikaUr(prej.konec, zdaj.zacetek);
   }
 
   /**
@@ -169,9 +229,6 @@
 
       // --- 1) počitek med zaporednima izmenama ---
       for (var i = 1; i < delovni.length; i++) {
-        var prej = casovniOkvir(delovni[i - 1].datum, delovni[i - 1].sifra);
-        var zdaj = casovniOkvir(delovni[i].datum, delovni[i].sifra);
-        if (!prej || !zdaj) continue;
         // PO DEŽURSTVU sledi normalen delovnik in to je PRIČAKOVANO
         // stanje, ne kršitev: tako se zagotavlja neprekinjeno zdravstveno
         // varstvo (odločitev vodstva ZN, avgust 2026).
@@ -185,7 +242,11 @@
         // Izjema velja SAMO za prehod IZ dežurstva. Prehod V dežurstvo in
         // vsi ostali prehodi se preverjajo naprej.
         if (jeDezurstvo(delovni[i - 1].sifra)) continue;
-        var pocitek = razlikaUr(prej.konec, zdaj.zacetek);
+        var pocitek = pocitekMedIzmenama(
+          delovni[i - 1].datum, delovni[i - 1].sifra,
+          delovni[i].datum, delovni[i].sifra
+        );
+        if (pocitek == null) continue;
         if (pocitek < p.minPocitekUr) {
           var jeIzjema = !!(delovni[i].izjema || delovni[i - 1].izjema);
           krsitve.push({
@@ -280,6 +341,13 @@
     jeDelo: jeDelo,
     podatkiIzmene: podatkiIzmene,
     casovniOkvir: casovniOkvir,
+    trajanjeUr: trajanjeUr,
+    nocneUreIzmene: nocneUreIzmene,
+    jePraznik: jePraznik,
+    jeVikend: jeVikend,
+    jeDelaProstDan: jeDelaProstDan,
+    nazivPraznika: nazivPraznika,
+    pocitekMedIzmenama: pocitekMedIzmenama,
     preveriPravila: preveriPravila,
     povzetek: povzetek,
   };

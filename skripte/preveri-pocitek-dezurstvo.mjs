@@ -92,9 +92,9 @@ console.log("4) druga pravila ostanejo nedotaknjena");
 
 console.log("5) pravilo je zapisano na enem mestu in kopiji sta enaki");
 {
-  const a = readFileSync(join(koren, "delovni-cas.js"), "utf8");
+  const a = readFileSync(join(koren, "src", "shared", "delovni-cas.js"), "utf8");
   const b = readFileSync(join(koren, "supabase", "functions", "_shared", "delovni-cas.js"), "utf8");
-  trdi(a === b, "delovni-cas.js in kopija v _shared/ sta identična");
+  trdi(a === b, "src/shared/delovni-cas.js in kopija v _shared/ sta identična");
   trdi(/if \(jeDezurstvo\(delovni\[i - 1\]\.sifra\)\) continue;/.test(a),
     "izjema je v preverjanju počitka, ne drugje");
   trdi(typeof DC.jeDezurstvo === "function" && DC.jeDezurstvo("DEŽURSTVO") === true

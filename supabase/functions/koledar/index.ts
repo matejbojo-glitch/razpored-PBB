@@ -16,11 +16,10 @@
 //   * oseba ga lahko kadar koli zamenja (Nastavitve → Koledar), s čimer
 //     prejšnja povezava takoj neha delovati.
 //
-// Ure izmen NISO zapisane tu – bere jih delovni-cas.js, isti modul kot
-// aplikacija. Datoteka nima uvozov/izvozov, zato jo Deno naloži kot
-// stranski učinek, ki napolni globalThis.DelovniCas (enako kot v
-// brskalniku napolni window.DelovniCas). Tako ostaja en sam vir resnice
-// o urah in se koledar ne more razíti z razporedom v aplikaciji.
+// Ure izmen NISO zapisane tu – bere jih deljeni ES modul delovni-cas.js
+// (izvorno src/shared/delovni-cas.js), isti kot aplikacija. Tako ostaja en
+// sam vir resnice o urah in se koledar ne more razíti z razporedom v
+// aplikaciji.
 //
 // Zahtevane okoljske spremenljivke nastavi Supabase sam:
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -32,22 +31,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 // POZOR: uvoz mora ostati ZNOTRAJ supabase/functions/ – "supabase functions
 // deploy" naloži samo to drevo, zato uvoz datoteke iz korena repozitorija
-// (../../../delovni-cas.js) pri namestitvi odpove z "Module not found".
-// _shared/delovni-cas.js je zato bajt-za-bajt kopija korenske datoteke;
-// skripte/preveri-delovni-cas.mjs javi, če se razideta.
-import "../_shared/delovni-cas.js";
-
-const DelovniCas = (globalThis as any).DelovniCas;
-
-// Če se modul ne naloži, se raje ustavimo takoj z jasnim sporočilom, kot da
-// bi vrnili koledar z napačnimi urami – tiho napačen razpored je hujši od
-// nedelujoče naročnine.
-if (!DelovniCas || typeof DelovniCas.podatkiIzmene !== "function") {
-  throw new Error(
-    "delovni-cas.js se ni naložil (globalThis.DelovniCas manjka). " +
-    "Preveri, da je supabase/functions/_shared/delovni-cas.js prisoten.",
-  );
-}
+// (../../../src/shared/delovni-cas.js) pri namestitvi odpove z
+// "Module not found". _shared/delovni-cas.js je zato bajt-za-bajt kopija
+// src/shared/delovni-cas.js; skripte/preveri-delovni-cas.mjs javi, če se
+// razideta.
+import * as DelovniCas from "../_shared/delovni-cas.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

@@ -214,7 +214,8 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   // Delovnopravno preverjanje menjave (ZDR-1) – generator je te omejitve
   // upošteval, ročna menjava pa jih je doslej lahko tiho podrla: npr.
   // popoldanska izmena zamenjana za jutranjo naslednji dan pomeni manj kot
-  // 12 h počitka. Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
+  // 10,7 h počitka (glej PRIVZETA_PRAVILA.minPocitekUr v delovni-cas.js).
+  // Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
   const [krsitve, setKrsitve] = useState(null);
   useEffect(() => {
     if (vrsta !== "menjava_sluzbe" || !izbranSodelavec || !datum || !window.DelovniCas){
