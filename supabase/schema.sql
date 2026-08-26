@@ -3991,3 +3991,43 @@ where full_name is not null
   and full_name = upper(full_name)
   and full_name <> initcap(full_name);
 
+-- ---------------------------------------------------------------------
+-- 31) Dežurstva avgust/september 2026 - uskladi z uradnim dokumentom
+-- ---------------------------------------------------------------------
+-- Razpored dežurstev za te dva meseca je bil usklajen zunaj tega
+-- generatorja (uradni podpisan dokument "Razporeditev zaposlenih v UA in
+-- DEŽ"), zato v Supabase ni bil (v celoti) objavljen - menjava (obrazec.html)
+-- zato zanj ni našla nikogar, čeprav je oseba dejansko dežurna. Samo
+-- stolpec "Dežurstvo dipl. m.s./zn." (14-osebni krog, ki ga aplikacija
+-- pozna) - "Urgenca ZDR"/"Dežurstvo ZDR" namenoma nista vključena (dogovor
+-- iz prejšnjega kroga). coalesce/on conflict ne prepiše ročnih popravkov na
+-- NEKI DRUGI dan - samo doda/uskladi točno te datume.
+insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+select p.id, 'DEZ', v.work_date::date, 'DEŽURSTVO', now()
+from (values
+  ('2026-08-01','Arnež Grega'), ('2026-08-02','Velušček Metka'), ('2026-08-03','Arnež Grega'),
+  ('2026-08-04','Bojić Matej'), ('2026-08-05','Džamastagić Denis'), ('2026-08-06','Bojić Matej'),
+  ('2026-08-07','Magdalena Mavri Tratnik'), ('2026-08-08','Šubic Petra'), ('2026-08-09','Lunar Mateja'),
+  ('2026-08-10','Velušček Metka'), ('2026-08-11','Alukić Dino'), ('2026-08-12','Magdalena Mavri Tratnik'),
+  ('2026-08-13','Torkar Tanja'), ('2026-08-14','Hrovat Nina'), ('2026-08-15','Perviz Amal'),
+  ('2026-08-16','Torkar Tanja'), ('2026-08-17','Alukić Dino'), ('2026-08-18','Lunar Mateja'),
+  ('2026-08-19','Šubic Petra'), ('2026-08-20','Alukić Dino'), ('2026-08-21','Perviz Amal'),
+  ('2026-08-22','Tomaževič Simona'), ('2026-08-23','Hrovat Nina'), ('2026-08-24','Lunar Mateja'),
+  ('2026-08-25','Džamastagić Denis'), ('2026-08-26','Bojić Matej'), ('2026-08-27','Trpin Saša'),
+  ('2026-08-28','Salkić Maruša'), ('2026-08-29','Džamastagić Denis'), ('2026-08-30','Magdalena Mavri Tratnik'),
+  ('2026-08-31','Tomaževič Simona'),
+  ('2026-09-01','Džamastagić Denis'), ('2026-09-02','Salkić Maruša'), ('2026-09-03','Perviz Amal'),
+  ('2026-09-04','Alukić Dino'), ('2026-09-05','Magdalena Mavri Tratnik'), ('2026-09-06','Bojić Matej'),
+  ('2026-09-07','Hrovat Nina'), ('2026-09-08','Velušček Metka'), ('2026-09-09','Trpin Saša'),
+  ('2026-09-10','Perviz Amal'), ('2026-09-11','Torkar Tanja'), ('2026-09-12','Velušček Metka'),
+  ('2026-09-13','Hrovat Nina'), ('2026-09-14','Arnež Grega'), ('2026-09-15','Perviz Amal'),
+  ('2026-09-16','Bojić Matej'), ('2026-09-17','Lunar Mateja'), ('2026-09-18','Šubic Petra'),
+  ('2026-09-19','Lunar Mateja'), ('2026-09-20','Arnež Grega'), ('2026-09-21','Tomaževič Simona'),
+  ('2026-09-22','Šubic Petra'), ('2026-09-23','Lunar Mateja'), ('2026-09-24','Magdalena Mavri Tratnik'),
+  ('2026-09-25','Tomaževič Simona'), ('2026-09-26','Alukić Dino'), ('2026-09-27','Torkar Tanja'),
+  ('2026-09-28','Šubic Petra'), ('2026-09-29','Tomaževič Simona'), ('2026-09-30','Džamastagić Denis')
+) as v(work_date, full_name)
+join public.profili p on public.imena_se_ujemata(p.full_name, v.full_name)
+on conflict (employee_id, work_date) do update set
+  department_code = excluded.department_code, shift_code = excluded.shift_code, updated_at = now();
+

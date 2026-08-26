@@ -1778,6 +1778,52 @@ function DezurstvaTab({ zacetniMesec }){
     setPdfBesedilo(null);
   };
 
+  // Uvoz KONČNEGA, že usklajenega razporeda dežurstev - za primer, ko
+  // dežurstva za mesec ne pripravi ta generator, ampak jih (kot doslej)
+  // ročno uskladita Vlade Milanović/Denis Džamastagić in objavita v
+  // uradnem dokumentu "Razporeditev zaposlenih v UA in DEŽ". Brez tega je
+  // tak razpored obstajal samo v PDF-ju, v Supabase pa ga ni bilo - zato
+  // menjava (obrazec.html) zanj ni našla NIKOGAR, čeprav je oseba dejansko
+  // dežurna. Vrstica: "LLLL-MM-DD,Ime Priimek" (poljuben vrstni red imena -
+  // window.Imena.seUjemata prepozna tudi znane tipkarske razlike).
+  const [dezurnoBesedilo, setDezurnoBesedilo] = useState("");
+  const [dezurnoUvozMsg, setDezurnoUvozMsg] = useState(null);
+  const uvoziKoncniRazpored = () => {
+    if (!rezultat) { setDezurnoUvozMsg("Najprej klikni »Generiraj razpored dežurstev« za ta mesec (spodaj se nato prepiše)."); return; }
+    const vrstice = dezurnoBesedilo.split(/\r?\n/).map(v => v.trim()).filter(v => v && !v.startsWith("#"));
+    const posodobitve = {}; // datum -> ime (kot je zapisano v roster)
+    const neujemajocaImena = [];
+    const zunajMeseca = [];
+    vrstice.forEach(vrstica => {
+      const zarezaAt = vrstica.indexOf(",");
+      if (zarezaAt === -1) return;
+      const datum = vrstica.slice(0, zarezaAt).trim();
+      const ime = vrstica.slice(zarezaAt + 1).trim();
+      if (!datum || !ime) return;
+      if (datum < startISO || datum > endISO) { zunajMeseca.push(datum); return; }
+      const ujemanje = (roster || []).find(z => window.Imena.seUjemata(z.ime, ime));
+      if (!ujemanje) { neujemajocaImena.push(ime); return; }
+      posodobitve[datum] = ujemanje.ime;
+    });
+
+    setRezultat(r => {
+      if (!r) return r;
+      const razpored = r.razpored.map(x => (x.zaklenjeno || !(x.datum in posodobitve))
+        ? x : Object.assign({}, x, { zaposleni: posodobitve[x.datum], rocno: true, sila: false }));
+      const preverba = {};
+      Generator.preveriDezurstva({
+        razpored, staff: r.staff, minRazmikDni: Number(minRazmik), maxVikendMesecno: maxVikend,
+      }).forEach(p => { preverba[p.datum] = p.krsitve; });
+      return Object.assign({}, r, {
+        razpored: razpored.map(x => Object.assign({}, x, { krsitve: preverba[x.datum] || [] })),
+      });
+    });
+    setPublishMsg(null);
+    setDezurnoUvozMsg(`Uveljavljenih ${Object.keys(posodobitve).length} dni.`
+      + (zunajMeseca.length ? ` Zunaj izbranega meseca (preskočeno): ${zunajMeseca.join(", ")}.` : "")
+      + (neujemajocaImena.length ? ` Neprepoznana imena (preskočeno, preveri črkovanje): ${neujemajocaImena.join(", ")}.` : ""));
+  };
+
   // Kaj je za ta mesec ŽE objavljeno - te dneve generator ne premeša.
   // Brez tega je ponovno generiranje sredi meseca prerazporedilo tudi
   // tisti del, ki je bil že potrjen in sporočen ljudem.
@@ -1991,6 +2037,21 @@ function DezurstvaTab({ zacetniMesec }){
               <ul>{rezultat.opozorila.map(o => <li key={o.datum}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
             </div>
           )}
+
+          <div className="card no-print" style={{marginBottom:12}}>
+            <b>Uvoz KONČNEGA razporeda dežurstev</b>
+            <p className="hint" style={{marginTop:4}}>
+              Če je razpored za ta mesec dokončno usklajen zunaj tega generatorja (npr. uradni dokument
+              "Razporeditev zaposlenih v UA in DEŽ"), ga tu prepiši v spodnjo predlagano tabelo - brez tega ostane
+              samo v PDF-ju in menjava (Menjava &gt; Nov obrazec) zanj ne najde nikogar, čeprav je oseba dejansko
+              dežurna. Ena vrstica na dan: <code>LLLL-MM-DD,Priimek Ime</code> (vrstni red imena ni pomemben). Pošlji
+              uradni PDF Claude Code seji, da ti pripravi to besedilo za prihodnje mesece.
+            </p>
+            <textarea rows={6} value={dezurnoBesedilo} onChange={e => setDezurnoBesedilo(e.target.value)}
+              placeholder={"2026-08-01,Arnež Grega\n2026-08-02,Velušček Metka\n..."} style={{width:"100%", fontFamily:"monospace"}} />
+            <button className="dlBtn" style={{marginTop:8}} onClick={uvoziKoncniRazpored}>Uveljavi v tabeli spodaj</button>
+            {dezurnoUvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{dezurnoUvozMsg}</p>}
+          </div>
 
           <div className="printBlok" ref={printRef}>
             <h2 className="section">3 · Predlagan razpored – {rezultat.mesec}</h2>
