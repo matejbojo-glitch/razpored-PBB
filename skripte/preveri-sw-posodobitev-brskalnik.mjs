@@ -26,7 +26,7 @@
  * Zagon: node skripte/preveri-sw-posodobitev-brskalnik.mjs
  *        (CHROMIUM_PATH=... če Chromium ni na privzeti poti)
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, extname } from "node:path";
 import { createServer } from "node:http";
@@ -135,9 +135,30 @@ try {
       const c = await caches.open(ime);
       return (await c.keys()).map(r => new URL(r.url).pathname);
     }, razlicicaPrej);
-    ["/nav.js", "/theme.css"].forEach(f => {
-      trdi(vCache.includes(f), `${f} je predpomnjen`);
+    // Prej sta bila tu na trdo zapisana "/nav.js" in "/theme.css". Po
+    // prehodu na Vite theme.css v objavljeni mapi ne obstaja vec - slog se
+    // zgradi kot assets/theme-<hash>.css in ga v sw.js vstavi gradnja - zato
+    // je bil ta pogoj neizpolnjiv. Namesto ugibanja imen preberemo seznam iz
+    // samega sw.js: vsaka nastela datoteka, ki tu res obstaja, mora biti
+    // predpomnjena. Tako preizkus ne zastara ob naslednji preimenovani
+    // datoteki.
+    const swVir = readFileSync(join(koren, "sw.js"), "utf8");
+    const seznam = [...swVir.match(/const ASSETS = \[([\s\S]*?)\n\];/)[1]
+      .matchAll(/'(\.\/[^']*)'/g)]
+      .map(m => m[1].replace(/^\.\//, ""))
+      .filter(f => f && existsSync(join(koren, f)));
+    trdi(seznam.length > 20, `seznam ASSETS ima ${seznam.length} obstojecih datotek`);
+    // Sam seznam ni dovolj: ce bi kdo datoteko z njega odstranil, bi spodnja
+    // primerjava tiho uspela. Te stiri morajo biti na njem in v predpomnilniku
+    // vedno - brez njih aplikacija brez signala ne dela. theme.css tu
+    // NAMENOMA ni: po prehodu na Vite se slog zgradi kot assets/<hash>.css.
+    ["nav.js", "vendor-app.min.js", "index.html", "supabase-client.js"].forEach(f => {
+      trdi(seznam.includes(f), `${f} je na seznamu ASSETS`);
     });
+    const manjkajo = seznam.filter(f => !vCache.includes("/" + f));
+    trdi(manjkajo.length === 0, manjkajo.length === 0
+      ? `vse nastete datoteke so predpomnjene (${seznam.length})`
+      : `NISO predpomnjene: ${manjkajo.slice(0, 5).join(", ")}`);
   }
 
   console.log("3) vrnitev na stran (kot vsak naslednji obisk zaposlenega)");

@@ -60,6 +60,61 @@ set check_function_bodies = false;
 
 
 -- =====================================================================
+-- 2b. POMOŽNI FUNKCIJI ZA VAROVALKE OMEJITEV
+-- ---------------------------------------------------------------------
+-- Varovalke pred tem preverjale IME omejitve. To je bilo napačno za bazo,
+-- ki je nastala pred preimenovanjem tabel v slovenska imena: ALTER TABLE
+-- ... RENAME TO preimenuje tabelo, imena omejitev pa pusti pri miru. Zato
+-- je npr. telefoni_kontaktov obdržala contact_phones_profile_id_fkey,
+-- varovalka za telefoni_kontaktov_profile_id_fkey pa tega ni videla in je
+-- dodala DRUGI, vsebinsko enak tuji ključ.
+--
+-- Posledica je bila napaka v aplikaciji: PostgREST ob dveh enakih tujih
+-- ključih ne ve, katerega naj uporabi -
+--   "Could not embed because more than one relationship was found
+--    for 'profili' and 'telefoni_kontaktov'"
+-- - in Imenik se ni naložil. Enako je bilo podvojenih 35 tujih ključev v
+-- 22 tabelah, torej bi enaka napaka prej ali slej zadela še Razpored,
+-- Menjave in Kadrovske podatke.
+--
+-- Zato varovalke poslej ne gledajo imena, ampak OBLIKO omejitve: tabela,
+-- stolpci in (pri tujem ključu) ciljna tabela. Ime tako ni več pomembno.
+-- Že nastale podvojitve pospravi razdelek 4b na koncu tujih ključev.
+-- =====================================================================
+
+create or replace function public.tuji_kljuc_ze_obstaja(
+  p_tabela regclass, p_stolpci text[], p_tarca regclass
+) returns boolean
+language sql stable as $$
+  select exists (
+    select 1 from pg_constraint c
+     where c.conrelid = p_tabela
+       and c.contype = 'f'
+       and c.confrelid = p_tarca
+       and (select array_agg(a.attname::text order by a.attname)
+              from unnest(c.conkey) k
+              join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k)
+           = (select array_agg(x order by x) from unnest(p_stolpci) x)
+  );
+$$;
+
+create or replace function public.enolicna_omejitev_ze_obstaja(
+  p_tabela regclass, p_stolpci text[]
+) returns boolean
+language sql stable as $$
+  select exists (
+    select 1 from pg_constraint c
+     where c.conrelid = p_tabela
+       and c.contype = 'u'
+       and (select array_agg(a.attname::text order by a.attname)
+              from unnest(c.conkey) k
+              join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k)
+           = (select array_agg(x order by x) from unnest(p_stolpci) x)
+  );
+$$;
+
+
+-- =====================================================================
 -- 3. TABELE (+ dopolnitev stolpcev za obstoječe baze)
 -- ---------------------------------------------------------------------
 -- CREATE TABLE nosi KONČNE stolpce (za nove baze).
@@ -392,6 +447,62 @@ create table if not exists public.zelje_zaposlenih (
     -- oddelkov FLEXI in NZV. Nabor sledi seedu tabele oddelki.
     CONSTRAINT zelje_zaposlenih_department_code_check CHECK ((department_code = ANY (ARRAY['B'::text, 'C'::text, 'C1'::text, 'D'::text, 'E1'::text, 'E2'::text, 'FLEXI'::text, 'NZV'::text])))
 );
+
+
+-- Nadomescanja med nosilci enot (NZV) in nastavitve NZV pogleda. Do zdaj
+-- sta ziveli locено v supabase/nzv-nadomescanja.sql in nzv-nastavitve.sql
+-- in ju konsolidacija ni zajela - aplikacija (index.html, admin.html) ju
+-- bere, v novi bazi pa ju ni bilo. Tu sta z ZE zdruzenimi poznejsimi
+-- dopolnitvami (poleg_svoje iz nzv-nadomescanja-poleg-svoje.sql).
+create table if not exists public.nadomescanja (
+    nosilec text NOT NULL,          -- kdo je odsoten (cigav oddelek je treba pokriti)
+    nadomesca text NOT NULL,        -- kdo ga pokrije
+    enota text,                     -- katero enoto s tem pokrije (glej nosilci_oddelkov.enote)
+    prednost smallint DEFAULT 1 NOT NULL,
+    -- true = nadomescevalec obdrzi svojo enoto in pokrije se enoto odsotnega
+    -- (Bojic: MO + ZO). false = preseli se na enoto odsotnega, svojo odda
+    -- naslednjemu v verigi (Arnez: s C na C1, C prevzame Lunar).
+    poleg_svoje boolean DEFAULT false NOT NULL
+);
+
+create table if not exists public.nzv_nastavitve (
+    kljuc text NOT NULL,
+    vrednost text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Maticna stevilka za nosilce enot: nosilci_oddelkov ima za kljuc IME, kar
+-- se med tabelami razhaja (poroka, popravek zapisa, dvobesedni priimek).
+-- Prineseno iz supabase/nzv-maticne-stevilke-vodij.sql, ki je konsolidacija
+-- ni zajela - admin.html pa stolpec bere s
+-- .from("nosilci_oddelkov").select("full_name, employee_code").
+alter table public.nosilci_oddelkov add column if not exists employee_code text;
+
+alter table public.nadomescanja add column if not exists enota text;
+alter table public.nadomescanja add column if not exists prednost smallint default 1 not null;
+alter table public.nadomescanja add column if not exists poleg_svoje boolean default false not null;
+alter table public.nzv_nastavitve add column if not exists vrednost text;
+alter table public.nzv_nastavitve add column if not exists updated_at timestamp with time zone default now() not null;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.nadomescanja'::regclass and contype = 'p') then
+    execute 'ALTER TABLE ONLY public.nadomescanja
+    ADD CONSTRAINT nadomescanja_pkey PRIMARY KEY (nosilec, nadomesca)';
+  end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.nzv_nastavitve'::regclass and contype = 'p') then
+    execute 'ALTER TABLE ONLY public.nzv_nastavitve
+    ADD CONSTRAINT nzv_nastavitve_pkey PRIMARY KEY (kljuc)';
+  end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
+end $$;
 
 
 -- Zaporedja / identitetni stolpci (zahtevajo obstoječe tabele):
@@ -932,7 +1043,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_token_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.koledarski_zetoni', array['token']) then
     execute 'ALTER TABLE ONLY public.koledarski_zetoni
     ADD CONSTRAINT koledarski_zetoni_token_key UNIQUE (token)';
   end if;
@@ -986,7 +1097,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_stevilka_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.obrazci', array['stevilka']) then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_stevilka_key UNIQUE (stevilka)';
   end if;
@@ -1013,7 +1124,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_full_name_work_date_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.odsotnosti', array['full_name', 'work_date']) then
     execute 'ALTER TABLE ONLY public.odsotnosti
     ADD CONSTRAINT odsotnosti_full_name_work_date_key UNIQUE (full_name, work_date)';
   end if;
@@ -1040,7 +1151,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_profile_id_department_code_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.pokriva_oddelek', array['profile_id', 'department_code']) then
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_profile_id_department_code_key UNIQUE (profile_id, department_code)';
   end if;
@@ -1049,7 +1160,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_endpoint_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.potisne_narocnine', array['endpoint']) then
     execute 'ALTER TABLE ONLY public.potisne_narocnine
     ADD CONSTRAINT potisne_narocnine_endpoint_key UNIQUE (endpoint)';
   end if;
@@ -1076,7 +1187,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_employee_id_work_date_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.razpored', array['employee_id', 'work_date']) then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_employee_id_work_date_key UNIQUE (employee_id, work_date)';
   end if;
@@ -1130,7 +1241,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_employee_code_leto_mesec_key') then
+  if not public.enolicna_omejitev_ze_obstaja('public.zgodovina_stanja_dopusta', array['employee_code', 'leto', 'mesec']) then
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_employee_code_leto_mesec_key UNIQUE (employee_code, leto, mesec)';
   end if;
@@ -1156,7 +1267,7 @@ end $$;
 -- =====================================================================
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'barvne_oznake_posodobil_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.barvne_oznake', array['posodobil'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.barvne_oznake
     ADD CONSTRAINT barvne_oznake_posodobil_fkey FOREIGN KEY (posodobil) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
@@ -1165,7 +1276,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_odsotnosti_editor_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.dnevnik_odsotnosti', array['editor_id'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.dnevnik_odsotnosti
     ADD CONSTRAINT dnevnik_odsotnosti_editor_id_fkey FOREIGN KEY (editor_id) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
@@ -1174,7 +1285,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_admin_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.dnevnik_ogledov', array['admin_id'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.dnevnik_ogledov
     ADD CONSTRAINT dnevnik_ogledov_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES auth.users(id) ON DELETE CASCADE';
   end if;
@@ -1183,7 +1294,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_ogledov_target_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.dnevnik_ogledov', array['target_profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.dnevnik_ogledov
     ADD CONSTRAINT dnevnik_ogledov_target_profile_id_fkey FOREIGN KEY (target_profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1192,7 +1303,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_profilov_changed_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.dnevnik_profilov', array['changed_by'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.dnevnik_profilov
     ADD CONSTRAINT dnevnik_profilov_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1201,7 +1312,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'dnevnik_razporeda_changed_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.dnevnik_razporeda', array['changed_by'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.dnevnik_razporeda
     ADD CONSTRAINT dnevnik_razporeda_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1210,7 +1321,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'kadrovski_podatki_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.kadrovski_podatki', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.kadrovski_podatki
     ADD CONSTRAINT kadrovski_podatki_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1219,7 +1330,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'koledarski_zetoni_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.koledarski_zetoni', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.koledarski_zetoni
     ADD CONSTRAINT koledarski_zetoni_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1228,7 +1339,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'minimalna_zasedba_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.minimalna_zasedba', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.minimalna_zasedba
     ADD CONSTRAINT minimalna_zasedba_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1237,7 +1348,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'nastavitve_obvestil_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.nastavitve_obvestil', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.nastavitve_obvestil
     ADD CONSTRAINT nastavitve_obvestil_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1246,7 +1357,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'nosilci_oddelkov_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.nosilci_oddelkov', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.nosilci_oddelkov
     ADD CONSTRAINT nosilci_oddelkov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1255,7 +1366,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_obrazec_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci_dnevnik', array['obrazec_id'], 'public.obrazci') then
     execute 'ALTER TABLE ONLY public.obrazci_dnevnik
     ADD CONSTRAINT obrazci_dnevnik_obrazec_id_fkey FOREIGN KEY (obrazec_id) REFERENCES public.obrazci(id) ON DELETE CASCADE';
   end if;
@@ -1264,7 +1375,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_dnevnik_uporabnik_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci_dnevnik', array['uporabnik_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obrazci_dnevnik
     ADD CONSTRAINT obrazci_dnevnik_uporabnik_id_fkey FOREIGN KEY (uporabnik_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1273,7 +1384,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_koordinator_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci', array['koordinator_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_koordinator_id_fkey FOREIGN KEY (koordinator_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1282,7 +1393,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_sodelavec_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci', array['sodelavec_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_sodelavec_id_fkey FOREIGN KEY (sodelavec_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
   end if;
@@ -1291,7 +1402,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_vlagatelj_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci', array['vlagatelj_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_vlagatelj_id_fkey FOREIGN KEY (vlagatelj_id) REFERENCES public.profili(id) ON DELETE RESTRICT';
   end if;
@@ -1300,7 +1411,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obrazci_vodja_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obrazci', array['vodja_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obrazci
     ADD CONSTRAINT obrazci_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1309,7 +1420,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obvestila_swap_request_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obvestila', array['swap_request_id'], 'public.zahtevki_za_menjavo') then
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_swap_request_id_fkey FOREIGN KEY (swap_request_id) REFERENCES public.zahtevki_za_menjavo(id) ON DELETE CASCADE';
   end if;
@@ -1318,7 +1429,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'obvestila_user_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.obvestila', array['user_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.obvestila
     ADD CONSTRAINT obvestila_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1327,7 +1438,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'odsotnosti_created_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.odsotnosti', array['created_by'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.odsotnosti
     ADD CONSTRAINT odsotnosti_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
@@ -1336,7 +1447,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.pokriva_oddelek', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1345,7 +1456,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'pokriva_oddelek_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.pokriva_oddelek', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.pokriva_oddelek
     ADD CONSTRAINT pokriva_oddelek_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1354,7 +1465,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'potisne_narocnine_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.potisne_narocnine', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.potisne_narocnine
     ADD CONSTRAINT potisne_narocnine_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1363,7 +1474,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'profiles_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.profili', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profiles_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1372,7 +1483,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'profili_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.profili', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1381,7 +1492,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'profili_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.profili', array['id'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE';
   end if;
@@ -1390,7 +1501,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'profili_vodja_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.profili', array['vodja_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.profili
     ADD CONSTRAINT profili_vodja_id_fkey FOREIGN KEY (vodja_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1399,7 +1510,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_created_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.razpored', array['created_by'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1408,7 +1519,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.razpored', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1417,7 +1528,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_employee_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.razpored', array['employee_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1426,7 +1537,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'razpored_updated_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.razpored', array['updated_by'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.razpored
     ADD CONSTRAINT razpored_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1435,7 +1546,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'telefoni_kontaktov_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.telefoni_kontaktov', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.telefoni_kontaktov
     ADD CONSTRAINT telefoni_kontaktov_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE CASCADE';
   end if;
@@ -1444,7 +1555,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_department_code_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.uvozi_kontaktov', array['department_code'], 'public.oddelki') then
     execute 'ALTER TABLE ONLY public.uvozi_kontaktov
     ADD CONSTRAINT uvozi_kontaktov_department_code_fkey FOREIGN KEY (department_code) REFERENCES public.oddelki(code) ON UPDATE CASCADE';
   end if;
@@ -1453,7 +1564,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'uvozi_kontaktov_linked_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.uvozi_kontaktov', array['linked_profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.uvozi_kontaktov
     ADD CONSTRAINT uvozi_kontaktov_linked_profile_id_fkey FOREIGN KEY (linked_profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1462,7 +1573,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_admin_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zahtevki_za_menjavo', array['admin_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1471,7 +1582,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_lead_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zahtevki_za_menjavo', array['lead_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1480,7 +1591,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_requester_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zahtevki_za_menjavo', array['requester_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.profili(id)';
   end if;
@@ -1489,7 +1600,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zahtevki_za_menjavo_target_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zahtevki_za_menjavo', array['target_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zahtevki_za_menjavo
     ADD CONSTRAINT zahtevki_za_menjavo_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.profili(id)';
   end if;
@@ -1498,7 +1609,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_created_by_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zelje_zaposlenih', array['created_by'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
@@ -1507,7 +1618,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zelje_zaposlenih_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zelje_zaposlenih', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zelje_zaposlenih
     ADD CONSTRAINT zelje_zaposlenih_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1516,7 +1627,7 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_profile_id_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zgodovina_stanja_dopusta', array['profile_id'], 'public.profili') then
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profili(id) ON DELETE SET NULL';
   end if;
@@ -1525,12 +1636,75 @@ exception
 end $$;
 
 do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'zgodovina_stanja_dopusta_uvozil_fkey') then
+  if not public.tuji_kljuc_ze_obstaja('public.zgodovina_stanja_dopusta', array['uvozil'], 'auth.users') then
     execute 'ALTER TABLE ONLY public.zgodovina_stanja_dopusta
     ADD CONSTRAINT zgodovina_stanja_dopusta_uvozil_fkey FOREIGN KEY (uvozil) REFERENCES auth.users(id) ON DELETE SET NULL';
   end if;
 exception
   when duplicate_object or duplicate_table or invalid_table_definition then null;
+end $$;
+
+
+-- =====================================================================
+-- 4b. POSPRAVLJANJE ŽE NASTALIH PODVOJITEV
+-- ---------------------------------------------------------------------
+-- Varovalke zgoraj poslej ne podvajajo več (glej razdelek 2b), v bazi, ki
+-- je preimenovanje že prestala, pa podvojitve LEŽIJO. Prav te so razbile
+-- Imenik: PostgREST ob dveh enakih tujih ključih med profili in
+-- telefoni_kontaktov ne ve, katerega naj uporabi, in vrne
+--   "Could not embed because more than one relationship was found".
+--
+-- Odvrže se le omejitev, ki je res odveč: taka, pri kateri na isti tabeli
+-- obstaja druga z ENAKIMI stolpci (in pri tujem ključu enako ciljno
+-- tabelo). Obdrži se tista, katere ime se ujema z današnjim, slovenskim
+-- imenom tabele - torej tista, ki jo opisuje ta datoteka; če se ne ujema
+-- nobena, obdrži se najstarejša. Podatkov to ne spremeni: pravilo, ki ga
+-- omejitev uveljavlja, ostane v veljavi prek dvojnice, ki ostane.
+-- =====================================================================
+
+do $$
+declare
+  o record;
+  odvrzenih int := 0;
+begin
+  for o in
+    with omejitve as (
+      select c.oid, c.conname, c.conrelid, c.contype,
+             c.conrelid::regclass::text as tabela,
+             (select array_agg(a.attname::text order by a.attname)
+                from unnest(c.conkey) k
+                join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k) as stolpci,
+             c.confrelid
+        from pg_constraint c
+       where c.connamespace = 'public'::regnamespace
+         and c.contype in ('f', 'u')
+    ),
+    razvrsceno as (
+      select *,
+             row_number() over (
+               partition by conrelid, contype, stolpci, confrelid
+               -- Prednost ima ime, ki se začne z današnjim imenom tabele;
+               -- med enakovrednimi najstarejša (najmanjši oid).
+               order by case when conname like replace(tabela, 'public.', '') || '\_%'
+                             then 0 else 1 end, oid
+             ) as mesto,
+             count(*) over (partition by conrelid, contype, stolpci, confrelid) as koliko
+        from omejitve
+    )
+    select conname, tabela, contype, stolpci from razvrsceno
+     where koliko > 1 and mesto > 1
+  loop
+    execute format('alter table %s drop constraint %I', o.tabela, o.conname);
+    raise notice 'odvržena podvojena omejitev %.% (%s)',
+      o.tabela, o.conname, array_to_string(o.stolpci, ', ');
+    odvrzenih := odvrzenih + 1;
+  end loop;
+
+  if odvrzenih = 0 then
+    raise notice 'podvojenih omejitev ni bilo - nič za pospraviti';
+  else
+    raise notice 'skupaj odvrženih podvojenih omejitev: %', odvrzenih;
+  end if;
 end $$;
 
 
@@ -2907,6 +3081,22 @@ CREATE POLICY swap_select ON public.zahtevki_za_menjavo FOR SELECT TO authentica
   WHERE (profili.id = zahtevki_za_menjavo.requester_id))))));
 
 
+ALTER TABLE public.nadomescanja ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nzv_nastavitve ENABLE ROW LEVEL SECURITY;
+
+drop policy if exists nadomescanja_select on public.nadomescanja;
+CREATE POLICY nadomescanja_select ON public.nadomescanja FOR SELECT TO authenticated USING (true);
+
+drop policy if exists nadomescanja_write on public.nadomescanja;
+CREATE POLICY nadomescanja_write ON public.nadomescanja TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists nzv_nastavitve_select on public.nzv_nastavitve;
+CREATE POLICY nzv_nastavitve_select ON public.nzv_nastavitve FOR SELECT TO authenticated USING (true);
+
+drop policy if exists nzv_nastavitve_write on public.nzv_nastavitve;
+CREATE POLICY nzv_nastavitve_write ON public.nzv_nastavitve TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+
 -- =====================================================================
 -- 9. ZAČETNI PODATKI (Seed)
 -- ---------------------------------------------------------------------
@@ -2942,11 +3132,15 @@ on conflict (code) do update set name = excluded.name;
 
 do $$
 begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'profiles_department_code_fkey'
-  ) then
+  -- Po obliki, ne po imenu: baza izpred preimenovanja ima ta tuji ključ
+  -- pod imenom profiles_department_code_fkey, novejša pod
+  -- profili_department_code_fkey. Preverjanje po imenu je tu ustvarilo
+  -- drugega, vsebinsko enakega - in s tem prav dvoumnost, ki je razbila
+  -- Imenik.
+  if not public.tuji_kljuc_ze_obstaja(
+       'public.profili', array['department_code'], 'public.oddelki') then
     alter table public.profili
-      add constraint profiles_department_code_fkey
+      add constraint profili_department_code_fkey
       foreign key (department_code) references public.oddelki (code) on update cascade;
   end if;
 end $$;
@@ -3110,6 +3304,72 @@ on conflict (profile_id) do update set
 
 
 -- ---------------------------------------------------------------------
+-- =====================================================================
+-- 9b) NZV: nadomescanja med nosilci enot + nastavitve NZV pogleda
+-- ---------------------------------------------------------------------
+-- Vsebina prenesena iz supabase/nzv-nadomescanja.sql, nzv-nadomescanja-
+-- poleg-svoje.sql in nzv-nastavitve.sql. Konsolidacija teh treh datotek
+-- ni zajela, zato je v novi bazi tabel ni bilo - index.html in admin.html
+-- pa ju bereta (NZV pogled, urejanje nadomescanj).
+--
+-- poleg_svoje: true = nadomescevalec obdrzi svojo enoto in pokrije se
+-- enoto odsotnega (Bojic: MO + ZO); false = preseli se na enoto odsotnega,
+-- svojo pa odda naslednjemu v verigi (Arnez: s C na C1, C prevzame Lunar).
+-- =====================================================================
+
+insert into public.nadomescanja (nosilec, nadomesca, enota, prednost, poleg_svoje) values
+  ('ALUKIĆ DINO', 'BOJIĆ MATEJ', 'ŽO', 1, true),
+  ('ALUKIĆ DINO', 'DŽAMASTAGIĆ DENIS', 'ŽO', 2, true),
+  ('ARNEŽ GREGA', 'LUNAR MATEJA', 'C', 1, false),
+  ('BIZJAK TEA', 'TRPIN SAŠA', 'UA/SA/B2', 1, false),
+  ('BIZJAK TEA', 'MUŠIČ INES', 'UA/SA/B2', 2, false),
+  ('BOJIĆ MATEJ', 'ALUKIĆ DINO', 'MO', 1, true),
+  ('BOJIĆ MATEJ', 'DŽAMASTAGIĆ DENIS', 'MO', 2, true),
+  ('DŽAMASTAGIĆ DENIS', 'ALUKIĆ DINO', 'PDZN', 1, true),
+  ('DŽAMASTAGIĆ DENIS', 'BOJIĆ MATEJ', 'PDZN', 2, true),
+  ('HROVAT NINA', 'TORKAR TANJA', 'DB', 1, false),
+  ('HUMAR SAŠA', 'BIZJAK TEA', 'SA', 1, false),
+  ('HUMAR SAŠA', 'TRPIN SAŠA', 'SA', 2, false),
+  ('LELIČ DIJANA', 'MAGLIĆ ALEKSANDER', 'E2', 1, false),
+  ('LUNAR MATEJA', 'ARNEŽ GREGA', 'B', 1, false),
+  ('MAGLIĆ ALEKSANDER', 'LELIČ DIJANA', 'E1', 1, false),
+  ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA', 'B1', 1, false),
+  ('MUŠIČ INES', 'BIZJAK TEA', 'UA/SA', 1, false),
+  ('MUŠIČ INES', 'TRPIN SAŠA', 'UA/SA', 2, false),
+  ('PERVIZ AMAL', 'MAGLIĆ ALEKSANDER', 'D', 1, false),
+  ('SALKIĆ MARUŠA', 'ARNEŽ GREGA', 'C1', 1, false),
+  ('TOMAŽEVIČ SIMONA', 'VELUŠČEK METKA', 'A', 1, true),
+  ('TORKAR TANJA', 'HROVAT NINA', 'DB', 1, false),
+  ('TRPIN SAŠA', 'BIZJAK TEA', 'UA/SA', 1, false),
+  ('TRPIN SAŠA', 'MUŠIČ INES', 'UA/SA', 2, false),
+  ('VELUŠČEK METKA', 'DŽAMASTAGIĆ DENIS', 'SOBO', 1, true),
+  ('VELUŠČEK METKA', 'ALUKIĆ DINO', 'SOBO', 2, true),
+  ('VELUŠČEK METKA', 'BOJIĆ MATEJ', 'SOBO', 3, true),
+  ('ŠUBIC PETRA', 'MAVRI TRATNIK MAGDALENA', 'B1', 1, false)
+on conflict (nosilec, nadomesca) do update set
+  enota = excluded.enota,
+  prednost = excluded.prednost,
+  poleg_svoje = excluded.poleg_svoje;
+
+insert into public.nzv_nastavitve (kljuc, vrednost) values
+  ('sa_liho_teden', 'dop'),
+  ('sa_poletni_meseci', '7,8')
+on conflict (kljuc) do nothing;
+
+-- Maticne stevilke nosilcev enot se prepisejo iz kadrovskih podatkov in NE
+-- povozijo ze vpisanih. Ujemanje imena je namenoma ohlapno (velike/male
+-- crke in stresice se izenacijo), ker se tabeli prav v tem razhajata;
+-- unaccent ni povsod namescen, zato translate namesto njega.
+update public.nosilci_oddelkov l
+   set employee_code = h.employee_code
+  from public.profili p
+  join public.kadrovski_podatki h on h.profile_id = p.id
+ where l.employee_code is null
+   and h.employee_code is not null
+   and translate(upper(l.full_name), 'ČŠŽĆĐ', 'CSZCD')
+       = translate(upper(p.full_name), 'ČŠŽĆĐ', 'CSZCD');
+
+
 -- 17) FLEXI oddelek + minimalna_zasedba + kadrovski_podatki.employee_code
 --     Del kontrolnega seznama za jutri – tri stvari, ki so bile v Google
 --     Sheets predlogah (Hospital/NZV/Dežurstva, 6.8.2026) uporabljene kot
