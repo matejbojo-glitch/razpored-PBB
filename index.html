@@ -4348,12 +4348,12 @@ function App(){
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
       <RazporedLogout pred={
         <React.Fragment>
-          <RazporedUvozIkona/>
           <RazporedOrodja/>
         </React.Fragment>
       }/>
       {profile && profile.role === "admin" && (
         <RazporedUvozVir
+          kljuc="razpored"
           ikona="📗"
           naziv="Razpored iz Google Sheets"
           opis={view === "ward" ? (wardCode === "NZV" ? "NZV" : "oddelek " + (wardCode || "–")) : "Moj razpored"}

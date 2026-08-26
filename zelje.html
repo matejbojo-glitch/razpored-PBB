@@ -1280,16 +1280,16 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
       </details>
       {jeAdmin && (
         <React.Fragment>
-          <RazporedUvozVir ikona="📗" naziv="Želje iz Google Sheets"
+          <RazporedUvozVir kljuc="zelje-sheets" ikona="📗" naziv="Želje iz Google Sheets"
             opis="dopust in omejitve po povezavi" onClick={() => uvoziIzSheets(null)} />
-          <RazporedUvozVir ikona="📄" naziv="Želje iz datoteke"
+          <RazporedUvozVir kljuc="zelje-datoteka" ikona="📄" naziv="Želje iz datoteke"
             opis="CSV / Excel / JSON – ime, dopust, omejitve"
             onClick={() => uvozRef.current && uvozRef.current.click()} />
-          <RazporedUvozVir ikona="📷" naziv="Želje s fotografije"
+          <RazporedUvozVir kljuc="zelje-foto" ikona="📷" naziv="Želje s fotografije"
             opis={barvnaMapa ? `barve celic – v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
             onemogocen={!barvnaMapa}
             onClick={() => setFotoOdprt(true)} />
-          <RazporedUvozVir ikona="📅" naziv="Barvni koledar (Kadris)"
+          <RazporedUvozVir kljuc="zelje-koledar" ikona="📅" naziv="Barvni koledar (Kadris)"
             opis={barvnaMapa ? `Excel – barva celice je vrsta odsotnosti; uvozi v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}
             onemogocen={!barvnaMapa}
             onClick={() => barvniRef.current && barvniRef.current.click()} />
@@ -1730,7 +1730,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
   return (
     <div className="wrap wide polna">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>

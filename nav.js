@@ -115,6 +115,12 @@
     { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
     { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
     { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", roles: ["admin", "vodja"] },
+    // Vsi uvozi na enem mestu. Prej je bila na vsaki strani svoja ikona 📥 in
+    // uvoz je bilo treba iskati po straneh - kdo je vedel, da se kvote dopusta
+    // uvozijo pod "Oddelki", stanje dopusta pa pod "Dopust"? Uvoz spreminja
+    // podatke za vso bolnišnico, zato samo administrator (uvoz.html to še
+    // enkrat preveri prek requireRole).
+    { key: "uvoz", href: "uvoz.html", ic: "📥", lbl: "Uvoz", roles: ["admin"] },
   ];
 
   // props: active (ključ trenutne strani), role ("admin"|"vodja"|"user"), unread (število za značko na Menjava)

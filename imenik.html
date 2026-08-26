@@ -1476,7 +1476,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         prijavi. HR podatke vidi samo ta oseba sama in admin – nikoli vodja ali drugi.
       </p>
       <div className="card">
-        <RazporedUvozVir ikona="📇" naziv="Imenik zaposlenih"
+        <RazporedUvozVir kljuc="imenik" ikona="📇" naziv="Imenik zaposlenih"
           opis="CSV / Excel / JSON – kadrovski izvoz"
           onClick={() => fileRef.current && fileRef.current.click()} />
         <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
@@ -1842,7 +1842,7 @@ function App(){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
-      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Imenik</span></div>
         <p className="sub">{profile ? profile.full_name : ""} · {RazporedAuth.ROLE_LABEL[myRole]}</p>
