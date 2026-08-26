@@ -494,6 +494,13 @@
 // stran, ki se je "spet pojavila". Popravek je trojen: mrtvi vnosi so
 // odstranjeni, namestitev ni več atomarna (vsaka datoteka posebej, manjkajoča
 // ne podre namestitve), zgrajena imena iz dist/assets/ pa vstavi gradnja.
+// v121: delovnopravna opozorila (počitek, 56 ur v 7 dneh) se shranijo z
+// obrazcem in jih ob odločanju vidita TUDI vodja in administrator - doslej
+// sta se izračunala le v brskalniku predlagatelja in nikamor shranila, zato
+// je vodja odločal na slepo prav o tem, kar naj bi presodil. Izračun je zdaj
+// ena sama funkcija za oddajo in odločanje, ob odločitvi se še osveži (če se
+// je razpored vmes spremenil, se to izpiše). Spremenjena obrazec.html.
+
 // v120: značka na gumbu "Menjava" pove ŠTEVILO čakajočih odločitev, zato
 // zaposleni predlog vidi takoj, brez odpiranja strani. Skupno pravilo je v
 // supabase-client.js (mojeDejanjeNaObrazcu), da značka in seznam "Čaka name"
@@ -509,7 +516,7 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v120';
+const CACHE = 'razpored-pbb-v121';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
