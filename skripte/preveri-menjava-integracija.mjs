@@ -356,6 +356,40 @@ console.log("10) dežurstvo: širše okno (±45 dni) NAJDE oddaljenega dežurneg
     "in končno stanje ima prave datume: " + stanjeKoncno.join(" | "));
 }
 
+console.log("12) dežurstvo: pretekel datum se ne ponudi, FLEXI izjema (menjaj s komerkoli) zanj NE velja");
+{
+  // Relativno na DANES (ne fiksen datum iz 2026), da preizkus ne postane
+  // krhek, ko koledar preteče čez trdo kodirane datume drugod v tej datoteki.
+  const [danes] = vrstice(`select current_date::text;`);
+  const zaN = n => vrstice(`select (date '${danes}' + ${n})::text;`)[0];
+  const DEZ5 = "60000000-0000-0000-0000-000000000005"; // ponuja PRETEKLO dežurstvo - ne sme se ponuditi
+  const DEZ6 = "60000000-0000-0000-0000-000000000006"; // veljavno prihodnje dežurstvo - sme se ponuditi
+  const FLEXI2 = "50000000-0000-0000-0000-000000000002"; // FLEXI "dežurstvo" - zanj velja izjema NE
+  psql(`
+    insert into auth.users (id, email) values ('${DEZ5}','dez5@t.si'),('${DEZ6}','dez6@t.si'),('${FLEXI2}','flexi2@t.si')
+      on conflict (id) do nothing;
+    update public.profili set full_name='Dez Peti', department_code='DEZ' where id='${DEZ5}';
+    update public.profili set full_name='Dez Sesti', department_code='DEZ' where id='${DEZ6}';
+    update public.profili set full_name='Flexi Drugi', department_code='FLEXI' where id='${FLEXI2}';
+    insert into public.razpored (employee_id, department_code, work_date, shift_code) values
+      ('${DEZ1}','DEZ','${zaN(15)}','Dežurstvo'),
+      ('${DEZ5}','DEZ','${zaN(-5)}','Dežurstvo'),
+      ('${DEZ6}','DEZ','${zaN(30)}','Dežurstvo'),
+      ('${FLEXI2}','FLEXI','${zaN(31)}','Dežurstvo')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+  const kandidati = vrstice(`select full_name from public.mozni_sodelavci('${DEZ1}','${zaN(15)}') where profile_id in ('${DEZ5}','${DEZ6}','${FLEXI2}') order by full_name;`);
+  trdi(JSON.stringify(kandidati) === JSON.stringify(["Dez Sesti"]),
+    "samo veljaven prihodnji dežurni je ponujen - pretekel datum in FLEXI izjema sta izločena: " + JSON.stringify(kandidati));
+
+  const past = vrstice(`select p.full_name from public.razpored se join public.profili p on p.id=se.employee_id
+    where se.employee_id in ('${DEZ5}','${FLEXI2}')
+      and se.work_date between date '${zaN(15)}' - 45 and date '${zaN(15)}' + 45
+      and public.pocitek_ustreza(se.employee_id, '${zaN(15)}', se.shift_code)
+      and public.pocitek_ustreza(se.employee_id, se.work_date, 'Dežurstvo')
+      and ('DEZ' = se.department_code or 'DEZ' = 'FLEXI' or se.department_code = 'FLEXI');`);
+  trdi(past.length === 2, "past: brez novih pogojev (current_date/strog DEZ-DEZ) bi oba napačno šla skozi: " + JSON.stringify(past));
+}
+
 pg(`dropdb --if-exists ${BAZA}`);
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }

@@ -2236,6 +2236,9 @@ begin
   from public.razpored se
   join public.profili p on p.id = se.employee_id
   where se.work_date between p_datum - v_okno and p_datum + v_okno
+    -- Dan, ki je že mimo, ni mogoče ponuditi za menjavo - izmene se v
+    -- preteklosti ne da odslužiti.
+    and se.work_date >= current_date
     and se.employee_id <> p_profile_id
     and se.shift_code is not null and se.shift_code <> ''
     and (select zacetek from public.izmena_cas(se.shift_code)) is not null
@@ -2243,9 +2246,13 @@ begin
     and not exists (select 1 from public.blokirani_dnevi(se.work_date, se.work_date) b where b.profile_id = p_profile_id)
     and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
     and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
-    -- Menjava samo znotraj istega oddelka tistega dne (FLEXI je izjema -
-    -- floaterji menjajo s komerkoli, uporabnikova izrecna odločitev).
-    and (v_moj_oddelek = se.department_code or v_moj_oddelek = 'FLEXI' or se.department_code = 'FLEXI')
+    -- Menjava samo znotraj istega oddelka tistega dne. FLEXI je izjema -
+    -- floaterji menjajo s komerkoli - RAZEN za dežurstvo: dežurstvo zahteva
+    -- posebno usposobljenost/pooblastilo, zato tam FLEXI izjema NE velja -
+    -- menjati se sme SAMO znotraj kroga dežurnih (department_code='DEZ' na
+    -- obeh straneh), brez izjeme.
+    and (case when v_je_dezurstvo then se.department_code = 'DEZ'
+              else (v_moj_oddelek = se.department_code or v_moj_oddelek = 'FLEXI' or se.department_code = 'FLEXI') end)
     -- Spolno pravilo velja NE GLEDE na zgornjo izjemo - FLEXI na C1/D dan
     -- šteje enako kot kdorkoli drug na C1/D (glej efektivni_oddelek).
     and public.spol_dovoljeno_po_menjavi(v_moj_oddelek, v_moj_pokriva, p_datum, v_moja_sifra, p_profile_id, se.employee_id)
@@ -2383,6 +2390,12 @@ begin
     end if;
     if not public.spol_dovoljeno_po_menjavi(v_dept_b, v_pokriva_b, v_dan_b, v_izmena_b, o.sodelavec_id, o.vlagatelj_id) then
       raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_b, v_dan_b, v_izmena_b;
+    end if;
+
+    -- Dežurstvo je samo za krog dežurnih - FLEXI izjema (menjaj s komerkoli)
+    -- zanj NE velja, isti pas kot v mozni_sodelavci.
+    if (v_dept_a = 'DEZ') <> (v_dept_b = 'DEZ') then
+      raise exception 'Menjava dežurstva ni mogoča: obe strani morata biti iz kroga dežurnih.';
     end if;
 
     -- Dežurstvo: po menjavi nihče ne sme pristati na dežurstvu dan pred/po
