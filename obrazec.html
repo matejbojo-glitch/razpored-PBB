@@ -119,6 +119,14 @@ const VRSTA_LABEL = {
   menjava_sluzbe: "Menjava službe",
   drugo: "Drugo",
 };
+// "oddaja_dezurstva" NAMENOMA ni v VRSTA_LABEL zgoraj - ta objekt tudi
+// določa zavihke v "Nov obrazec" (Object.keys spodaj), oddaja pa ni svoj
+// zavihek, ampak izjema znotraj "Menjava službe" (glej NovObrazec). Za
+// prikaz obstoječih obrazcev te vrste uporabi to funkcijo namesto
+// neposrednega VRSTA_LABEL[...].
+function vrstaLabel(v){
+  return VRSTA_LABEL[v] || (v === "oddaja_dezurstva" ? "Oddaja dežurstva" : v);
+}
 const STATUS_LABEL = {
   osnutek: { text: "Osnutek", cls: "wait" },
   caka_sodelavca: { text: "Čaka sodelavca", cls: "wait" },
@@ -180,6 +188,12 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   const [kandidati, setKandidati] = useState(null);
   const [kandidatiBusy, setKandidatiBusy] = useState(false);
   const [izbranSodelavec, setIzbranSodelavec] = useState(null); // { profile_id, full_name, njihova_izmena, njihov_datum }
+  // Izjema poleg navadne menjave: enosmerna ODDAJA dežurstva komurkoli iz
+  // NZV (ne samo krogu dežurnih) - uporabno, kadar je nekdo že čez mesečno
+  // kvoto dežurstev, drug pa pod njo. Brez povratne izmene - glej
+  // oddaja_dezurstva v shemi.
+  const [prejemniki, setPrejemniki] = useState(null);
+  const [izbranPrejemnik, setIzbranPrejemnik] = useState(null); // { profile_id, full_name }
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -187,8 +201,10 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); return; }
     client.from("razpored").select("shift_code").eq("employee_id", myId).eq("work_date", datum).maybeSingle()
       .then(({ data }) => setMojaIzmena(data ? data.shift_code : ""));
-    setKandidati(null); setIzbranSodelavec(null);
+    setKandidati(null); setIzbranSodelavec(null); setPrejemniki(null); setIzbranPrejemnik(null);
   }, [vrsta, datum, myId]);
+
+  const jeDezurstvoDan = (mojaIzmena || "").toLowerCase().startsWith("dežurstvo");
 
   const poisciSodelavce = async () => {
     setKandidatiBusy(true); setErr(null);
@@ -196,6 +212,13 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
       const { data, error } = await client.rpc("mozni_sodelavci", { p_profile_id: myId, p_datum: datum });
       if (error) throw error;
       setKandidati(data || []);
+      if (jeDezurstvoDan) {
+        const { data: p, error: e2 } = await client.rpc("mozni_prejemniki_dezurstva", { p_profile_id: myId, p_datum: datum });
+        if (e2) throw e2;
+        setPrejemniki(p || []);
+      } else {
+        setPrejemniki(null);
+      }
     } catch (e) {
       setErr(e.message || String(e));
     } finally {
@@ -270,8 +293,15 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     if (!datum){ setErr("Izberi datum."); return; }
     let polja = { opomba: opomba.trim() || undefined };
     let sodelavec_id = null;
-    if (vrsta === "menjava_sluzbe"){
-      if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo."); return; }
+    let vrstaZaOddajo = vrsta;
+    if (vrsta === "menjava_sluzbe" && izbranPrejemnik){
+      // Izjema: enosmerna oddaja dežurstva - ločena vrsta obrazca, brez
+      // povratne izmene (glej oddaja_dezurstva v shemi).
+      vrstaZaOddajo = "oddaja_dezurstva";
+      sodelavec_id = izbranPrejemnik.profile_id;
+      polja = { ...polja, datum };
+    } else if (vrsta === "menjava_sluzbe"){
+      if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo ali osebo, ki naj dežurstvo prevzame."); return; }
       sodelavec_id = izbranSodelavec.profile_id;
       polja = { ...polja, datum_a: datum, izmena_a: mojaIzmena || "", datum_b: izbranSodelavec.njihov_datum, izmena_b: izbranSodelavec.njihova_izmena };
     } else if (vrsta === "rocno_evidentiranje"){
@@ -285,12 +315,13 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     setBusy(true);
     try {
       const { data, error } = await client.from("obrazci").insert({
-        vrsta, status: "osnutek", vlagatelj_id: myId, sodelavec_id, polja,
+        vrsta: vrstaZaOddajo, status: "osnutek", vlagatelj_id: myId, sodelavec_id, polja,
       }).select().single();
       if (error) throw error;
       const { error: e2 } = await client.rpc("obrazec_oddaj", { p_id: data.id });
       if (e2) throw e2;
       setDatum(""); setPrihod(""); setOdhod(""); setRazlog(""); setOpomba(""); setKandidati(null); setIzbranSodelavec(null);
+      setPrejemniki(null); setIzbranPrejemnik(null);
       onOddano();
     } catch (e) {
       setErr(e.message || String(e));
@@ -354,7 +385,28 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
                       </div>
                     </div>
                     <button type="button" className="candBtn" aria-pressed={izbranSodelavec && izbranSodelavec.profile_id === k.profile_id && izbranSodelavec.njihov_datum === k.njihov_datum}
-                      onClick={() => setIzbranSodelavec(k)}>Izberi</button>
+                      onClick={() => { setIzbranSodelavec(k); setIzbranPrejemnik(null); }}>Izberi</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {prejemniki !== null && prejemniki.length > 0 && (
+              <div style={{marginTop:16}}>
+                <p className="hint" style={{marginBottom:6}}>
+                  Izjema: nihče od zgornjih ti ne ustreza? Dežurstvo lahko namesto menjave <b>oddaš</b> tudi
+                  komukoli drugemu iz NZV, ki ta dan lahko dežura - brez da bi ti kaj vrnil/-a nazaj (uporabno,
+                  če ima nekdo že preveč, drug pa premalo dežurstev v tem mesecu).
+                </p>
+                {prejemniki.map(p => (
+                  <div className="candidate" key={p.profile_id}>
+                    <div>
+                      <div className="who">
+                        <a href={"imenik.html?id=" + p.profile_id} style={{color:"inherit"}}
+                           title="Odpri profil">{p.full_name}</a>
+                      </div>
+                    </div>
+                    <button type="button" className="candBtn" aria-pressed={izbranPrejemnik && izbranPrejemnik.profile_id === p.profile_id}
+                      onClick={() => { setIzbranPrejemnik(p); setIzbranSodelavec(null); }}>Oddaj njemu/njej</button>
                   </div>
                 ))}
               </div>
@@ -455,7 +507,7 @@ function CakaName({ rows, onOdloceno }){
         <div key={r.id}>
           <div className="entry" style={{cursor:"default"}}>
             <div>
-              <div className="who">{r.stevilka} · {VRSTA_LABEL[r.vrsta]}</div>
+              <div className="who">{r.stevilka} · {vrstaLabel(r.vrsta)}</div>
               <div className="meta">{r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : (r.polja && r.polja.datum ? fmtDatum(r.polja.datum) : "")}</div>
               {r.polja && r.polja.opomba && <div className="meta">{r.polja.opomba}</div>}
             </div>
@@ -508,7 +560,7 @@ function Casovnica({ obrazec, dnevnik }){
   // sploh ne prikaže, da ne izgleda kot "čaka", čeprav do tja nikoli ne pride.
   const koraki = [
     { stopnja: 1, naslov: "Oddano", kratko: "Oddano" },
-    ...(obrazec.vrsta === "menjava_sluzbe" ? [{ stopnja: 2, naslov: "Sodelavec", kratko: "Sodelavec" }] : []),
+    ...((obrazec.vrsta === "menjava_sluzbe" || obrazec.vrsta === "oddaja_dezurstva") ? [{ stopnja: 2, naslov: "Sodelavec", kratko: "Sodelavec" }] : []),
     ...(obrazec.je_dezurstvo ? [] : [{ stopnja: 3, naslov: "Neposredni vodja", kratko: "Vodja" }]),
     { stopnja: 4, naslov: obrazec.je_dezurstvo ? "Koordinator (Denis Džamastagić)" : "Koordinator", kratko: "Koordinator" },
   ];
@@ -570,9 +622,12 @@ function DetajlObrazca({ obrazec, profil, onNazaj }){
         <p>Št. {obrazec.stevilka}</p>
       </div>
       <div className="card">
-        <div className="field"><label>Vrsta</label><div>{VRSTA_LABEL[obrazec.vrsta]}</div></div>
+        <div className="field"><label>Vrsta</label><div>{vrstaLabel(obrazec.vrsta)}</div></div>
         {obrazec.vrsta === "menjava_sluzbe" && (
           <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+        )}
+        {obrazec.vrsta === "oddaja_dezurstva" && (
+          <div className="field"><label>Oddaja dežurstva</label><div>Dežurstvo dne {p.datum && fmtDatum(p.datum)} - brez povratne izmene</div></div>
         )}
         {obrazec.vrsta === "rocno_evidentiranje" && (
           <div className="field"><label>Ročno evidentiranje</label><div>{p.datum && fmtDatum(p.datum)} · prihod {p.prihod} · odhod {p.odhod}</div></div>
@@ -604,7 +659,7 @@ function MojiObrazci({ rows, onOdpri }){
       {rows.map(r => (
         <div className="entry" key={r.id} onClick={() => onOdpri(r)}>
           <div>
-            <div className="who">{r.stevilka} · {VRSTA_LABEL[r.vrsta]}</div>
+            <div className="who">{r.stevilka} · {vrstaLabel(r.vrsta)}</div>
             <div className="meta">{window.Datum.slo(r.ustvarjen)}</div>
           </div>
           <StatusPill status={r.status} />
@@ -630,11 +685,17 @@ function MenjaveMeseca({ rows }){
             <div>
               <div className="who">
                 {r.vlagatelj ? r.vlagatelj.full_name : "?"}
-                {" ↔ "}
+                {r.vrsta === "oddaja_dezurstva" ? " → " : " ↔ "}
                 {r.sodelavec ? r.sodelavec.full_name : "?"}
-                {r.je_dezurstvo && <span className="pill wait" style={{marginLeft:6}}>dežurstvo</span>}
+                {r.vrsta === "oddaja_dezurstva"
+                  ? <span className="pill wait" style={{marginLeft:6}}>oddaja dežurstva</span>
+                  : r.je_dezurstvo && <span className="pill wait" style={{marginLeft:6}}>dežurstvo</span>}
               </div>
-              <div className="meta">{p.datum_a ? fmtDatum(p.datum_a) : ""} ⇄ {p.datum_b ? fmtDatum(p.datum_b) : ""}</div>
+              <div className="meta">
+                {r.vrsta === "oddaja_dezurstva"
+                  ? (p.datum ? fmtDatum(p.datum) : "")
+                  : (p.datum_a ? fmtDatum(p.datum_a) : "") + " ⇄ " + (p.datum_b ? fmtDatum(p.datum_b) : "")}
+              </div>
             </div>
             <StatusPill status={r.status} />
           </div>
@@ -718,10 +779,13 @@ function App(){
     const zdaj = new Date();
     const prviDan = new Date(zdaj.getFullYear(), zdaj.getMonth(), 1).toISOString().slice(0, 10);
     const naslednjiPrviDan = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1).toISOString().slice(0, 10);
+    // Menjava (polja.datum_a) IN enosmerna oddaja dežurstva (polja.datum) -
+    // oboje šteje kot "menjava izmen" za namen te mesečne preglednice.
     client.from("obrazci")
       .select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
-      .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
-      .filter("polja->>datum_a", "gte", prviDan).filter("polja->>datum_a", "lt", naslednjiPrviDan)
+      .neq("status", "osnutek")
+      .or(`and(vrsta.eq.menjava_sluzbe,polja->>datum_a.gte.${prviDan},polja->>datum_a.lt.${naslednjiPrviDan}),`
+        + `and(vrsta.eq.oddaja_dezurstva,polja->>datum.gte.${prviDan},polja->>datum.lt.${naslednjiPrviDan})`)
       .order("ustvarjen", { ascending: false })
       .then(({ data, error }) => { if (error) console.error("Nalaganje menjav meseca ni uspelo:", error); setMesec(data || []); });
   }, [auth, reloadKey]);
@@ -766,7 +830,7 @@ function App(){
                   ime: "Obrazci",
                   glave: ["Številka", "Vrsta", "Ustvarjen", "Status"],
                   vrstice: moji.map(r => [
-                    r.stevilka, VRSTA_LABEL[r.vrsta] || r.vrsta,
+                    r.stevilka, vrstaLabel(r.vrsta),
                     window.Datum.slo(r.ustvarjen),
                     (STATUS_LABEL[r.status] || { text: r.status }).text,
                   ]),
@@ -788,8 +852,8 @@ function App(){
                     vrstice: mesec.map(r => [
                       r.vlagatelj ? r.vlagatelj.full_name : "?",
                       r.sodelavec ? r.sodelavec.full_name : "?",
-                      r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : "",
-                      r.polja && r.polja.datum_b ? fmtDatum(r.polja.datum_b) : "",
+                      r.polja && (r.polja.datum_a || r.polja.datum) ? fmtDatum(r.polja.datum_a || r.polja.datum) : "",
+                      r.polja && r.polja.datum_b ? fmtDatum(r.polja.datum_b) : (r.vrsta === "oddaja_dezurstva" ? "oddaja (brez povratne)" : ""),
                       r.je_dezurstvo ? "da" : "ne",
                       (STATUS_LABEL[r.status] || { text: r.status }).text,
                     ]),
