@@ -1754,16 +1754,22 @@ function App(){
       .then(({ data, error }) => {
         if (error) {
           console.error("Nalaganje seznama oseb ni uspelo:", error);
-          // Najverjetnejši vzrok: manjka stolpec profili.is_koordinator, ker
-          // še ni bila pognana zadnja različica supabase/schema.sql v
-          // Supabase SQL Editorju (dodan v PR "Menjava: enostopenjska
-          // koordinatorska odobritev ..."). Brez preverjanja napake bi to
-          // tiho izpraznilo cel seznam (data ostane undefined) - zato jasno
-          // sporočilo namesto praznega imenika.
+          // Brez preverjanja napake bi to tiho izpraznilo cel seznam (data
+          // ostane undefined) - zato jasno sporočilo namesto praznega imenika.
+          // Nasvet je vezan na vrsto napake: prej je bil tu en sam, ki je
+          // govoril o manjkajočem stolpcu is_koordinator, in je pri drugačni
+          // napaki (podvojena razmerja) usmerjal narobe.
+          const sporocilo = error.message || String(error);
+          const jePodvojenoRazmerje = /more than one relationship/i.test(sporocilo);
           setNapakaOsebe(
-            "Nalaganje seznama oseb ni uspelo (" + (error.message || String(error)) + "). "
-            + "Najverjetneje je treba v Supabase SQL Editorju znova pognati celoten supabase/schema.sql "
-            + "(dodaja stolpec profili.is_koordinator)."
+            "Nalaganje seznama oseb ni uspelo (" + sporocilo + "). "
+            + (jePodvojenoRazmerje
+              ? "V bazi obstajata dva enaka tuja ključa med profili in povezano tabelo, "
+                + "zato PostgREST ne ve, katerega naj uporabi. Nastane, kadar je bila tabela "
+                + "preimenovana (stara imena omejitev ostanejo). Odpravi se z zagonom celotnega "
+                + "supabase/schema.sql v Supabase SQL Editorju - razdelek 4b podvojitve pospravi."
+              : "Najverjetneje je treba v Supabase SQL Editorju znova pognati celoten "
+                + "supabase/schema.sql (npr. dodaja stolpec profili.is_koordinator).")
           );
           return;
         }
