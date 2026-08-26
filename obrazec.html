@@ -323,6 +323,12 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               <label htmlFor="da">Moj datum</label>
               <input id="da" type="date" value={datum} onChange={e => setDatum(e.target.value)} />
               {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {oznakaIzmene(mojaIzmena)}</div>}
+              {(mojaIzmena || "").toLowerCase().startsWith("dežurstvo") && (
+                <p className="hint" style={{marginTop:4}}>
+                  Iskanje bo pokazalo sodelavce iz kroga dežurnih (do 45 dni naprej/nazaj), izločeni pa bodo tisti,
+                  ki bi po menjavi imeli dežurstvo dan pred ali po tem datumu.
+                </p>
+              )}
             </div>
             {datum && (
               <button type="button" className="ghostBtn no-print" disabled={kandidatiBusy} onClick={poisciSodelavce}>

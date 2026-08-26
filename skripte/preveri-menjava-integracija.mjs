@@ -302,6 +302,60 @@ console.log("9) D: menjava z znanim moškim je dovoljena in gre do konca (prag D
     "in končno stanje ima prave datume/izmene: " + stanje.join(" | "));
 }
 
+console.log("10) dežurstvo: širše okno (±45 dni) NAJDE oddaljenega dežurnega, a razmik-pravilo ga izloči, če bi vlagatelj po menjavi sam pristal z dežurstvom dan pred/po");
+{
+  // DEZ3/DEZ4 oddaljeno (2026-11-05, 44 dni od DEZ1-jevega 09-22 – staro
+  // okno ±7 dni bi ju popolnoma zgrešilo) ponujata isti datum, oba brez
+  // lastnih kolizij - preprost, čist par kandidatov.
+  const DEZ3 = "60000000-0000-0000-0000-000000000003";
+  const DEZ4 = "60000000-0000-0000-0000-000000000004";
+  psql(`
+    insert into auth.users (id, email) values ('${DEZ3}','dez3@t.si'),('${DEZ4}','dez4@t.si') on conflict (id) do nothing;
+    update public.profili set full_name='Dez Tretji', department_code='DEZ' where id='${DEZ3}';
+    update public.profili set full_name='Dez Cetrti', department_code='DEZ' where id='${DEZ4}';
+    insert into public.razpored (employee_id, department_code, work_date, shift_code) values
+      ('${DEZ3}','DEZ','2026-11-05','Dežurstvo'),
+      ('${DEZ4}','DEZ','2026-11-05','Dežurstvo')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+
+  const sirokoOkno = vrstice(`select full_name from public.mozni_sodelavci('${DEZ1}','2026-09-22') where profile_id in ('${DEZ3}','${DEZ4}') order by full_name;`);
+  trdi(sirokoOkno.length === 2, "oba oddaljena dežurna (44 dni stran) sta med možnimi sodelavci - staro okno ±7 dni bi ju zgrešilo: " + JSON.stringify(sirokoOkno));
+
+  // DEZ1 dobi ŠE eno, nepovezano dežurstvo tik ob 2026-11-05 (11-04) - po
+  // menjavi bi DEZ1 pristal na 11-05, dan ob svojem lastnem 11-04
+  // dežurstvu. Noben od dosedanjih preverjanj počitka (pocitek_ustreza) tega
+  // ne zazna, ker vedno preverja SAMO kandidatovo stran, nikoli vlagateljevo
+  // - zato je bilo to pravo odkrito varnostno odprtino, ne le teoretično.
+  psql(`insert into public.razpored (employee_id, department_code, work_date, shift_code) values
+      ('${DEZ1}','DEZ','2026-11-04','Dežurstvo')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+  const zOviro = vrstice(`select full_name from public.mozni_sodelavci('${DEZ1}','2026-09-22') where profile_id in ('${DEZ3}','${DEZ4}');`);
+  trdi(zOviro.length === 0, "oba izginila, ko bi vlagatelj sam pristal z dežurstvom dan pred/po novem datumu: " + JSON.stringify(zOviro));
+
+  // past: brez razmik-pravila (samo staro pocitek_ustreza) bi oba OSTALA
+  // ponujena, kljub oviri - dokaz, da gre za resnično nov, ne podvojen pas.
+  const past = vrstice(`select p.full_name from public.razpored se join public.profili p on p.id=se.employee_id
+    where se.work_date between date '2026-09-22' - 45 and date '2026-09-22' + 45
+      and se.employee_id in ('${DEZ3}','${DEZ4}') and se.department_code='DEZ'
+      and public.pocitek_ustreza(se.employee_id, se.work_date, 'Dežurstvo')
+      and public.pocitek_ustreza('${DEZ1}', '2026-09-22', se.shift_code);`);
+  trdi(past.length === 2, "past: brez novega razmik-pravila bi staro pocitek_ustreza oba napačno spustila skozi: " + JSON.stringify(past));
+
+  console.log("11) ista ovira blokira menjavo tudi ob KONČNI potrditvi, po njeni odstranitvi pa menjava uspe s pravilnim stanjem");
+  psql(`update public.profili set vodja_id='${ADMIN}' where id in ('${DEZ1}','${DEZ3}');`);
+  const rBlokirano = izvediMenjavo({ vlagatelj: DEZ1, sodelavec: DEZ3, datumA: "2026-09-22", izmenaA: "Dežurstvo", datumB: "2026-11-05", izmenaB: "Dežurstvo", vodja: ADMIN });
+  trdi(rBlokirano.korak === "koncna_potrditev" && /dežurstvo dan pred ali po/.test(rBlokirano.napaka || ""),
+    "varnostni pas ob KONČNI potrditvi zavrne menjavo: " + JSON.stringify(rBlokirano));
+
+  psql(`delete from public.razpored where employee_id='${DEZ1}' and work_date='2026-11-04';`);
+  const rUspesno = izvediMenjavo({ vlagatelj: DEZ1, sodelavec: DEZ3, datumA: "2026-09-22", izmenaA: "Dežurstvo", datumB: "2026-11-05", izmenaB: "Dežurstvo", vodja: ADMIN });
+  trdi(rUspesno.korak === "zakljucen", "po odstranitvi ovire ista menjava uspe: " + JSON.stringify(rUspesno));
+  const stanjeKoncno = vrstice(`select employee_id||'|'||work_date||'|'||shift_code from public.razpored
+    where employee_id in ('${DEZ1}','${DEZ3}') and work_date in ('2026-09-22','2026-11-05') order by employee_id, work_date;`);
+  trdi(stanjeKoncno.join(";") === `${DEZ1}|2026-09-22|;${DEZ1}|2026-11-05|Dežurstvo;${DEZ3}|2026-09-22|Dežurstvo;${DEZ3}|2026-11-05|`,
+    "in končno stanje ima prave datume: " + stanjeKoncno.join(" | "));
+}
+
 pg(`dropdb --if-exists ${BAZA}`);
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }
