@@ -110,6 +110,7 @@ export default defineConfig({
         nastavitve: stran("nastavitve.html"),
         obrazec: stran("obrazec.html"),
         "reset-geslo": stran("reset-geslo.html"),
+        uvoz: stran("uvoz.html"),
       },
     },
   },
