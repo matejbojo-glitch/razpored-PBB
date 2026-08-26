@@ -449,6 +449,62 @@ create table if not exists public.zelje_zaposlenih (
 );
 
 
+-- Nadomescanja med nosilci enot (NZV) in nastavitve NZV pogleda. Do zdaj
+-- sta ziveli locено v supabase/nzv-nadomescanja.sql in nzv-nastavitve.sql
+-- in ju konsolidacija ni zajela - aplikacija (index.html, admin.html) ju
+-- bere, v novi bazi pa ju ni bilo. Tu sta z ZE zdruzenimi poznejsimi
+-- dopolnitvami (poleg_svoje iz nzv-nadomescanja-poleg-svoje.sql).
+create table if not exists public.nadomescanja (
+    nosilec text NOT NULL,          -- kdo je odsoten (cigav oddelek je treba pokriti)
+    nadomesca text NOT NULL,        -- kdo ga pokrije
+    enota text,                     -- katero enoto s tem pokrije (glej nosilci_oddelkov.enote)
+    prednost smallint DEFAULT 1 NOT NULL,
+    -- true = nadomescevalec obdrzi svojo enoto in pokrije se enoto odsotnega
+    -- (Bojic: MO + ZO). false = preseli se na enoto odsotnega, svojo odda
+    -- naslednjemu v verigi (Arnez: s C na C1, C prevzame Lunar).
+    poleg_svoje boolean DEFAULT false NOT NULL
+);
+
+create table if not exists public.nzv_nastavitve (
+    kljuc text NOT NULL,
+    vrednost text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Maticna stevilka za nosilce enot: nosilci_oddelkov ima za kljuc IME, kar
+-- se med tabelami razhaja (poroka, popravek zapisa, dvobesedni priimek).
+-- Prineseno iz supabase/nzv-maticne-stevilke-vodij.sql, ki je konsolidacija
+-- ni zajela - admin.html pa stolpec bere s
+-- .from("nosilci_oddelkov").select("full_name, employee_code").
+alter table public.nosilci_oddelkov add column if not exists employee_code text;
+
+alter table public.nadomescanja add column if not exists enota text;
+alter table public.nadomescanja add column if not exists prednost smallint default 1 not null;
+alter table public.nadomescanja add column if not exists poleg_svoje boolean default false not null;
+alter table public.nzv_nastavitve add column if not exists vrednost text;
+alter table public.nzv_nastavitve add column if not exists updated_at timestamp with time zone default now() not null;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.nadomescanja'::regclass and contype = 'p') then
+    execute 'ALTER TABLE ONLY public.nadomescanja
+    ADD CONSTRAINT nadomescanja_pkey PRIMARY KEY (nosilec, nadomesca)';
+  end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.nzv_nastavitve'::regclass and contype = 'p') then
+    execute 'ALTER TABLE ONLY public.nzv_nastavitve
+    ADD CONSTRAINT nzv_nastavitve_pkey PRIMARY KEY (kljuc)';
+  end if;
+exception
+  when duplicate_object or duplicate_table or invalid_table_definition then null;
+end $$;
+
+
 -- Zaporedja / identitetni stolpci (zahtevajo obstoječe tabele):
 
 do $$ begin
@@ -3025,6 +3081,22 @@ CREATE POLICY swap_select ON public.zahtevki_za_menjavo FOR SELECT TO authentica
   WHERE (profili.id = zahtevki_za_menjavo.requester_id))))));
 
 
+ALTER TABLE public.nadomescanja ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nzv_nastavitve ENABLE ROW LEVEL SECURITY;
+
+drop policy if exists nadomescanja_select on public.nadomescanja;
+CREATE POLICY nadomescanja_select ON public.nadomescanja FOR SELECT TO authenticated USING (true);
+
+drop policy if exists nadomescanja_write on public.nadomescanja;
+CREATE POLICY nadomescanja_write ON public.nadomescanja TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+drop policy if exists nzv_nastavitve_select on public.nzv_nastavitve;
+CREATE POLICY nzv_nastavitve_select ON public.nzv_nastavitve FOR SELECT TO authenticated USING (true);
+
+drop policy if exists nzv_nastavitve_write on public.nzv_nastavitve;
+CREATE POLICY nzv_nastavitve_write ON public.nzv_nastavitve TO authenticated USING (public.current_role_is('admin'::text)) WITH CHECK (public.current_role_is('admin'::text));
+
+
 -- =====================================================================
 -- 9. ZAČETNI PODATKI (Seed)
 -- ---------------------------------------------------------------------
@@ -3232,6 +3304,72 @@ on conflict (profile_id) do update set
 
 
 -- ---------------------------------------------------------------------
+-- =====================================================================
+-- 9b) NZV: nadomescanja med nosilci enot + nastavitve NZV pogleda
+-- ---------------------------------------------------------------------
+-- Vsebina prenesena iz supabase/nzv-nadomescanja.sql, nzv-nadomescanja-
+-- poleg-svoje.sql in nzv-nastavitve.sql. Konsolidacija teh treh datotek
+-- ni zajela, zato je v novi bazi tabel ni bilo - index.html in admin.html
+-- pa ju bereta (NZV pogled, urejanje nadomescanj).
+--
+-- poleg_svoje: true = nadomescevalec obdrzi svojo enoto in pokrije se
+-- enoto odsotnega (Bojic: MO + ZO); false = preseli se na enoto odsotnega,
+-- svojo pa odda naslednjemu v verigi (Arnez: s C na C1, C prevzame Lunar).
+-- =====================================================================
+
+insert into public.nadomescanja (nosilec, nadomesca, enota, prednost, poleg_svoje) values
+  ('ALUKIĆ DINO', 'BOJIĆ MATEJ', 'ŽO', 1, true),
+  ('ALUKIĆ DINO', 'DŽAMASTAGIĆ DENIS', 'ŽO', 2, true),
+  ('ARNEŽ GREGA', 'LUNAR MATEJA', 'C', 1, false),
+  ('BIZJAK TEA', 'TRPIN SAŠA', 'UA/SA/B2', 1, false),
+  ('BIZJAK TEA', 'MUŠIČ INES', 'UA/SA/B2', 2, false),
+  ('BOJIĆ MATEJ', 'ALUKIĆ DINO', 'MO', 1, true),
+  ('BOJIĆ MATEJ', 'DŽAMASTAGIĆ DENIS', 'MO', 2, true),
+  ('DŽAMASTAGIĆ DENIS', 'ALUKIĆ DINO', 'PDZN', 1, true),
+  ('DŽAMASTAGIĆ DENIS', 'BOJIĆ MATEJ', 'PDZN', 2, true),
+  ('HROVAT NINA', 'TORKAR TANJA', 'DB', 1, false),
+  ('HUMAR SAŠA', 'BIZJAK TEA', 'SA', 1, false),
+  ('HUMAR SAŠA', 'TRPIN SAŠA', 'SA', 2, false),
+  ('LELIČ DIJANA', 'MAGLIĆ ALEKSANDER', 'E2', 1, false),
+  ('LUNAR MATEJA', 'ARNEŽ GREGA', 'B', 1, false),
+  ('MAGLIĆ ALEKSANDER', 'LELIČ DIJANA', 'E1', 1, false),
+  ('MAVRI TRATNIK MAGDALENA', 'ŠUBIC PETRA', 'B1', 1, false),
+  ('MUŠIČ INES', 'BIZJAK TEA', 'UA/SA', 1, false),
+  ('MUŠIČ INES', 'TRPIN SAŠA', 'UA/SA', 2, false),
+  ('PERVIZ AMAL', 'MAGLIĆ ALEKSANDER', 'D', 1, false),
+  ('SALKIĆ MARUŠA', 'ARNEŽ GREGA', 'C1', 1, false),
+  ('TOMAŽEVIČ SIMONA', 'VELUŠČEK METKA', 'A', 1, true),
+  ('TORKAR TANJA', 'HROVAT NINA', 'DB', 1, false),
+  ('TRPIN SAŠA', 'BIZJAK TEA', 'UA/SA', 1, false),
+  ('TRPIN SAŠA', 'MUŠIČ INES', 'UA/SA', 2, false),
+  ('VELUŠČEK METKA', 'DŽAMASTAGIĆ DENIS', 'SOBO', 1, true),
+  ('VELUŠČEK METKA', 'ALUKIĆ DINO', 'SOBO', 2, true),
+  ('VELUŠČEK METKA', 'BOJIĆ MATEJ', 'SOBO', 3, true),
+  ('ŠUBIC PETRA', 'MAVRI TRATNIK MAGDALENA', 'B1', 1, false)
+on conflict (nosilec, nadomesca) do update set
+  enota = excluded.enota,
+  prednost = excluded.prednost,
+  poleg_svoje = excluded.poleg_svoje;
+
+insert into public.nzv_nastavitve (kljuc, vrednost) values
+  ('sa_liho_teden', 'dop'),
+  ('sa_poletni_meseci', '7,8')
+on conflict (kljuc) do nothing;
+
+-- Maticne stevilke nosilcev enot se prepisejo iz kadrovskih podatkov in NE
+-- povozijo ze vpisanih. Ujemanje imena je namenoma ohlapno (velike/male
+-- crke in stresice se izenacijo), ker se tabeli prav v tem razhajata;
+-- unaccent ni povsod namescen, zato translate namesto njega.
+update public.nosilci_oddelkov l
+   set employee_code = h.employee_code
+  from public.profili p
+  join public.kadrovski_podatki h on h.profile_id = p.id
+ where l.employee_code is null
+   and h.employee_code is not null
+   and translate(upper(l.full_name), 'ČŠŽĆĐ', 'CSZCD')
+       = translate(upper(p.full_name), 'ČŠŽĆĐ', 'CSZCD');
+
+
 -- 17) FLEXI oddelek + minimalna_zasedba + kadrovski_podatki.employee_code
 --     Del kontrolnega seznama za jutri – tri stvari, ki so bile v Google
 --     Sheets predlogah (Hospital/NZV/Dežurstva, 6.8.2026) uporabljene kot
