@@ -240,10 +240,10 @@ create table if not exists public.obrazci (
     zakljucen_dne timestamp with time zone,
     razlog_zavrnitve text,
     je_dezurstvo boolean DEFAULT false NOT NULL,
-    CONSTRAINT obrazci_sodelavec_le_pri_menjavi CHECK (((vrsta = 'menjava_sluzbe'::text) OR (sodelavec_id IS NULL))),
+    CONSTRAINT obrazci_sodelavec_le_pri_menjavi CHECK (((vrsta = ANY (ARRAY['menjava_sluzbe'::text, 'oddaja_dezurstva'::text])) OR (sodelavec_id IS NULL))),
     CONSTRAINT obrazci_sodelavec_ni_vlagatelj CHECK (((sodelavec_id IS NULL) OR (sodelavec_id <> vlagatelj_id))),
     CONSTRAINT obrazci_status_check CHECK ((status = ANY (ARRAY['osnutek'::text, 'caka_sodelavca'::text, 'caka_vodjo'::text, 'caka_koordinatorja'::text, 'zakljucen'::text, 'zavrnjen'::text, 'preklican'::text]))),
-    CONSTRAINT obrazci_vrsta_check CHECK ((vrsta = ANY (ARRAY['rocno_evidentiranje'::text, 'menjava_sluzbe'::text, 'drugo'::text])))
+    CONSTRAINT obrazci_vrsta_check CHECK ((vrsta = ANY (ARRAY['rocno_evidentiranje'::text, 'menjava_sluzbe'::text, 'drugo'::text, 'oddaja_dezurstva'::text])))
 );
 
 create table if not exists public.minimalna_zasedba (
@@ -849,6 +849,23 @@ alter table public.obrazci add column if not exists ustvarjen timestamp with tim
 alter table public.obrazci add column if not exists zakljucen_dne timestamp with time zone;
 alter table public.obrazci add column if not exists razlog_zavrnitve text;
 alter table public.obrazci add column if not exists je_dezurstvo boolean default false;
+
+-- Nova vrsta 'oddaja_dezurstva' (enosmerna oddaja, brez povratne izmene) -
+-- 'create table if not exists' na obstoječi tabeli teh dveh omejitev ne
+-- razširi, zato izrecno za obstoječe baze.
+do $$ begin
+  if to_regclass('public.obrazci') is not null then
+    alter table public.obrazci drop constraint if exists obrazci_vrsta_check;
+    alter table public.obrazci
+      add constraint obrazci_vrsta_check
+      check (vrsta = any (array['rocno_evidentiranje'::text, 'menjava_sluzbe'::text, 'drugo'::text, 'oddaja_dezurstva'::text]));
+    alter table public.obrazci drop constraint if exists obrazci_sodelavec_le_pri_menjavi;
+    alter table public.obrazci
+      add constraint obrazci_sodelavec_le_pri_menjavi
+      check ((vrsta = any (array['menjava_sluzbe'::text, 'oddaja_dezurstva'::text])) or (sodelavec_id is null));
+  end if;
+end $$;
+
 alter table public.obrazci_dnevnik add column if not exists id bigint;
 alter table public.obrazci_dnevnik add column if not exists obrazec_id uuid;
 alter table public.obrazci_dnevnik add column if not exists stopnja smallint;
@@ -2202,6 +2219,28 @@ create or replace function public.dezurstvo_razmik_ustreza(p_profile_id uuid, p_
   );
 $$;
 
+-- Širši krog za ENOSMERNO oddajo dežurstva (uporabnikova izrecna odločitev,
+-- "izjema" poleg navadne menjave znotraj kroga dežurnih): kdorkoli iz
+-- oddelka NZV lahko dežurstvo PREVZAME, ne da bi vlagatelju vrnil svojo
+-- izmeno - uporabno, kadar je nekdo že čez mesečno kvoto dežurstev, drug pa
+-- pod njo (glej PravicnostPregled v admin.html). Za razliko od
+-- mozni_sodelavci tu ni "njihovega datuma" - gre za dodelitev EFEKTIVNO
+-- PROSTE osebe na TA datum, zato se preverja samo njena stran (počitek,
+-- odsotnost, razmik do sosednjih dežurstev), ne obojestranska menjava.
+create or replace function public.mozni_prejemniki_dezurstva(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text)
+    LANGUAGE sql STABLE
+    AS $$
+  select p.id, p.full_name
+  from public.profili p
+  where p.department_code = 'NZV'
+    and p.id <> p_profile_id
+    and p_datum >= current_date
+    and not exists (select 1 from public.blokirani_dnevi(p_datum, p_datum) b where b.profile_id = p.id)
+    and public.pocitek_ustreza(p.id, p_datum, 'DEŽURSTVO')
+    and public.dezurstvo_razmik_ustreza(p.id, p_datum, p_datum)
+  order by p.full_name;
+$$;
+
 create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text, njihova_izmena text, njihov_datum date, moj_zacetek time without time zone, njihov_zacetek time without time zone, jaz_pridem_prej boolean)
     LANGUAGE plpgsql STABLE
     AS $$
@@ -2319,14 +2358,20 @@ begin
     v_je_dez := (lower(coalesce(v_izmena_a, '')) like 'dežurstvo%') or (lower(coalesce(v_izmena_b, '')) like 'dežurstvo%');
 
     v_status := 'caka_sodelavca';
+  elsif o.vrsta = 'oddaja_dezurstva' then
+    -- Enosmerna oddaja - vedno dežurstvo (skip vodja, glej spodaj), vedno
+    -- naravnost k sodelavcu v potrditev.
+    if o.sodelavec_id is null then raise exception 'Pri oddaji dežurstva je treba izbrati osebo, ki dežurstvo prevzame'; end if;
+    v_je_dez := true;
+    v_status := 'caka_sodelavca';
   else
     v_status := 'caka_vodjo';
   end if;
 
   -- Neposrednega vodjo potrebujemo samo, če bo obrazec dejansko šel skozi
-  -- njegovo stopnjo – menjava dežurstva jo preskoči (glej
+  -- njegovo stopnjo – menjava/oddaja dežurstva jo preskoči (glej
   -- obrazec_potrdi_sodelavec spodaj), zato zanjo vodja ni pogoj za oddajo.
-  if not (o.vrsta = 'menjava_sluzbe' and v_je_dez) then
+  if not ((o.vrsta = 'menjava_sluzbe' or o.vrsta = 'oddaja_dezurstva') and v_je_dez) then
     select vodja_id into v_vodja from public.profili where id = auth.uid();
     if v_vodja is null then raise exception 'Nimaš določenega neposrednega vodje – admin ga mora najprej nastaviti v Imeniku.'; end if;
   end if;
@@ -2433,6 +2478,36 @@ begin
       update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
         where employee_id = o.sodelavec_id and work_date = v_dan_b;
     end if;
+  elsif o.vrsta = 'oddaja_dezurstva' then
+    v_dan_a := (o.polja ->> 'datum')::date;
+
+    select shift_code, department_code into v_izmena_a, v_dept_a
+      from public.razpored where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+
+    -- Varnostni pas ob KONČNI potrditvi, na TRENUTNEM stanju baze - enak
+    -- namen kot pri navadni menjavi zgoraj.
+    if v_dept_a is distinct from 'DEZ' or lower(coalesce(v_izmena_a, '')) not like 'dežurstvo%' then
+      raise exception 'Oddaja dežurstva ni mogoča: na % nimaš (več) dežurstva.', v_dan_a;
+    end if;
+    if exists (select 1 from public.blokirani_dnevi(v_dan_a, v_dan_a) b where b.profile_id = o.sodelavec_id) then
+      raise exception 'Oddaja dežurstva ni mogoča: sodelavec je na % odsoten.', v_dan_a;
+    end if;
+    if not public.pocitek_ustreza(o.sodelavec_id, v_dan_a, 'DEŽURSTVO') then
+      raise exception 'Oddaja dežurstva ni mogoča: sodelavec na % ne bi imel dovolj počitka.', v_dan_a;
+    end if;
+    if not public.dezurstvo_razmik_ustreza(o.sodelavec_id, v_dan_a, v_dan_a) then
+      raise exception 'Oddaja dežurstva ni mogoča: sodelavec bi imel dežurstvo dan pred ali po %.', v_dan_a;
+    end if;
+
+    -- Enosmerno: sodelavec PREVZAME dežurstvo, vlagatelj ne dobi ničesar
+    -- nazaj - to je namenoma izjema od "prave menjave" zgoraj.
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
+    values (o.sodelavec_id, 'DEZ', v_dan_a, 'DEŽURSTVO', now())
+    on conflict (employee_id, work_date) do update set
+      department_code = excluded.department_code, shift_code = excluded.shift_code, updated_at = now();
+
+    update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
+      where employee_id = o.vlagatelj_id and work_date = v_dan_a;
   end if;
 
   update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
@@ -3039,6 +3114,7 @@ GRANT ALL ON FUNCTION public.handle_new_user() TO supabase_auth_admin;
 REVOKE ALL ON FUNCTION public.koledar_razpored(p_token text, p_od date, p_do date) FROM PUBLIC;
 
 GRANT ALL ON FUNCTION public.mozni_sodelavci(p_profile_id uuid, p_datum date) TO authenticated;
+GRANT ALL ON FUNCTION public.mozni_prejemniki_dezurstva(p_profile_id uuid, p_datum date) TO authenticated;
 
 GRANT ALL ON FUNCTION public.obrazec_oddaj(p_id uuid) TO authenticated;
 

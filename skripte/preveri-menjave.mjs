@@ -52,7 +52,7 @@ console.log("1) veriga odobritev je v shemi zapisana tako, kot pravi vmesnik");
   const telo = oddaj.slice(0, oddaj.indexOf("$$;"));
   trdi(/v_je_dez\s*:=\s*\(lower\(coalesce\(v_izmena_a/.test(telo),
     "ob oddaji se ugotovi, ali gre za menjavo dežurstva");
-  trdi(/if not \(o\.vrsta = 'menjava_sluzbe' and v_je_dez\) then[\s\S]*?vodja_id into v_vodja/.test(telo),
+  trdi(/if not \(\(o\.vrsta = 'menjava_sluzbe' or o\.vrsta = 'oddaja_dezurstva'\) and v_je_dez\) then[\s\S]*?vodja_id into v_vodja/.test(telo),
     "neposredni vodja se zahteva SAMO takrat, ko bo obrazec skozi njegovo stopnjo res šel");
 
   const pogled = shema.slice(shema.indexOf("view public.obrazci_moja_naloga"));
