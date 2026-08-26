@@ -407,32 +407,46 @@ console.log("12) dežurstvo: pretekel datum se ne ponudi, FLEXI izjema (menjaj s
   trdi(past.length === 2, "past: brez novih pogojev (current_date/strog DEZ-DEZ) bi oba napačno šla skozi: " + JSON.stringify(past));
 }
 
-console.log("13) enosmerna oddaja dežurstva komurkoli iz NZV (izjema poleg navadne menjave), brez povratne izmene");
+console.log("13) enosmerna oddaja dežurstva komurkoli iz KROGA DEŽURNIH (izjema poleg navadne menjave), brez povratne izmene");
 {
   const [danes] = vrstice(`select current_date::text;`);
   const zaN = n => vrstice(`select (date '${danes}' + ${n})::text;`)[0];
-  const NZV_A = "90000000-0000-0000-0000-000000000001"; // oddaja
-  const NZV_B = "90000000-0000-0000-0000-000000000002"; // prevzame - prost, čist
-  const NZV_C = "90000000-0000-0000-0000-000000000003"; // na dopustu - mora biti izločena
-  const NZV_D = "90000000-0000-0000-0000-000000000004"; // ima sosednje dežurstvo - mora biti izločen
+  const NZV_A = "90000000-0000-0000-0000-000000000001"; // oddaja - domači oddelek NZV, dežuren prek pokriva_oddelek
+  const NZV_B = "90000000-0000-0000-0000-000000000002"; // prevzame - prost, čist, dežuren prek pokriva_oddelek
+  const NZV_C = "90000000-0000-0000-0000-000000000003"; // na dopustu, dežurna - mora biti izločena (odsotnost)
+  const NZV_D = "90000000-0000-0000-0000-000000000004"; // ima sosednje dežurstvo - mora biti izločen (razmik)
+  const NZV_E = "90000000-0000-0000-0000-000000000005"; // NZV admin/vodja, a NI del kroga dežurnih - mora biti izločen
   const datum = zaN(15);
   psql(`
     insert into auth.users (id, email) values
-      ('${NZV_A}','nzva@t.si'),('${NZV_B}','nzvb@t.si'),('${NZV_C}','nzvc@t.si'),('${NZV_D}','nzvd@t.si')
+      ('${NZV_A}','nzva@t.si'),('${NZV_B}','nzvb@t.si'),('${NZV_C}','nzvc@t.si'),('${NZV_D}','nzvd@t.si'),('${NZV_E}','nzve@t.si')
       on conflict (id) do nothing;
     update public.profili set full_name='NZV Oddajalec', department_code='NZV' where id='${NZV_A}';
     update public.profili set full_name='NZV Prejemnik', department_code='NZV', vodja_id='${ADMIN}' where id='${NZV_B}';
     update public.profili set full_name='NZV Odsotna', department_code='NZV' where id='${NZV_C}';
     update public.profili set full_name='NZV Dezuren', department_code='NZV' where id='${NZV_D}';
+    update public.profili set full_name='NZV Administratorka', department_code='NZV' where id='${NZV_E}';
+    insert into public.pokriva_oddelek (profile_id, department_code) values
+      ('${NZV_A}','DEZ'), ('${NZV_B}','DEZ'), ('${NZV_C}','DEZ'), ('${NZV_D}','DEZ');
     insert into public.razpored (employee_id, department_code, work_date, shift_code) values
       ('${NZV_A}','DEZ','${datum}','Dežurstvo'),
       ('${NZV_D}','DEZ','${zaN(14)}','Dežurstvo')
     on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;
     insert into public.odsotnosti (full_name, work_date, kind) values ('NZV Odsotna','${datum}','ld');`);
 
-  const kandidati = vrstice(`select full_name from public.mozni_prejemniki_dezurstva('${NZV_A}','${datum}') where profile_id in ('${NZV_B}','${NZV_C}','${NZV_D}','${FLEXI1}') order by full_name;`);
+  const kandidati = vrstice(`select full_name from public.mozni_prejemniki_dezurstva('${NZV_A}','${datum}') where profile_id in ('${NZV_B}','${NZV_C}','${NZV_D}','${NZV_E}','${FLEXI1}') order by full_name;`);
   trdi(JSON.stringify(kandidati) === JSON.stringify(["NZV Prejemnik"]),
-    "samo prosta NZV oseba je ponujena za prevzem - odsotna, sosednje-dežurna in FLEXI so izločene: " + JSON.stringify(kandidati));
+    "samo prosta oseba IZ KROGA DEŽURNIH je ponujena - odsotna, sosednje-dežurna, navaden NZV administrator (ni v krogu) in FLEXI so izločeni: " + JSON.stringify(kandidati));
+
+  const past = vrstice(`select full_name from public.profili p
+    where p.department_code = 'NZV' and p.id <> '${NZV_A}'
+      and p.id in ('${NZV_B}','${NZV_C}','${NZV_D}','${NZV_E}')
+      and not exists (select 1 from public.blokirani_dnevi('${datum}','${datum}') b where b.profile_id = p.id)
+      and public.pocitek_ustreza(p.id, '${datum}', 'DEŽURSTVO')
+      and public.dezurstvo_razmik_ustreza(p.id, '${datum}', '${datum}')
+    order by full_name;`);
+  trdi(past.length === 2 && past.includes("NZV Administratorka"),
+    "past: brez pravila 'del kroga dežurnih' bi se navaden NZV administrator napačno ponudil: " + JSON.stringify(past));
 
   const r = izvediOddajo({ vlagatelj: NZV_A, sodelavec: NZV_B, datum });
   trdi(r.korak === "zakljucen", "oddaja gre do konca (sprejem sodelavca + koordinator, brez vodje): " + JSON.stringify(r));
@@ -451,6 +465,14 @@ console.log("13) enosmerna oddaja dežurstva komurkoli iz NZV (izjema poleg nava
   const rBlokirano = izvediOddajo({ vlagatelj: NZV_A, sodelavec: NZV_C, datum });
   trdi(rBlokirano.korak === "koncna_potrditev" && /odsoten/.test(rBlokirano.napaka || ""),
     "varnostni pas ob KONČNI potrditvi zavrne oddajo osebi na dopustu, tudi mimo iskanja: " + JSON.stringify(rBlokirano));
+
+  // past: neposredna oddaja osebi izven kroga dežurnih (mimo iskanja) mora
+  // biti zavrnjena tudi ob KONČNI potrditvi, ne le v iskanju.
+  psql(`insert into public.razpored (employee_id, department_code, work_date, shift_code) values ('${NZV_A}','DEZ','${zaN(16)}','Dežurstvo')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+  const rZunajKroga = izvediOddajo({ vlagatelj: NZV_A, sodelavec: NZV_E, datum: zaN(16) });
+  trdi(rZunajKroga.korak === "koncna_potrditev" && /ni del kroga dežurnih/.test(rZunajKroga.napaka || ""),
+    "varnostni pas ob KONČNI potrditvi zavrne oddajo osebi izven kroga dežurnih, tudi mimo iskanja: " + JSON.stringify(rZunajKroga));
 }
 
 pg(`dropdb --if-exists ${BAZA}`);

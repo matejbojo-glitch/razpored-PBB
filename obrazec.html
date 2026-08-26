@@ -188,10 +188,10 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   const [kandidati, setKandidati] = useState(null);
   const [kandidatiBusy, setKandidatiBusy] = useState(false);
   const [izbranSodelavec, setIzbranSodelavec] = useState(null); // { profile_id, full_name, njihova_izmena, njihov_datum }
-  // Izjema poleg navadne menjave: enosmerna ODDAJA dežurstva komurkoli iz
-  // NZV (ne samo krogu dežurnih) - uporabno, kadar je nekdo že čez mesečno
-  // kvoto dežurstev, drug pa pod njo. Brez povratne izmene - glej
-  // oddaja_dezurstva v shemi.
+  // Izjema poleg navadne menjave: enosmerna ODDAJA dežurstva komurkoli
+  // DRUGEMU iz kroga dežurnih (department_code='DEZ' ali pokriva_oddelek) -
+  // uporabno, kadar je nekdo že čez mesečno kvoto dežurstev, drug pa pod
+  // njo. Brez povratne izmene - glej oddaja_dezurstva v shemi.
   const [prejemniki, setPrejemniki] = useState(null);
   const [izbranPrejemnik, setIzbranPrejemnik] = useState(null); // { profile_id, full_name }
   const [busy, setBusy] = useState(false);
@@ -394,8 +394,8 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               <div style={{marginTop:16}}>
                 <p className="hint" style={{marginBottom:6}}>
                   Izjema: nihče od zgornjih ti ne ustreza? Dežurstvo lahko namesto menjave <b>oddaš</b> tudi
-                  komukoli drugemu iz NZV, ki ta dan lahko dežura - brez da bi ti kaj vrnil/-a nazaj (uporabno,
-                  če ima nekdo že preveč, drug pa premalo dežurstev v tem mesecu).
+                  komukoli drugemu iz kroga dežurnih, ki ta dan lahko dežura - brez da bi ti kaj vrnil/-a nazaj
+                  (uporabno, če ima nekdo že preveč, drug pa premalo dežurstev v tem mesecu).
                 </p>
                 {prejemniki.map(p => (
                   <div className="candidate" key={p.profile_id}>
