@@ -494,7 +494,16 @@
 // stran, ki se je "spet pojavila". Popravek je trojen: mrtvi vnosi so
 // odstranjeni, namestitev ni več atomarna (vsaka datoteka posebej, manjkajoča
 // ne podre namestitve), zgrajena imena iz dist/assets/ pa vstavi gradnja.
-const CACHE = 'razpored-pbb-v118';
+// v119: KLJUČEN POPRAVEK - manjkajoč dvig različice od v118 naprej. Vseh
+// nekaj zadnjih krogov popravkov pri Menjavi (obvestila ob predlogu menjave/
+// dežurstva, rdeč znak na "Menjava", širše iskanje in nova enosmerna oddaja
+// dežurstva) je spreminjalo supabase-client.js in obrazec.html - slednji se
+// sicer servira network-first (HTML), a supabase-client.js (in vsi ostali
+// skupni .js) so cache-first. Uporabnik z že nameščenim service workerjem
+// je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
+// Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
+// kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
+const CACHE = 'razpored-pbb-v119';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

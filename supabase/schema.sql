@@ -2220,19 +2220,27 @@ create or replace function public.dezurstvo_razmik_ustreza(p_profile_id uuid, p_
 $$;
 
 -- Širši krog za ENOSMERNO oddajo dežurstva (uporabnikova izrecna odločitev,
--- "izjema" poleg navadne menjave znotraj kroga dežurnih): kdorkoli iz
--- oddelka NZV lahko dežurstvo PREVZAME, ne da bi vlagatelju vrnil svojo
--- izmeno - uporabno, kadar je nekdo že čez mesečno kvoto dežurstev, drug pa
--- pod njo (glej PravicnostPregled v admin.html). Za razliko od
--- mozni_sodelavci tu ni "njihovega datuma" - gre za dodelitev EFEKTIVNO
--- PROSTE osebe na TA datum, zato se preverja samo njena stran (počitek,
--- odsotnost, razmik do sosednjih dežurstev), ne obojestranska menjava.
+-- "izjema" poleg navadne menjave znotraj kroga dežurnih): kdorkoli je
+-- DEJANSKO del kroga dežurnih lahko dežurstvo PREVZAME, ne da bi vlagatelju
+-- vrnil svojo izmeno - uporabno, kadar je nekdo že čez mesečno kvoto
+-- dežurstev, drug pa pod njo (glej PravicnostPregled v admin.html).
+-- Članstvo v krogu = domači oddelek 'DEZ' ALI dodatno pokrivanje 'DEZ'
+-- (public.pokriva_oddelek) - ISTO pravilo kot uporablja admin.html
+-- (nalozizDezurniKader) za "kdo je dežurni kader". Prej je bil pogoj
+-- department_code='NZV', kar je preveč splošno - zajelo je tudi NZV
+-- administratorje/vodje, ki dežurstev sploh niso usposobljeni opravljati.
+-- Za razliko od mozni_sodelavci tu ni "njihovega datuma" - gre za dodelitev
+-- EFEKTIVNO PROSTE osebe na TA datum, zato se preverja samo njena stran
+-- (počitek, odsotnost, razmik do sosednjih dežurstev), ne obojestranska menjava.
 create or replace function public.mozni_prejemniki_dezurstva(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text)
     LANGUAGE sql STABLE
     AS $$
   select p.id, p.full_name
   from public.profili p
-  where p.department_code = 'NZV'
+  where (
+      p.department_code = 'DEZ'
+      or exists (select 1 from public.pokriva_oddelek po where po.profile_id = p.id and po.department_code = 'DEZ')
+    )
     and p.id <> p_profile_id
     and p_datum >= current_date
     and not exists (select 1 from public.blokirani_dnevi(p_datum, p_datum) b where b.profile_id = p.id)
@@ -2488,6 +2496,17 @@ begin
     -- namen kot pri navadni menjavi zgoraj.
     if v_dept_a is distinct from 'DEZ' or lower(coalesce(v_izmena_a, '')) not like 'dežurstvo%' then
       raise exception 'Oddaja dežurstva ni mogoča: na % nimaš (več) dežurstva.', v_dan_a;
+    end if;
+    -- Dežurstvo prevzame lahko samo nekdo, ki je DEJANSKO del kroga
+    -- dežurnih (usposobljen zanj) - enako pravilo kot mozni_prejemniki_dezurstva.
+    if not exists (
+      select 1 from public.profili p
+      where p.id = o.sodelavec_id
+        and (p.department_code = 'DEZ' or exists (
+          select 1 from public.pokriva_oddelek po where po.profile_id = p.id and po.department_code = 'DEZ'
+        ))
+    ) then
+      raise exception 'Oddaja dežurstva ni mogoča: sodelavec ni del kroga dežurnih.';
     end if;
     if exists (select 1 from public.blokirani_dnevi(v_dan_a, v_dan_a) b where b.profile_id = o.sodelavec_id) then
       raise exception 'Oddaja dežurstva ni mogoča: sodelavec je na % odsoten.', v_dan_a;
