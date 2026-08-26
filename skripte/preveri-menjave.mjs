@@ -85,16 +85,21 @@ await new Promise(r => streznik.listen(VRATA, r));
 const brskalnik = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 
 // Dva zahtevka, ki čakata odločitev: eden dežurstvo, eden navadna menjava.
+// NAMENOMA brez že izračunanega "moje_dejanje": stran ga odslej izračuna
+// sama iz PRIKAZANE osebe (glej mojeDejanje v obrazec.html). Prej ga je
+// dobila iz pogleda obrazci_moja_naloga, ta pa vpraša bazo "kdo sem" - kar
+// je med "Ogledom kot uporabnik" napačna oseba. Ker je ta preizkus tedaj
+// vrednost samo podtaknil, te napake ni mogel nikoli ujeti (glej 8 spodaj).
 const ZAHTEVKI = [
   { id: "z1", stevilka: "2026-001", vrsta: "menjava_sluzbe", status: "caka_koordinatorja",
-    je_dezurstvo: true, polja: { datum_a: "2026-09-10", opomba: "dežurstvo" },
-    moje_dejanje: "potrdi_kot_koordinator" },
+    je_dezurstvo: true, vlagatelj_id: "u", sodelavec_id: "s", vodja_id: "k",
+    polja: { datum_a: "2026-09-10", opomba: "dežurstvo" } },
   { id: "z2", stevilka: "2026-002", vrsta: "menjava_sluzbe", status: "caka_vodjo",
-    je_dezurstvo: false, polja: { datum_a: "2026-09-12", opomba: "navadna" },
-    moje_dejanje: "odobri_kot_vodja" },
+    je_dezurstvo: false, vlagatelj_id: "u", sodelavec_id: "s", vodja_id: "k",
+    polja: { datum_a: "2026-09-12", opomba: "navadna" } },
 ];
 
-async function odpri(profil, zahtevki, obvestila) {
+async function odpri(profil, zahtevki, obvestila, ogled) {
   obvestila = obvestila || [];
   const stran = await brskalnik.newPage({ viewport: { width: 1200, height: 900 } });
   const konzola = [];
@@ -102,8 +107,11 @@ async function odpri(profil, zahtevki, obvestila) {
   stran.on("pageerror", e => konzola.push(String(e)));
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
   await stran.exposeFunction("zabeleziKlic", (ime, arg) => klici.push({ ime, arg }));
-  await stran.addInitScript(({ profil, zahtevki, obvestila }) => {
-    const tabele = { obrazci_moja_naloga: zahtevki, obrazci: [], obrazci_dnevnik: [], razpored: [], profili: [], obvestila };
+  await stran.addInitScript(({ profil, zahtevki, obvestila, ogled }) => {
+    // Zahtevki so v "obrazci" (prava tabela). Pogled obrazci_moja_naloga je
+    // NAMENOMA prazen: če bi stran še brala iz njega, bi bil seznam prazen -
+    // natanko tako, kot je bilo videti pri uporabniku med ogledom.
+    const tabele = { obrazci: zahtevki, obrazci_moja_naloga: [], obrazci_dnevnik: [], razpored: [], profili: [], obvestila };
     const poizvedba = (v, ime) => {
       const b = new Proxy({}, { get(_, n) {
         if (n === "then") return (nx) => Promise.resolve({ data: v, error: null }).then(nx);
@@ -120,7 +128,7 @@ async function odpri(profil, zahtevki, obvestila) {
       set(v) {
         pravi = v;
         if (v && typeof v === "object") {
-          const seja = { session: { user: { id: profil.id } }, profile: profil, ogled: false };
+          const seja = { session: { user: { id: profil.id } }, profile: profil, ogled: !!ogled };
           v.client = {
             from: (t) => poizvedba(tabele[t] || [], t),
             rpc: (ime, arg) => { window.zabeleziKlic(ime, arg); return Promise.resolve({ data: null, error: null }); },
@@ -135,7 +143,7 @@ async function odpri(profil, zahtevki, obvestila) {
         }
       },
     });
-  }, { profil, zahtevki, obvestila });
+  }, { profil, zahtevki, obvestila, ogled: !!ogled });
   await stran.goto(`http://127.0.0.1:${VRATA}/obrazec.html`, { waitUntil: "load" });
   await stran.waitForTimeout(900);
   // Privzeti zavihek je "Nov obrazec"; seznam za odločanje je za zavihkom
@@ -183,7 +191,7 @@ try {
 
   console.log("4) navadna menjava gre skozi stopnjo vodje, ne koordinatorja");
   {
-    const { stran, klici, naCaka } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [ZAHTEVKI[1]]);
+    const { stran, klici, naCaka } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [{ ...ZAHTEVKI[1], vodja_id: "v" }]);
     await naCaka();
     const gumbi = await stran.$$("button.actBtn.yes");
     trdi(gumbi.length === 1, "zahtevek čaka vodjo");
@@ -196,7 +204,7 @@ try {
 
   console.log("5) zavrnitev brez razloga ni mogoča");
   {
-    const { stran, klici, naCaka } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [ZAHTEVKI[1]]);
+    const { stran, klici, naCaka } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [{ ...ZAHTEVKI[1], vodja_id: "v" }]);
     await naCaka();
     await stran.click("button.actBtn.no");
     await stran.waitForTimeout(300);
@@ -232,6 +240,53 @@ try {
     const prave = konzola.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));
     trdi(prave.length === 0, "brez napak" + (prave.length ? ": " + prave.join(" | ") : ""));
     await stran.close();
+  }
+
+  console.log("8) predlog, ki čaka SODELAVCA, se pri njem res vidi - tudi med \"Ogledom kot uporabnik\"");
+  {
+    // Prijavljena napaka: vlagatelj je oddal predloge, pri sodelavcu pa "ni
+    // bilo vidno nič". Vzrok NI bil v bazi (tam je predlog pravilno čakal),
+    // ampak v tem, da je "Čaka name" bral pogled obrazci_moja_naloga, ki
+    // nalogo določi prek auth.uid() - med ogledom pa je to še vedno
+    // ADMINISTRATOR, ne oseba, ki jo zaslon kaže. Zato je admin, ki je šel
+    // preverit "ali je prišlo", videl prazen seznam.
+    const cakaSodelavca = { id: "z3", stevilka: "2026-003", vrsta: "menjava_sluzbe",
+      status: "caka_sodelavca", je_dezurstvo: false,
+      vlagatelj_id: "matej", sodelavec_id: "s", vodja_id: "k",
+      polja: { datum_a: "2026-09-10", opomba: "prosim za menjavo" } };
+
+    // a) sodelavec se prijavi sam
+    {
+      const { stran, naCaka } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, [cakaSodelavca]);
+      const oznaka = await stran.$eval('[role="tab"]:nth-of-type(2)', e => e.textContent);
+      trdi(/\(1\)/.test(oznaka), "sodelavec vidi predlog v števcu zavihka: " + oznaka);
+      await naCaka();
+      trdi((await stran.$$("button.actBtn.yes")).length === 1, "in ga lahko odobri");
+      await stran.close();
+    }
+
+    // b) ISTI predlog med ogledom te osebe - prej PRAZNO, to je bila napaka
+    {
+      const { stran, naCaka } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, [cakaSodelavca], [], true);
+      const oznaka = await stran.$eval('[role="tab"]:nth-of-type(2)', e => e.textContent);
+      trdi(/\(1\)/.test(oznaka), "med ogledom je viden ISTI predlog te osebe, ne administratorjev: " + oznaka);
+      await naCaka();
+      const besedilo = await stran.evaluate(() => document.body.innerText);
+      trdi(/2026-003/.test(besedilo), "predlog je res naštet");
+      const gumb = await stran.$("button.actBtn.yes");
+      trdi(gumb !== null && await gumb.isDisabled(),
+        "odobritev pa je med ogledom onemogočena - odločiti mora oseba sama (baza tujega imena ne dovoli)");
+      await stran.close();
+    }
+
+    // c) obrazec, ki NE čaka te osebe, se pri njej ne sme pojaviti
+    {
+      const tujObrazec = { ...cakaSodelavca, id: "z4", stevilka: "2026-004", sodelavec_id: "nekdo-drug" };
+      const { stran } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, [tujObrazec]);
+      const oznaka = await stran.$eval('[role="tab"]:nth-of-type(2)', e => e.textContent);
+      trdi(!/\(\d/.test(oznaka), "tuj predlog se ne prišteje: " + oznaka);
+      await stran.close();
+    }
   }
 } finally {
   await brskalnik.close();

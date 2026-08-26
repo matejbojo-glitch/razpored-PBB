@@ -125,7 +125,7 @@
 
   // Preusmeri na login.html, če uporabnik ni prijavljen. Vrne { session, profile }.
   async function requireAuth() {
-    var { session, profile } = await getSessionAndProfile();
+    var { session, profile, ogled: ogledAktiven, pravaOseba } = await getSessionAndProfile();
     if (!session) {
       var next = encodeURIComponent(location.pathname.split("/").pop() || "index.html");
       location.replace("login.html?next=" + next);
@@ -141,7 +141,12 @@
       location.replace("reset-geslo.html");
       return null;
     }
-    return { session: session, profile: profile };
+    // "ogled" in "pravaOseba" gresta naprej do strani: ogled je SAMO lokalna
+    // preslikava (prava seja ostane administratorjeva), zato mora stran, ki
+    // se odloča po auth.uid() v bazi, vedeti, da gleda tujo osebo - drugače
+    // ji baza vrne ADMINOVE vrstice, čeprav zaslon kaže tujo osebo
+    // (glej "Čaka name" v obrazec.html).
+    return { session: session, profile: profile, ogled: !!ogledAktiven, pravaOseba: pravaOseba || null };
   }
 
   // Kot requireAuth, a dodatno zahteva eno od dovoljenih vlog; sicer prikaže napako.

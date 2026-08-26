@@ -171,6 +171,25 @@ function opisVerige(profile){
   return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator – pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
 }
 
+// Katero dejanje na tem obrazcu čaka TO osebo. Natančna kopija pravil iz
+// pogleda obrazci_moja_naloga (supabase/schema.sql) - z eno razliko: pogled
+// vpraša bazo "kdo sem" (auth.uid()), tu pa vprašamo, KOGA zaslon trenutno
+// prikazuje. Med "Ogledom kot uporabnik" sta to dve različni osebi in samo
+// druga je pravilna (glej klic v App).
+//
+// To je izključno PRIKAZ. Dejansko odobritev vedno preveri baza sama
+// (obrazec_potrdi_* zavrne klic, če klicatelj ni ta oseba), zato ogled tudi
+// po tej spremembi ne more odobriti ničesar v tujem imenu.
+function mojeDejanje(r, myId, profil){
+  if (r.status === "caka_sodelavca" && r.sodelavec_id === myId) return "potrdi_kot_sodelavec";
+  if (r.status === "caka_vodjo" && r.vodja_id === myId) return "odobri_kot_vodja";
+  if (r.status === "caka_koordinatorja") {
+    if (r.je_dezurstvo && profil && profil.is_koordinator) return "potrdi_kot_koordinator";
+    if (!r.je_dezurstvo && profil && profil.role === "admin") return "potrdi_kot_koordinator";
+  }
+  return null;
+}
+
 function StatusPill({ status }){
   const s = STATUS_LABEL[status] || { text: status, cls: "wait" };
   return <span className={"pill " + s.cls}>{s.text}</span>;
@@ -475,7 +494,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   );
 }
 
-function CakaName({ rows, onOdloceno }){
+function CakaName({ rows, onOdloceno, ogled }){
   const [busyId, setBusyId] = useState(null);
   const [opombaId, setOpombaId] = useState(null);
   const [opombaBesedilo, setOpombaBesedilo] = useState("");
@@ -503,6 +522,12 @@ function CakaName({ rows, onOdloceno }){
 
   return (
     <div className="card">
+      {ogled && (
+        <p className="hint" style={{marginTop:0}}>
+          Gledaš kot druga oseba, zato je spodaj njen seznam - odločiti pa mora ona sama (baza
+          odobritve v tujem imenu ne dovoli), zato sta gumba tu izklopljena.
+        </p>
+      )}
       {rows.map(r => (
         <div key={r.id}>
           <div className="entry" style={{cursor:"default"}}>
@@ -512,8 +537,8 @@ function CakaName({ rows, onOdloceno }){
               {r.polja && r.polja.opomba && <div className="meta">{r.polja.opomba}</div>}
             </div>
             <div className="actions">
-              <button className="actBtn yes" disabled={busyId === r.id} onClick={() => odloci(r, true)}>Odobri</button>
-              <button className="actBtn no" disabled={busyId === r.id} onClick={() => odloci(r, false)}>Zavrni</button>
+              <button className="actBtn yes" disabled={ogled || busyId === r.id} onClick={() => odloci(r, true)}>Odobri</button>
+              <button className="actBtn no" disabled={ogled || busyId === r.id} onClick={() => odloci(r, false)}>Zavrni</button>
             </div>
           </div>
           {opombaId === r.id && (
@@ -771,8 +796,19 @@ function App(){
   useEffect(() => {
     if (!auth) return;
     const myId = auth.session.user.id;
-    client.from("obrazci_moja_naloga").select("*").not("moje_dejanje", "is", null).order("ustvarjen")
-      .then(({ data }) => setCaka(data || []));
+    // "Čaka name" se NE bere več iz pogleda obrazci_moja_naloga: ta izračuna
+    // nalogo v bazi prek auth.uid(), kar je narobe med "Ogledom kot
+    // uporabnik" - ogled je SAMO lokalna preslikava, prava seja (in s tem
+    // auth.uid()) ostane administratorjeva. Posledica je bila, da je admin,
+    // ki je preveril "ali je predlog res prišel do sodelavca", videl PRAZEN
+    // seznam - svoje naloge, ne sodelavčevih - čeprav je predlog pravilno
+    // čakal. Zato nalogo določimo iz osebe, ki je DEJANSKO prikazana (myId +
+    // njen profil); pravila so enaka kot v pogledu (glej obrazci_moja_naloga
+    // v schema.sql). Vrstice pripelje RLS, ki je nespremenjen.
+    client.from("obrazci").select("*").neq("status", "osnutek").order("ustvarjen")
+      .then(({ data }) => setCaka((data || [])
+        .map(r => ({ ...r, moje_dejanje: mojeDejanje(r, myId, auth.profile) }))
+        .filter(r => r.moje_dejanje)));
     client.from("obrazci").select("*").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
       .then(({ data }) => setMoji(data || []));
 
@@ -819,7 +855,7 @@ function App(){
               <NovObrazec myId={myId} profil={profile} onOddano={() => { reload(); setZavihek("moji"); }} prednapolni={prednapolni} />
             </div>
           )}
-          {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} />}
+          {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} ogled={!!auth.ogled} />}
           {zavihek === "moji" && (
             <React.Fragment>
               <MojiObrazci rows={moji} onOdpri={setOdprt} />
