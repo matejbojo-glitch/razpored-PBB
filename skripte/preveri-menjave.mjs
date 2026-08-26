@@ -71,12 +71,21 @@ console.log("1) veriga odobritev je v shemi zapisana tako, kot pravi vmesnik");
 }
 
 // ---------------------------------------------------------- 2) strežnik
+// Vsaka datoteka se prebere (in JSX prevede) SAMO PRVIČ. Preizkus odpre
+// stran ~15-krat, vendor-app.min.js pa meri 1,6 MB in obrazec.html je treba
+// vsakič znova prevesti - brez tega je skripta tekla čez 3 minute in padla
+// na časovni omejitvi nabora, čeprav so bile vse trditve pravilne.
+const predpomnilnik = new Map();
 const streznik = http.createServer((zahteva, odgovor) => {
   const pot = decodeURIComponent(zahteva.url.split("?")[0]);
   const dat = join(koren, pot === "/" ? "obrazec.html" : pot);
   if (!existsSync(dat) || !statSync(dat).isFile()) { odgovor.writeHead(404); odgovor.end("ni"); return; }
-  let vsebina = readFileSync(dat);
-  if (extname(dat) === ".html") vsebina = Buffer.from(prevediJsxVHtmlu(vsebina.toString("utf8")), "utf8");
+  let vsebina = predpomnilnik.get(dat);
+  if (!vsebina) {
+    vsebina = readFileSync(dat);
+    if (extname(dat) === ".html") vsebina = Buffer.from(prevediJsxVHtmlu(vsebina.toString("utf8")), "utf8");
+    predpomnilnik.set(dat, vsebina);
+  }
   odgovor.writeHead(200, { "Content-Type": TIP[extname(dat)] || "application/octet-stream" });
   odgovor.end(vsebina);
 });
@@ -102,6 +111,14 @@ const ZAHTEVKI = [
 async function odpri(profil, zahtevki, obvestila, ogled) {
   obvestila = obvestila || [];
   const stran = await brskalnik.newPage({ viewport: { width: 1200, height: 900 } });
+  // Zunanja pisava (Google Fonts) v tem okolju ni dosegljiva, waitUntil:"load"
+  // pa je na VSAKEM zagonu strani čakal njen omrežni potek: 12,7 s namesto
+  // 0,4 s. Pri ~15 zagonih je skripta zato tekla 3,5 minute in padla na
+  // časovni omejitvi, čeprav so bile vse trditve pravilne. Strani pisava ne
+  // blokira (media="print" + onload, glej opombo v obrazec.html), zato jo
+  // tukaj preprosto zavrnemo.
+  await stran.route("**://fonts.googleapis.com/**", r => r.abort());
+  await stran.route("**://fonts.gstatic.com/**", r => r.abort());
   const konzola = [];
   const klici = [];
   stran.on("pageerror", e => konzola.push(String(e)));
@@ -140,6 +157,10 @@ async function odpri(profil, zahtevki, obvestila, ogled) {
           };
           v.requireAuth = () => Promise.resolve(seja);
           v.requireRole = () => Promise.resolve(seja);
+          // Značko na gumbu "Menjava" (nav.js) postavi ta pot, ne requireAuth
+          // - brez tega bi značka dobila prazen profil in vloga (koordinator/
+          // admin) se v preizkusu ne bi upoštevala.
+          v.getSessionAndProfile = () => Promise.resolve(seja);
         }
       },
     });
@@ -286,6 +307,46 @@ try {
       const oznaka = await stran.$eval('[role="tab"]:nth-of-type(2)', e => e.textContent);
       trdi(!/\(\d/.test(oznaka), "tuj predlog se ne prišteje: " + oznaka);
       await stran.close();
+    }
+  }
+
+  console.log("9) značka na gumbu \"Menjava\" pove ŠTEVILO čakajočih - vidno brez odpiranja strani");
+  {
+    const zaSodelavca = (n) => Array.from({ length: n }, (_, i) => ({
+      id: "n" + i, stevilka: "2026-10" + i, vrsta: "menjava_sluzbe",
+      status: "caka_sodelavca", je_dezurstvo: false,
+      vlagatelj_id: "matej", sodelavec_id: "s", vodja_id: "k",
+      polja: { datum_a: "2026-09-10" },
+    }));
+    const znacka = (stran) => stran.evaluate(() => {
+      const a = Array.from(document.querySelectorAll(".rpNav a"))
+        .find(x => /Menjava/.test(x.textContent));
+      const b = a && a.querySelector(".badge");
+      return b ? b.textContent : null;
+    });
+
+    // Vsak zagon strani stane nekaj sekund, zato oba primera pokrijemo z
+    // najmanj možnimi zagoni (nabor ima na skripto 180 s).
+    {
+      // Dva zase + trije, ki čakajo nekoga drugega: značka mora prešteti
+      // SAMO svoje ("2", ne "5").
+      const tuji = zaSodelavca(3).map((r, i) => ({ ...r, id: "t" + i, sodelavec_id: "nekdo-drug" }));
+      const { stran } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, [...zaSodelavca(2), ...tuji]);
+      const n = await znacka(stran);
+      trdi(n === "2", "šteje samo svoje čakajoče (dva), tujih treh ne: " + n);
+      await stran.close();
+    }
+    {
+      // Ista napaka kot pri seznamu: med ogledom mora značka šteti PRIKAZANO
+      // osebo, ne administratorja, ki je v resnici prijavljen. Hkrati
+      // preverimo, da brez čakajočih značke sploh ni.
+      const { stran } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, zaSodelavca(1), [], true);
+      trdi(await znacka(stran) === "1", "med ogledom značka šteje prikazano osebo");
+      await stran.close();
+
+      const { stran: prazna } = await odpri({ id: "s", role: "user", full_name: "Sodelavec Sara" }, []);
+      trdi(await znacka(prazna) === null, "brez čakajočih značke ni");
+      await prazna.close();
     }
   }
 } finally {
