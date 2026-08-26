@@ -1,7 +1,7 @@
 import { defineConfig, transformWithEsbuild } from "vite";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const koren = dirname(fileURLToPath(import.meta.url));
 const stran = (ime) => resolve(koren, ime);
@@ -42,6 +42,30 @@ function jsxVBlokihHtml() {
 // bila zgrajena stran videti v redu (HTML gradi), a bi v pravem brskalniku
 // manjkale skripte/PWA datoteke. Ta plugin jih ob gradnji dobesedno
 // prekopira poleg zgrajenih *.html datotek.
+// sw.js predpomni imena datotek na roko, Vite pa skupni slog zgradi z
+// zgoščeno vrednostjo v imenu (assets/theme-<hash>.css) - to se ob vsaki
+// spremembi sloga spremeni in ga ni mogoče vpisati vnaprej. Zato ga tu
+// vstavimo v prekopirano dist/sw.js na mesto oznake. Brez tega je slog edina
+// datoteka, ki ob izpadu signala manjka, service worker pa je pred v118
+// zaradi nje (404 v atomarnem addAll) sploh odpovedal namestitev.
+function vstaviZgrajeneVServiceWorker(izhodniImenik) {
+  const swPot = resolve(koren, izhodniImenik, "sw.js");
+  if (!existsSync(swPot)) return;
+  const imenikSredstev = resolve(koren, izhodniImenik, "assets");
+  const sredstva = existsSync(imenikSredstev)
+    ? readdirSync(imenikSredstev)
+        .filter((f) => f.endsWith(".css"))
+        .map((f) => `  './assets/${f}',`)
+    : [];
+  const vsebina = readFileSync(swPot, "utf8");
+  const oznaka = "  /*VSTAVI_ZGRAJENE_DATOTEKE*/";
+  if (!vsebina.includes(oznaka)) {
+    // Glasno, ne tiho: brez oznake bi popravek iz v118 neopazno izpadel.
+    throw new Error("sw.js nima oznake /*VSTAVI_ZGRAJENE_DATOTEKE*/");
+  }
+  writeFileSync(swPot, vsebina.replace(oznaka, sredstva.join("\n")), "utf8");
+}
+
 function prekopirajStaticnoOb() {
   const datoteke = [
     "vendor-app.min.js",
@@ -67,6 +91,7 @@ function prekopirajStaticnoOb() {
         if (!existsSync(izvor)) continue;
         copyFileSync(izvor, resolve(koren, izhodniImenik, ime));
       }
+      vstaviZgrajeneVServiceWorker(izhodniImenik);
     },
   };
 }
