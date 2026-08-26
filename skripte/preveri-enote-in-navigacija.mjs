@@ -7,7 +7,8 @@
  *     "ZO/MO", kot je pisalo prej (vrstni red stolpcev uradne predloge).
  *  2) Imenik: samo Seznam in Parafe; "Stanje dopusta" je preneseno v
  *     Statistiko, skupaj s celotno funkcijo.
- *  3) navigacija: Razpored, Imenik, Menjava, Želje, Generator, Statistika.
+ *  3) navigacija: Razpored, Imenik, Menjava, Želje, Generator, Statistika, Uvoz
+ *     (Uvoz je zadnji in samo za administratorja - vse uvoze zbira na enem mestu).
  *
  * Zagon: CHROMIUM_PATH=... node skripte/preveri-enote-in-navigacija.mjs
  */
@@ -101,8 +102,8 @@ console.log("3) navigacija v naročenem vrstnem redu");
 {
   const nav = readFileSync(join(koren, "nav.js"), "utf8");
   const vrstniRed = [...nav.matchAll(/lbl:\s*"([^"]+)"/g)].map(m => m[1]);
-  eq(vrstniRed, ["Razpored", "Imenik", "Menjava", "Želje", "Generator", "Statistika"],
-    "Razpored, Imenik, Menjava, Želje, Generator, Statistika");
+  eq(vrstniRed, ["Razpored", "Imenik", "Menjava", "Želje", "Generator", "Statistika", "Uvoz"],
+    "Razpored, Imenik, Menjava, Želje, Generator, Statistika, Uvoz");
 }
 
 console.log("4) Stanje dopusta je PRENESENO iz Imenika v Statistiko");
@@ -237,7 +238,7 @@ try {
 
   console.log("8) navigacija na strani");
   eq(await st.$$eval(".rnav a, nav a", e => e.map(x => x.textContent.replace(/[^\p{L}\s]/gu, "").trim())),
-    ["Razpored", "Imenik", "Menjava", "Želje", "Generator", "Statistika"],
+    ["Razpored", "Imenik", "Menjava", "Želje", "Generator", "Statistika", "Uvoz"],
     "vrstni red na dejanski strani");
 
   const prave = [...konzola, ...konzolaIm, ...konzolaSt]

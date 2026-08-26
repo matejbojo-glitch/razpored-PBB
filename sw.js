@@ -494,6 +494,16 @@
 // stran, ki se je "spet pojavila". Popravek je trojen: mrtvi vnosi so
 // odstranjeni, namestitev ni več atomarna (vsaka datoteka posebej, manjkajoča
 // ne podre namestitve), zgrajena imena iz dist/assets/ pa vstavi gradnja.
+// v122: VSI uvozi na enem mestu - nova stran uvoz.html (nova točka "Uvoz" v
+// navigaciji, samo administrator). Doslej je imela vsaka stran svojo ikono 📥
+// in uvoz je bilo treba iskati po straneh - kdo je vedel, da se kvote dopusta
+// uvozijo pod "Oddelki", stanje dopusta pa pod "Dopust"? Ikone 📥 so
+// odstranjene s posameznih strani (uporabnikova odločitev: samo eno mesto).
+// Logika uvoza se NE podvaja: uvoz.html samo napoti na stran, ki ga že zna
+// izvesti, prek "<stran>.html?uvoz=<kljuc>"; vir se tam sam odpre (nova
+// podpora za "kljuc" v export-buttons.js). Spremenjeni nav.js,
+// export-buttons.js in vse štiri strani z uvozom - cache-first, zato dvig.
+
 // v121: delovnopravna opozorila (počitek, 56 ur v 7 dneh) se shranijo z
 // obrazcem in jih ob odločanju vidita TUDI vodja in administrator - doslej
 // sta se izračunala le v brskalniku predlagatelja in nikamor shranila, zato
@@ -516,7 +526,7 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v121';
+const CACHE = 'razpored-pbb-v122';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
@@ -533,6 +543,7 @@ const ASSETS = [
   './zelje.html',
   './imenik.html',
   './nastavitve.html',
+  './uvoz.html',
   './manifest.json',
   './generator-core.js',
   './dashboard-core.js',

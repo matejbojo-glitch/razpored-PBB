@@ -1379,7 +1379,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti – neobvezno">
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite »Predlagaj teden«, da za izbrano osebo označite naslednji prosti teden spodaj – potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
-        <RazporedUvozVir ikona="🏖" naziv="Kvote letnega dopusta"
+        <RazporedUvozVir kljuc="kvote-dopusta" ikona="🏖" naziv="Kvote letnega dopusta"
           opis="CSV / Excel – mat. št. in dnevi"
           onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()} />
         <input ref={kvoteFileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
@@ -1913,7 +1913,7 @@ function DezurstvaTab({ zacetniMesec }){
       <ManjkajociDezurni roster={roster} />
       <PravicnostPregled roster={roster} />
       <div className="card no-print" style={{marginBottom:12}}>
-        <RazporedUvozVir ikona="📄" naziv="Omejitve za dežurstva"
+        <RazporedUvozVir kljuc="omejitve-dezurstva" ikona="📄" naziv="Omejitve za dežurstva"
           opis="CSV / Excel / PDF – ime, dopust, omejitve"
           onClick={() => uvozRef.current && uvozRef.current.click()} />
         <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
@@ -2718,7 +2718,7 @@ function UporabnikiTab(){
         trenutnem (primarnem) oddelku – premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
       </p>
       <div className="card" style={{marginBottom:14}}>
-        <RazporedUvozVir ikona="📄" naziv="Omejitve za NZV"
+        <RazporedUvozVir kljuc="omejitve-nzv" ikona="📄" naziv="Omejitve za NZV"
           opis="CSV / Excel – ime, dopust, omejitve"
           onClick={() => uvozRef.current && uvozRef.current.click()} />
         <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
@@ -2966,7 +2966,7 @@ function DopustTab(){
         v Imeniku pri posamezni osebi (najnovejši mesec).
       </p>
       <div className="card no-print">
-        <RazporedUvozVir ikona="🏖" naziv="Stanje dopusta (Kadris)"
+        <RazporedUvozVir kljuc="stanje-dopusta" ikona="🏖" naziv="Stanje dopusta (Kadris)"
           opis="CSV / Excel – mat. št., leto, mesec, dnevi"
           onClick={() => fileRef.current && fileRef.current.click()} />
         <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
@@ -3483,7 +3483,7 @@ function App({ ogled, profil }){
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
-      <RazporedLogout pred={<React.Fragment><RazporedUvozIkona/><RazporedOrodja/></React.Fragment>}/>
+      <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Generator razporeda</span><span className="tag">za koordinatorje</span></div>
         <p className="sub">Psihiatrična bolnišnica Begunje · zdravstvena nega</p>

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Uvoz · Begunje</title>
+<meta name="theme-color" content="#FAF8F1" />
+<link rel="icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="theme.css" />
+<!-- Pisava Fraunces neblokirno: media="print" pomeni, da datoteka ne
+     zadržuje izrisa; ko se naloži, jo onload preklopi na "all". Če se
+     ne naloži (požarni zid, ni signala), stran deluje naprej z
+     rezervno pisavo. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+      media="print" onload="this.media='all'" />
+
+<style>
+  /* Barve, radiji in sence so v theme.css (naložen zgoraj) - tu jih NE
+     podvajamo. */
+  *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; background: radial-gradient(1200px 600px at 50% -10%, var(--bg-grad), var(--bg) 60%);
+    color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    min-height:100dvh; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap{ padding-bottom: 60px; }
+  header.top{ position:sticky; top:0; z-index:20; background: var(--bg);
+    padding: calc(env(safe-area-inset-top) + 18px) 0 10px; }
+  header.top::after{ content:""; position:absolute; left:0; right:0; top:100%; height:14px;
+    background: linear-gradient(180deg, var(--bg), transparent); pointer-events:none; }
+
+  /* Ena vrstica = en uvoz. Cela vrstica je povezava, da je na telefonu
+     dovolj velika tarča za prst. */
+  a.uvozVrstica{
+    display:flex; gap:12px; align-items:flex-start; text-decoration:none; color:inherit;
+    padding:14px 4px; border-bottom:1px solid var(--line);
+  }
+  a.uvozVrstica:last-child{ border-bottom:0; }
+  a.uvozVrstica:hover{ background:var(--surface-2); border-radius:var(--radius-sm); }
+  .uvozIkona{ font-size:22px; line-height:1.2; flex:0 0 auto; width:28px; text-align:center; }
+  .uvozNaziv{ font-weight:800; font-size:14px; }
+  .uvozOpis{ font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.5; }
+  .uvozKam{ font-size:11.5px; color:var(--accent-2); margin-top:4px; font-weight:700; }
+  .uvozPuscica{ margin-left:auto; color:var(--muted); flex:0 0 auto; align-self:center; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="vendor-app.min.js"></script>
+<script src="supabase-client.js"></script>
+<script src="nav.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// Vsi uvozi v aplikaciji na enem mestu. Vsak vnos samo NAPOTI na stran, ki
+// uvoz že zna izvesti - logika se NE podvaja (isti razlog kot pri napotilu
+// "Oddelki -> index.html?uvoz=1", glej opombo v admin.html). Naslov nosi
+// "?uvoz=<kljuc>", vir na ciljni strani pa se ob tem sam odpre (glej
+// RazporedUvozVir v export-buttons.js).
+//
+// Ko dodaš nov uvoz: viru dodaj "kljuc" in ga vpiši sem - drugače ga na tem
+// seznamu ne bo in nihče ga ne bo našel.
+const SKUPINE = [
+  {
+    naslov: "Razpored",
+    vnosi: [
+      { ikona: "🗓️", naziv: "Mesečni razpored izmen",
+        opis: "Cela preglednica »2026 SMS RAZPORED« (Excel z več zavihki) ali povezava do Google Sheets. Aplikacija sama prepozna, kateri zavihek je kateri oddelek in mesec – tudi FLEXI in NZV.",
+        kam: "Razpored", href: "index.html?uvoz=razpored" },
+      { ikona: "🩺", naziv: "Dežurstvo zdravnikov (PDF)",
+        opis: "Uradni mesečni dokument »Razporeditev zaposlenih v UA in DEŽ«. Ime dežurnega zdravnika se nato izpiše ob dežurstvu v Mojem razporedu.",
+        kam: "Razpored → Uvoz", href: "index.html?uvoz=razpored" },
+      { ikona: "📄", naziv: "Omejitve za dežurstva",
+        opis: "Kdo tisti mesec ne more dežurati (dopust, omejitve). CSV, Excel ali PDF: ime, dopust, omejitve.",
+        kam: "Generator → NZV → Dežurstva", href: "admin.html?tab=nzv&pod=dez&uvoz=omejitve-dezurstva" },
+      { ikona: "📄", naziv: "Omejitve za NZV",
+        opis: "Enako za vodstveni kader (NZV). CSV ali Excel: ime, dopust, omejitve.",
+        kam: "Generator → Uporabniki", href: "admin.html?tab=uporabniki&uvoz=omejitve-nzv" },
+    ],
+  },
+  {
+    naslov: "Želje in odsotnosti",
+    vnosi: [
+      { ikona: "📗", naziv: "Želje iz Google Sheets",
+        opis: "Povezava do preglednice, deljene kot »vsak, ki ima povezavo, lahko ogleda«.",
+        kam: "Želje", href: "zelje.html?uvoz=zelje-sheets" },
+      { ikona: "📄", naziv: "Želje iz datoteke",
+        opis: "CSV ali Excel z željami in omejitvami po osebah.",
+        kam: "Želje", href: "zelje.html?uvoz=zelje-datoteka" },
+      { ikona: "📷", naziv: "Želje s fotografije",
+        opis: "Slika barvne razpredelnice. Bere se BARVA celice, ne besedilo – mrežo določiš z dotikom štirih vogalov.",
+        kam: "Želje", href: "zelje.html?uvoz=zelje-foto" },
+      { ikona: "📅", naziv: "Barvni koledar (Kadris)",
+        opis: "Izvoz koledarja odsotnosti iz Kadrisa.",
+        kam: "Želje", href: "zelje.html?uvoz=zelje-koledar" },
+    ],
+  },
+  {
+    naslov: "Zaposleni in dopust",
+    vnosi: [
+      { ikona: "📇", naziv: "Imenik zaposlenih",
+        opis: "Seznam zaposlenih s kadrovskimi podatki (matična številka, oddelek, vodja, rojstni datum …). CSV ali Excel.",
+        kam: "Imenik", href: "imenik.html?uvoz=imenik" },
+      { ikona: "🏖", naziv: "Kvote letnega dopusta",
+        opis: "Koliko dni dopusta ima kdo za to leto. CSV ali Excel: matična številka in dnevi.",
+        kam: "Generator → Oddelki", href: "admin.html?tab=kalup&uvoz=kvote-dopusta" },
+      { ikona: "🏖", naziv: "Stanje dopusta (Kadris)",
+        opis: "Koliko dni je še ostalo, po mesecih. CSV ali Excel: matična številka, leto, mesec, dnevi.",
+        kam: "Generator → Dopust", href: "admin.html?tab=dopust&uvoz=stanje-dopusta" },
+    ],
+  },
+];
+
+function Skupina({ skupina }){
+  return (
+    <React.Fragment>
+      <h2 className="section">{skupina.naslov}</h2>
+      <div className="card">
+        {skupina.vnosi.map((v, i) => (
+          <a className="uvozVrstica" key={i} href={v.href}>
+            <span className="uvozIkona" aria-hidden="true">{v.ikona}</span>
+            <span>
+              <span className="uvozNaziv">{v.naziv}</span>
+              <div className="uvozOpis">{v.opis}</div>
+              <div className="uvozKam">Odpre: {v.kam}</div>
+            </span>
+            <span className="uvozPuscica" aria-hidden="true">›</span>
+          </a>
+        ))}
+      </div>
+    </React.Fragment>
+  );
+}
+
+function App(){
+  const [auth, setAuth] = useState(null);
+
+  useEffect(() => {
+    // Uvoz spreminja podatke za vso bolnišnico, zato samo administrator -
+    // requireRole sam izpiše razlago, če pravic ni.
+    RazporedAuth.requireRole(["admin"]).then(res => { if (res) setAuth(res); });
+  }, []);
+
+  if (!auth) return null;
+  const { profile } = auth;
+  const role = profile ? profile.role : "user";
+
+  return (
+    <div className="wrap">
+      <RazporedOgledTrak aktivno={auth.ogled} profil={profile}/>
+      <RazporedLogout/>
+      <header className="top">
+        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Uvoz</span></div>
+        <p className="sub">Vsi uvozi podatkov na enem mestu · Psihiatrična bolnišnica Begunje</p>
+      </header>
+
+      <p className="hint">
+        Izberi, kaj uvažaš. Odprla se bo stran, ki ta uvoz opravi, z že pripravljenim
+        oknom – uvoz sam poteka tam, kjer se podatki tudi prikažejo, da lahko takoj
+        preveriš, ali je vse prišlo prav.
+      </p>
+
+      {SKUPINE.map((s, i) => <Skupina key={i} skupina={s} />)}
+
+      <footer className="foot">
+        <p><b>Razpored PBB.</b> Psihiatrična bolnišnica Begunje – aplikacija za razpored, dežurstva in menjave izmen.</p>
+      </footer>
+
+      <RazporedNav active="uvoz" role={role} unread={0} />
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

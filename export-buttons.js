@@ -84,6 +84,35 @@
             objavi();
           };
         }, []);
+
+        // Vir z "kljuc" se lahko sproži tudi prek naslova: uvoz.html na enem
+        // mestu našteje VSE uvoze v aplikaciji in vsak od njih odpre s
+        // povezavo "<stran>.html?uvoz=<kljuc>". Sprožilec je namenoma TU (v
+        // viru samem), ne v ikoni 📥: ikone na straneh ni več, uvozi pa
+        // morajo ostati dosegljivi. Logika uvoza se s tem NE podvaja -
+        // pokliče se natanko isti onClick kot ob kliku v meniju.
+        var sprozen = useRef(false);
+        useEffect(function () {
+          if (sprozen.current || !props.kljuc || typeof window === "undefined") return;
+          var zelen;
+          try { zelen = new URLSearchParams(window.location.search).get("uvoz"); }
+          catch (e) { return; }
+          if (zelen !== props.kljuc) return;
+          sprozen.current = true;
+          // Naslov se počisti, da se uvoz ob osvežitvi strani ne odpre znova.
+          try {
+            var u = new URL(window.location.href);
+            u.searchParams.delete("uvoz");
+            window.history.replaceState({}, "", u.pathname + u.search + u.hash);
+          } catch (e) { /* ni usodno */ }
+          // Počakamo en cikel, da se stran (in skrito polje za datoteko)
+          // dokončno izriše - klik na še neizrisano polje ne stori ničesar.
+          setTimeout(function () {
+            var f = ref.current && ref.current.onClick;
+            if (typeof f === "function") f();
+          }, 0);
+        }, []);
+
         return null;
       },
       // Hook za komponento, ki prijavljene vnose prikaže.
