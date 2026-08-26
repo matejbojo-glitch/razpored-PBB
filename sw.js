@@ -483,11 +483,26 @@
 // zdaj prinese, dežurni kader prav tako, Kalup pa ga poišče nazaj po
 // imenu (generator ID-ja ne prenaša skozi).
 
-const CACHE = 'razpored-pbb-v117';
+// v118: KLJUČEN POPRAVEK objavljene strani. Po prehodu na Vite sedmih
+// datotek s spodnjega seznama v dist/ ni več (theme.css se zgradi z zgoščeno
+// vrednostjo v imenu, react/react-dom/babel/supabase-js/xlsx/exceljs pa so
+// združeni v vendor-app.min.js). cache.addAll() je atomaren: ena sama 404
+// zavrne CELOTNO namestitev, zato se nov service worker sploh ni namestil.
+// Pri obiskovalcih s starim (pred-Vite) service workerjem je zato ostal
+// aktiven stari, ki je nespremenljive datoteke servira cache-first - torej
+// staro nav.js/theme.css/supabase-client.js ob novem HTML. Od tod prazna
+// stran, ki se je "spet pojavila". Popravek je trojen: mrtvi vnosi so
+// odstranjeni, namestitev ni več atomarna (vsaka datoteka posebej, manjkajoča
+// ne podre namestitve), zgrajena imena iz dist/assets/ pa vstavi gradnja.
+const CACHE = 'razpored-pbb-v118';
 const ASSETS = [
+  // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
+  // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
+  // zato jih ni mogoče zapisati na roko - vstavi jih prekopirajStaticnoOb()
+  // v vite.config.mjs. Brez tega bi skupni slog manjkal, ko ni signala.
+  /*VSTAVI_ZGRAJENE_DATOTEKE*/
   './',
   './index.html',
-  './theme.css',
   './login.html',
   './reset-geslo.html',
   './obrazec.html',
@@ -505,14 +520,9 @@ const ASSETS = [
   './logo-pbb.png',
   // Vite prehod: strani ne nalagajo več posamičnih react*.min.js/babel.min.js/
   // supabase-js.min.js/xlsx.core.min.js/exceljs.min.js, ampak en zgrajen
-  // vendor-app.min.js (glej build-vendor.mjs). Stare vnose spodaj puščamo, ker
-  // datoteke v korenu še obstajajo in jih nekatere preizkusne skripte
-  // (skripte/preveri-*.mjs) berejo neposredno.
+  // vendor-app.min.js (glej build-vendor.mjs). Teh datotek v dist/ ni, zato
+  // NE smejo biti na tem seznamu.
   './vendor-app.min.js',
-  './react.production.min.js',
-  './react-dom.production.min.js',
-  './babel.min.js',
-  './supabase-js.min.js',
   './supabase-client.js',
   './nav.js',
   './datum.js',
@@ -523,7 +533,6 @@ const ASSETS = [
   './izmene.js',
   './push-client.js',
   './delovni-cas.js',
-  './xlsx.core.min.js',
   './import-utils.js',
   './export-utils.js',
   './gsheets-client.js',
@@ -534,16 +543,23 @@ const ASSETS = [
   // print-fit.js (tiskanje/PDF na vseh straneh) in exceljs.min.js (izvoz
   // v Excel v Željah). Odkrila ju je skripte/preveri-sw-osvezitev.mjs.
   './print-fit.js',
-  './exceljs.min.js'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
-      // {cache:"reload"} je nujen: brez njega addAll vzame datoteko iz
+      // Vsaka datoteka posebej, NAMENOMA ne addAll: ta je atomaren in ena
+      // sama 404 zavrne celotno namestitev, kar pusti aktiven stari service
+      // worker (in z njim stare, nezdružljive datoteke iz predpomnilnika).
+      // Manjkajoča datoteka pomeni le, da tiste ene ni brez signala.
+      // {cache:"reload"} je nujen: brez njega add() vzame datoteko iz
       // HTTP predpomnilnika brskalnika in v nov predpomnilnik shrani staro
       // vsebino - dvig različice takrat ne pomeni nič.
-      cache.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))
+      Promise.all(ASSETS.map((u) =>
+        cache.add(new Request(u, { cache: 'reload' })).catch((e) => {
+          console.warn('[sw] predpomnjenje ni uspelo:', u, e && e.message);
+        })
+      ))
     ).then(() => self.skipWaiting())
   );
 });
