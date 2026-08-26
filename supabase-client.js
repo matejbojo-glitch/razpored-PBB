@@ -175,6 +175,22 @@
     location.replace("login.html");
   }
 
+  // Katero dejanje na obrazcu čaka TO osebo - EN SAM VIR za značko na gumbu
+  // "Menjava" (nav.js) in za seznam "Čaka name" (obrazec.html). Prej sta
+  // oba brala pogled obrazci_moja_naloga, ki nalogo določi prek auth.uid()
+  // v bazi; med "Ogledom kot uporabnik" je to še vedno ADMINISTRATOR, ne
+  // oseba, ki jo zaslon kaže, zato je značka kazala njegovo stanje.
+  // Pravila so natančna kopija tistih iz pogleda (supabase/schema.sql).
+  function mojeDejanjeNaObrazcu(r, myId, profil) {
+    if (r.status === "caka_sodelavca" && r.sodelavec_id === myId) return "potrdi_kot_sodelavec";
+    if (r.status === "caka_vodjo" && r.vodja_id === myId) return "odobri_kot_vodja";
+    if (r.status === "caka_koordinatorja") {
+      if (r.je_dezurstvo && profil && profil.is_koordinator) return "potrdi_kot_koordinator";
+      if (!r.je_dezurstvo && profil && profil.role === "admin") return "potrdi_kot_koordinator";
+    }
+    return null;
+  }
+
   async function unreadNotificationCount(userId) {
     // Omejeno na url="obrazec.html": nav.js ta števec prikaže kot rdečo
     // značko na "Menjava", zato mora šteti samo obvestila, ki so tja res
@@ -204,6 +220,7 @@
     requireRole: requireRole,
     signOut: signOut,
     unreadNotificationCount: unreadNotificationCount,
+    mojeDejanjeNaObrazcu: mojeDejanjeNaObrazcu,
     trenutniOgled: trenutniOgled,
     zacniOgled: zacniOgled,
     koncajOgled: koncajOgled,

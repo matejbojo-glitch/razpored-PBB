@@ -124,18 +124,43 @@
     var role = props.role || "user";
     var unread = props.unread || 0;
 
-    // Rumen klicaj na "Menjava": obrazci_moja_naloga je že RLS-filtriran na
-    // trenutnega uporabnika (glej supabase/schema.sql, security_invoker) in
-    // pokrije vse vrste odločitev (sodelavec/vodja/koordinator, tudi
-    // dežurstvo-koordinator), zato ni treba ločevati po vlogi.
+    // Značka na "Menjava" pove, koliko obrazcev čaka odločitev TE osebe -
+    // zato jo zaposleni vidi takoj, brez odpiranja strani.
+    //
+    // Izbor naredi skupno pravilo RazporedAuth.mojeDejanjeNaObrazcu (isto,
+    // kot ga uporablja seznam "Čaka name" v obrazec.html) - tako značka in
+    // seznam pod njo ne moreta pokazati različnega števila. Vrstice pripelje
+    // nespremenjen RLS, ki ostaja varnostna meja.
+    //
+    // Prej se je bral pogled obrazci_moja_naloga, ki nalogo določi prek
+    // auth.uid() v bazi: med "Ogledom kot uporabnik" je to še vedno
+    // administrator, zato je značka kazala njegovo stanje, ne stanja osebe,
+    // ki je na zaslonu.
     var menjavaPendingState = useState(0);
     var menjavaPending = menjavaPendingState[0], setMenjavaPending = menjavaPendingState[1];
     useEffect(function () {
       var auth = root.RazporedAuth;
-      if (!auth || !auth.client) return;
-      auth.client.from("obrazci_moja_naloga").select("id", { count: "exact", head: true }).not("moje_dejanje", "is", null)
-        .then(function (res) { setMenjavaPending(res.count || 0); })
+      if (!auth || !auth.client || typeof auth.mojeDejanjeNaObrazcu !== "function") return;
+      var zivo = true;
+      auth.getSessionAndProfile()
+        .then(function (res) {
+          if (!zivo || !res || !res.session) return null;
+          // NAMENOMA prek auth.client (ne prek zaprtja v supabase-client.js):
+          // samo tega je mogoče v preizkusu zamenjati, zato je značka lahko
+          // sploh preverjena - drugače bi tiho ostala nepokrita.
+          return auth.client.from("obrazci")
+            .select("id, status, sodelavec_id, vodja_id, je_dezurstvo")
+            .neq("status", "osnutek")
+            .then(function (odg) {
+              var vrstice = (odg && odg.data) || [];
+              return vrstice.filter(function (r) {
+                return auth.mojeDejanjeNaObrazcu(r, res.session.user.id, res.profile);
+              }).length;
+            });
+        })
+        .then(function (n) { if (zivo) setMenjavaPending(n || 0); })
         .catch(function () {});
+      return function () { zivo = false; };
     }, [role]);
 
     var items = ITEMS.filter(function (it) { return it.roles.indexOf(role) !== -1; });
@@ -150,7 +175,13 @@
           var badge = null;
           if (it.badge === "menjava") {
             if (menjavaPending > 0) {
-              badge = e("span", { className: "badge warn", key: "b", title: "Čaka tvojo odločitev" }, "!");
+              // Število (ne le klicaj): rdeča značka z "2" pove tudi, koliko
+              // odločitev čaka, ne samo da nekaj čaka.
+              badge = e("span", {
+                className: "badge", key: "b",
+                title: menjavaPending === 1 ? "1 zahtevek čaka tvojo odločitev"
+                  : menjavaPending + " zahtevkov čaka tvojo odločitev",
+              }, menjavaPending > 9 ? "9+" : String(menjavaPending));
             } else if (unread > 0) {
               badge = e("span", { className: "badge", key: "b" }, unread > 9 ? "9+" : String(unread));
             }

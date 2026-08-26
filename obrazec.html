@@ -171,24 +171,19 @@ function opisVerige(profile){
   return "Tvoj zahtevek gre v odobritev: pri menjavi službe najprej potrdi sodelavec, nato (razen pri menjavi dežurstva) tvoj neposredni vodja, nazadnje administrator – pri menjavi dežurstva namesto vodje dokončno odloči koordinator. Ročno evidentiranje in drugo gresta brez sodelavca skozi vodjo do administratorja. Šele po zadnji potrditvi se izmeni dejansko zamenjata v razporedu.";
 }
 
-// Katero dejanje na tem obrazcu čaka TO osebo. Natančna kopija pravil iz
-// pogleda obrazci_moja_naloga (supabase/schema.sql) - z eno razliko: pogled
-// vpraša bazo "kdo sem" (auth.uid()), tu pa vprašamo, KOGA zaslon trenutno
-// prikazuje. Med "Ogledom kot uporabnik" sta to dve različni osebi in samo
-// druga je pravilna (glej klic v App).
+// Katero dejanje na tem obrazcu čaka TO osebo. Pravilo je v skupnem
+// supabase-client.js, ker ga potrebuje tudi značka na gumbu "Menjava"
+// (nav.js) - dve kopiji bi se prej ali slej razšli in značka bi kazala
+// drugače kot seznam pod njo.
+//
+// Ključna razlika do pogleda obrazci_moja_naloga: ta vpraša bazo "kdo sem"
+// (auth.uid()), tu pa vprašamo, KOGA zaslon trenutno prikazuje. Med
+// "Ogledom kot uporabnik" sta to dve različni osebi in samo druga je prava.
 //
 // To je izključno PRIKAZ. Dejansko odobritev vedno preveri baza sama
 // (obrazec_potrdi_* zavrne klic, če klicatelj ni ta oseba), zato ogled tudi
 // po tej spremembi ne more odobriti ničesar v tujem imenu.
-function mojeDejanje(r, myId, profil){
-  if (r.status === "caka_sodelavca" && r.sodelavec_id === myId) return "potrdi_kot_sodelavec";
-  if (r.status === "caka_vodjo" && r.vodja_id === myId) return "odobri_kot_vodja";
-  if (r.status === "caka_koordinatorja") {
-    if (r.je_dezurstvo && profil && profil.is_koordinator) return "potrdi_kot_koordinator";
-    if (!r.je_dezurstvo && profil && profil.role === "admin") return "potrdi_kot_koordinator";
-  }
-  return null;
-}
+const mojeDejanje = RazporedAuth.mojeDejanjeNaObrazcu;
 
 function StatusPill({ status }){
   const s = STATUS_LABEL[status] || { text: status, cls: "wait" };
