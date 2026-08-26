@@ -310,6 +310,41 @@ try {
     }
   }
 
+  console.log("10) delovnopravna opozorila (56 ur ...) vidi TUDI tisti, ki odloča");
+  {
+    // Prijavljena zahteva: počitek in 56 ur "ostaneta opomba - potrdi vodja /
+    // administrator". Doslej sta se opozorili izračunali le v brskalniku
+    // PREDLAGATELJA in nikamor shranili, zato ju vodja ob odločanju sploh ni
+    // videl - odločal je na slepo o tem, kar naj bi ravno on presodil.
+    const zOpozorilom = {
+      id: "o1", stevilka: "2026-201", vrsta: "menjava_sluzbe", status: "caka_vodjo",
+      je_dezurstvo: false, vlagatelj_id: "u", sodelavec_id: "s", vodja_id: "v",
+      polja: {
+        datum_a: "2026-09-10", izmena_a: "Dopoldne", datum_b: "2026-09-12", izmena_b: "Nočna",
+        opozorila: [{ oseba: "Novak Ana", datum: "2026-09-12", vrsta: "tedenskeUre",
+          resnost: "opozorilo", sporocilo: "Preseženih 56 ur v 7 dneh" }],
+      },
+    };
+    const { stran, naCaka } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [zOpozorilom]);
+    await naCaka();
+    const besedilo = await stran.evaluate(() => document.body.innerText);
+    trdi(/Preseženih 56 ur/.test(besedilo),
+      "vodja ob odločanju vidi opozorilo, shranjeno ob oddaji");
+    trdi(/presodi pred odobritvijo/i.test(besedilo),
+      "in je jasno povedano, da mora o njem presoditi");
+    await stran.close();
+
+    // Obrazec BREZ opozoril ne sme prikazati praznega rdečega okvirja.
+    const brezOpozoril = { ...zOpozorilom, id: "o2", stevilka: "2026-202",
+      polja: { datum_a: "2026-09-10", izmena_a: "Dopoldne", datum_b: "2026-09-12", izmena_b: "Nočna" } };
+    const { stran: cista, naCaka: naCaka2 } = await odpri({ id: "v", role: "vodja", full_name: "Vodja Vera" }, [brezOpozoril]);
+    await naCaka2();
+    const cistoBesedilo = await cista.evaluate(() => document.body.innerText);
+    trdi(!/presodi pred odobritvijo/i.test(cistoBesedilo),
+      "brez opozoril se rdeči okvir sploh ne prikaže");
+    await cista.close();
+  }
+
   console.log("9) značka na gumbu \"Menjava\" pove ŠTEVILO čakajočih - vidno brez odpiranja strani");
   {
     const zaSodelavca = (n) => Array.from({ length: n }, (_, i) => ({

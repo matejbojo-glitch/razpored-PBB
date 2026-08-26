@@ -185,6 +185,50 @@ function opisVerige(profile){
 // po tej spremembi ne more odobriti ničesar v tujem imenu.
 const mojeDejanje = RazporedAuth.mojeDejanjeNaObrazcu;
 
+// Delovnopravno preverjanje menjave (ZDR-1, glej delovni-cas.js): počitek
+// 10,7 h, zaporedne nočne, prost dan v tednu in največ 56 ur v 7 dneh.
+//
+// EN SAM izračun za obe rabi: predlagatelj ga vidi pred oddajo, vodja in
+// administrator pa znova ob odločanju. Dve kopiji bi se razšli in vodja bi
+// odločal po drugem pravilu, kot je videl predlagatelj.
+//
+// Vrne [] (brez kršitev) ali seznam kršitev; null pomeni "ni bilo mogoče
+// izračunati" (npr. ni podatkov) - takrat se opozorilo NE prikaže kot "vse v
+// redu", ker to ne bi bilo res.
+async function izracunajKrsitveMenjave({ jazId, jazIme, jazDatum, jazIzmena, onId, onIme, onDatum, onIzmena }) {
+  if (!window.DelovniCas || !jazId || !onId || !jazDatum || !onDatum) return null;
+  const dodaj = (iso, n) => {
+    const d = new Date(iso + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  // Okno ±3 dni okoli obeh datumov zajame vsa pravila, ki jih preverjamo.
+  const dnevi = [jazDatum, onDatum].sort();
+  const od = dodaj(dnevi[0], -3), doo = dodaj(dnevi[dnevi.length - 1], 3);
+
+  const { data, error } = await client.from("razpored")
+    .select("employee_id, work_date, shift_code")
+    .in("employee_id", [jazId, onId])
+    .gte("work_date", od).lte("work_date", doo);
+  if (error) return null;
+
+  // Mreža oseba|datum -> šifra, da uveljavitev menjave PREPIŠE obstoječi
+  // vnos namesto da bi mu dodala drugega. Dvojni vnos za isti dan bi pravila
+  // brala kot dve izmeni in javil izmišljeno kršitev počitka.
+  const mreza = {};
+  const kljuc = (oseba, dan) => oseba + "|" + dan;
+  (data || []).forEach(r => {
+    const oseba = r.employee_id === jazId ? jazIme : onIme;
+    mreza[kljuc(oseba, r.work_date)] = { oseba, datum: r.work_date, sifra: r.shift_code };
+  });
+  // Uveljavi menjavo: moja izmena gre njemu, njegova pride meni.
+  mreza[kljuc(jazIme, jazDatum)] = { oseba: jazIme, datum: jazDatum, sifra: "" };
+  mreza[kljuc(onIme, onDatum)] = { oseba: onIme, datum: onDatum, sifra: "" };
+  mreza[kljuc(jazIme, onDatum)] = { oseba: jazIme, datum: onDatum, sifra: onIzmena || "" };
+  mreza[kljuc(onIme, jazDatum)] = { oseba: onIme, datum: jazDatum, sifra: jazIzmena || "" };
+  return window.DelovniCas.preveriPravila(Object.values(mreza));
+}
+
 function StatusPill({ status }){
   const s = STATUS_LABEL[status] || { text: status, cls: "wait" };
   return <span className={"pill " + s.cls}>{s.text}</span>;
@@ -255,50 +299,17 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   // Preveri se razpored OBEH oseb, kakršen bo PO menjavi.
   const [krsitve, setKrsitve] = useState(null);
   useEffect(() => {
-    if (vrsta !== "menjava_sluzbe" || !izbranSodelavec || !datum || !window.DelovniCas){
+    if (vrsta !== "menjava_sluzbe" || !izbranSodelavec || !datum){
       setKrsitve(null);
       return;
     }
     let cancelled = false;
-    const dodaj = (iso, n) => {
-      const d = new Date(iso + "T00:00:00Z");
-      d.setUTCDate(d.getUTCDate() + n);
-      return d.toISOString().slice(0, 10);
-    };
-    // Okno ±3 dni okoli obeh datumov zajame vsa pravila, ki jih preverjamo
-    // (počitek med izmenama, zaporedne nočne, prost dan v oknu 7 dni).
-    const dnevi = [datum, izbranSodelavec.njihov_datum].sort();
-    const od = dodaj(dnevi[0], -3), doo = dodaj(dnevi[dnevi.length - 1], 3);
-    const jaz = myId, on = izbranSodelavec.profile_id;
-
-    client.from("razpored")
-      .select("employee_id, work_date, shift_code")
-      .in("employee_id", [jaz, on])
-      .gte("work_date", od).lte("work_date", doo)
-      .then(({ data, error }) => {
-        if (cancelled || error) { if (!cancelled) setKrsitve(null); return; }
-        const mojeIme = (profil && profil.full_name) || "Ti";
-        const njegovoIme = izbranSodelavec.full_name;
-        // Mreža oseba|datum -> šifra, da uveljavitev menjave PREPIŠE
-        // obstoječi vnos namesto da bi mu dodala drugega. Dvojni vnos za
-        // isti dan bi pravila brala kot dve izmeni in javil izmišljeno
-        // kršitev počitka.
-        const mreza = {};
-        const kljuc = (oseba, dan) => oseba + "|" + dan;
-        (data || []).forEach(r => {
-          const oseba = r.employee_id === jaz ? mojeIme : njegovoIme;
-          mreza[kljuc(oseba, r.work_date)] = { oseba, datum: r.work_date, sifra: r.shift_code };
-        });
-        // Uveljavi menjavo: moja izmena gre njemu, njegova pride meni.
-        mreza[kljuc(mojeIme, datum)] = { oseba: mojeIme, datum, sifra: "" };
-        mreza[kljuc(njegovoIme, izbranSodelavec.njihov_datum)] =
-          { oseba: njegovoIme, datum: izbranSodelavec.njihov_datum, sifra: "" };
-        mreza[kljuc(mojeIme, izbranSodelavec.njihov_datum)] =
-          { oseba: mojeIme, datum: izbranSodelavec.njihov_datum, sifra: izbranSodelavec.njihova_izmena };
-        mreza[kljuc(njegovoIme, datum)] =
-          { oseba: njegovoIme, datum, sifra: mojaIzmena || "" };
-        setKrsitve(window.DelovniCas.preveriPravila(Object.values(mreza)));
-      });
+    izracunajKrsitveMenjave({
+      jazId: myId, jazIme: (profil && profil.full_name) || "Ti",
+      jazDatum: datum, jazIzmena: mojaIzmena || "",
+      onId: izbranSodelavec.profile_id, onIme: izbranSodelavec.full_name,
+      onDatum: izbranSodelavec.njihov_datum, onIzmena: izbranSodelavec.njihova_izmena,
+    }).then(k => { if (!cancelled) setKrsitve(k); });
     return () => { cancelled = true; };
   }, [vrsta, datum, izbranSodelavec, mojaIzmena, myId, profil]);
 
@@ -318,6 +329,17 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
       if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo ali osebo, ki naj dežurstvo prevzame."); return; }
       sodelavec_id = izbranSodelavec.profile_id;
       polja = { ...polja, datum_a: datum, izmena_a: mojaIzmena || "", datum_b: izbranSodelavec.njihov_datum, izmena_b: izbranSodelavec.njihova_izmena };
+      // Opozorila (56 ur, zaporedne nočne, prost dan) se shranijo Z obrazcem:
+      // brez tega ju vodja in administrator ob odločanju ne bi videla, čeprav
+      // se ravno od njiju pričakuje, da o njih presodita. Shrani se to, kar
+      // je videl predlagatelj; ob odločanju se izračun še osveži (glej
+      // OpozorilaMenjave), da se pozna, če se je razpored vmes spremenil.
+      if (krsitve && krsitve.length) {
+        polja.opozorila = krsitve.map(k => ({
+          oseba: k.oseba, datum: k.datum, vrsta: k.vrsta,
+          resnost: k.resnost, sporocilo: k.sporocilo,
+        }));
+      }
     } else if (vrsta === "rocno_evidentiranje"){
       if (!prihod || !odhod){ setErr("Vnesi prihod in odhod."); return; }
       polja = { ...polja, datum, prihod, odhod };
@@ -489,6 +511,70 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   );
 }
 
+// Opozorila na obrazcu za tistega, ki o njem odloča (vodja, administrator).
+// Pokaže OBOJE: kaj je bilo shranjeno ob oddaji in kakšno je stanje ZDAJ -
+// med oddajo in odločitvijo se razpored lahko spremeni (druga menjava, ročni
+// popravek) in takrat je pomembno, da vodja ne odloča po zastarelem podatku.
+function OpozorilaMenjave({ obrazec }){
+  const p = obrazec.polja || {};
+  const shranjena = Array.isArray(p.opozorila) ? p.opozorila : [];
+  const [sveza, setSveza] = useState(undefined); // undefined = še računam
+
+  useEffect(() => {
+    if (obrazec.vrsta !== "menjava_sluzbe" || !p.datum_a || !p.datum_b) { setSveza(null); return; }
+    let cancelled = false;
+    izracunajKrsitveMenjave({
+      jazId: obrazec.vlagatelj_id, jazIme: "Vlagatelj",
+      jazDatum: p.datum_a, jazIzmena: p.izmena_a,
+      onId: obrazec.sodelavec_id, onIme: "Sodelavec",
+      onDatum: p.datum_b, onIzmena: p.izmena_b,
+    }).then(k => { if (!cancelled) setSveza(k); });
+    return () => { cancelled = true; };
+  }, [obrazec.id]);
+
+  if (shranjena.length === 0 && (!sveza || sveza.length === 0)) return null;
+
+  // Kar je bilo ob oddaji in zdaj ni več (ali obratno) - to je za odločitev
+  // najbolj povedno, zato posebej izpostavljeno.
+  const kljuc = k => k.vrsta + "|" + k.datum;
+  const seSveza = (sveza || []).map(kljuc);
+  const seShran = shranjena.map(kljuc);
+  const odpadla = shranjena.filter(k => sveza && !seSveza.includes(kljuc(k)));
+  const nova = (sveza || []).filter(k => !seShran.includes(kljuc(k)));
+
+  return (
+    <div style={{margin:"6px 0 10px", padding:"8px 10px", borderRadius:8,
+      background:"var(--danger-bg)", border:"1px solid var(--danger)"}}>
+      <div style={{fontWeight:800, fontSize:13, color:"var(--danger)"}}>
+        ⚠ Delovnopravna opozorila – presodi pred odobritvijo
+      </div>
+      <ul style={{margin:"6px 0 0", paddingLeft:18, fontSize:12.5}}>
+        {(sveza && sveza.length ? sveza : shranjena).map((k, i) => (
+          <li key={i}>{k.sporocilo}{k.datum ? " (" + fmtDatum(k.datum) + ")" : ""}</li>
+        ))}
+      </ul>
+      {sveza === undefined && <p className="hint" style={{margin:"6px 0 0"}}>Preverjam trenutno stanje …</p>}
+      {sveza === null && shranjena.length > 0 && (
+        <p className="hint" style={{margin:"6px 0 0"}}>
+          Zgoraj je stanje ob oddaji; trenutnega ni bilo mogoče preveriti.
+        </p>
+      )}
+      {nova.length > 0 && (
+        <p className="hint" style={{margin:"6px 0 0", color:"var(--danger)"}}>
+          Pozor: {nova.length === 1 ? "1 opozorilo je nastalo" : nova.length + " opozoril je nastalo"} šele
+          po oddaji – razpored se je vmes spremenil.
+        </p>
+      )}
+      {odpadla.length > 0 && (
+        <p className="hint" style={{margin:"6px 0 0"}}>
+          {odpadla.length === 1 ? "1 opozorilo z oddaje ne velja več" : odpadla.length + " opozoril z oddaje ne velja več"} –
+          razpored se je vmes spremenil.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CakaName({ rows, onOdloceno, ogled }){
   const [busyId, setBusyId] = useState(null);
   const [opombaId, setOpombaId] = useState(null);
@@ -530,6 +616,7 @@ function CakaName({ rows, onOdloceno, ogled }){
               <div className="who">{r.stevilka} · {vrstaLabel(r.vrsta)}</div>
               <div className="meta">{r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : (r.polja && r.polja.datum ? fmtDatum(r.polja.datum) : "")}</div>
               {r.polja && r.polja.opomba && <div className="meta">{r.polja.opomba}</div>}
+              <OpozorilaMenjave obrazec={r} />
             </div>
             <div className="actions">
               <button className="actBtn yes" disabled={ogled || busyId === r.id} onClick={() => odloci(r, true)}>Odobri</button>
@@ -644,7 +731,10 @@ function DetajlObrazca({ obrazec, profil, onNazaj }){
       <div className="card">
         <div className="field"><label>Vrsta</label><div>{vrstaLabel(obrazec.vrsta)}</div></div>
         {obrazec.vrsta === "menjava_sluzbe" && (
-          <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+          <React.Fragment>
+            <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+            <OpozorilaMenjave obrazec={obrazec} />
+          </React.Fragment>
         )}
         {obrazec.vrsta === "oddaja_dezurstva" && (
           <div className="field"><label>Oddaja dežurstva</label><div>Dežurstvo dne {p.datum && fmtDatum(p.datum)} - brez povratne izmene</div></div>
