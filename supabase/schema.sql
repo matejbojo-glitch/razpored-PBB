@@ -3629,7 +3629,9 @@ from (values
   ('ZEKAN ALMEDIN', '852', 'almedin.zekan@pb-begunje.si'),
   ('ŠABIĆ SEBINA', '1152', 'sebina.sabic@pb-begunje.si'),
   ('ŠKANTAR MARK', '963', 'mark.skantar@pb-begunje.si'),
-  ('ŠUBIC PETRA', '905', 'petra.subic@pb-begunje.si')
+  ('ŠUBIC PETRA', '905', 'petra.subic@pb-begunje.si'),
+  ('STARE LUKA', '1143', 'luka.stare@pb-begunje.si'),
+  ('BEŠLAGIĆ TIAN', '1188', 'tian.beslagic@pb-begunje.si')
 ) as v(full_name, employee_code, email)
 where coalesce(
     (select u.id from auth.users u where lower(u.email) = v.email limit 1),
@@ -3639,6 +3641,92 @@ on conflict (profile_id) do update set
   employee_code = excluded.employee_code,
   updated_at = now()
 where public.kadrovski_podatki.employee_code is distinct from excluded.employee_code;
+
+
+-- ---------------------------------------------------------------------
+-- 17b) Spol - potreben SAMO za varnostno pravilo pri menjavah na
+-- oddelkih C1/D (glej public.spol_dovoljeno_po_menjavi v razdelku 6).
+-- Vir: uradni seznam zaposlenih ZN (avgust 2026), ujemanje prek
+-- employee_code (ne imena) - stabilen ključ, seed zgoraj (razdelek 17)
+-- ga za iste osebe že postavi. Za vsakogar, ki v seznamu ni naveden,
+-- spol ostane prazen in pravilo ga varno obravnava kot "ni moški".
+-- ---------------------------------------------------------------------
+update public.kadrovski_podatki k
+   set spol = v.spol, updated_at = now()
+  from (values
+  ('823', 'M'),
+  ('1092', 'M'),
+  ('830', 'Z'),
+  ('1069', 'M'),
+  ('1188', 'M'),
+  ('989', 'Z'),
+  ('855', 'M'),
+  ('691', 'Z'),
+  ('1172', 'M'),
+  ('747', 'M'),
+  ('912', 'M'),
+  ('826', 'M'),
+  ('1167', 'Z'),
+  ('1141', 'M'),
+  ('820', 'Z'),
+  ('705', 'Z'),
+  ('1086', 'Z'),
+  ('994', 'Z'),
+  ('1145', 'M'),
+  ('1089', 'Z'),
+  ('1180', 'Z'),
+  ('1051', 'M'),
+  ('1090', 'Z'),
+  ('844', 'Z'),
+  ('1001', 'M'),
+  ('971', 'Z'),
+  ('833', 'Z'),
+  ('987', 'M'),
+  ('1163', 'Z'),
+  ('1084', 'Z'),
+  ('997', 'M'),
+  ('964', 'Z'),
+  ('926', 'Z'),
+  ('1109', 'M'),
+  ('909', 'Z'),
+  ('887', 'M'),
+  ('818', 'Z'),
+  ('1075', 'M'),
+  ('1058', 'Z'),
+  ('1072', 'M'),
+  ('973', 'Z'),
+  ('1106', 'Z'),
+  ('715', 'Z'),
+  ('1062', 'Z'),
+  ('925', 'Z'),
+  ('1133', 'Z'),
+  ('1073', 'Z'),
+  ('1174', 'Z'),
+  ('1164', 'M'),
+  ('1143', 'M'),
+  ('1022', 'M'),
+  ('633', 'M'),
+  ('676', 'Z'),
+  ('1152', 'Z'),
+  ('963', 'M'),
+  ('905', 'Z'),
+  ('1159', 'Z'),
+  ('1035', 'Z'),
+  ('793', 'Z'),
+  ('965', 'Z'),
+  ('870', 'Z'),
+  ('604', 'Z'),
+  ('1102', 'M'),
+  ('834', 'Z'),
+  ('865', 'M'),
+  ('657', 'Z'),
+  ('991', 'M'),
+  ('1179', 'Z'),
+  ('974', 'Z'),
+  ('852', 'M')
+  ) as v(employee_code, spol)
+ where k.employee_code = v.employee_code
+   and k.spol is distinct from v.spol;
 
 
 -- ---------------------------------------------------------------------
