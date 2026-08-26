@@ -2182,6 +2182,26 @@ begin
 end;
 $$;
 
+-- Varnostno pravilo za dežurstva: po menjavi oseba ne sme pristati na
+-- dežurstvu dan pred ali dan po svojem NOVEM datumu dežurstva - enako
+-- pravilo "prost dan po dežurstvu"/razmik med dežurstvi, ki ga generator
+-- dežurstev (admin.html) že uveljavlja pri generiranju, tu pa ga menjava
+-- lahko podre, če se ne preveri posebej (navaden pocitek_ustreza tega ne
+-- zazna, ker med dvema dežurstvoma skoraj vedno mine več kot min_pocitek).
+-- p_izogni_datum je datum, ki ga oseba PREPUŠČA - ne šteje se, saj ga po
+-- menjavi ne bo več imela.
+create or replace function public.dezurstvo_razmik_ustreza(p_profile_id uuid, p_izogni_datum date, p_novi_datum date) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  select not exists (
+    select 1 from public.razpored se
+    where se.employee_id = p_profile_id
+      and se.department_code = 'DEZ'
+      and se.work_date in (p_novi_datum - 1, p_novi_datum + 1)
+      and se.work_date <> p_izogni_datum
+  );
+$$;
+
 create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text, njihova_izmena text, njihov_datum date, moj_zacetek time without time zone, njihov_zacetek time without time zone, jaz_pridem_prej boolean)
     LANGUAGE plpgsql STABLE
     AS $$
@@ -2189,6 +2209,8 @@ declare
   v_moja_sifra text;
   v_moj_oddelek text;
   v_moj_pokriva text;
+  v_je_dezurstvo boolean;
+  v_okno int;
 begin
   select shift_code, department_code, pokriva_oddelek
     into v_moja_sifra, v_moj_oddelek, v_moj_pokriva
@@ -2200,6 +2222,12 @@ begin
     select department_code into v_moj_oddelek from public.profili where id = p_profile_id;
   end if;
 
+  -- Dežurstvo pride na vrsto vsakih nekaj dni na osebo (krog ~14 ljudi čez
+  -- cel mesec), zato je navadno okno ±7 dni skoraj vedno prazno - za
+  -- dežurstvo ga razširimo na ±45 dni, za navadne oddelke ostane ±7.
+  v_je_dezurstvo := (v_moj_oddelek = 'DEZ');
+  v_okno := case when v_je_dezurstvo then 45 else 7 end;
+
   return query
   select p.id, p.full_name, se.shift_code, se.work_date,
     (select zacetek from public.izmena_cas(v_moja_sifra)),
@@ -2207,7 +2235,7 @@ begin
     (select zacetek from public.izmena_cas(v_moja_sifra)) < (select zacetek from public.izmena_cas(se.shift_code))
   from public.razpored se
   join public.profili p on p.id = se.employee_id
-  where se.work_date between p_datum - 7 and p_datum + 7
+  where se.work_date between p_datum - v_okno and p_datum + v_okno
     and se.employee_id <> p_profile_id
     and se.shift_code is not null and se.shift_code <> ''
     and (select zacetek from public.izmena_cas(se.shift_code)) is not null
@@ -2222,6 +2250,12 @@ begin
     -- šteje enako kot kdorkoli drug na C1/D (glej efektivni_oddelek).
     and public.spol_dovoljeno_po_menjavi(v_moj_oddelek, v_moj_pokriva, p_datum, v_moja_sifra, p_profile_id, se.employee_id)
     and public.spol_dovoljeno_po_menjavi(se.department_code, se.pokriva_oddelek, se.work_date, se.shift_code, se.employee_id, p_profile_id)
+    -- Dežurstvo: po menjavi nihče ne sme pristati na dežurstvu dan pred/po
+    -- svojem NOVEM datumu (glej dezurstvo_razmik_ustreza zgoraj).
+    and (not v_je_dezurstvo or (
+      public.dezurstvo_razmik_ustreza(p.id, se.work_date, p_datum)
+      and public.dezurstvo_razmik_ustreza(p_profile_id, p_datum, se.work_date)
+    ))
   order by p.full_name;
 end;
 $$;
@@ -2349,6 +2383,16 @@ begin
     end if;
     if not public.spol_dovoljeno_po_menjavi(v_dept_b, v_pokriva_b, v_dan_b, v_izmena_b, o.sodelavec_id, o.vlagatelj_id) then
       raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_b, v_dan_b, v_izmena_b;
+    end if;
+
+    -- Dežurstvo: po menjavi nihče ne sme pristati na dežurstvu dan pred/po
+    -- svojem NOVEM datumu (isti pas kot v mozni_sodelavci - glej
+    -- dezurstvo_razmik_ustreza zgoraj v datoteki).
+    if v_dept_a = 'DEZ' and not public.dezurstvo_razmik_ustreza(o.sodelavec_id, v_dan_b, v_dan_a) then
+      raise exception 'Menjava dežurstva ni mogoča: sodelavec bi po menjavi imel dežurstvo dan pred ali po %.', v_dan_a;
+    end if;
+    if v_dept_b = 'DEZ' and not public.dezurstvo_razmik_ustreza(o.vlagatelj_id, v_dan_a, v_dan_b) then
+      raise exception 'Menjava dežurstva ni mogoča: vlagatelj bi po menjavi imel dežurstvo dan pred ali po %.', v_dan_b;
     end if;
 
     -- Prava menjava: vsak prevzame DATUM/ODDELEK/IZMENO drugega - natanko
