@@ -632,6 +632,48 @@ function MenjaveMeseca({ rows }){
   );
 }
 
+// Seznam neprebranih obvestil, vezanih na menjave (url="obrazec.html") -
+// prej ni bilo NOBENEGA mesta v aplikaciji, kjer bi jih bilo mogoče videti
+// ali označiti kot prebrana, zato je rdeč znak na "Menjava" (RazporedNav)
+// ostal trajno prižgan že po prvem obvestilu. Ob prikazu se vse vidno
+// naštete vrstice takoj označijo kot prebrane (read_at), da se znak
+// dejansko pobriše - enako kot pri "prebranih" obvestilih povsod drugje.
+function NotifikacijePanel({ myId }){
+  const [obvestila, setObvestila] = useState([]);
+  const [skrito, setSkrito] = useState(false);
+
+  useEffect(() => {
+    if (!myId) return;
+    let zivo = true;
+    client.from("obvestila").select("id, title, message, created_at")
+      .eq("user_id", myId).eq("url", "obrazec.html").is("read_at", null)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (!zivo || !data || data.length === 0) return;
+        setObvestila(data);
+        const idji = data.map(o => o.id);
+        client.from("obvestila").update({ read_at: new Date().toISOString() }).in("id", idji).then(() => {});
+      });
+    return () => { zivo = false; };
+  }, [myId]);
+
+  if (obvestila.length === 0 || skrito) return null;
+  return (
+    <div className="card no-print" style={{marginBottom:12}}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <b>Novo pri menjavah</b>
+        <button className="ghostBtn" onClick={() => setSkrito(true)}>Skrij</button>
+      </div>
+      {obvestila.map(o => (
+        <div key={o.id} className="rowline">
+          <div className="lbl">{fmtCas(o.created_at)}</div>
+          <div className="val">{o.title ? <b>{o.title}: </b> : null}{o.message}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App(){
   const [auth, setAuth] = useState(null);
   const [zavihek, setZavihek] = useState("nov"); // nov | caka | moji | mesec
@@ -684,6 +726,8 @@ function App(){
         <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Menjava</span></div>
         <p className="sub">Menjave izmen in evidentiranje prisotnosti · {profile ? profile.full_name : ""}</p>
       </header>
+
+      <NotifikacijePanel myId={myId} />
 
       {!odprt && (
         <React.Fragment>

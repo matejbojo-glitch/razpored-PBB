@@ -470,7 +470,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
 // ---------------------------------------------------------------------
 // Profil ene osebe.
 // ---------------------------------------------------------------------
-const HR_PRAZNO = { employee_code:"", birth_date:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"",
+const HR_PRAZNO = { employee_code:"", birth_date:"", spol:"", position_name:"", manager_name:"", parental_leave:"", annual_leave_total:"", leave_balance_days:"", leave_balance_asof:"",
   duty_min_monthly:"", duty_max_monthly:"", duty_day_off:"", duty_weekdays_only:false };
 
 function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno }){
@@ -667,6 +667,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     if (!smemVidetiHr) { setHr(null); return; }
     client.from("kadrovski_podatki").select("*").eq("profile_id", oseba.id).maybeSingle()
       .then(({ data }) => { setHr(data || {}); setHrEdit(data ? { ...HR_PRAZNO, ...data, annual_leave_total: data.annual_leave_total ?? "", leave_balance_days: data.leave_balance_days ?? "", leave_balance_asof: data.leave_balance_asof || "",
+        spol: data.spol || "",
         duty_min_monthly: data.duty_min_monthly ?? "", duty_max_monthly: data.duty_max_monthly ?? "",
         duty_day_off: data.duty_day_off || "", duty_weekdays_only: !!data.duty_weekdays_only } : HR_PRAZNO); });
     // eslint-disable-next-line
@@ -679,6 +680,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
         profile_id: oseba.id,
         employee_code: hrEdit.employee_code.trim() || null,
         birth_date: hrEdit.birth_date || null,
+        spol: hrEdit.spol || null,
         position_name: hrEdit.position_name.trim() || null,
         manager_name: hrEdit.manager_name.trim() || null,
         parental_leave: hrEdit.parental_leave.trim() || null,
@@ -801,10 +803,11 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
         {!oseba.phone && !jeMoj && <p className="empty" style={{marginTop:6}}>Telefonska številka ni vidna ali ni vnesena.</p>}
       </div>
 
-      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null || hr.duty_max_monthly != null || hr.duty_weekdays_only) && (
+      {smemVidetiHr && hr && (hr.employee_code || hr.birth_date || hr.spol || hr.position_name || hr.manager_name || hr.parental_leave || hr.annual_leave_total != null || hr.leave_balance_days != null || hr.duty_max_monthly != null || hr.duty_weekdays_only) && (
         <div className="card">
           {hr.employee_code && <div className="rowline"><div className="lbl">Šifra</div><div className="val">{hr.employee_code}</div></div>}
           {hr.birth_date && <div className="rowline"><div className="lbl">Rojstvo</div><div className="val">{window.Datum.slo(hr.birth_date)}</div></div>}
+          {hr.spol && <div className="rowline"><div className="lbl">Spol</div><div className="val">{hr.spol === "M" ? "Moški" : "Ženski"}</div></div>}
           {hr.position_name && <div className="rowline"><div className="lbl">Del. mesto</div><div className="val">{hr.position_name}</div></div>}
           {hr.manager_name && <div className="rowline"><div className="lbl">Vodja</div><div className="val">{hr.manager_name}</div></div>}
           {hr.parental_leave && <div className="rowline"><div className="lbl">Starš. varstvo</div><div className="val">{hr.parental_leave}</div></div>}
@@ -1020,6 +1023,17 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
           <div className="card no-print">
             <div className="field"><label>Šifra zaposlenega</label><input type="text" value={hrEdit.employee_code} onChange={e => setHrEdit(h => ({...h, employee_code:e.target.value}))} /></div>
             <div className="field"><label>Datum rojstva</label><input type="date" value={hrEdit.birth_date} onChange={e => setHrEdit(h => ({...h, birth_date:e.target.value}))} /></div>
+            <div className="field"><label>Spol</label>
+              <select value={hrEdit.spol} onChange={e => setHrEdit(h => ({...h, spol:e.target.value}))}>
+                <option value="">– ni vneseno –</option>
+                <option value="M">Moški</option>
+                <option value="Z">Ženski</option>
+              </select>
+              <p className="hint" style={{marginTop:2}}>
+                Uporabljeno samo za varnostno pravilo pri menjavah na oddelkih C1/D (tam mora ob vsaki
+                izmeni ostati dovolj moških). Dokler ni vneseno, se oseba pri tem pravilu šteje kot žensko.
+              </p>
+            </div>
             <div className="field"><label>Naziv delovnega mesta</label><input type="text" value={hrEdit.position_name} onChange={e => setHrEdit(h => ({...h, position_name:e.target.value}))} /></div>
             <div className="field"><label>Vodja (naziv)</label><input type="text" value={hrEdit.manager_name} onChange={e => setHrEdit(h => ({...h, manager_name:e.target.value}))} /></div>
             <h3 style={{fontSize:13, fontWeight:800, margin:"14px 0 2px"}}>Dežurstva – trajna pravila</h3>
