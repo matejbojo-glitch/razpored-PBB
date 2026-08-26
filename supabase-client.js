@@ -171,10 +171,18 @@
   }
 
   async function unreadNotificationCount(userId) {
+    // Omejeno na url="obrazec.html": nav.js ta števec prikaže kot rdečo
+    // značko na "Menjava", zato mora šteti samo obvestila, ki so tja res
+    // vezana (spremembe statusa menjav). Prej je štel VSA obvestila
+    // (tudi objavo razporeda, opomnike za jutrišnjo izmeno), znak pa je
+    // ostal trajno prižgan, ker nikjer v aplikaciji ni bilo mogoče videti
+    // vsebine ali označiti prebrano - glej NotifikacijePanel v obrazec.html,
+    // ki ta obvestila prikaže in jih ob ogledu označi kot prebrana.
     var { count } = await client
       .from("obvestila")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      .eq("url", "obrazec.html")
       .is("read_at", null);
     return count || 0;
   }

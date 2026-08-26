@@ -208,6 +208,13 @@ create table if not exists public.kadrovski_podatki (
     duty_max_monthly integer,
     duty_day_off text,
     duty_weekdays_only boolean,
+    -- Spol (M/Z) - potreben SAMO za varnostno pravilo pri menjavah na
+    -- oddelkih C1/D (glej public.spol_dovoljeno_po_menjavi): C1 mora imeti
+    -- ob vsaki izmeni vedno vsaj 2 moška, D vsaj 1. NULL (ni vnesen) se pri
+    -- tem pravilu obravnava kot "ni moški" - varno privzeto, dokler admin
+    -- podatka ne vnese v Imeniku (HR kartica).
+    spol text,
+    CONSTRAINT kadrovski_podatki_spol_check CHECK (spol IS NULL OR spol = ANY (ARRAY['M'::text, 'Z'::text])),
     CONSTRAINT kadrovski_podatki_duty_day_off_check CHECK ((duty_day_off = ANY (ARRAY['PO'::text, 'TO'::text, 'SR'::text, 'ČE'::text, 'PE'::text, 'SO'::text, 'NE'::text])))
 );
 
@@ -785,6 +792,16 @@ alter table public.kadrovski_podatki add column if not exists duty_min_monthly i
 alter table public.kadrovski_podatki add column if not exists duty_max_monthly integer;
 alter table public.kadrovski_podatki add column if not exists duty_day_off text;
 alter table public.kadrovski_podatki add column if not exists duty_weekdays_only boolean;
+alter table public.kadrovski_podatki add column if not exists spol text;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'kadrovski_podatki_spol_check') then
+    alter table public.kadrovski_podatki
+      add constraint kadrovski_podatki_spol_check check (spol is null or spol = any (array['M','Z']));
+  end if;
+exception
+  when duplicate_object then null;
+end $$;
 alter table public.koledarski_zetoni add column if not exists profile_id uuid;
 alter table public.koledarski_zetoni add column if not exists token text;
 alter table public.koledarski_zetoni add column if not exists created_at timestamp with time zone default now();
@@ -2102,13 +2119,86 @@ create or replace function public.min_pocitek() RETURNS interval
     LANGUAGE sql IMMUTABLE
     AS $$ select interval '10 hours 42 minutes' $$;
 
+-- Pravi oddelek za namene omejitve menjav: FLEXI kader ima v razpored
+-- department_code vedno "FLEXI" (svoja skupina), pravi oddelek, ki ga tisti
+-- dan pokriva, pa je v pokriva_oddelek (lahko sestavljen, npr. "C1/E2" -
+-- glej index.html komentar ob department_code="FLEXI"). Za spolno pravilo
+-- šteje dejanski oddelek, ne oznaka FLEXI.
+create or replace function public.efektivni_oddelek(p_department_code text, p_pokriva_oddelek text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select case
+    when p_department_code <> 'FLEXI' then p_department_code
+    when p_pokriva_oddelek is null then null
+    -- pokriva_oddelek je lahko "C1/E2" ali "C1,E2" - vzemi prvi kos, ker
+    -- za C1/D presojo zadošča, da je oddelek SPLOH med pokritimi.
+    when p_pokriva_oddelek ~ 'C1' then 'C1'
+    when p_pokriva_oddelek ~ '(^|[/,])D([/,]|$)' then 'D'
+    else split_part(regexp_replace(p_pokriva_oddelek, '[,]', '/', 'g'), '/', 1)
+  end;
+$$;
+
+-- Ali je zaposleni moški. NULL (spol ni vnesen) šteje kot "ni moški" -
+-- varno privzeto, dokler admin podatka ne vnese v Imeniku (HR kartica).
+create or replace function public.je_moski(p_profile_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  select coalesce((select spol = 'M' from public.kadrovski_podatki where profile_id = p_profile_id), false);
+$$;
+
+-- Varnostno pravilo za oddelka C1 in D: C1 mora imeti na VSAKI izmeni
+-- (department_code/pokriva_oddelek + work_date + shift_code, ločeno po
+-- posamezni izmeni tega dne) vedno vsaj 2 moška, D vsaj 1. Klical se ta
+-- funkcija DVAKRAT za vsako menjavo - enkrat za vsako od dveh zamenjanih
+-- rež (glej mozni_sodelavci/obrazec_potrdi_koordinator) - ker menjava
+-- prizadene DVE ločeni izmeni (moja gre njemu, njegova pride meni).
+-- Trd blok, brez izjeme (uporabnikova izrecna odločitev).
+create or replace function public.spol_dovoljeno_po_menjavi(
+    p_department_code text, p_pokriva_oddelek text, p_datum date, p_sifra text,
+    p_odhaja uuid, p_prihaja uuid
+) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    AS $$
+declare
+  v_oddelek text := public.efektivni_oddelek(p_department_code, p_pokriva_oddelek);
+  v_potrebno int;
+  v_moskih int;
+begin
+  v_potrebno := case v_oddelek when 'C1' then 2 when 'D' then 1 else 0 end;
+  if v_potrebno = 0 then return true; end if;
+
+  select count(*) into v_moskih
+    from public.razpored se
+    where se.work_date = p_datum and se.shift_code = p_sifra
+      and public.efektivni_oddelek(se.department_code, se.pokriva_oddelek) = v_oddelek
+      and se.employee_id <> p_odhaja
+      and public.je_moski(se.employee_id);
+
+  if p_prihaja is not null and public.je_moski(p_prihaja) then
+    v_moskih := v_moskih + 1;
+  end if;
+
+  return v_moskih >= v_potrebno;
+end;
+$$;
+
 create or replace function public.mozni_sodelavci(p_profile_id uuid, p_datum date) RETURNS TABLE(profile_id uuid, full_name text, njihova_izmena text, njihov_datum date, moj_zacetek time without time zone, njihov_zacetek time without time zone, jaz_pridem_prej boolean)
     LANGUAGE plpgsql STABLE
     AS $$
-declare v_moja_sifra text;
+declare
+  v_moja_sifra text;
+  v_moj_oddelek text;
+  v_moj_pokriva text;
 begin
-  select shift_code into v_moja_sifra from public.razpored
-    where employee_id = p_profile_id and work_date = p_datum;
+  select shift_code, department_code, pokriva_oddelek
+    into v_moja_sifra, v_moj_oddelek, v_moj_pokriva
+    from public.razpored where employee_id = p_profile_id and work_date = p_datum;
+
+  -- Če za ta dan ni vrstice (prost dan brez zapisa), pade nazaj na domači
+  -- oddelek iz profila - drugače bi omejitev spodaj vsakogar blokirala.
+  if v_moj_oddelek is null then
+    select department_code into v_moj_oddelek from public.profili where id = p_profile_id;
+  end if;
 
   return query
   select p.id, p.full_name, se.shift_code, se.work_date,
@@ -2125,6 +2215,13 @@ begin
     and not exists (select 1 from public.blokirani_dnevi(se.work_date, se.work_date) b where b.profile_id = p_profile_id)
     and public.pocitek_ustreza(p.id, p_datum, se.shift_code)
     and public.pocitek_ustreza(se.employee_id, se.work_date, v_moja_sifra)
+    -- Menjava samo znotraj istega oddelka tistega dne (FLEXI je izjema -
+    -- floaterji menjajo s komerkoli, uporabnikova izrecna odločitev).
+    and (v_moj_oddelek = se.department_code or v_moj_oddelek = 'FLEXI' or se.department_code = 'FLEXI')
+    -- Spolno pravilo velja NE GLEDE na zgornjo izjemo - FLEXI na C1/D dan
+    -- šteje enako kot kdorkoli drug na C1/D (glej efektivni_oddelek).
+    and public.spol_dovoljeno_po_menjavi(v_moj_oddelek, v_moj_pokriva, p_datum, v_moja_sifra, p_profile_id, se.employee_id)
+    and public.spol_dovoljeno_po_menjavi(se.department_code, se.pokriva_oddelek, se.work_date, se.shift_code, se.employee_id, p_profile_id)
   order by p.full_name;
 end;
 $$;
@@ -2208,6 +2305,7 @@ declare
   v_dan_a date; v_dan_b date;
   v_izmena_a text; v_izmena_b text;
   v_dept_a text; v_dept_b text;
+  v_pokriva_a text; v_pokriva_b text;
 begin
   select * into o from public.obrazci where id = p_id;
   if not found then raise exception 'Obrazec ne obstaja'; end if;
@@ -2233,18 +2331,51 @@ begin
     v_dan_a := (o.polja ->> 'datum_a')::date;
     v_dan_b := (o.polja ->> 'datum_b')::date;
 
-    select shift_code into v_izmena_a from public.razpored where employee_id = o.vlagatelj_id and work_date = v_dan_a;
-    select shift_code into v_izmena_b from public.razpored where employee_id = o.sodelavec_id and work_date = v_dan_b;
-    select department_code into v_dept_a from public.profili where id = o.vlagatelj_id;
-    select department_code into v_dept_b from public.profili where id = o.sodelavec_id;
+    select shift_code, department_code, pokriva_oddelek into v_izmena_a, v_dept_a, v_pokriva_a
+      from public.razpored where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+    select shift_code, department_code, pokriva_oddelek into v_izmena_b, v_dept_b, v_pokriva_b
+      from public.razpored where employee_id = o.sodelavec_id and work_date = v_dan_b;
+    -- Če za tisti dan ni vrstice, pade nazaj na domači oddelek iz profila -
+    -- brez tega bi spodnji vnos zavrnil zapis (department_code NOT NULL).
+    if v_dept_a is null then select department_code into v_dept_a from public.profili where id = o.vlagatelj_id; end if;
+    if v_dept_b is null then select department_code into v_dept_b from public.profili where id = o.sodelavec_id; end if;
 
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.vlagatelj_id, v_dept_a, v_dan_a, coalesce(v_izmena_b, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+    -- Varnostni pas ob KONČNI potrditvi, na TRENUTNEM stanju baze - od
+    -- oddaje predloga do zdaj se je razpored lahko spremenil (druga
+    -- menjava, ročni popravek), spodnja preverba pa mora veljati za stanje
+    -- tik pred izvedbo, ne za stanje ob oddaji. Trd blok, brez izjeme.
+    if not public.spol_dovoljeno_po_menjavi(v_dept_a, v_pokriva_a, v_dan_a, v_izmena_a, o.vlagatelj_id, o.sodelavec_id) then
+      raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_a, v_dan_a, v_izmena_a;
+    end if;
+    if not public.spol_dovoljeno_po_menjavi(v_dept_b, v_pokriva_b, v_dan_b, v_izmena_b, o.sodelavec_id, o.vlagatelj_id) then
+      raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_b, v_dan_b, v_izmena_b;
+    end if;
 
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, updated_at)
-    values (o.sodelavec_id, v_dept_b, v_dan_b, coalesce(v_izmena_a, ''), now())
-    on conflict (employee_id, work_date) do update set shift_code = excluded.shift_code, updated_at = now();
+    -- Prava menjava: vsak prevzame DATUM/ODDELEK/IZMENO drugega - natanko
+    -- to je prikazano v predogledu pred oddajo (obrazec.html, NovObrazec).
+    -- Prej je vsak ostal na SVOJEM datumu in zamenjala se je samo koda
+    -- izmene, kar je bilo v nasprotju s tem, kar je bilo obljubljeno pred
+    -- oddajo, in pri različnih datumih dejansko napačno.
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
+    values (o.vlagatelj_id, v_dept_b, v_dan_b, coalesce(v_izmena_b, ''), v_pokriva_b, now())
+    on conflict (employee_id, work_date) do update set
+      department_code = excluded.department_code, shift_code = excluded.shift_code,
+      pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
+
+    insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
+    values (o.sodelavec_id, v_dept_a, v_dan_a, coalesce(v_izmena_a, ''), v_pokriva_a, now())
+    on conflict (employee_id, work_date) do update set
+      department_code = excluded.department_code, shift_code = excluded.shift_code,
+      pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
+
+    -- Če datuma nista enaka, mora vsak izprazniti SVOJ izvirni dan - drugače
+    -- bi po menjavi kazalo, da oba delata oba dneva.
+    if v_dan_a <> v_dan_b then
+      update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
+        where employee_id = o.vlagatelj_id and work_date = v_dan_a;
+      update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
+        where employee_id = o.sodelavec_id and work_date = v_dan_b;
+    end if;
   end if;
 
   update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;

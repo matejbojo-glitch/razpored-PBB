@@ -94,19 +94,21 @@ const ZAHTEVKI = [
     moje_dejanje: "odobri_kot_vodja" },
 ];
 
-async function odpri(profil, zahtevki) {
+async function odpri(profil, zahtevki, obvestila) {
+  obvestila = obvestila || [];
   const stran = await brskalnik.newPage({ viewport: { width: 1200, height: 900 } });
   const konzola = [];
   const klici = [];
   stran.on("pageerror", e => konzola.push(String(e)));
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
   await stran.exposeFunction("zabeleziKlic", (ime, arg) => klici.push({ ime, arg }));
-  await stran.addInitScript(({ profil, zahtevki }) => {
-    const tabele = { obrazci_moja_naloga: zahtevki, obrazci: [], obrazci_dnevnik: [], razpored: [], profili: [] };
-    const poizvedba = (v) => {
+  await stran.addInitScript(({ profil, zahtevki, obvestila }) => {
+    const tabele = { obrazci_moja_naloga: zahtevki, obrazci: [], obrazci_dnevnik: [], razpored: [], profili: [], obvestila };
+    const poizvedba = (v, ime) => {
       const b = new Proxy({}, { get(_, n) {
         if (n === "then") return (nx) => Promise.resolve({ data: v, error: null }).then(nx);
-        if (n === "insert" || n === "upsert" || n === "update") return () => Promise.resolve({ data: [], error: null });
+        if (n === "insert" || n === "upsert") return () => Promise.resolve({ data: [], error: null });
+        if (n === "update") return (arg) => { window.zabeleziKlic(ime + ".update", arg); return b; };
         if (typeof n !== "string") return undefined;
         return () => b;
       }});
@@ -120,7 +122,7 @@ async function odpri(profil, zahtevki) {
         if (v && typeof v === "object") {
           const seja = { session: { user: { id: profil.id } }, profile: profil, ogled: false };
           v.client = {
-            from: (t) => poizvedba(tabele[t] || []),
+            from: (t) => poizvedba(tabele[t] || [], t),
             rpc: (ime, arg) => { window.zabeleziKlic(ime, arg); return Promise.resolve({ data: null, error: null }); },
             auth: {
               getSession: () => Promise.resolve({ data: { session: seja.session } }),
@@ -133,7 +135,7 @@ async function odpri(profil, zahtevki) {
         }
       },
     });
-  }, { profil, zahtevki });
+  }, { profil, zahtevki, obvestila });
   await stran.goto(`http://127.0.0.1:${VRATA}/obrazec.html`, { waitUntil: "load" });
   await stran.waitForTimeout(900);
   // Privzeti zavihek je "Nov obrazec"; seznam za odločanje je za zavihkom
@@ -212,7 +214,19 @@ try {
     await stran.close();
   }
 
-  console.log("6) stran se izriše brez napak v konzoli");
+  console.log("6) rdeč znak na Menjava: obvestila se prikažejo in označijo kot prebrana");
+  {
+    const OBVESTILA = [
+      { id: 501, title: "Menjava čaka tvojo odobritev", message: "Novak Ana ti je poslal predlog menjave.", created_at: "2026-09-01T10:00:00Z" },
+    ];
+    const { stran, klici } = await odpri({ id: "u", role: "user", full_name: "Novak Ana" }, [], OBVESTILA);
+    const besedilo = await stran.evaluate(() => document.body.innerText);
+    trdi(besedilo.includes("Novak Ana ti je poslal predlog menjave."), "sporočilo obvestila je vidno na strani");
+    trdi(klici.some(k => k.ime === "obvestila.update"), "ob prikazu se je obvestilo označilo kot prebrano: " + JSON.stringify(klici.map(k => k.ime)));
+    await stran.close();
+  }
+
+  console.log("7) stran se izriše brez napak v konzoli");
   {
     const { stran, konzola } = await odpri({ id: "u", role: "user", full_name: "Novak Ana" }, ZAHTEVKI);
     const prave = konzola.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));

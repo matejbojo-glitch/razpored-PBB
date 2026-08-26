@@ -15,6 +15,13 @@
  * tabela) prek public.tuji_kljuc_ze_obstaja / enolicna_omejitev_ze_obstaja,
  * primarni ključ pa po vrsti omejitve (contype = 'p').
  *
+ * CHECK omejitve so izjema: veljajo za en sam nov stolpec, ki ga stara
+ * (pred preimenovanjem) baza sploh ni imela, zato ne morejo podedovati
+ * imena po starem - varovalka po imenu zanje ni tvegana. Ta preizkus zato
+ * varovalke pred ADD CONSTRAINT ... CHECK izloči in preveri le tiste pred
+ * FOREIGN KEY / UNIQUE / PRIMARY KEY - to so razredi, ki jih je RENAME TO
+ * dejansko prizadel.
+ *
  * Zagon: node skripte/preveri-shema-varovalke.mjs
  */
 import { readFileSync } from "node:fs";
@@ -30,11 +37,16 @@ function trdi(pogoj, opis) {
   if (!pogoj) napake.push(opis);
 }
 
-console.log("1) nobena varovalka ne preverja imena omejitve");
+console.log("1) nobena varovalka za FK/UNIQUE/PK ne preverja imena omejitve");
 const vrstice = shema.split("\n");
 const poImenu = [];
 vrstice.forEach((v, i) => {
-  if (/pg_constraint[\s\S]*conname\s*=/.test(v)) poImenu.push(`${i + 1}: ${v.trim()}`);
+  if (!/pg_constraint[\s\S]*conname\s*=/.test(v)) return;
+  // Poglej nekaj vrstic naprej: če guarded blok dodaja CHECK, ni tvegan
+  // (glej pojasnilo na vrhu datoteke) - preskoči.
+  const naprej = vrstice.slice(i, i + 6).join(" ");
+  if (/ADD CONSTRAINT \S+ CHECK\b/i.test(naprej)) return;
+  poImenu.push(`${i + 1}: ${v.trim()}`);
 });
 trdi(poImenu.length === 0, poImenu.length === 0
   ? "varovalk po imenu ni"
