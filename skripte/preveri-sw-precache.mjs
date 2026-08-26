@@ -17,7 +17,7 @@
  *
  * Zagon: npm run build && node skripte/preveri-sw-precache.mjs
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -36,6 +36,22 @@ if (!existsSync(swPot)) {
   console.error("\nNEUSPEŠNO – dist/sw.js ni. Najprej poženi `npm run build`.");
   process.exit(1);
 }
+// dist/ mora biti SVEŽ. Sicer preizkus bere star seznam ASSETS in molči
+// tudi takrat, ko je v izvorni kodi nova stran, ki se sploh ne zgradi -
+// natanko to se je zgodilo pri uvoz.html (manjkala je med vhodi v
+// vite.config.mjs, dist/sw.js pa je bil star in nove vrstice ni imel).
+{
+  const zgrajen = statSync(swPot).mtimeMs;
+  const izvorne = ["sw.js", "vite.config.mjs", ...readdirSync(koren).filter(d => d.endsWith(".html"))];
+  const mlajse = izvorne.filter(d => existsSync(join(koren, d)) && statSync(join(koren, d)).mtimeMs > zgrajen);
+  if (mlajse.length) {
+    console.error(`\nNEUSPEŠNO – dist/ je starejši od izvorne kode (${mlajse.join(", ")}).` +
+      "\nPoženi `npm run build` in preizkus ponovi - sicer bi bral star seznam.");
+    process.exit(1);
+  }
+  console.log("  ✓ dist/ je novejši od izvorne kode");
+}
+
 const sw = readFileSync(swPot, "utf8");
 const ujem = sw.match(/const ASSETS = \[([\s\S]*?)\n\];/);
 trdi(!!ujem, "seznam ASSETS je najden");
@@ -50,6 +66,23 @@ console.log("2) vsaka predpomnjena datoteka res obstaja v dist/");
 for (const p of vnosi) {
   const jeTam = existsSync(join(dist, p));
   trdi(jeTam, jeTam ? p : `${p} JE NA SEZNAMU, a ga v dist/ NI – namestitev service workerja bo odpovedala`);
+}
+
+console.log("2b) vsaka stran iz korena je med vhodi v vite.config.mjs in v dist/");
+{
+  // Vite zgradi SAMO tisto, kar je našteto med "input". Stran, ki jo
+  // pozabimo dodati, na objavljeni strani vrne 404 - v razvoju pa deluje,
+  // ker vite dev servira neposredno iz korena. Zato se to opazi šele v živo.
+  const vite = readFileSync(join(koren, "vite.config.mjs"), "utf8");
+  const vhodi = new Set([...vite.matchAll(/stran\("([^"]+\.html)"\)/g)].map(m => m[1]));
+  for (const d of readdirSync(koren).filter(d => d.endsWith(".html"))) {
+    trdi(vhodi.has(d), vhodi.has(d)
+      ? `${d} je med vhodi`
+      : `${d} NI med vhodi v vite.config.mjs - ne zgradi se in v živo vrne 404`);
+    trdi(existsSync(join(dist, d)), existsSync(join(dist, d))
+      ? `${d} je zgrajen v dist/`
+      : `${d} se ni zgradil v dist/`);
+  }
 }
 
 console.log("3) skupni slog (assets/*.css) je predpomnjen pod zgrajenim imenom");
