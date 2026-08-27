@@ -81,13 +81,28 @@ console.log("3) izjema NE velja preširoko");
 
 console.log("4) druga pravila ostanejo nedotaknjena");
 {
-  // Zaporedne nočne se še vedno štejejo - izjema velja SAMO za počitek.
-  const vse = DC.preveriPravila([
-    { oseba: "Z", datum: "2026-09-01", sifra: "NOČNA" },
-    { oseba: "Z", datum: "2026-09-02", sifra: "NOČNA" },
-    { oseba: "Z", datum: "2026-09-03", sifra: "NOČNA" },
-  ]);
-  trdi(vse.some(k => k.vrsta === "nocne"), "tri zaporedne nočne se še vedno javijo");
+  // Zaporedne nočne se še vedno štejejo - izjema pri dežurstvu velja SAMO
+  // za počitek in nočnih ne izklopi.
+  //
+  // Meje so se spremenile (uporabnikovo pravilo, avgust 2026): TRI zaporedne
+  // nočne so običajne in se NE javijo. Prej je bila meja 2, zaradi česar je
+  // že sam kalup (vzorec B ima tri zaporedne nočne) v vsakem razporedu
+  // javljal kršitve - opozorilo, ki se pojavi vedno, nima vrednosti.
+  const nocne = (n) => DC.preveriPravila(
+    Array.from({ length: n }, (_, i) => ({
+      oseba: "Z", datum: "2026-09-" + String(i + 1).padStart(2, "0"), sifra: "NOČNA",
+    }))).filter(k => k.vrsta === "nocne");
+
+  trdi(nocne(3).length === 0, "tri zaporedne nočne so običajne in se ne javijo");
+  const stiri = nocne(4);
+  trdi(stiri.length > 0 && stiri[stiri.length - 1].resnost === "opozorilo",
+    "štiri so dopustne po dogovoru – opozorilo, ne napaka");
+  const pet = nocne(5);
+  trdi(pet.length > 0 && pet[pet.length - 1].resnost === "opozorilo",
+    "pet prav tako po dogovoru");
+  const sest = nocne(6);
+  trdi(sest.length > 0 && sest[sest.length - 1].resnost === "kriticno",
+    "šest je nad absolutno mejo – kritično, dogovor ne pomaga");
 }
 
 console.log("5) pravilo je zapisano na enem mestu in kopiji sta enaki");
