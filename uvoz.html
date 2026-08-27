@@ -68,7 +68,7 @@ const SKUPINE = [
     naslov: "Razpored",
     vnosi: [
       { ikona: "🗓️", naziv: "Mesečni razpored izmen",
-        opis: "Cela preglednica »2026 SMS RAZPORED« (Excel z več zavihki) ali povezava do Google Sheets. Aplikacija sama prepozna, kateri zavihek je kateri oddelek in mesec – tudi FLEXI in NZV.",
+        opis: "Cela preglednica »2026 SMS RAZPORED« (Excel z več zavihki), povezava do Google Sheets ali JSON iz izvoza te aplikacije. Aplikacija sama prepozna, kateri zavihek je kateri oddelek in mesec – tudi FLEXI in NZV.",
         kam: "Razpored", href: "index.html?uvoz=razpored" },
       { ikona: "🩺", naziv: "Dežurstvo zdravnikov (PDF)",
         opis: "Uradni mesečni dokument »Razporeditev zaposlenih v UA in DEŽ«. Ime dežurnega zdravnika se nato izpiše ob dežurstvu v Mojem razporedu.",
@@ -161,6 +161,14 @@ function App(){
         Izberi, kaj uvažaš. Odprla se bo stran, ki ta uvoz opravi, z že pripravljenim
         oknom – uvoz sam poteka tam, kjer se podatki tudi prikažejo, da lahko takoj
         preveriš, ali je vse prišlo prav.
+      </p>
+      <p className="hint">
+        <b>Oblike:</b> Excel (.xlsx, .xls), CSV, JSON, PDF s pravo tabelo in povezava do
+        Google Sheets. <b>Slik (.png, .jpg) ni mogoče uvoziti</b> – iz fotografije bi bilo
+        treba prepoznavati besedilo, česar aplikacija ne zna, napačno prebran razpored pa
+        bi ljudem dodelil napačne izmene. Edina izjema so <i>Želje s fotografije</i>, kjer
+        se bere barva celice in ne besedilo. <b>Izvoz</b> je na vsaki strani pod ikono ⬇
+        zgoraj desno, in sicer v Excel, Google Sheets, PDF, JSON, PNG in JPEG.
       </p>
 
       {SKUPINE.map((s, i) => <Skupina key={i} skupina={s} />)}

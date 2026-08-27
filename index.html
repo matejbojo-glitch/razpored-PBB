@@ -3853,7 +3853,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "datoteka" ? "Uvažam …" : "📁 Naloži datoteko (samodejno)"}
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
+              <input type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
             </label>
           </div>
 
@@ -3865,7 +3865,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "zdravniki" ? "Uvažam …" : "🩺 Naloži dežurstvo zdravnikov (PDF)"}
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizZdravnike} />
+              <input type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}} disabled={!!busy} onChange={nalozizZdravnike} />
             </label>
           </div>
 

@@ -237,6 +237,36 @@ try {
     trdi((await stran.$$eval(".dlMenuMsg.err", e => e.length)) === 0, "in ni sporočila o napaki");
   }
 
+  console.log("3c) izvožen JSON se prebere NAZAJ v iste podatke (sklenjen krog)");
+  {
+    // Brez tega bi splošno branje JSON-a naš izvoz razumelo kot seznam
+    // zapisov in iz njega naredilo tabelo s stolpci "ime", "glave" in
+    // "vrstice" - izvoz in uvoz se ne bi ujela. Tu se preveri prav to.
+    await stran.addScriptTag({ url: "/import-utils.js" });
+    const nazaj = await stran.evaluate(async () => {
+      const izvoz = {
+        aplikacija: "Razpored PBB", razlicica: 1, nastalo: new Date().toISOString(),
+        naslov: "preizkus-izvoz",
+        listi: [
+          { ime: "Šumniki čžš", glave: ["Ime", "Dan", "Izmena"],
+            vrstice: [["Bojić Matej", "1.9.2026", "DOP"], ["Salkić Maruša", "2.9.2026", "N12"]] },
+          { ime: "Drugi list", glave: ["A"], vrstice: [["1"]] },
+        ],
+      };
+      const dat = new File([JSON.stringify(izvoz)], "izvoz.json", { type: "application/json" });
+      const eno = await window.ImportUtils.preberiDatoteko(dat);
+      const vsi = await window.ImportUtils.preberiVseListe(dat);
+      return { eno: eno.vrsteVrstic, listi: vsi.listi };
+    });
+    trdi(JSON.stringify(nazaj.eno[0]) === JSON.stringify(["Ime", "Dan", "Izmena"]),
+      "glave se preberejo kot glave – dobil: " + JSON.stringify(nazaj.eno[0]));
+    trdi(JSON.stringify(nazaj.eno[1]) === JSON.stringify(["Bojić Matej", "1.9.2026", "DOP"]),
+      "prva vrstica je ista – dobil: " + JSON.stringify(nazaj.eno[1]));
+    trdi(nazaj.eno.length === 3, `skupaj glava + 2 vrstici (dobil ${nazaj.eno.length})`);
+    trdi(nazaj.listi.length === 2, `oba zavihka sta ohranjena (dobil ${nazaj.listi.length})`);
+    trdi(nazaj.listi[0].naziv === "Šumniki čžš", "ime zavihka s šumniki je ohranjeno");
+  }
+
   console.log("4) PDF odpre tiskalniško okno, ne prenosa");
   {
     // window.print bi v Playwrightu blokiral, zato ga prestrežemo - preveri

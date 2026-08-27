@@ -131,9 +131,21 @@ window.ImportUtils = (function () {
           }).catch(reject);
         };
         reader.readAsArrayBuffer(file);
+      } else if (ime.endsWith(".json") || ime.endsWith(".jsonl")) {
+        // JSON iz izvoza te aplikacije nosi vse zavihke, zato jih tu vrnemo
+        // enako kot pri Excelu - izvoz in uvoz morata biti zrcalna.
+        reader.onload = () => {
+          try {
+            const r = jsonVVrstice(String(reader.result || ""), ime);
+            if (r.listi && r.listi.length) { resolve({ listi: r.listi }); return; }
+            const naziv = (file.name || "list").replace(/\.[^.]+$/, "");
+            resolve({ listi: [{ naziv, vrsteVrstic: r.vrsteVrstic || [] }] });
+          } catch (e) { reject(e); }
+        };
+        reader.readAsText(file, "UTF-8");
       } else {
         reject(new Error(
-          "Ta vrsta datoteke ni podprta za samodejni uvoz (pričakovano: .xlsx, .xls, .csv ali .pdf) - "
+          "Ta vrsta datoteke ni podprta za samodejni uvoz (pričakovano: .xlsx, .xls, .csv, .json ali .pdf) - "
           + "izvozi razpored iz Google Sheets/Excela v eno od teh oblik."
         ));
       }
@@ -275,6 +287,24 @@ window.ImportUtils = (function () {
   //             se povezava, ki jo stran nato uvozi po običajni poti
   // Glave se sestavijo iz unije ključev, da manjkajoč ključ v posameznem
   // zapisu ne premakne stolpcev.
+  // Prepozna JSON, ki ga je izdelal IZVOZ te iste aplikacije (glej
+  // ExportUtils.izvoziJSON). Brez tega bi ga splošno branje spodaj razumelo
+  // kot seznam zapisov in iz njega naredilo nesmiselno tabelo s stolpci
+  // "ime", "glave" in "vrstice" - izvoz in uvoz se torej ne bi ujela.
+  function nasIzvozVListe(podatki) {
+    if (!podatki || typeof podatki !== "object") return null;
+    if (podatki.aplikacija !== "Razpored PBB" || !Array.isArray(podatki.listi)) return null;
+    return podatki.listi.map((l, i) => {
+      const glave = Array.isArray(l && l.glave) ? l.glave : [];
+      const vrstice = Array.isArray(l && l.vrstice) ? l.vrstice : [];
+      const vse = (glave.length ? [glave] : []).concat(vrstice);
+      return {
+        naziv: (l && l.ime) || ("List " + (i + 1)),
+        vrsteVrstic: vse.map(v => (v || []).map(c => (c == null ? "" : String(c)))),
+      };
+    });
+  }
+
   function jsonVVrstice(besedilo, ime) {
     const t = besedilo.trim();
     if (!t) throw new Error("Datoteka je prazna.");
@@ -296,6 +326,12 @@ window.ImportUtils = (function () {
       let podatki;
       try { podatki = JSON.parse(t); }
       catch (e) { throw new Error("Datoteka ni veljaven JSON: " + (e.message || e)); }
+      const nasi = nasIzvozVListe(podatki);
+      if (nasi) {
+        // Prvi list je tisti, ki ga bere enolistni uvoz; celoten nabor
+        // dobi preberiVseListe.
+        return { vrsteVrstic: (nasi[0] || {}).vrsteVrstic || [], tip: "json", listi: nasi };
+      }
       if (Array.isArray(podatki)) zapisi = podatki;
       else if (podatki && typeof podatki === "object") {
         // Objekt ovija podatke (npr. { "vrstice": [...] }) – vzemi prvo polje.
