@@ -107,6 +107,12 @@ try {
   const konzola = [];
   stran2.on("pageerror", e => konzola.push(String(e)));
   stran2.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
+  // Izvoz zdaj najprej ponudi okno "Shrani kot" (showSaveFilePicker), šele
+  // nato izdela datoteko. Brskalnik brez zaslona tega okna ne more prikazati
+  // in klic obvisi, zato ga tu odstranimo - s tem gre izvoz po rezervni poti
+  // (običajen prenos), ki je natanko tisto, kar ta preizkus meri. Samo okno
+  // "Shrani kot" pokriva skripte/preveri-izvozne-formate.mjs.
+  await stran2.addInitScript(() => { delete window.showSaveFilePicker; });
   await stran2.goto("file://" + pot, { waitUntil: "networkidle" });
   await stran2.waitForTimeout(500);
 
