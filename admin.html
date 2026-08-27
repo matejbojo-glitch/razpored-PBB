@@ -561,19 +561,58 @@ function ImeOsebe({ id, children }){
   return <a href={"imenik.html?id=" + id} style={{color:"inherit"}} title="Odpri profil">{children}</a>;
 }
 
-function shiftBucket(sifra){
+// Sobote, nedelje in prazniki tečejo v DVEH dvanajsturnih izmenah, med
+// tednom pa v treh. Minimalna zasedba se zato razlikuje in ima svoja koša.
+// Brez tega je vsaka sobota javila "manjka popoldanska izmena", ki je tisti
+// dan sploh ni - torej rdeče opozorilo za nekaj, kar ni narobe.
+function jeVikendAliPraznik(iso){
+  if (!iso) return false;
+  const d = new Date(iso + "T00:00:00");
+  const dan = d.getDay();
+  if (dan === 0 || dan === 6) return true;
+  return !!(window.Prazniki && window.Prazniki.jePraznik(iso));
+}
+
+// "iso" je neobvezen: brez njega se izmena razvrsti po delovnem tednu
+// (tako se je vedla prejšnja različica).
+function shiftBucket(sifra, iso){
   const t=(sifra||"").toLowerCase().replace(/\s+/g, "");
   if (t.startsWith("ld") || t.startsWith("kpu") || t === "pomočdrugje" || !t) return null;
-  if (t.includes("nočna12")) return "PONOCI";
-  if (t.includes("dnevna12")) return "DOPOLDNE";
-  if (t.startsWith("nočna")) return "PONOCI";
+  const vikend = jeVikendAliPraznik(iso);
+  if (t.includes("nočna12")) return vikend ? "PONOCI_VIKEND" : "PONOCI";
+  if (t.includes("dnevna12")) return vikend ? "DNEVNA_VIKEND" : "DOPOLDNE";
+  if (t.startsWith("nočna")) return vikend ? "PONOCI_VIKEND" : "PONOCI";
   // Obe pisavi: stari zapisi v bazi ("dopoldan") in novi iz kalupa
   // ("Dopoldne").
-  if (t.startsWith("dopoldan") || t.startsWith("dopoldne")) return "DOPOLDNE";
-  if (t.startsWith("popoldan") || t.startsWith("popoldne")) return "POPOLDNE";
+  if (t.startsWith("dopoldan") || t.startsWith("dopoldne")) return vikend ? "DNEVNA_VIKEND" : "DOPOLDNE";
+  if (t.startsWith("popoldan") || t.startsWith("popoldne")) return vikend ? "DNEVNA_VIKEND" : "POPOLDNE";
   return null;
 }
-const IZMENA_LABEL = { DOPOLDNE: "Dopoldne", POPOLDNE: "Popoldne", PONOCI: "Nočna" };
+
+const KOSI_TEDEN = ["DOPOLDNE", "POPOLDNE", "PONOCI"];
+const KOSI_VIKEND = ["DNEVNA_VIKEND", "PONOCI_VIKEND"];
+const VSI_KOSI = KOSI_TEDEN.concat(KOSI_VIKEND);
+function kosiZaDan(iso){ return jeVikendAliPraznik(iso) ? KOSI_VIKEND : KOSI_TEDEN; }
+
+const IZMENA_LABEL = {
+  DOPOLDNE: "Dopoldne", POPOLDNE: "Popoldne", PONOCI: "Nočna",
+  DNEVNA_VIKEND: "Dnevna 12", PONOCI_VIKEND: "Nočna 12",
+};
+
+// Kalup razporeja SAMO izmenski kader oddelka. Vodja (DMS) ima razpored v
+// NZV in je na oddelčnem razporedu viden v stolpcu "nosilec NZV", dodatna
+// oseba pa prihaja iz razporeda FLEXI in pokriva C in E2 skupaj. Nobeden
+// od njiju v tem predlogu ne nastopa, zato se primerja s min_sms - sicer
+// bi vsak dan javljal manko dveh ljudi, ki sta v resnici razporejena
+// drugje. Koliko jih je še zraven, pove opomba ob številki.
+function minZaKos(v){ return v ? (Number(v.min_sms) || 0) : 0; }
+function dodatkiOpis(v){
+  if (!v) return "";
+  const deli = [];
+  if (Number(v.min_dms)) deli.push("+" + Number(v.min_dms) + " vodja (NZV)");
+  if (Number(v.min_flexi)) deli.push("+" + Number(v.min_flexi) + " FLEXI");
+  return deli.join(", ");
+}
 
 async function nalozizMinimume(koda){
   const { data, error } = await client.from("minimalna_zasedba").select("*").eq("department_code", koda);
@@ -798,21 +837,19 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
 // tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
 // podvajanja logike).
 function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
-  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
-    const v = minimumi[b];
-    return v && (v.min_dms || v.min_sms || v.min_flexi);
-  });
+  const imaMinimume = minimumi && VSI_KOSI.some(b => minZaKos(minimumi[b]) > 0);
   const vrzeli = [];
   if (imaMinimume) {
     rezultat.dnevi.forEach(dn => {
-      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
-        const v = minimumi[b];
-        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
-        if (!minVsota) return;
-        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
+      // Koši se razlikujejo med tednom in ob vikendih/praznikih - glej
+      // shiftBucket. Preverjajo se samo tisti, ki tisti dan sploh obstajajo.
+      kosiZaDan(dn.datum).forEach(b => {
+        const najmanj = minZaKos(minimumi[b]);
+        if (!najmanj) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn), dn.datum) === b).length;
         // "bucket" pove, KATERE izmene zmanjka - brez tega se vrzeli da
         // samo prešteti, ne pa tudi predlagati, kdo naj jo zapolni.
-        if (dejansko < minVsota) vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: minVsota - dejansko });
+        if (dejansko < najmanj) vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: najmanj - dejansko });
       });
     });
   } else {
@@ -933,20 +970,18 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
 }
 
 function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
-  const imaMinimume = minimumi && ["DOPOLDNE", "POPOLDNE", "PONOCI"].some(b => {
-    const v = minimumi[b];
-    return v && (v.min_dms || v.min_sms || v.min_flexi);
-  });
+  const imaMinimume = minimumi && VSI_KOSI.some(b => minZaKos(minimumi[b]) > 0);
 
   if (imaMinimume) {
     const vrstice = [];
     rezultat.dnevi.forEach(dn => {
-      ["DOPOLDNE", "POPOLDNE", "PONOCI"].forEach(b => {
-        const v = minimumi[b];
-        const minVsota = v ? (Number(v.min_dms) || 0) + (Number(v.min_sms) || 0) + (Number(v.min_flexi) || 0) : 0;
-        if (!minVsota) return;
-        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn)) === b).length;
-        if (dejansko < minVsota) vrstice.push({ dn, b, dejansko, minVsota, primanjkljaj: minVsota - dejansko });
+      kosiZaDan(dn.datum).forEach(b => {
+        const najmanj = minZaKos(minimumi[b]);
+        if (!najmanj) return;
+        const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn), dn.datum) === b).length;
+        if (dejansko < najmanj)
+          vrstice.push({ dn, b, dejansko, minVsota: najmanj, primanjkljaj: najmanj - dejansko,
+                         dodatki: dodatkiOpis(minimumi[b]) });
       });
     });
     if (vrstice.length === 0) {
@@ -957,12 +992,12 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
         <table className="roster">
           <thead><tr><th>Dan</th><th>Izmena</th><th>Dejansko</th><th>Minimum</th><th>Primanjkljaj</th></tr></thead>
           <tbody>
-            {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj }) => (
+            {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj, dodatki }) => (
               <tr key={dn.datum + b}>
                 <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
                 <td>{IZMENA_LABEL[b]}</td>
                 <td>{dejansko}</td>
-                <td>{minVsota}</td>
+                <td>{minVsota}{dodatki ? <span className="hint" style={{marginLeft:6}}>{dodatki}</span> : null}</td>
                 <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
               </tr>
             ))}
@@ -1213,7 +1248,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       if (vikend(dn.datum) !== jeVikend) return;
       rezultat.staff.forEach(z => {
         const sifra = celica(z, dn);
-        if (shiftBucket(sifra) !== bucket) return;
+        if (shiftBucket(sifra, datum) !== bucket) return;
         stevec[sifra] = (stevec[sifra] || 0) + 1;
       });
     });
