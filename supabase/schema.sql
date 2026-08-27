@@ -3698,6 +3698,12 @@ on conflict (code) do update set name = excluded.name;
 -- pokriva OBA oddelka (v razpored se piše "C/E2"). Ni torej dveh dodatnih
 -- ljudi, ampak en sam, ki šteje na obeh straneh.
 --
+-- FLEXI dela DNEVNE izmene. Ponoči ga v minimumu ni - lahko pa po
+-- predhodnem dogovoru ali ob izpadu (bolniška) NADOMESTI oddelčno osebo.
+-- Takrat prevzame njeno vlogo in minimum se NE dvigne. V pokritosti
+-- (Generator -> Kalup) tako vrzel označiš z "Pokrije FLEXI" in preneha
+-- svetiti rdeče, ker to ni napaka.
+--
 -- min_dms: vodja (DMS/DZN) je na oddelku PON-PET 7.00-15.00. Njegov razpored
 -- nastane drugje (NZV), na oddelčnem razporedu pa je viden v stolpcu
 -- "nosilec NZV" - zato ga pokritost šteje iz tistega stolpca in ne med

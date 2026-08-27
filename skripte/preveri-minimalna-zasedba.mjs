@@ -111,6 +111,64 @@ console.log("2) izmena se razvrsti v pravi koš glede na dan");
   trdi(!jeVikendAliPraznik("2026-08-18"), "navaden torek ostane delovni dan");
 }
 
+// --- 3) FLEXI ponoči nadomesti, ne dodaja -------------------------------
+console.log("3) vrzel, ki jo pokrije FLEXI, ne sme svetiti rdeče");
+{
+  // FLEXI dela dnevne izmene. Ponoči ga po predhodnem dogovoru ali ob
+  // izpadu (bolniška) lahko vključijo, a takrat NADOMESTI oddelčno osebo -
+  // minimum ostane isti. Brez možnosti označbe bi tak dan trajno kazal
+  // rdeče, čeprav je razporejeno tako, kot mora biti.
+  const html = readFileSync(join(koren, "admin.html"), "utf8");
+  const zac = html.indexOf("function izracunajVrzeli");
+  // Do NASLEDNJE funkcije, ne do PokritostPoDnevih - vmes so komponente z
+  // JSX, ki ga new Function ne zna prebrati.
+  const kon = html.indexOf("function tedniBesedilo");
+  trdi(zac > 0 && kon > zac, "izračun vrzeli je najden");
+
+  global.window = { Prazniki: { jePraznik: () => false } };
+  const pomozne = html.slice(html.indexOf("function jeVikendAliPraznik"), html.indexOf("function minZaKos"))
+    + "\nfunction minZaKos(v){ return v ? (Number(v.min_sms) || 0) : 0; }\n";
+  const kontekst = {};
+  new Function("window", pomozne + html.slice(zac, kon) + ";Object.assign(this,{izracunajVrzeli});")
+    .call(kontekst, global.window);
+  const { izracunajVrzeli } = kontekst;
+
+  // 5.10.2026 je ponedeljek. Oddelek ima ponoči minimum 1, a nihče ne dela.
+  const rezultat = {
+    dnevi: [{ datum: "2026-10-05", dan: "PO" }],
+    staff: [{ ime: "A" }],
+    pricakovanoPoDnevih: {},
+  };
+  const celica = () => "";              // nihče ne dela
+  const minimumi = { PONOCI: { min_sms: 1 } };
+
+  const brez = izracunajVrzeli({ rezultat, celica, pragPopravki: {}, minimumi, flexiPokrito: {} });
+  eq(brez.vrzeli.map(v => v.datum + "|" + v.bucket), ["2026-10-05|PONOCI"],
+     "brez označbe je vrzel prijavljena");
+
+  const z = izracunajVrzeli({ rezultat, celica, pragPopravki: {}, minimumi,
+                              flexiPokrito: { "2026-10-05|PONOCI": true } });
+  eq(z.vrzeli, [], "z označbo »Pokrije FLEXI« vrzeli ni več");
+
+  // Označba velja za TOČNO tisti dan in izmeno, ne za cel mesec.
+  const drug = izracunajVrzeli({ rezultat, celica, pragPopravki: {}, minimumi,
+                                 flexiPokrito: { "2026-10-06|PONOCI": true } });
+  eq(drug.vrzeli.map(v => v.datum), ["2026-10-05"], "označba drugega dne te vrzeli ne skrije");
+  const drugaIzmena = izracunajVrzeli({ rezultat, celica, pragPopravki: {}, minimumi,
+                                        flexiPokrito: { "2026-10-05|DOPOLDNE": true } });
+  eq(drugaIzmena.vrzeli.map(v => v.bucket), ["PONOCI"], "označba druge izmene je prav tako ne skrije");
+}
+
+// --- 4) označba se ne prenese na nov predlog ---------------------------
+console.log("4) oznake se ob novem generiranju počistijo");
+{
+  const html = readFileSync(join(koren, "admin.html"), "utf8");
+  const i = html.indexOf("const generiraj = async");
+  const gen = html.slice(i, i + 4000);
+  trdi(/setFlexiPokrito\(\{\}\)/.test(gen),
+    "generiranje počisti oznake – sicer bi odločitev za en mesec tiho veljala za drugega");
+}
+
 console.log("");
 if (napake.length) {
   console.error(`NEUSPEŠNO – ${napake.length} napak`);

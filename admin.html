@@ -836,7 +836,12 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
 // Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
 // tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
 // podvajanja logike).
-function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
+// "flexiPokrito" so vrzeli, za katere je koordinator povedal, da jih
+// pokrije oseba iz razporeda FLEXI. FLEXI dela dnevne izmene, ponoči pa po
+// predhodnem dogovoru ali ob izpadu (bolniška) NADOMESTI oddelčno osebo -
+// minimum se s tem ne dvigne, vrzel pa je zapolnjena. Brez te oznake bi
+// aplikacija tak dan trajno kazala rdeče, čeprav ni napaka.
+function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito }){
   const imaMinimume = minimumi && VSI_KOSI.some(b => minZaKos(minimumi[b]) > 0);
   const vrzeli = [];
   if (imaMinimume) {
@@ -849,7 +854,9 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi }){
         const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn), dn.datum) === b).length;
         // "bucket" pove, KATERE izmene zmanjka - brez tega se vrzeli da
         // samo prešteti, ne pa tudi predlagati, kdo naj jo zapolni.
-        if (dejansko < najmanj) vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: najmanj - dejansko });
+        if (dejansko >= najmanj) return;
+        if (flexiPokrito && flexiPokrito[dn.datum + "|" + b]) return; // pokrije FLEXI
+        vrzeli.push({ datum: dn.datum, bucket: b, primanjkljaj: najmanj - dejansko });
       });
     });
   } else {
@@ -896,8 +903,8 @@ function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
   );
 }
 
-function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
-  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito }){
+  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
   const opozorila = rezultat.opozorila || [];
 
   // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
@@ -969,7 +976,7 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve }){
   );
 }
 
-function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi }){
+function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, minimumi, flexiPokrito, setFlexiPokrito }){
   const imaMinimume = minimumi && VSI_KOSI.some(b => minZaKos(minimumi[b]) > 0);
 
   if (imaMinimume) {
@@ -979,31 +986,54 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
         const najmanj = minZaKos(minimumi[b]);
         if (!najmanj) return;
         const dejansko = rezultat.staff.filter(z => shiftBucket(celica(z, dn), dn.datum) === b).length;
-        if (dejansko < najmanj)
-          vrstice.push({ dn, b, dejansko, minVsota: najmanj, primanjkljaj: najmanj - dejansko,
-                         dodatki: dodatkiOpis(minimumi[b]) });
+        if (dejansko >= najmanj) return;
+        vrstice.push({ dn, b, dejansko, minVsota: najmanj, primanjkljaj: najmanj - dejansko,
+                       dodatki: dodatkiOpis(minimumi[b]),
+                       kljuc: dn.datum + "|" + b });
       });
     });
-    if (vrstice.length === 0) {
-      return <p className="hint no-print">Ni zaznanih vrzeli – dejanska zasedba po izmenah ustreza nastavljenim minimumom na vsak dan.</p>;
+    const odprte = vrstice.filter(v => !(flexiPokrito || {})[v.kljuc]);
+    const pokrite = vrstice.length - odprte.length;
+    const opombaFlexi = pokrite > 0
+      ? <p className="hint no-print">{pokrite} {pokrite === 1 ? "vrzel jo pokrije" : "vrzeli pokrije"} oseba iz razporeda FLEXI – dogovorjeno, ni napaka.</p>
+      : null;
+
+    if (odprte.length === 0) {
+      return (
+        <React.Fragment>
+          <p className="hint no-print">Ni zaznanih vrzeli – dejanska zasedba po izmenah ustreza nastavljenim minimumom na vsak dan.</p>
+          {opombaFlexi}
+        </React.Fragment>
+      );
     }
     return (
+      <React.Fragment>
       <div className="card no-print" style={{overflowX:"auto"}}>
         <table className="roster">
-          <thead><tr><th>Dan</th><th>Izmena</th><th>Dejansko</th><th>Minimum</th><th>Primanjkljaj</th></tr></thead>
+          <thead><tr><th>Dan</th><th>Izmena</th><th>Dejansko</th><th>Minimum</th><th>Primanjkljaj</th><th></th></tr></thead>
           <tbody>
-            {vrstice.map(({ dn, b, dejansko, minVsota, primanjkljaj, dodatki }) => (
-              <tr key={dn.datum + b}>
+            {odprte.map(({ dn, b, dejansko, minVsota, primanjkljaj, dodatki, kljuc }) => (
+              <tr key={kljuc}>
                 <td>{dn.dan} {window.Datum.slo(dn.datum)}</td>
                 <td>{IZMENA_LABEL[b]}</td>
                 <td>{dejansko}</td>
                 <td>{minVsota}{dodatki ? <span className="hint" style={{marginLeft:6}}>{dodatki}</span> : null}</td>
                 <td style={{color:"var(--danger)", fontWeight:800}}>-{primanjkljaj}</td>
+                <td>
+                  <button type="button" className="btnGhost" title="Oseba iz razporeda FLEXI nadomesti oddelčno – minimum ostane isti"
+                    onClick={() => setFlexiPokrito(p => ({ ...p, [kljuc]: true }))}>Pokrije FLEXI</button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {opombaFlexi}
+      {pokrite > 0 && (
+        <button type="button" className="btnGhost no-print" style={{marginTop:6}}
+          onClick={() => setFlexiPokrito({})}>Prekliči oznake »Pokrije FLEXI«</button>
+      )}
+      </React.Fragment>
     );
   }
 
@@ -1134,6 +1164,10 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // PREDLOGI - v razpored se vpišejo šele, ko jih koordinator potrdi.
   const [predlogiVrzeli, setPredlogiVrzeli] = useState(null);
   const [potrjeneVrzeli, setPotrjeneVrzeli] = useState({});
+  // Vrzeli, za katere je koordinator povedal, da jih pokrije FLEXI. Velja
+  // za trenutni predlog (enako kot pragPopravki) - ob novem generiranju se
+  // počisti, da se stara odločitev ne prenese na drug mesec.
+  const [flexiPokrito, setFlexiPokrito] = useState({});
   const [staffList, setStaffList] = useState(null); // [[ime, rotacijskaČrka, manjkaNastavitev, id], ...]
   // Generator kalupa ID-ja ne prenaša skozi (dela samo z imeni in vzorci),
   // zato ga za povezavo na profil poiščemo nazaj po imenu. Imena v tem
@@ -1224,6 +1258,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       setPotrjeneVrzeli({});
       setPopravki({});
       setPragPopravki({});
+      setFlexiPokrito({});
     } finally {
       setGenBusy(false);
     }
@@ -1259,7 +1294,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
 
   const predlagajVrzeli = () => {
     if (!rezultat) return;
-    const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi });
+    const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
     if (!imaMinimume) {
       setPredlogiVrzeli({ napaka: "Za ta oddelek minimumi po izmenah niso nastavljeni, zato se ne ve, KATERE izmene zmanjka. Nastavi jih zgoraj (»Minimalna zasedba po izmenah«) in poskusi znova." });
       return;
@@ -1503,7 +1538,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       {rezultat && (
         <React.Fragment>
           <h2 className="section">4 · Rezultat – {rezultat.naziv}, {rezultat.mesec}</h2>
-          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} />
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
           {rezultat.opozorila && rezultat.opozorila.length > 0 && (
             <div className="warnBox no-print">
               <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
@@ -1519,7 +1554,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           <h2 className="section no-print">4b · Pokritost po dnevih</h2>
           <p className="hint no-print">Minimum po izmeni (spodaj) je osnutek, ročno urejaj po potrebi – ko je nastavljen za ta oddelek, se uporabi za natančno zaznavo primanjkljaja po izmeni namesto grobe primerjave z osnovnim kalupom.</p>
           <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
-          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} />
+          <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} flexiPokrito={flexiPokrito} setFlexiPokrito={setFlexiPokrito} />
 
           {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
               vrzel najde in za vsako predlaga osebo, v razpored pa se
