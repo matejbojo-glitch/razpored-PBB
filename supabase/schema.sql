@@ -818,14 +818,31 @@ alter table public.minimalna_zasedba add column if not exists updated_at timesta
 -- Dva nova koša za sobote, nedelje in praznike (dvanajsturne izmene) -
 -- "create table if not exists" na obstoječi tabeli te omejitve ne razširi,
 -- zato izrecno za obstoječe baze. Brez tega spodnji seed vikendov odpove.
-do $$ begin
-  if to_regclass('public.minimalna_zasedba') is not null then
-    alter table public.minimalna_zasedba drop constraint if exists minimalna_zasedba_shift_bucket_check;
-    alter table public.minimalna_zasedba
-      add constraint minimalna_zasedba_shift_bucket_check
-      check (shift_bucket = any (array['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text,
-                                       'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text]));
-  end if;
+-- Odstrani se po VSEBINI, ne po imenu. Tabela se je pri prehodu na
+-- slovenska imena preimenovala iz "department_shift_minimums", omejitev pa
+-- je v obstoječih bazah OBDRŽALA staro ime
+-- (department_shift_minimums_shift_bucket_check). Ciljanje na novo ime jo
+-- je zgrešilo, stara je ostala v veljavi in zavrnila vsak zapis za vikend:
+--   ERROR: new row ... violates check constraint
+--          "department_shift_minimums_shift_bucket_check"
+-- Ime omejitve torej ni zanesljivo; kar je zanesljivo, je stolpec, na
+-- katerega se nanaša.
+do $$
+declare r record;
+begin
+  if to_regclass('public.minimalna_zasedba') is null then return; end if;
+  for r in
+    select conname from pg_constraint
+     where conrelid = 'public.minimalna_zasedba'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) ilike '%shift_bucket%'
+  loop
+    execute format('alter table public.minimalna_zasedba drop constraint %I', r.conname);
+  end loop;
+  alter table public.minimalna_zasedba
+    add constraint minimalna_zasedba_shift_bucket_check
+    check (shift_bucket = any (array['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text,
+                                     'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text]));
 end $$;
 alter table public.nastavitve_obvestil add column if not exists profile_id uuid;
 alter table public.nastavitve_obvestil add column if not exists email_enabled boolean default true;

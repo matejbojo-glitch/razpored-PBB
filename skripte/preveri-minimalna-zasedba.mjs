@@ -169,6 +169,33 @@ console.log("4) oznake se ob novem generiranju počistijo");
     "generiranje počisti oznake – sicer bi odločitev za en mesec tiho veljala za drugega");
 }
 
+// --- 5) selitev omejitve preživi preimenovanje tabele -------------------
+console.log("5) razširitev omejitve ne sme sloneti na imenu omejitve");
+{
+  // Tabela se je pri prehodu na slovenska imena preimenovala iz
+  // "department_shift_minimums", omejitev pa je v obstoječih bazah OBDRŽALA
+  // staro ime. Ciljanje na novo ime jo je zgrešilo, stara je ostala v
+  // veljavi in zavrnila vsak zapis za vikend:
+  //   ERROR: new row ... violates check constraint
+  //          "department_shift_minimums_shift_bucket_check"
+  // Ista past je bila prej ujeta pri zelje_zaposlenih. Zato se tu zahteva
+  // odstranjevanje po VSEBINI (pregled pg_constraint), ne po imenu -
+  // naštevanje znanih imen zataji ob naslednjem preimenovanju.
+  const sql = readFileSync(join(koren, "supabase/schema.sql"), "utf8");
+  const zac = sql.indexOf("if to_regclass('public.minimalna_zasedba') is null then return; end if;");
+  trdi(zac > 0, "selitev omejitve je najdena");
+  const blok = sql.slice(Math.max(0, zac - 1500), zac + 1200);
+  trdi(/from pg_constraint/.test(blok), "omejitve se poiščejo v pg_constraint");
+  trdi(/pg_get_constraintdef\(oid\)\s+ilike\s+'%shift_bucket%'/.test(blok),
+    "in izberejo po stolpcu, na katerega se nanašajo");
+  trdi(/drop constraint %I/.test(blok), "vsaka najdena se odstrani, ne le ena po imenu");
+  trdi(/add constraint minimalna_zasedba_shift_bucket_check/.test(blok),
+    "nato se doda ena sama, razširjena");
+  // Če bi kdo to spet napisal "po imenu", bi past spet zdrsnila skozi.
+  trdi(!/drop constraint if exists minimalna_zasedba_shift_bucket_check/.test(sql),
+    "nikjer se ne odstranjuje samo po novem imenu");
+}
+
 console.log("");
 if (napake.length) {
   console.error(`NEUSPEŠNO – ${napake.length} napak`);
