@@ -61,6 +61,30 @@
   }
   var PAT_H = withH(PAT);
 
+  // Pravilo počitka iz navodil projekta: po nočni izmeni (N12, N11, N10)
+  // naslednji dan ni dovoljena dnevna/dopoldanska izmena (DF12, D12, DOP,
+  // DO7, DO6, DO4). Popoldanske izmene pravilo ne prepoveduje.
+  //
+  // Kratice bere skupni šifrant (izmene.js), ne lasten seznam zapisov -
+  // isti zapis izmene se v datotekah pojavlja v več oblikah ("NOČNA 12",
+  // "nočna12", "Nočna 12") in vzporeden seznam bi se prej ali slej razšel.
+  var NOCNE = { N12: true, N11: true, N10: true };
+  var PREPOVEDANE_PO_NOCNI = { DF12: true, D12: true, DOP: true, DO7: true, DO6: true, DO4: true };
+
+  function kraticaIzmene(sifra) {
+    var I = root.Izmene;
+    if (!I || typeof I.kratica !== "function") {
+      throw new Error("Šifrant izmen (izmene.js) ni naložen - pravila počitka ni mogoče preveriti.");
+    }
+    return I.kratica(sifra);
+  }
+
+  function krsiPocitek(prejsnjaIzmena, naslednjaIzmena) {
+    if (!prejsnjaIzmena || !naslednjaIzmena) return false;
+    return !!NOCNE[kraticaIzmene(prejsnjaIzmena)]
+        && !!PREPOVEDANE_PO_NOCNI[kraticaIzmene(naslednjaIzmena)];
+  }
+
   function weekIndex(anchorMonday, d) {
     var wd = diffDays(mondayOfWeek(d), anchorMonday);
     return Math.floor(wd / 7);
@@ -94,6 +118,10 @@
     var dnevi = [];
     var opozorila = [];
     var substCount = {};
+    // opts.prejsnjiDan – { ime: "izmena" } za DAN PRED startISO, prebran iz
+    // objavljenega razporeda (ne iz kalupa!). Neobvezno: brez njega se
+    // generator obnaša kot doslej.
+    var prejsnjiDan = opts.prejsnjiDan || null;
     opts.staff.forEach(function (z) { substCount[z.ime] = 0; });
 
     for (var d = start; d.getTime() <= end.getTime(); d = addDays(d, 1)) {
@@ -106,15 +134,21 @@
         izmene[z.ime] = shiftFor(z.startLetter, d, anchorMonday, !!z.hsuffix, forced);
       });
 
-      opts.staff.forEach(function (z) {
-        if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
+      // Isto iskanje nadomestila uporabljata dva razloga: želja/omejitev
+      // osebe in prenos iz prejšnjega meseca (počitek po nočni). Zato je
+      // tu ena sama funkcija - drugače bi se pravilo o tem, kdo je "na
+      // voljo", pri enem od obeh prej ali slej razšlo.
+      function razbremeni(z, razlog) {
         var trenutna = izmene[z.ime];
-        if (!trenutna) return; // že prost ta dan (vzorec/LD) – omejitev je brezpredmetna
+        if (!trenutna) return; // že prost ta dan (vzorec/LD)
 
         var kandidati = opts.staff.filter(function (k) {
           if (k.ime === z.ime) return false;
           if (izmene[k.ime]) return false; // dela, na LD-tednu ali pomaga drugje – ni na voljo
           if ((k.omejitve || []).indexOf(iso) !== -1) return false;
+          // Nadomestilo ne sme samo kršiti počitka po nočni iz prejšnjega
+          // meseca - sicer bi težavo samo prestavili na drugo osebo.
+          if (prejsnjiDan && krsiPocitek(prejsnjiDan[k.ime], trenutna)) return false;
           return true;
         }).sort(function (a, b) {
           if (substCount[a.ime] !== substCount[b.ime]) return substCount[a.ime] - substCount[b.ime];
@@ -127,11 +161,32 @@
           izmene[z.ime] = "";
           substCount[nadomesti.ime] += 1;
         } else {
-          opozorila.push({
-            datum: iso,
-            sporocilo: z.ime + ": omejitev na ta dan, a nihče na oddelku ni na voljo za nadomestilo – izmena (" + trenutna + ") ostaja zasedena, preveri ročno."
-          });
+          opozorila.push({ datum: iso, sporocilo: z.ime + ": " + razlog(trenutna) });
         }
+      }
+
+      // Prenos iz prejšnjega meseca: kalup se sicer nadaljuje sam (rotacija
+      // je vezana na stalno sidro), a prejšnji mesec je bil morda ROČNO
+      // popravljen ali predelan z menjavami. Kdor je zadnji dan prejšnjega
+      // meseca DEJANSKO delal nočno, ne sme prvega dne tega meseca na
+      // dnevno/dopoldansko izmeno - tudi če kalup pravi drugače.
+      if (prejsnjiDan && iso === opts.startISO) {
+        opts.staff.forEach(function (z) {
+          if (!krsiPocitek(prejsnjiDan[z.ime], izmene[z.ime])) return;
+          var prejsnja = prejsnjiDan[z.ime];
+          razbremeni(z, function (trenutna) {
+            return "prejšnji mesec je končal z izmeno " + prejsnja + ", zato ta dan ne sme na "
+              + trenutna + " (počitek po nočni), nadomestila pa na oddelku ni – preveri ročno.";
+          });
+        });
+      }
+
+      opts.staff.forEach(function (z) {
+        if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
+        razbremeni(z, function (trenutna) {
+          return "omejitev na ta dan, a nihče na oddelku ni na voljo za nadomestilo – izmena ("
+            + trenutna + ") ostaja zasedena, preveri ročno.";
+        });
       });
 
       dnevi.push({ datum: iso, dan: DNI[weekdayMon0(d)], izmene: izmene });
@@ -557,6 +612,7 @@
 
   var Generator = {
     generirajKalup: generirajKalup,
+    krsiPocitek: krsiPocitek,
     predlagajZapolnitevOddelka: predlagajZapolnitevOddelka,
     generirajDezurstva: generirajDezurstva,
     preveriDezurstva: preveriDezurstva,

@@ -396,6 +396,36 @@ async function nalozizOmejitve(startISO, endISO, imena){
   return map;
 }
 
+// Zadnji dan PRED začetkom meseca, ki ga generiramo - prebran iz
+// OBJAVLJENEGA razporeda, ne iz kalupa. Kalup se sam po sebi nadaljuje
+// (rotacija je vezana na stalno sidro ANCHOR_MONDAY), a prejšnji mesec je
+// bil morda ročno popravljen ali predelan z menjavami. Kdor je tisti dan
+// dejansko delal nočno, ne sme prvega dne novega meseca na dnevno izmeno -
+// glej Generator.krsiPocitek.
+async function nalozizPrejsnjiDan(startISO, imena){
+  const dan = new Date(startISO + "T00:00:00Z");
+  dan.setUTCDate(dan.getUTCDate() - 1);
+  const prejISO = dan.toISOString().slice(0, 10);
+  const { data: profili } = await client.from("profili").select("id, full_name");
+  const poKljucu = {};
+  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
+  const idVIme = {};
+  (profili || []).forEach(p => {
+    const ime = poKljucu[kljucImena(p.full_name)];
+    if (ime) idVIme[p.id] = ime;
+  });
+  const idji = Object.keys(idVIme);
+  if (!idji.length) return {};
+  const { data } = await client.from("razpored")
+    .select("employee_id, shift_code").eq("work_date", prejISO).in("employee_id", idji);
+  const map = {};
+  (data || []).forEach(r => {
+    const ime = idVIme[r.employee_id];
+    if (ime && r.shift_code) map[ime] = r.shift_code;
+  });
+  return map;
+}
+
 // Letni dopust (Razpredelnica Želje, odsotnosti.kind="ld") za dani
 // razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
 // Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
@@ -1128,9 +1158,10 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       // Ročno nastavljeni tedni (klik v razpredelnici spodaj) imajo prednost
       // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
       // odločitve koordinatorja.
-      const [omejitveMap, samodejniLd] = await Promise.all([
+      const [omejitveMap, samodejniLd, prejsnjiDan] = await Promise.all([
         nalozizOmejitve(startISO, endISO, staffList.map(([ime]) => ime)),
         nalozizLdTedne(startISO, endISO, tedni, staffList.map(([ime]) => ime)),
+        nalozizPrejsnjiDan(startISO, staffList.map(([ime]) => ime)),
       ]);
       const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
       setTedenskoStanje(zdruzenoStanje);
@@ -1143,7 +1174,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
         omejitve: omejitveMap[ime] || [],
       }));
-      const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff });
+      const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff, prejsnjiDan });
       // Pokritost po dnevih: kar bi kalup ta dan običajno zasedel, ČE nihče
       // ne bi bil na dopustu/pomoči drugje (isto osebje/rotacija, brez
       // odsotnosti) – izhodišče za primerjavo z dejansko zasedbo spodaj.
