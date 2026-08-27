@@ -73,7 +73,7 @@ function prekopirajStaticnoOb() {
     "parafa.js", "prazniki.js", "nzv-zasedba.js", "datum.js", "print-fit.js",
     "import-utils.js", "delovni-cas.js", "export-utils.js", "gsheets-client.js",
     "export-buttons.js", "dashboard-core.js", "generator-core.js",
-    "sheets-mreza.js", "oseba-vrstica.js",
+    "sheets-mreza.js", "oseba-vrstica.js", "razpored-oblike.js",
     "sw.js", "manifest.json", "icon-192.png", "icon-512.png", "logo-pbb.png",
     "dashboard-baseline.json", "data-november-2026.json", "data-oktober-2026.json",
     "pdf.min.mjs", "pdf.worker.min.mjs",

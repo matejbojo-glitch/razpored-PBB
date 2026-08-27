@@ -526,7 +526,7 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v125';
+const CACHE = 'razpored-pbb-v126';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
@@ -572,6 +572,7 @@ const ASSETS = [
   './export-buttons.js',
   './sheets-mreza.js',
   './oseba-vrstica.js',
+  './razpored-oblike.js',
   // Manjkali sta na seznamu, zato brez omrežja nista bili na voljo:
   // print-fit.js (tiskanje/PDF na vseh straneh) in exceljs.min.js (izvoz
   // v Excel v Željah). Odkrila ju je skripte/preveri-sw-osvezitev.mjs.
