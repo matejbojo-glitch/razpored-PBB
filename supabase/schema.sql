@@ -254,7 +254,7 @@ create table if not exists public.minimalna_zasedba (
     min_flexi integer,
     note text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT minimalna_zasedba_shift_bucket_check CHECK ((shift_bucket = ANY (ARRAY['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text])))
+    CONSTRAINT minimalna_zasedba_shift_bucket_check CHECK ((shift_bucket = ANY (ARRAY['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text, 'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text])))
 );
 
 create table if not exists public.nastavitve_obvestil (
@@ -814,6 +814,19 @@ alter table public.minimalna_zasedba add column if not exists min_sms integer;
 alter table public.minimalna_zasedba add column if not exists min_flexi integer;
 alter table public.minimalna_zasedba add column if not exists note text;
 alter table public.minimalna_zasedba add column if not exists updated_at timestamp with time zone default now();
+
+-- Dva nova koša za sobote, nedelje in praznike (dvanajsturne izmene) -
+-- "create table if not exists" na obstoječi tabeli te omejitve ne razširi,
+-- zato izrecno za obstoječe baze. Brez tega spodnji seed vikendov odpove.
+do $$ begin
+  if to_regclass('public.minimalna_zasedba') is not null then
+    alter table public.minimalna_zasedba drop constraint if exists minimalna_zasedba_shift_bucket_check;
+    alter table public.minimalna_zasedba
+      add constraint minimalna_zasedba_shift_bucket_check
+      check (shift_bucket = any (array['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text,
+                                       'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text]));
+  end if;
+end $$;
 alter table public.nastavitve_obvestil add column if not exists profile_id uuid;
 alter table public.nastavitve_obvestil add column if not exists email_enabled boolean default true;
 alter table public.nastavitve_obvestil add column if not exists push_enabled boolean default true;
@@ -3670,26 +3683,73 @@ insert into public.oddelki (code, name) values
 on conflict (code) do update set name = excluded.name;
 
 
+-- Minimalna zasedba po oddelku in izmeni.
+--
+-- Vrednosti so iz uradnega dokumenta "MINIMUM po oddelkih" (uporabnik,
+-- avgust 2026) - prejšnje so bile OSNUTEK iz analize in ponekod napačne
+-- (E1 dopoldne je imel prazno namesto 1, vikendov pa ni bilo sploh).
+--
+-- Zakaj pet košev in ne trije: med tednom se dela v treh izmenah
+-- (dopoldne/popoldne/nočna), ob sobotah, nedeljah in praznikih pa v dveh
+-- dvanajsturnih (Dnevna 12 / Nočna 12). Z enim samim naborom treh košev je
+-- vsaka sobota javila "manjka popoldanska izmena", ki je tisti dan sploh ni.
+--
+-- min_flexi na oddelkih C in E2: to je ENA oseba iz razporeda FLEXI, ki
+-- pokriva OBA oddelka (v razpored se piše "C/E2"). Ni torej dveh dodatnih
+-- ljudi, ampak en sam, ki šteje na obeh straneh.
+--
+-- FLEXI dela DNEVNE izmene. Ponoči ga v minimumu ni - lahko pa po
+-- predhodnem dogovoru ali ob izpadu (bolniška) NADOMESTI oddelčno osebo.
+-- Takrat prevzame njeno vlogo in minimum se NE dvigne. V pokritosti
+-- (Generator -> Kalup) tako vrzel označiš z "Pokrije FLEXI" in preneha
+-- svetiti rdeče, ker to ni napaka.
+--
+-- min_dms: vodja (DMS/DZN) je na oddelku PON-PET 7.00-15.00. Njegov razpored
+-- nastane drugje (NZV), na oddelčnem razporedu pa je viden v stolpcu
+-- "nosilec NZV" - zato ga pokritost šteje iz tistega stolpca in ne med
+-- izmenskim kadrom oddelka.
+delete from public.minimalna_zasedba
+ where shift_bucket not in ('DOPOLDNE', 'POPOLDNE', 'PONOCI', 'DNEVNA_VIKEND', 'PONOCI_VIKEND');
+
 insert into public.minimalna_zasedba (department_code, shift_bucket, min_dms, min_sms, min_flexi, note) values
-  ('B', 'DOPOLDNE', 1, 1, null, null),
-  ('B', 'POPOLDNE', null, 1, null, null),
-  ('B', 'PONOCI', null, 1, null, null),
-  ('C', 'DOPOLDNE', 1, 1, 1, null),
-  ('C', 'POPOLDNE', null, 1, 1, null),
-  ('C', 'PONOCI', null, 1, null, null),
-  ('C1', 'DOPOLDNE', 1, 2, null, '1 SMS + Gazibara Aldin'),
-  ('C1', 'POPOLDNE', null, 2, null, '1 SMS + Gazibara Aldin'),
-  ('C1', 'PONOCI', null, 2, null, '1 SMS + Gazibara Aldin'),
-  ('D', 'DOPOLDNE', 1, 2, null, null),
-  ('D', 'POPOLDNE', null, 2, null, null),
-  ('D', 'PONOCI', null, 2, null, null),
-  ('E1', 'DOPOLDNE', 1, null, null, null),
+  -- PON-PET
+  ('B',  'DOPOLDNE', 1, 1, null, null),
+  ('B',  'POPOLDNE', null, 1, null, null),
+  ('B',  'PONOCI',   null, 1, null, null),
+  ('C',  'DOPOLDNE', 1, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('C',  'POPOLDNE', null, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('C',  'PONOCI',   null, 1, null, null),
+  ('C1', 'DOPOLDNE', 1, 2, null, null),
+  ('C1', 'POPOLDNE', null, 2, null, null),
+  ('C1', 'PONOCI',   null, 2, null, null),
+  ('D',  'DOPOLDNE', 1, 2, null, null),
+  ('D',  'POPOLDNE', null, 2, null, null),
+  ('D',  'PONOCI',   null, 2, null, null),
+  ('E1', 'DOPOLDNE', 1, 1, null, null),
   ('E1', 'POPOLDNE', null, 1, null, null),
-  ('E1', 'PONOCI', null, 1, null, null),
-  ('E2', 'DOPOLDNE', 1, 1, 1, null),
-  ('E2', 'POPOLDNE', null, 1, 1, null),
-  ('E2', 'PONOCI', null, 1, null, null)
-on conflict (department_code, shift_bucket) do nothing;
+  ('E1', 'PONOCI',   null, 1, null, null),
+  ('E2', 'DOPOLDNE', 1, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('E2', 'POPOLDNE', null, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('E2', 'PONOCI',   null, 1, null, null),
+  -- SOBOTA, NEDELJA IN PRAZNIKI (dvanajsturne izmene, vodje ni)
+  ('B',  'DNEVNA_VIKEND', null, 1, null, null),
+  ('B',  'PONOCI_VIKEND', null, 1, null, null),
+  ('C',  'DNEVNA_VIKEND', null, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('C',  'PONOCI_VIKEND', null, 1, null, null),
+  ('C1', 'DNEVNA_VIKEND', null, 2, null, null),
+  ('C1', 'PONOCI_VIKEND', null, 2, null, null),
+  ('D',  'DNEVNA_VIKEND', null, 2, null, null),
+  ('D',  'PONOCI_VIKEND', null, 2, null, null),
+  ('E1', 'DNEVNA_VIKEND', null, 1, null, null),
+  ('E1', 'PONOCI_VIKEND', null, 1, null, null),
+  ('E2', 'DNEVNA_VIKEND', null, 1, 1, 'dodatna oseba je iz FLEXI in pokriva C in E2 skupaj'),
+  ('E2', 'PONOCI_VIKEND', null, 1, null, null)
+on conflict (department_code, shift_bucket) do update
+  set min_dms = excluded.min_dms,
+      min_sms = excluded.min_sms,
+      min_flexi = excluded.min_flexi,
+      note = excluded.note,
+      updated_at = now();
 
 
 -- Matična številka – enkraten seed za 68 oseb (47 SMS/TZN izmenskih delavcev

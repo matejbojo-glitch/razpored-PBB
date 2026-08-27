@@ -189,6 +189,7 @@
 <script src="datum.js"></script>
 <script src="print-fit.js"></script>
 <script src="import-utils.js"></script>
+<script src="razpored-oblike.js"></script>
 <script src="delovni-cas.js"></script>
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
@@ -3604,10 +3605,38 @@ function zdruziPoKljucu(vrstice, kljucFn){
   return { edinstveni: [...m.values()], podvojeni };
 }
 
-async function uvoziDatotekoPametno(file, ciljniMesec, myId){
+// V pravi preglednici "2026 SMS RAZPORED" se isti mesec pojavi tudi večkrat
+// (v "Letni dopusti" je december 2026 notri trikrat). Tiho vzeti zadnjega bi
+// pomenilo, da se v razpored zapiše morda opuščena različica in nihče ne
+// izve. Zato tu najdemo VSE bloke za ciljni mesec in - kadar jih je več -
+// vprašamo uporabnika prek "izberiBlok". Izbrani blok obdrži svoji glavni
+// vrstici (imena in mesec), da ga naprej bere ista koda kot doslej.
+async function izlusciIzbraneBloke(oddelki, ciljniMesec, izberiBlok){
+  if (!window.RazporedOblike) return oddelki;
+  const [leto, mesec] = String(ciljniMesec).split("-").map(Number);
+  const out = [];
+  for (const o of oddelki) {
+    const bloki = window.RazporedOblike.blokiZaMesec(
+      window.RazporedOblike.najdiBloke(o.vrsteVrstic), leto, mesec);
+    if (bloki.length < 2) { out.push(o); continue; }
+    const izbran = izberiBlok ? await izberiBlok({ koda: o.koda, bloki }) : null;
+    if (!izbran) throw new Error(
+      `Uvoz preklican: v zavihku ${o.koda} je ${bloki.length} različic tega meseca, izbrana pa ni nobena.`);
+    out.push({
+      koda: o.koda,
+      vrsteVrstic: o.vrsteVrstic.slice(Math.max(0, izbran.vrsticaImen), izbran.vrsticaDo + 1),
+      izbranBlok: izbran,
+    });
+  }
+  return out;
+}
+
+async function uvoziDatotekoPametno(file, ciljniMesec, myId, izberiBlok){
   const { listi } = await window.ImportUtils.preberiVseListe(file);
   if (!listi || !listi.length) throw new Error("Prazna datoteka.");
-  const { oddelki, preostali } = razvrstiListe(listi);
+  const razvrsceni = razvrstiListe(listi);
+  const preostali = razvrsceni.preostali;
+  const oddelki = await izlusciIzbraneBloke(razvrsceni.oddelki, ciljniMesec, izberiBlok);
 
   opozoriloPokrivaOddelek = null;
   const [{ data: profiliKratki }, { data: profiliParafa }] = await Promise.all([
@@ -3773,13 +3802,21 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
   // v celoti. Isti gumb lahko uporabiš večkrat (nova datoteka, popravljena
   // različica, naslednji mesec …) - vsak nov uvoz samo prepiše/dopolni
   // obstoječe vpise za zadevni dan, nič se ne podvoji (upsert po datumu).
+  // Kadar je v enem zavihku več različic istega meseca, uvoz obstane tukaj in
+  // počaka na odločitev. Obljuba se razreši, ko uporabnik klikne - ali
+  // zavrne, kar uvoz ustavi, namesto da bi tiho vzel zadnjo različico.
+  const [izbira, setIzbira] = useState(null);
+  const izberiBlok = (podatki) => new Promise(resolve => {
+    setIzbira({ ...podatki, odgovori: (blok) => { setIzbira(null); resolve(blok); } });
+  });
+
   const nalozizDatoteko = async (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = ""; // da lahko isto datoteko izbereš tudi drugič zapored
     if (!file) return;
     setBusy("datoteka"); setMsg(null);
     try {
-      const besedilo = await uvoziDatotekoPametno(file, month, myId);
+      const besedilo = await uvoziDatotekoPametno(file, month, myId, izberiBlok);
       setMsg({ ok: true, text: besedilo });
       onUvozeno();
     } catch (err) {
@@ -3835,6 +3872,34 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
   if (!odprto) return null;
   return (
     <div className="no-print">
+        {izbira && (
+          <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Izberi različico meseca"
+               style={{zIndex: 60}}>
+            <div className="modalOkno">
+              <div className="modalGlava">
+                <h3>Katera različica velja?</h3>
+              </div>
+              <p className="hint" style={{marginTop:0}}>
+                V zavihku <b>{izbira.koda}</b> je za ta mesec <b>{izbira.bloki.length} različic</b>.
+                Aplikacija ne ugiba, katera je prava – izberi jo sam. Uvozila se bo samo izbrana.
+              </p>
+              <div className="card">
+                {izbira.bloki.map((b, i) => (
+                  <button key={i} type="button" className="dlMenuItem" style={{width:"100%", textAlign:"left"}}
+                          onClick={() => izbira.odgovori(b)}>
+                    <b>{b.opis}</b>
+                    <div className="hint" style={{margin:"2px 0 0"}}>
+                      {b.verzija ? b.verzija + " · " : ""}
+                      {b.izpolnjenih} izpolnjenih celic · {b.imena.filter(Boolean).length} oseb
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="btnGhost" style={{marginTop:8}}
+                      onClick={() => izbira.odgovori(null)}>Prekliči uvoz</button>
+            </div>
+          </div>
+        )}
         <div className="modalOzadje" role="dialog" aria-modal="true" aria-label="Uvoz iz Google Sheets"
           onClick={e => { if (e.target === e.currentTarget) naZapri(); }}>
         <div className="modalOkno">
@@ -3853,7 +3918,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "datoteka" ? "Uvažam …" : "📁 Naloži datoteko (samodejno)"}
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
+              <input type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}} disabled={!!busy} onChange={nalozizDatoteko} />
             </label>
           </div>
 
@@ -3865,7 +3930,7 @@ function UvozIzSheets({ profile, wardCode, myId, month, onUvozeno, odprto, naZap
           <div className="field" style={{ marginTop: 0, marginBottom: 12 }}>
             <label className="dlBtn" style={{display:"inline-block", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1}}>
               {busy === "zdravniki" ? "Uvažam …" : "🩺 Naloži dežurstvo zdravnikov (PDF)"}
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf" style={{display:"none"}} disabled={!!busy} onChange={nalozizZdravnike} />
+              <input type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}} disabled={!!busy} onChange={nalozizZdravnike} />
             </label>
           </div>
 

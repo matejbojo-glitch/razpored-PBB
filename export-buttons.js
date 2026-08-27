@@ -236,10 +236,24 @@
     // razporedu export-utils.js sam dodaja vrstice po kosih, da zaslon vmes
     // ostane odziven – tu samo pazimo, da uporabnik med tem ne sproži
     // drugega izvoza čez prvega.
-    async function izvoziExcel(vir) {
-      setBusy("xlsx"); setMsg(null);
+    function izvoziExcel(vir) {
+      return izvoziDatoteko(vir, "xlsx", "izvoziXLSX");
+    }
+
+    // Vsi "datotečni" formati gredo skozi isto pot - razlikuje se samo
+    // funkcija v ExportUtils. Tako se nov format doda na enem mestu in ne
+    // more po nesreči obiti obravnave napak ali zaklepa proti dvojnemu kliku.
+    async function izvoziDatoteko(vir, kljuc, funkcija) {
+      setBusy(kljuc); setMsg(null);
       try {
-        await root.ExportUtils.izvoziXLSX(vir.naslov, podatki(vir));
+        // Okno "Shrani kot" se mora odpreti kot PRVO dejanje po kliku -
+        // brskalnik ga po končani obdelavi klika ne dovoli več. Zato tu, pred
+        // sestavljanjem podatkov, ne v ExportUtils za njim. Kjer okna ni
+        // (Firefox, Safari), pripraviCilj vrne null in datoteka se prenese
+        // po običajni poti.
+        var cilj = await root.ExportUtils.pripraviCilj(vir.naslov, kljuc);
+        if (cilj === "preklic") { setOdprto(false); return; }
+        await root.ExportUtils[funkcija](vir.naslov, podatki(vir), cilj);
         setOdprto(false);
       } catch (err) {
         setMsg({ ok: false, text: err.message || String(err) });
@@ -293,6 +307,29 @@
             key: "sheets" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
             onClick: function () { izvoziSheets(vir); },
           }, busy === "sheets" ? "Sinhroniziram …" : "📗 Sinhroniziraj z Google Sheets"));
+        }
+        // PDF: stran, ki ima svojo tiskalniško postavitev, jo je ponudila
+        // zgoraj prek "pdf". Za vse ostale vire je tu splošni PDF iz istih
+        // podatkov - da format ne manjka nikjer.
+        if (!vir.pdf && (vir.pripravi || vir.listi)) {
+          postavke.push(e("button", {
+            key: "pdfsplosni" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziDatoteko(vir, "pdf", "izvoziPDF"); },
+          }, "📄 Izvozi PDF"));
+        }
+        if (vir.pripravi || vir.listi) {
+          postavke.push(e("button", {
+            key: "json" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziDatoteko(vir, "json", "izvoziJSON"); },
+          }, busy === "json" ? "Izvažam …" : "🧾 Izvozi JSON (.json)"));
+          postavke.push(e("button", {
+            key: "png" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziDatoteko(vir, "png", "izvoziPNG"); },
+          }, busy === "png" ? "Rišem …" : "🖼 Izvozi sliko (.png)"));
+          postavke.push(e("button", {
+            key: "jpeg" + i, className: "dlMenuItem", type: "button", disabled: !!busy,
+            onClick: function () { izvoziDatoteko(vir, "jpeg", "izvoziJPEG"); },
+          }, busy === "jpeg" ? "Rišem …" : "🖼 Izvozi sliko (.jpg)"));
         }
         if (vir.ical) {
           postavke.push(e("button", {
