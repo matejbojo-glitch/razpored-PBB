@@ -818,14 +818,31 @@ alter table public.minimalna_zasedba add column if not exists updated_at timesta
 -- Dva nova koša za sobote, nedelje in praznike (dvanajsturne izmene) -
 -- "create table if not exists" na obstoječi tabeli te omejitve ne razširi,
 -- zato izrecno za obstoječe baze. Brez tega spodnji seed vikendov odpove.
-do $$ begin
-  if to_regclass('public.minimalna_zasedba') is not null then
-    alter table public.minimalna_zasedba drop constraint if exists minimalna_zasedba_shift_bucket_check;
-    alter table public.minimalna_zasedba
-      add constraint minimalna_zasedba_shift_bucket_check
-      check (shift_bucket = any (array['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text,
-                                       'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text]));
-  end if;
+-- Odstrani se po VSEBINI, ne po imenu. Tabela se je pri prehodu na
+-- slovenska imena preimenovala iz "department_shift_minimums", omejitev pa
+-- je v obstoječih bazah OBDRŽALA staro ime
+-- (department_shift_minimums_shift_bucket_check). Ciljanje na novo ime jo
+-- je zgrešilo, stara je ostala v veljavi in zavrnila vsak zapis za vikend:
+--   ERROR: new row ... violates check constraint
+--          "department_shift_minimums_shift_bucket_check"
+-- Ime omejitve torej ni zanesljivo; kar je zanesljivo, je stolpec, na
+-- katerega se nanaša.
+do $$
+declare r record;
+begin
+  if to_regclass('public.minimalna_zasedba') is null then return; end if;
+  for r in
+    select conname from pg_constraint
+     where conrelid = 'public.minimalna_zasedba'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) ilike '%shift_bucket%'
+  loop
+    execute format('alter table public.minimalna_zasedba drop constraint %I', r.conname);
+  end loop;
+  alter table public.minimalna_zasedba
+    add constraint minimalna_zasedba_shift_bucket_check
+    check (shift_bucket = any (array['DOPOLDNE'::text, 'POPOLDNE'::text, 'PONOCI'::text,
+                                     'DNEVNA_VIKEND'::text, 'PONOCI_VIKEND'::text]));
 end $$;
 alter table public.nastavitve_obvestil add column if not exists profile_id uuid;
 alter table public.nastavitve_obvestil add column if not exists email_enabled boolean default true;
@@ -1999,26 +2016,58 @@ $$;
 create or replace function public.izmena_cas(p_sifra text) RETURNS TABLE(zacetek time without time zone, konec time without time zone, cez_polnoc boolean)
     LANGUAGE plpgsql IMMUTABLE
     AS $$
-declare t text := lower(trim(coalesce(p_sifra, '')));
+-- Ure izmene po URADNEM ŠIFRANTU. Vrstni red vej je NAMENOMA enak kot v
+-- izmene.js (IZMENA_KRATICE) - to sta dva zapisa istega dejstva in edini
+-- način, da se ne razideta, je, da sta v istem vrstnem redu in z istimi
+-- mejami.
+--
+-- Zapis se v bazi pojavlja v več oblikah ("NOČNA12", "Nočna 12",
+-- "nočna12"), zato se pred primerjavo VSI presledki odstranijo. Prej so
+-- vzorci vsebovali "nočna12" brez presledka, zapis "Nočna 12" S presledkom
+-- pa je padel skozi na splošno "nočna" - torej se je 12-urna nočna štela
+-- kot 10-urna, z napačnimi urami.
+--
+-- Kar je manjkalo in je zaradi tega odpovedala menjava:
+--   PRISOTEN  - redni delovni dan nosilca NZV; 336 od 395 prihodnjih
+--               vrstic NZV. Brez ur ga mozni_sodelavci izloči, zato NZV
+--               ni videl skoraj nikogar za menjavo.
+--   Dopoldne / Popoldne - novi zapis, ki ga piše generator kalupa
+--               (prej "dopoldan"/"popoldan"); brez teh vej so vse tako
+--               zapisane izmene ostale brez ur.
+declare t text := regexp_replace(lower(trim(coalesce(p_sifra, ''))), '\s+', '', 'g');
 begin
-  if t = '' or t like 'ld%' or t like 'kpu%' or t = 'pomoč drugje' then
-    return;
-  elsif t like '%nočna12%' then
-    return query select time '17:50', time '06:00', true;
-  elsif t like '%dnevna12%' then
-    return query select time '07:00', time '19:00', false;
-  elsif t like 'nočna od 19%' then
-    return query select time '18:50', time '06:00', true;
-  elsif t like 'nočna%' then
-    return query select time '20:50', time '06:00', true;
-  elsif t like 'dopoldan%' then
-    return query select time '05:50', time '14:00', false;
-  elsif t like 'popoldan do 19%' then
-    return query select time '13:50', time '19:00', false;
-  elsif t like 'popoldan%' then
-    return query select time '13:50', time '21:00', false;
-  elsif t like 'dežurstvo%' then
-    return query select time '07:00', time '07:00', true; -- 24 ur
+  if t = '' or t like 'ld%' or t like 'kpu%' or t like 'por%' or t like 'sti%'
+     or t like 'bs%' or t like 'pomočdrugje%' or t like 'pomocdrugje%' then
+    return;                                        -- ni delovna izmena
+  elsif t like 'dežurstvo%' or t like 'dezurstvo%' then
+    return query select time '07:00', time '07:00', true;   -- 24 ur
+  elsif t like 'dnevna12(7-19)%' or t like 'dnevna12f%' then
+    return query select time '07:00', time '19:00', false;  -- DF12
+  elsif t like 'dnevna12%' then
+    return query select time '05:50', time '18:00', false;  -- D12
+  elsif t like 'nočna12%' or t like 'nocna12%' then
+    return query select time '17:50', time '06:00', true;   -- N12
+  elsif t like 'nočnaod19%' or t like 'nocnaod19%'
+     or t like 'nočna11%' or t like 'nocna11%' then
+    return query select time '18:50', time '06:00', true;   -- N11
+  elsif t like 'nočna%' or t like 'nocna%' then
+    return query select time '20:50', time '06:00', true;   -- N10
+  elsif t like 'popoldando19%' or t like 'popoldnedo19%' then
+    return query select time '13:50', time '19:00', false;  -- PO5
+  elsif t like 'popoldando20%' or t like 'popoldnedo20%' then
+    return query select time '13:50', time '20:00', false;  -- PO6
+  elsif t ~ '^dop\D*6' then
+    return query select time '05:50', time '11:50', false;  -- DO6
+  elsif t ~ '^dop\D*4' then
+    return query select time '05:50', time '09:50', false;  -- DO4
+  elsif t ~ '^pop\D*4' then
+    return query select time '13:50', time '17:50', false;  -- PO4
+  elsif t like 'popoldan%' or t like 'popoldne%' then
+    return query select time '13:50', time '21:00', false;  -- PO7
+  elsif t like 'do7%' or t like 'dopoldan7%' then
+    return query select time '07:00', time '14:00', false;  -- DO7
+  elsif t like 'dopoldan%' or t like 'dopoldne%' or t like 'prisoten%' then
+    return query select time '05:50', time '14:00', false;  -- DOP
   end if;
   return;
 end;

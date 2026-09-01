@@ -3207,11 +3207,17 @@ function NzvTab({ zacetniPod, zacetniMesec }){
 // Trajanje in vrsta izmene prideta iz skupnega delovni-cas.js (edini vir
 // resnice) – prej je bila ista tabela zapisana še enkrat tu in še enkrat v
 // index.html, kar bi se ob spremembi urnika zlahka razšlo.
-const TRAJANJE_UR = Object.fromEntries(
-  Object.entries(window.DelovniCas.IZMENE)
-    .filter(([, v]) => v.ure != null)
-    .map(([k, v]) => [k, v.ure])
-);
+//
+// Ur NE beremo z golim TRAJANJE_UR[sifra] (natančno ujemanje niza) - v pravi
+// bazi je ista izmena zapisana v več oblikah ("NOČNA12", "Nočna 12",
+// "nočna12", glej komentar ob izmena_cas v schema.sql), zato mora iti skozi
+// podatkiIzmene(), ki niz pred primerjavo poenoti (male črke, brez presledkov)
+// - drugače bi taka izmena tiho izpadla iz obračuna kot "neznana koda".
+function ureIzmene(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return i ? i.ure : null; }
+function jeOdsotnostBrezDela(sifra){
+  const k = window.DelovniCas.kljuc(sifra);
+  return window.DelovniCas.NI_DELO.some(n => window.DelovniCas.kljuc(n) === k);
+}
 function jeNocnaSifra(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return !!(i && i.nocna); }
 function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
 
@@ -3250,13 +3256,17 @@ function PlaceTab(){
       const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
       const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
       const prazniki = slovenskiPrazniki(leto);
-      const [{ data: entries, error }, { data: profili }] = await Promise.all([
-        client.from("razpored").select("employee_id, work_date, shift_code").gte("work_date", startISO).lte("work_date", endISO),
+      const [entries, { data: profili }] = await Promise.all([
+        // Cela bolnišnica, en mesec: lahko preseže 1000 vrstic (Supabase
+        // privzeta stran), zato po straneh - glej RazporedAuth.vseStrani.
+        RazporedAuth.vseStrani((od, doV) =>
+          client.from("razpored").select("employee_id, work_date, shift_code")
+            .gte("work_date", startISO).lte("work_date", endISO).range(od, doV)
+        ),
         // Matična številka je ključ, po katerem osebo prepozna računovodstvo
         // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
         client.from("profili").select("id, full_name, kadrovski_podatki(employee_code)"),
       ]);
-      if (error) throw error;
       const imePoId = {}, matPoId = {};
       (profili || []).forEach(p => {
         imePoId[p.id] = p.full_name;
@@ -3272,7 +3282,7 @@ function PlaceTab(){
           z.dezurstva += 1;
           return;
         }
-        const ure = TRAJANJE_UR[r.shift_code];
+        const ure = ureIzmene(r.shift_code);
         if (!ure) {
           // LD/KPU/BS/prosto pravilno NE štejejo kot delo. NEZNANE kode pa so
           // druga stvar: doslej so tiho izpadle iz obračuna, kar pomeni
@@ -3280,7 +3290,7 @@ function PlaceTab(){
           // izpišejo - tiho izgubljanje ur je hujše od napačnega seštevka,
           // ker se ne pozna nikjer.
           const s = (r.shift_code || "").trim();
-          if (s && !window.DelovniCas.NI_DELO.includes(s)) {
+          if (s && !jeOdsotnostBrezDela(s)) {
             (neznaneKode[s] = neznaneKode[s] || []).push(imePoId[r.employee_id] || r.employee_id);
           }
           return;

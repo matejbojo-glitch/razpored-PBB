@@ -78,7 +78,15 @@
   // mora potrditi kadrovska – tu so samo izhodiščne vrednosti.
   var PRIVZETA_PRAVILA = {
     minPocitekUr: 10.7,        // najmanj ur med koncem ene in začetkom naslednje izmene
-    maxZaporednihNocnih: 2,    // največ zaporednih nočnih izmen
+    // Dve meji, ne ena (uporabnikovo pravilo, avgust 2026): do 3 zaporedne
+    // nočne so običajne in se ne javljajo. Nad tem gre "po dogovoru" - to
+    // je opozorilo, ne napaka. Nad absolutno mejo pa ni več dogovora.
+    //
+    // Prej je bila meja 2, kar je pomenilo, da je že SAM kalup (vzorec B
+    // ima tri zaporedne nočne) v vsakem razporedu javljal kršitve -
+    // opozorilo, ki se pojavi vedno, nima nobene vrednosti.
+    maxZaporednihNocnih: 3,    // do sem brez pripombe
+    absolutnoMaxZaporednihNocnih: 5, // nad tem kritično, ne glede na dogovor
     maxTedenskihUr: 56,        // zgornja meja ur v 7 zaporednih dneh (opozorilo)
     zahtevajProstDanNaTeden: true, // vsaj en dan brez izmene v vsakem oknu 7 dni
   };
@@ -276,12 +284,25 @@
         } else {
           niz = 0; zacetekNiza = null;
         }
-        if (niz > p.maxZaporednihNocnih) {
+        var absolutno = p.absolutnoMaxZaporednihNocnih;
+        if (absolutno != null && niz > absolutno) {
+          // Nad absolutno mejo dogovor ne pomaga - zato "kritično" tudi,
+          // če je izjema evidentirana.
           krsitve.push({
             oseba: oseba, datum: v.datum, vrsta: "nocne",
-            resnost: v.izjema ? "opozorilo" : "kriticno",
+            resnost: "kriticno",
             sporocilo: "Zaporednih nočnih izmen: " + niz + " (od " + zacetekNiza
-              + "), dovoljeno največ " + p.maxZaporednihNocnih + "."
+              + ") – nad absolutno mejo " + absolutno + ", tega ni mogoče dogovoriti.",
+          });
+        } else if (niz > p.maxZaporednihNocnih) {
+          // Med običajno in absolutno mejo: dopustno po dogovoru, zato
+          // opozorilo in ne napaka.
+          krsitve.push({
+            oseba: oseba, datum: v.datum, vrsta: "nocne",
+            resnost: "opozorilo",
+            sporocilo: "Zaporednih nočnih izmen: " + niz + " (od " + zacetekNiza
+              + ") – nad običajnimi " + p.maxZaporednihNocnih + ", dopustno po dogovoru"
+              + (absolutno != null ? " do " + absolutno : "") + "."
               + (v.izjema ? " Evidentirano kot izjema." : ""),
           });
         }

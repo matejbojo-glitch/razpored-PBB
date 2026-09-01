@@ -475,6 +475,60 @@ console.log("13) enosmerna oddaja dežurstva komurkoli iz KROGA DEŽURNIH (izjem
     "varnostni pas ob KONČNI potrditvi zavrne oddajo osebi izven kroga dežurnih, tudi mimo iskanja: " + JSON.stringify(rZunajKroga));
 }
 
+// --- 15) NZV: menjava rednega delovnega dne ---------------------------
+console.log("15) NZV lahko zamenja svoj redni delovni dan (šifra PRISOTEN)");
+{
+  // Uporabnik je javil: "postopek menjave ne deluje in se ne prenese v
+  // razpored, trenutno govorim za NZV".
+  //
+  // V pravi bazi je 336 od 395 prihodnjih vrstic NZV zapisanih s šifro
+  // PRISOTEN (redni delovni dan nosilca). izmena_cas te šifre ni poznal in
+  // je vrnil NULL, mozni_sodelavci pa vsakega kandidata brez ur izloči -
+  // zato NZV ni videl NIKOGAR za menjavo in menjave ni bilo mogoče niti
+  // začeti. Enako je veljalo za nov zapis kalupa ("Dopoldne"/"Popoldne").
+  // Relativno na danes, iz istega razloga kot v scenariju 13.
+  const [danesN] = vrstice(`select current_date::text;`);
+  const cezN = n => vrstice(`select (date '${danesN}' + ${n})::text;`)[0];
+  const NZVX = "80000000-0000-0000-0000-000000000010";
+  const NZVY = "80000000-0000-0000-0000-000000000011";
+  const dA = cezN(6), dB = cezN(7);
+  psql(`
+    insert into public.oddelki (code, name) values ('NZV','NZV') on conflict (code) do nothing;
+    insert into auth.users (id, email) values ('${NZVX}','nzvx@t.si'),('${NZVY}','nzvy@t.si')
+      on conflict (id) do nothing;
+    update public.profili set full_name='NZV Iks', department_code='NZV', vodja_id='${ADMIN}' where id='${NZVX}';
+    update public.profili set full_name='NZV Ipsilon', department_code='NZV' where id='${NZVY}';
+    insert into public.razpored (employee_id, department_code, work_date, shift_code) values
+      ('${NZVX}','NZV','${dA}','PRISOTEN'),
+      ('${NZVY}','NZV','${dB}','PRISOTEN')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+
+  // Vse šifre, ki se v pravi bazi res pojavljajo in morajo imeti ure -
+  // brez njih jih mozni_sodelavci izloči in menjave ni mogoče niti začeti.
+  const brezUr = vrstice(`
+    select s from unnest(array['PRISOTEN','Dopoldne','Popoldne','Popoldne do 19',
+                               'Nočna 12','Dnevna 12','dopoldan','popoldan','NOČNA']) s
+     where (select zacetek from public.izmena_cas(s)) is null;`);
+  trdi(brezUr.length === 0,
+    "vse delovne šifre iz prave baze imajo ure" + (brezUr.length ? " – brez ur: " + brezUr.join(", ") : ""));
+
+  const kandidati = vrstice(`select full_name from public.mozni_sodelavci('${NZVX}','${dA}');`);
+  trdi(kandidati.includes("NZV Ipsilon"),
+    "NZV vidi sodelavca za menjavo – dobil: " + (kandidati.join(", ") || "(prazno)"));
+
+  const r = izvediMenjavo({ vlagatelj: NZVX, sodelavec: NZVY, datumA: dA, izmenaA: "PRISOTEN",
+                            datumB: dB, izmenaB: "PRISOTEN", vodja: ADMIN });
+  trdi(r.korak === "zakljucen", "menjava gre skozi vso pot do konca: " + JSON.stringify(r));
+
+  // In - kar je uporabnik izrecno omenil - se PRENESE V RAZPORED: vsak
+  // prevzame datum drugega.
+  const stanje = vrstice(`select work_date::text||'='||employee_id from public.razpored
+    where employee_id in ('${NZVX}','${NZVY}') and work_date in ('${dA}','${dB}')
+      and coalesce(shift_code,'') <> '' order by work_date;`);
+  trdi(stanje.join(";") === `${dA}=${NZVY};${dB}=${NZVX}`,
+    "razpored po menjavi: vsak je na datumu drugega – dobil: " + stanje.join(" | "));
+}
+
 pg(`dropdb --if-exists ${BAZA}`);
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }

@@ -74,5 +74,48 @@ for (const sifra of Object.keys(modul.IZMENE)) {
   }
 }
 
+// Doslej se je primerjal samo šifrant izmen (ure). PRAVILA so se lahko
+// tiho razšla: ena kopija bi kršitev javila, druga ne - in ker aplikacija
+// bere korensko, kadrovska pa Edge funkcijo, bi vsak videl svojo resnico.
+// Zato se primerjajo tudi privzeta pravila in izid preveriPravila().
+for (const kljuc of Object.keys(modul.PRIVZETA_PRAVILA)) {
+  const iz = JSON.stringify(modul.PRIVZETA_PRAVILA[kljuc]);
+  const ir = JSON.stringify(DC.PRIVZETA_PRAVILA[kljuc]);
+  if (iz !== ir) {
+    console.error(`RAZHAJANJE pravila "${kljuc}": src/shared ${iz}, koren ${ir}`);
+    napaka = true;
+  }
+}
+const manjkajoca = Object.keys(DC.PRIVZETA_PRAVILA)
+  .filter(k => !(k in modul.PRIVZETA_PRAVILA));
+if (manjkajoca.length) {
+  console.error("RAZHAJANJE: koren ima pravila, ki jih src/shared nima: " + manjkajoca.join(", "));
+  napaka = true;
+}
+
+// Zaporedne nočne: 3 so običajne, 4-5 po dogovoru (opozorilo), nad 5
+// kritično. Preverja se na OBEH izvedbah hkrati.
+function nocniDnevi(n) {
+  return Array.from({ length: n }, (_, i) => ({
+    oseba: "A", datum: "2026-10-" + String(i + 1).padStart(2, "0"), sifra: "Nočna",
+  }));
+}
+for (const [koliko, pricakovano] of [[3, null], [4, "opozorilo"], [5, "opozorilo"], [6, "kriticno"]]) {
+  const dnevi = nocniDnevi(koliko);
+  const izModula = modul.preveriPravila(dnevi).filter(k => k.vrsta === "nocne");
+  const izKorena = DC.preveriPravila(dnevi).filter(k => k.vrsta === "nocne");
+  const resnostM = izModula.length ? izModula[izModula.length - 1].resnost : null;
+  const resnostK = izKorena.length ? izKorena[izKorena.length - 1].resnost : null;
+  if (resnostM !== pricakovano) {
+    console.error(`NAPAKA (src/shared): ${koliko} zaporednih nočnih -> ${resnostM}, pričakovano ${pricakovano}`);
+    napaka = true;
+  }
+  if (resnostK !== pricakovano) {
+    console.error(`NAPAKA (koren): ${koliko} zaporednih nočnih -> ${resnostK}, pričakovano ${pricakovano}`);
+    napaka = true;
+  }
+}
+if (!napaka) console.log("OK – pravila in zaporedne nočne se ujemajo v obeh izvedbah.");
+
 if (napaka) process.exit(1);
 console.log("OK – delovni-cas.js (koren) je usklajen s src/shared/delovni-cas.js.");
