@@ -2401,6 +2401,77 @@ begin
 end;
 $$;
 
+-- Dejanska izvedba menjave dveh izmen v razporedu - vsak prevzame DATUM/
+-- ODDELEK/IZMENO drugega. Skupna za obrazec_potrdi_koordinator (zadnji korak
+-- navadne menjave) IN obrazec_admin_izvedi_menjavo (administratorska takojšnja
+-- menjava mimo čakanja na sodelavca/vodjo) - ISTA koda, ISTE trde varovalke
+-- (spolno pravilo C1/D, krog dežurnih, razmik dežurstev), brez izjeme in brez
+-- parametra za preglasitev. Prej podvojeno na dveh mestih, kar bi se ob
+-- naslednjem popravku pravila zlahka razšlo (glej podobne najdene napake to
+-- sejo pri izmena_cas/delovni-cas.js).
+create or replace function public.izvedi_menjavo_izmen(p_vlagatelj_id uuid, p_sodelavec_id uuid, p_dan_a date, p_dan_b date) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_izmena_a text; v_izmena_b text;
+  v_dept_a text; v_dept_b text;
+  v_pokriva_a text; v_pokriva_b text;
+begin
+  select shift_code, department_code, pokriva_oddelek into v_izmena_a, v_dept_a, v_pokriva_a
+    from public.razpored where employee_id = p_vlagatelj_id and work_date = p_dan_a;
+  select shift_code, department_code, pokriva_oddelek into v_izmena_b, v_dept_b, v_pokriva_b
+    from public.razpored where employee_id = p_sodelavec_id and work_date = p_dan_b;
+  -- Če za tisti dan ni vrstice, pade nazaj na domači oddelek iz profila -
+  -- brez tega bi spodnji vnos zavrnil zapis (department_code NOT NULL).
+  if v_dept_a is null then select department_code into v_dept_a from public.profili where id = p_vlagatelj_id; end if;
+  if v_dept_b is null then select department_code into v_dept_b from public.profili where id = p_sodelavec_id; end if;
+
+  if not public.spol_dovoljeno_po_menjavi(v_dept_a, v_pokriva_a, p_dan_a, v_izmena_a, p_vlagatelj_id, p_sodelavec_id) then
+    raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_a, p_dan_a, v_izmena_a;
+  end if;
+  if not public.spol_dovoljeno_po_menjavi(v_dept_b, v_pokriva_b, p_dan_b, v_izmena_b, p_sodelavec_id, p_vlagatelj_id) then
+    raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_b, p_dan_b, v_izmena_b;
+  end if;
+
+  -- Dežurstvo je samo za krog dežurnih - FLEXI izjema (menjaj s komerkoli)
+  -- zanj NE velja, isti pas kot v mozni_sodelavci.
+  if (v_dept_a = 'DEZ') <> (v_dept_b = 'DEZ') then
+    raise exception 'Menjava dežurstva ni mogoča: obe strani morata biti iz kroga dežurnih.';
+  end if;
+
+  -- Dežurstvo: po menjavi nihče ne sme pristati na dežurstvu dan pred/po
+  -- svojem NOVEM datumu (glej dezurstvo_razmik_ustreza zgoraj v datoteki).
+  if v_dept_a = 'DEZ' and not public.dezurstvo_razmik_ustreza(p_sodelavec_id, p_dan_b, p_dan_a) then
+    raise exception 'Menjava dežurstva ni mogoča: sodelavec bi po menjavi imel dežurstvo dan pred ali po %.', p_dan_a;
+  end if;
+  if v_dept_b = 'DEZ' and not public.dezurstvo_razmik_ustreza(p_vlagatelj_id, p_dan_a, p_dan_b) then
+    raise exception 'Menjava dežurstva ni mogoča: vlagatelj bi po menjavi imel dežurstvo dan pred ali po %.', p_dan_b;
+  end if;
+
+  insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
+  values (p_vlagatelj_id, v_dept_b, p_dan_b, coalesce(v_izmena_b, ''), v_pokriva_b, now())
+  on conflict (employee_id, work_date) do update set
+    department_code = excluded.department_code, shift_code = excluded.shift_code,
+    pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
+
+  insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
+  values (p_sodelavec_id, v_dept_a, p_dan_a, coalesce(v_izmena_a, ''), v_pokriva_a, now())
+  on conflict (employee_id, work_date) do update set
+    department_code = excluded.department_code, shift_code = excluded.shift_code,
+    pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
+
+  -- Če datuma nista enaka, mora vsak izprazniti SVOJ izvirni dan - drugače
+  -- bi po menjavi kazalo, da oba delata oba dneva.
+  if p_dan_a <> p_dan_b then
+    update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
+      where employee_id = p_vlagatelj_id and work_date = p_dan_a;
+    update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
+      where employee_id = p_sodelavec_id and work_date = p_dan_b;
+  end if;
+end;
+$$;
+
 create or replace function public.obrazec_oddaj(p_id uuid) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -2486,68 +2557,9 @@ begin
   if o.vrsta = 'menjava_sluzbe' then
     v_dan_a := (o.polja ->> 'datum_a')::date;
     v_dan_b := (o.polja ->> 'datum_b')::date;
-
-    select shift_code, department_code, pokriva_oddelek into v_izmena_a, v_dept_a, v_pokriva_a
-      from public.razpored where employee_id = o.vlagatelj_id and work_date = v_dan_a;
-    select shift_code, department_code, pokriva_oddelek into v_izmena_b, v_dept_b, v_pokriva_b
-      from public.razpored where employee_id = o.sodelavec_id and work_date = v_dan_b;
-    -- Če za tisti dan ni vrstice, pade nazaj na domači oddelek iz profila -
-    -- brez tega bi spodnji vnos zavrnil zapis (department_code NOT NULL).
-    if v_dept_a is null then select department_code into v_dept_a from public.profili where id = o.vlagatelj_id; end if;
-    if v_dept_b is null then select department_code into v_dept_b from public.profili where id = o.sodelavec_id; end if;
-
-    -- Varnostni pas ob KONČNI potrditvi, na TRENUTNEM stanju baze - od
-    -- oddaje predloga do zdaj se je razpored lahko spremenil (druga
-    -- menjava, ročni popravek), spodnja preverba pa mora veljati za stanje
-    -- tik pred izvedbo, ne za stanje ob oddaji. Trd blok, brez izjeme.
-    if not public.spol_dovoljeno_po_menjavi(v_dept_a, v_pokriva_a, v_dan_a, v_izmena_a, o.vlagatelj_id, o.sodelavec_id) then
-      raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_a, v_dan_a, v_izmena_a;
-    end if;
-    if not public.spol_dovoljeno_po_menjavi(v_dept_b, v_pokriva_b, v_dan_b, v_izmena_b, o.sodelavec_id, o.vlagatelj_id) then
-      raise exception 'Menjava ni mogoča: oddelek % na % (%) po menjavi ne bi imel dovolj moških v izmeni.', v_dept_b, v_dan_b, v_izmena_b;
-    end if;
-
-    -- Dežurstvo je samo za krog dežurnih - FLEXI izjema (menjaj s komerkoli)
-    -- zanj NE velja, isti pas kot v mozni_sodelavci.
-    if (v_dept_a = 'DEZ') <> (v_dept_b = 'DEZ') then
-      raise exception 'Menjava dežurstva ni mogoča: obe strani morata biti iz kroga dežurnih.';
-    end if;
-
-    -- Dežurstvo: po menjavi nihče ne sme pristati na dežurstvu dan pred/po
-    -- svojem NOVEM datumu (isti pas kot v mozni_sodelavci - glej
-    -- dezurstvo_razmik_ustreza zgoraj v datoteki).
-    if v_dept_a = 'DEZ' and not public.dezurstvo_razmik_ustreza(o.sodelavec_id, v_dan_b, v_dan_a) then
-      raise exception 'Menjava dežurstva ni mogoča: sodelavec bi po menjavi imel dežurstvo dan pred ali po %.', v_dan_a;
-    end if;
-    if v_dept_b = 'DEZ' and not public.dezurstvo_razmik_ustreza(o.vlagatelj_id, v_dan_a, v_dan_b) then
-      raise exception 'Menjava dežurstva ni mogoča: vlagatelj bi po menjavi imel dežurstvo dan pred ali po %.', v_dan_b;
-    end if;
-
-    -- Prava menjava: vsak prevzame DATUM/ODDELEK/IZMENO drugega - natanko
-    -- to je prikazano v predogledu pred oddajo (obrazec.html, NovObrazec).
-    -- Prej je vsak ostal na SVOJEM datumu in zamenjala se je samo koda
-    -- izmene, kar je bilo v nasprotju s tem, kar je bilo obljubljeno pred
-    -- oddajo, in pri različnih datumih dejansko napačno.
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
-    values (o.vlagatelj_id, v_dept_b, v_dan_b, coalesce(v_izmena_b, ''), v_pokriva_b, now())
-    on conflict (employee_id, work_date) do update set
-      department_code = excluded.department_code, shift_code = excluded.shift_code,
-      pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
-
-    insert into public.razpored (employee_id, department_code, work_date, shift_code, pokriva_oddelek, updated_at)
-    values (o.sodelavec_id, v_dept_a, v_dan_a, coalesce(v_izmena_a, ''), v_pokriva_a, now())
-    on conflict (employee_id, work_date) do update set
-      department_code = excluded.department_code, shift_code = excluded.shift_code,
-      pokriva_oddelek = excluded.pokriva_oddelek, updated_at = now();
-
-    -- Če datuma nista enaka, mora vsak izprazniti SVOJ izvirni dan - drugače
-    -- bi po menjavi kazalo, da oba delata oba dneva.
-    if v_dan_a <> v_dan_b then
-      update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
-        where employee_id = o.vlagatelj_id and work_date = v_dan_a;
-      update public.razpored set shift_code = '', pokriva_oddelek = null, updated_at = now()
-        where employee_id = o.sodelavec_id and work_date = v_dan_b;
-    end if;
+    -- Varnostni pas in dejanska izvedba sta v izvedi_menjavo_izmen - deljena
+    -- z admin.obrazec_admin_izvedi_menjavo, glej komentar tam.
+    perform public.izvedi_menjavo_izmen(o.vlagatelj_id, o.sodelavec_id, v_dan_a, v_dan_b);
   elsif o.vrsta = 'oddaja_dezurstva' then
     v_dan_a := (o.polja ->> 'datum')::date;
 
@@ -2594,6 +2606,64 @@ begin
   update public.obrazci set status = 'zakljucen', koordinator_id = auth.uid(), zakljucen_dne = now() where id = p_id;
   perform public.zapisi_v_dnevnik(p_id, 4::smallint, 'KOORDINATOR_POTRDIL', p_opomba);
   return 'zakljucen';
+end;
+$$;
+
+-- Administrator v SKRAJNEM primeru (zaposleni sam ne utegne/ne more iti skozi
+-- navadni postopek - oddaja, potrditev sodelavca, odobritev vodje, končna
+-- potrditev) menjavo izvede TAKOJ, v enem koraku, mimo čakanja na sodelavca
+-- in vodjo. Trde varovalke OSTANEJO - izvedi_menjavo_izmen je ISTA funkcija
+-- kot pri navadni potrditvi (obrazec_potrdi_koordinator), torej ista pravila
+-- (počitek preverja mozni_sodelavci pri iskanju kandidatov, spolno pravilo
+-- C1/D in razmik dežurstev preverja sama izvedi_menjavo_izmen) - samo brez
+-- vmesnih odobritev. Uporabniška odločitev (avgust 2026): admin lahko izvede
+-- menjavo "kakor koli" v skrajnem primeru, a NE mimo teh varovalk - če
+-- menjava krši pravilo, jo funkcija zavrne enako kot pri navadni potrditvi.
+-- Zapiše se obrazec s statusom 'zakljucen' (sled/zgodovina, enako kot vsaka
+-- druga menjava - vidna v "Seznam menjav v mesecu" obema stranema) in oba
+-- dobita obvestilo, da je admin menjavo izvedel zanju.
+create or replace function public.obrazec_admin_izvedi_menjavo(
+    p_vlagatelj_id uuid, p_sodelavec_id uuid, p_dan_a date, p_dan_b date,
+    p_razlog text DEFAULT NULL::text
+) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+  v_ime_vlagatelj text;
+  v_ime_sodelavec text;
+begin
+  if not public.current_role_is('admin') then
+    raise exception 'Samo administrator lahko izvede menjavo takoj, mimo potrditev.';
+  end if;
+  if p_vlagatelj_id = p_sodelavec_id then
+    raise exception 'Vlagatelj in sodelavec ne moreta biti ista oseba.';
+  end if;
+
+  perform public.izvedi_menjavo_izmen(p_vlagatelj_id, p_sodelavec_id, p_dan_a, p_dan_b);
+
+  insert into public.obrazci (vrsta, vlagatelj_id, sodelavec_id, polja, status, koordinator_id, zakljucen_dne)
+  values ('menjava_sluzbe', p_vlagatelj_id, p_sodelavec_id,
+          jsonb_build_object('datum_a', p_dan_a, 'datum_b', p_dan_b, 'admin_takojsnja', true),
+          'zakljucen', auth.uid(), now())
+  returning id into v_id;
+  perform public.zapisi_v_dnevnik(v_id, 4::smallint, 'ADMIN_IZVEDEL_TAKOJ', p_razlog);
+
+  select full_name into v_ime_vlagatelj from public.profili where id = p_vlagatelj_id;
+  select full_name into v_ime_sodelavec from public.profili where id = p_sodelavec_id;
+  insert into public.obvestila (user_id, message, title, url)
+  values
+    (p_vlagatelj_id,
+     'Administrator je zate izvedel menjavo izmene s sodelavcem ' || coalesce(v_ime_sodelavec, 'neznano') || '.'
+       || coalesce(' Razlog: ' || p_razlog, ''),
+     'Menjava je izvedena', 'obrazec.html'),
+    (p_sodelavec_id,
+     'Administrator je izvedel menjavo izmene med tabo in ' || coalesce(v_ime_vlagatelj, 'neznano') || '.'
+       || coalesce(' Razlog: ' || p_razlog, ''),
+     'Menjava je izvedena', 'obrazec.html');
+
+  return v_id;
 end;
 $$;
 
@@ -3198,6 +3268,10 @@ GRANT ALL ON FUNCTION public.mozni_sodelavci(p_profile_id uuid, p_datum date) TO
 GRANT ALL ON FUNCTION public.mozni_prejemniki_dezurstva(p_profile_id uuid, p_datum date) TO authenticated;
 
 GRANT ALL ON FUNCTION public.obrazec_oddaj(p_id uuid) TO authenticated;
+
+REVOKE ALL ON FUNCTION public.izvedi_menjavo_izmen(p_vlagatelj_id uuid, p_sodelavec_id uuid, p_dan_a date, p_dan_b date) FROM PUBLIC;
+
+GRANT ALL ON FUNCTION public.obrazec_admin_izvedi_menjavo(p_vlagatelj_id uuid, p_sodelavec_id uuid, p_dan_a date, p_dan_b date, p_razlog text) TO authenticated;
 
 GRANT ALL ON FUNCTION public.obrazec_potrdi_koordinator(p_id uuid, p_sprejmi boolean, p_opomba text) TO authenticated;
 
