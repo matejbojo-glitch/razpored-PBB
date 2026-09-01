@@ -208,8 +208,34 @@
     return count || 0;
   }
 
+  // Supabase (PostgREST) privzeto vrne največ 1000 vrstic na klic, ne
+  // glede na to, koliko jih poizvedba dejansko najde - presežek se molče
+  // odreže, brez napake. Razpored cele bolnišnice za en mesec ima lahko
+  // prek 1800 vrstic (7 oddelkov + NZV), zato je vsak klic brez omejitve
+  // oddelka/osebe TVEGAN: tiho izgubi vrstice in nihče tega ne opazi, dokler
+  // nekdo ne manjka na zaslonu ("zakaj nimajo vsi celotnega razporeda").
+  //
+  // "izdelajStran(od, do)" mora vsakič vrniti SVEŽO poizvedbo (Supabase
+  // .range() na že izvedeni poizvedbi ne obstaja) z .range(od, do) na koncu
+  // - klicatelj torej poda tovarno poizvedbe, ne enkratne poizvedbe.
+  async function vseStrani(izdelajStran, velikostStrani) {
+    velikostStrani = velikostStrani || 1000;
+    var vse = [];
+    var odmik = 0;
+    for (;;) {
+      var res = await izdelajStran(odmik, odmik + velikostStrani - 1);
+      if (res.error) throw res.error;
+      var kos = res.data || [];
+      vse = vse.concat(kos);
+      if (kos.length < velikostStrani) break;
+      odmik += velikostStrani;
+    }
+    return vse;
+  }
+
   root.RazporedAuth = {
     client: client,
+    vseStrani: vseStrani,
     // Potreben za sestavo naslova robnih funkcij (npr. koledarska naročnina
     // v nastavitve.html); anon ključ tam ni potreben, ker se ta funkcija
     // avtorizira z lastnim žetonom v naslovu.

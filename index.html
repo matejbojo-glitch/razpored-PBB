@@ -1057,9 +1057,11 @@ function DezurstvoPregled({ month, myId }){
       // "profili!employee_id(...)": razpored ima tri tuje ključe na
       // profili, zato bi nedoločen vgnezden zapis PostgREST zavrnil kot
       // dvoumen (glej preveri-vgnezdeni-join.mjs).
-      client.from("razpored")
-        .select("employee_id, work_date, shift_code, profili!employee_id(full_name)")
-        .gte("work_date", startISO).lte("work_date", endISO),
+      RazporedAuth.vseStrani((od, doV) =>
+        client.from("razpored")
+          .select("employee_id, work_date, shift_code, profili!employee_id(full_name)")
+          .gte("work_date", startISO).lte("work_date", endISO).range(od, doV)
+      ).then(data => ({ data })),
       client.from("dezurni_zdravniki").select("work_date, kind, full_name")
         .gte("work_date", startISO).lte("work_date", endISO)
         .then(r => (r.error ? { data: [], error: r.error } : r), () => ({ data: [], error: null })),
@@ -1244,8 +1246,10 @@ function StanjeRazpredelnica({ oddelki }){
       // določi ročno, zato mora objavljeno prevladati nad izpeljavo po
       // pravilih nadomeščanja - sicer bi ta zaslon kazal pravilo, mreža
       // NZV pa dejansko stanje.
-      client.from("razpored").select("employee_id, work_date, shift_code, department_code, pokriva_oddelek")
-        .gte("work_date", startISO).lte("work_date", endISO),
+      RazporedAuth.vseStrani((od, doV) =>
+        client.from("razpored").select("employee_id, work_date, shift_code, department_code, pokriva_oddelek")
+          .gte("work_date", startISO).lte("work_date", endISO).range(od, doV)
+      ).then(data => ({ data })),
       client.from("odsotnosti").select("full_name, work_date, kind")
         .gte("work_date", startISO).lte("work_date", endISO),
       // Potrjene menjave - samo za oznako v celici. Beremo iz pogleda
@@ -1792,10 +1796,11 @@ function WardView({ deptCode, month, myId }){
       // mora veljati tudi tu, sicer bi oddelek kazal pravilo, mreža NZV pa
       // dejansko stanje. Pravilo nadomeščanja se uporabi le za dneve, za
       // katere objave še ni.
-      client.from("razpored")
-        .select("work_date, department_code, pokriva_oddelek, profili!employee_id(full_name, role)")
-        .gte("work_date", startISO).lte("work_date", endISO)
-        .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
+      RazporedAuth.vseStrani((od, doV) =>
+        client.from("razpored")
+          .select("work_date, department_code, pokriva_oddelek, profili!employee_id(full_name, role)")
+          .gte("work_date", startISO).lte("work_date", endISO).range(od, doV)
+      ).then(data => ({ data }), () => ({ data: [] })),
     ]).then(([{ data: nosilci }, { data: pari }, { data: odsotnosti }, { data: objavljeniVpisi }]) => {
       if (cancelled) return;
       const zEnotami = (nosilci || []).filter(n => n.enote);
