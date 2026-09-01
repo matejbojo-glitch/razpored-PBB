@@ -529,6 +529,56 @@ console.log("15) NZV lahko zamenja svoj redni delovni dan (šifra PRISOTEN)");
     "razpored po menjavi: vsak je na datumu drugega – dobil: " + stanje.join(" | "));
 }
 
+// --- 16) administrator izvede menjavo TAKOJ, mimo sodelavca/vodje --------
+console.log("16) administrator lahko v skrajnem primeru menjavo izvede TAKOJ, mimo sodelavca/vodje - a trde varovalke ostanejo");
+{
+  const AX = "a0000000-0000-0000-0000-000000000001"; // B, vlagatelj
+  const AY = "a0000000-0000-0000-0000-000000000002"; // B, sodelavec
+  psql(`
+    insert into auth.users (id, email) values ('${AX}','ax@t.si'),('${AY}','ay@t.si') on conflict (id) do nothing;
+    update public.profili set full_name='Admin Menjava Prvi', department_code='B' where id='${AX}';
+    update public.profili set full_name='Admin Menjava Drugi', department_code='B' where id='${AY}';
+    insert into public.razpored (employee_id, department_code, work_date, shift_code) values
+      ('${AX}','B','2026-10-05','Dopoldan'),
+      ('${AY}','B','2026-10-06','Nočna')
+    on conflict (employee_id, work_date) do update set shift_code=excluded.shift_code, department_code=excluded.department_code;`);
+
+  // a) navaden uporabnik (ni admin) je zavrnjen.
+  const napakaNiAdmin = psqlPricakujNapako(kotOsebaSql(AX,
+    `select public.obrazec_admin_izvedi_menjavo('${AX}','${AY}','2026-10-05','2026-10-06', null);`));
+  trdi(!!napakaNiAdmin && /Samo administrator/.test(napakaNiAdmin),
+    "navaden zaposleni ne more klicati admin-poti: " + (napakaNiAdmin || "(ni napake)"));
+
+  // b) admin izvede menjavo v ENEM koraku - brez oddaje/sodelavca/vodje.
+  const idTakoj = kotOseba(ADMIN,
+    `select public.obrazec_admin_izvedi_menjavo('${AX}','${AY}','2026-10-05','2026-10-06', 'Zaposleni na bolniški, ne utegne sam');`).trim();
+  trdi(!!idTakoj, "admin dobi nazaj id ustvarjenega obrazca: " + idTakoj);
+  const statusTakoj = psql(`select status from public.obrazci where id='${idTakoj}';`).trim();
+  trdi(statusTakoj === "zakljucen", "obrazec je takoj v stanju 'zakljucen', brez vmesnih korakov: " + statusTakoj);
+  const stanjeTakoj = vrstice(`select employee_id||'|'||work_date||'|'||shift_code from public.razpored
+    where employee_id in ('${AX}','${AY}') and work_date in ('2026-10-05','2026-10-06') order by employee_id, work_date;`);
+  trdi(stanjeTakoj.join(";") === `${AX}|2026-10-05|;${AX}|2026-10-06|Nočna;${AY}|2026-10-05|Dopoldan;${AY}|2026-10-06|`,
+    "razpored je zamenjan enako kot pri navadni menjavi: " + stanjeTakoj.join(" | "));
+  const obvestili = vrstice(`select user_id from public.obvestila where user_id in ('${AX}','${AY}') order by user_id;`);
+  trdi(obvestili.length === 2, "oba dobita obvestilo, da je admin menjavo izvedel zanju: " + obvestili.length);
+
+  // c) sama-s-sabo je zavrnjeno.
+  const napakaIsta = psqlPricakujNapako(kotOsebaSql(ADMIN,
+    `select public.obrazec_admin_izvedi_menjavo('${AX}','${AX}','2026-10-05','2026-10-06', null);`));
+  trdi(!!napakaIsta && /ista oseba/.test(napakaIsta), "vlagatelj in sodelavec ne moreta biti ista oseba: " + (napakaIsta || "(ni napake)"));
+
+  // d) trde varovalke NISO preglašene - ista C1 kršitev kot v scenariju 7,
+  // tokrat prek admin-takojšnje poti: odvzem enega od dveh potrebnih moških.
+  const napakaSpol = psqlPricakujNapako(kotOsebaSql(ADMIN,
+    `select public.obrazec_admin_izvedi_menjavo('${C1_M1}','${C1_Z1}','2026-09-20','2026-09-25', 'nujno');`));
+  trdi(!!napakaSpol && /dovolj moških/.test(napakaSpol),
+    "admin-takojšnja pot NE preglasi spolnega pravila C1 - zavrnjena enako kot navadna menjava: " + (napakaSpol || "(ni napake)"));
+  const stanjeC1 = vrstice(`select employee_id||'|'||work_date||'|'||shift_code from public.razpored
+    where employee_id in ('${C1_M1}','${C1_Z1}') and work_date in ('2026-09-20','2026-09-25') order by employee_id, work_date;`);
+  trdi(stanjeC1.join(";") === `${C1_M1}|2026-09-20|Nočna12;${C1_Z1}|2026-09-25|Nočna12`,
+    "razpored ostane NESPREMENJEN po zavrnjeni admin-takojšnji menjavi: " + stanjeC1.join(" | "));
+}
+
 pg(`dropdb --if-exists ${BAZA}`);
 console.log("");
 if (napake.length) { console.log("NEUSPEŠNO – " + napake.length + " napak"); process.exit(1); }

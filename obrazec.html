@@ -255,23 +255,52 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
+  // Administrator lahko v SKRAJNEM primeru (zaposleni sam ne utegne/ne more
+  // iti skozi navadni postopek) menjavo izvede namesto njega - isto iskanje
+  // sodelavcev in isti predogled kot pri navadni oddaji, samo da se "zase"
+  // zamenja za izbranega zaposlenega, gumb pa namesto v odobritev IZVEDE
+  // menjavo takoj (glej izvediTakoj spodaj). Trde varovalke (počitek, spol
+  // C1/D, razmik dežurstev) ostanejo - te preveri baza sama, tudi tu.
+  const jeAdmin = !!(profil && profil.role === "admin");
+  const [zaDrugega, setZaDrugega] = useState(false); // stikalo je vključeno
+  const [zaKogaId, setZaKogaId] = useState(""); // izbrani zaposleni ("" = še ni izbran)
+  const [zaposleni, setZaposleni] = useState(null);
+  const [zaposleniBusy, setZaposleniBusy] = useState(false);
+  const actingId = (zaDrugega && zaKogaId) ? zaKogaId : myId;
+  const actingIme = (zaDrugega && zaKogaId)
+    ? ((zaposleni || []).find(z => z.id === zaKogaId) || {}).full_name || "Izbrani zaposleni"
+    : (profil && profil.full_name) || "Ti";
+
+  const nalozizZaposlene = async () => {
+    if (zaposleni !== null) return;
+    setZaposleniBusy(true);
+    try {
+      const { data } = await client.from("profili").select("id, full_name").order("full_name");
+      setZaposleni(data || []);
+    } finally {
+      setZaposleniBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); return; }
-    client.from("razpored").select("shift_code").eq("employee_id", myId).eq("work_date", datum).maybeSingle()
+    client.from("razpored").select("shift_code").eq("employee_id", actingId).eq("work_date", datum).maybeSingle()
       .then(({ data }) => setMojaIzmena(data ? data.shift_code : ""));
     setKandidati(null); setIzbranSodelavec(null); setPrejemniki(null); setIzbranPrejemnik(null);
-  }, [vrsta, datum, myId]);
+  }, [vrsta, datum, actingId]);
 
   const jeDezurstvoDan = (mojaIzmena || "").toLowerCase().startsWith("dežurstvo");
 
   const poisciSodelavce = async () => {
     setKandidatiBusy(true); setErr(null);
     try {
-      const { data, error } = await client.rpc("mozni_sodelavci", { p_profile_id: myId, p_datum: datum });
+      const { data, error } = await client.rpc("mozni_sodelavci", { p_profile_id: actingId, p_datum: datum });
       if (error) throw error;
       setKandidati(data || []);
-      if (jeDezurstvoDan) {
-        const { data: p, error: e2 } = await client.rpc("mozni_prejemniki_dezurstva", { p_profile_id: myId, p_datum: datum });
+      // Enosmerna oddaja dežurstva (prejemniki) nima admin-takojšnje ustreznice -
+      // administrator, ki izvaja namesto drugega, jo zato sploh ne vidi.
+      if (jeDezurstvoDan && !(zaDrugega && zaKogaId)) {
+        const { data: p, error: e2 } = await client.rpc("mozni_prejemniki_dezurstva", { p_profile_id: actingId, p_datum: datum });
         if (e2) throw e2;
         setPrejemniki(p || []);
       } else {
@@ -305,13 +334,13 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     }
     let cancelled = false;
     izracunajKrsitveMenjave({
-      jazId: myId, jazIme: (profil && profil.full_name) || "Ti",
+      jazId: actingId, jazIme: actingIme,
       jazDatum: datum, jazIzmena: mojaIzmena || "",
       onId: izbranSodelavec.profile_id, onIme: izbranSodelavec.full_name,
       onDatum: izbranSodelavec.njihov_datum, onIzmena: izbranSodelavec.njihova_izmena,
     }).then(k => { if (!cancelled) setKrsitve(k); });
     return () => { cancelled = true; };
-  }, [vrsta, datum, izbranSodelavec, mojaIzmena, myId, profil]);
+  }, [vrsta, datum, izbranSodelavec, mojaIzmena, actingId, actingIme]);
 
   const oddaj = async () => {
     setErr(null);
@@ -366,6 +395,38 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     }
   };
 
+  // Administratorska takojšnja izvedba (glej komentar ob jeAdmin/zaKogaId
+  // zgoraj) - mimo obrazec_oddaj/sodelavec/vodja, naravnost
+  // obrazec_admin_izvedi_menjavo. Baza sama zavrne, če bi menjava kršila
+  // trdo varovalko (počitek, spol C1/D, razmik dežurstev) - enako kot pri
+  // navadni potrditvi, tu se to samo pokaže kot napaka namesto opozorila.
+  const izvediTakoj = async () => {
+    setErr(null);
+    if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo."); return; }
+    const potrjeno = confirm(
+      `Administratorska takojšnja menjava, MIMO potrditev sodelavca in vodje:\n\n`
+      + `${actingIme} (${fmtDatum(datum)}, ${oznakaIzmene(mojaIzmena)})\n⇄\n`
+      + `${izbranSodelavec.full_name} (${fmtDatum(izbranSodelavec.njihov_datum)}, ${oznakaIzmene(izbranSodelavec.njihova_izmena)})\n\n`
+      + `Menjava se izvede takoj, v razporedu. Nadaljujem?`
+    );
+    if (!potrjeno) return;
+    setBusy(true);
+    try {
+      const { error } = await client.rpc("obrazec_admin_izvedi_menjavo", {
+        p_vlagatelj_id: actingId, p_sodelavec_id: izbranSodelavec.profile_id,
+        p_dan_a: datum, p_dan_b: izbranSodelavec.njihov_datum,
+        p_razlog: opomba.trim() || null,
+      });
+      if (error) throw error;
+      setDatum(""); setOpomba(""); setKandidati(null); setIzbranSodelavec(null); setZaDrugega(false); setZaKogaId("");
+      onOddano();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const prikazOddelka = profil && profil.department_code
     ? (typeof window !== "undefined" && typeof window.formatirajOddelke === "function" ? window.formatirajOddelke(profil.department_code, null) : String(profil.department_code).split(/[\/,+]/)
         .map(v => String(v).trim()).filter(Boolean).map(v => v.replace(/ZO/gi, "ŽO").replace(/B1B2/gi, "B1,B2")).filter((v, idx, arr) => arr.indexOf(v) === idx).join(", "))
@@ -384,10 +445,40 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
           <input id="ip" type="text" value={profil ? `${profil.full_name}${prikazOddelka ? " · " + prikazOddelka : ""}` : "Nalagam …"} disabled />
         </div>
 
-        {vrsta === "menjava_sluzbe" && (
+        {vrsta === "menjava_sluzbe" && jeAdmin && (
+          <div className="field adminTakoj">
+            <label htmlFor="zaDrugega" style={{display:"flex", alignItems:"center", gap:8, fontWeight:"normal"}}>
+              <input id="zaDrugega" type="checkbox" checked={zaDrugega}
+                onChange={e => {
+                  const v = e.target.checked;
+                  setZaDrugega(v); setZaKogaId(""); setDatum(""); setKandidati(null); setIzbranSodelavec(null);
+                  setPrejemniki(null); setIzbranPrejemnik(null); setErr(null);
+                  if (v) nalozizZaposlene();
+                }} />
+              Izvedi menjavo namesto drugega zaposlenega (skrajni primer – sam ne utegne/ne more)
+            </label>
+            {zaDrugega && (
+              <React.Fragment>
+                <select value={zaKogaId} onChange={e => { setZaKogaId(e.target.value); setDatum(""); setKandidati(null); setIzbranSodelavec(null); }}
+                  disabled={zaposleniBusy} style={{marginTop:6}}>
+                  <option value="">{zaposleniBusy ? "Nalagam …" : "– izberi zaposlenega –"}</option>
+                  {(zaposleni || []).map(z => <option key={z.id} value={z.id}>{z.full_name}</option>)}
+                </select>
+                <p className="hint" style={{marginTop:6}}>
+                  Spodaj boš namesto svojega videl(a) razpored izbranega zaposlenega. Gumb bo namesto "Oddaj obrazec"
+                  ponudil "Izvedi takoj" – menjava se izvede TAKOJ, brez čakanja na potrditev sodelavca ali vodje.
+                  Trde varovalke (počitek, spolno pravilo C1/D, razmik dežurstev) ostanejo enake in menjavo, ki bi
+                  jih kršila, sistem zavrne enako kot pri navadni menjavi.
+                </p>
+              </React.Fragment>
+            )}
+          </div>
+        )}
+
+        {vrsta === "menjava_sluzbe" && (!jeAdmin || !zaDrugega || zaKogaId) && (
           <React.Fragment>
             <div className="field">
-              <label htmlFor="da">Moj datum</label>
+              <label htmlFor="da">{zaDrugega ? `Datum (${actingIme})` : "Moj datum"}</label>
               <input id="da" type="date" value={datum} onChange={e => setDatum(e.target.value)} />
               {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {oznakaIzmene(mojaIzmena)}</div>}
               {(mojaIzmena || "").toLowerCase().startsWith("dežurstvo") && (
@@ -480,7 +571,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
           <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
           {vrsta === "menjava_sluzbe" && <HitriRazlog vrednost={opomba} naVnos={setOpomba} />}
         </div>
-        {jeDezurstvo && (
+        {jeDezurstvo && !(zaDrugega && zaKogaId) && (
           <p className="hint" style={{marginTop:-6}}>
             🔁 Menjava dežurstva: po potrditvi sodelavca gre predlog naravnost h koordinatorju
             (Denis Džamastagić), brez vmesnega koraka pri vodji.
@@ -499,12 +590,21 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               ))}
             </ul>
             <p className="hint" style={{margin:"8px 0 0"}}>
-              Menjavo lahko vseeno oddaš – opozorilo si bosta ogledala še vodja in koordinator,
-              ki menjavo potrdita ali zavrneta.
+              {(zaDrugega && zaKogaId)
+                ? "Kljub temu opozorilu lahko menjavo izvedeš takoj - to NI trda varovalka (tiste sistem zavrne sam)."
+                : "Menjavo lahko vseeno oddaš – opozorilo si bosta ogledala še vodja in koordinator, ki menjavo potrdita ali zavrneta."}
             </p>
           </div>
         )}
-        <button className="submitBtn" onClick={oddaj} disabled={busy}>{busy ? "Oddajam …" : "Oddaj obrazec"}</button>
+        {vrsta === "menjava_sluzbe" && zaDrugega && zaKogaId ? (
+          <button className="btn btn-danger btn-block" onClick={izvediTakoj} disabled={busy || !izbranSodelavec}>
+            {busy ? "Izvajam …" : "⚡ Izvedi takoj (mimo potrditev)"}
+          </button>
+        ) : (
+          <button className="submitBtn" onClick={oddaj} disabled={busy || (vrsta === "menjava_sluzbe" && zaDrugega && !zaKogaId)}>
+            {busy ? "Oddajam …" : "Oddaj obrazec"}
+          </button>
+        )}
         {err && <p className="err">{err}</p>}
       </div>
     </div>
