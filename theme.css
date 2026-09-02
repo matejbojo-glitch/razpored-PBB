@@ -1080,6 +1080,28 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 }
 .nzvNosilec + .nzvNosilec{ margin-left: 4px; }
 
+/* Stolpec "Popoldne / ponoči" na razporedu oddelka A: kdo iz pokrivajočega
+   oddelka (B oz. E1, izmenično po mesecih) tisti dan pokriva A. Ni izmena
+   oddelka A, ampak POKRIVANJE od drugod, zato je - tako kot stolpec NZV -
+   ločen z robom in ne obarvan kot izmena. */
+.wardTable th.pokrivaStolpec,
+.wardTable td.pokrivaStolpec{
+  border-left: 2px solid var(--pop);
+  white-space: normal;
+}
+.pokrivaOseba{
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 2px 8px; margin: 1px;
+  border: 1px solid var(--pop);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.pokrivaOseba .pokrivaIzmena{ font-size: 10px; font-weight: 800; color: var(--pop); }
+.pokrivaPrazno{ color: var(--muted); }
+
 /* Ločnica med oddelčnim kadrom in nosilci NZV v Imenik → Razpredelnica. */
 .wardTable tr.nzvLocnica td{
   border-top: 2px solid var(--accent);

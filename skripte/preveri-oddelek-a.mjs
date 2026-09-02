@@ -179,6 +179,9 @@ const VPISI = [
   { employee_id: "p3", work_date: dan(1), shift_code: "Dopoldne",  department_code: POKRIVA },
   { employee_id: "d1", work_date: dan(1), shift_code: "Popoldne",  department_code: NE_POKRIVA },
   { employee_id: "a1", work_date: dan(1), shift_code: "Dopoldne",  department_code: "A" },
+  // Drugi dan v pokrivajočem oddelku nihče ni popoldne/ponoči - stolpec
+  // mora to POVEDATI ("–"), ne pa tiho ostati prazen.
+  { employee_id: "p1", work_date: dan(2), shift_code: "Dopoldne",  department_code: POKRIVA },
 ];
 // Dežurstvo SAMO v uradnem dokumentu, ne v razporedu - to je bistvo zahteve.
 const ZDRAVNIKI = [{ work_date: dan(2), kind: "sestra", full_name: "Tomaževič Simona" }];
@@ -284,6 +287,20 @@ try {
     trdi(/Vrevc Maja|VREVC/i.test(besedilo), "oddelek A ima svoj dopoldanski kader");
     trdi(new RegExp("pokriva oddelek " + POKRIVA).test(besedilo),
       "in opombo, kateri oddelek ga ta mesec pokriva popoldne in ponoči");
+
+    // Stolpec s TISTIM, ki A pokriva popoldne in ponoči (obratna smer od
+    // oznake "(A)" na mreži pokrivajočega oddelka).
+    const glave = await stran.$$eval(".wardTable thead th", e => e.map(x => x.textContent.trim()));
+    trdi(glave.includes("Popoldne / ponoči"), "mreža A ima stolpec pokrivanja: " + glave.join(" | "));
+    trdi(glave.includes("iz oddelka " + POKRIVA), "z navedbo, iz katerega oddelka pride");
+    const prvaA = await stran.$eval(".wardTable tbody tr:nth-child(1) td.pokrivaStolpec",
+      e => e.innerText.replace(/\s+/g, " ").trim());
+    trdi(/Novak/.test(prvaA), "prvi dan je izpisan popoldanski sodelavec: " + prvaA);
+    trdi(/Kovač/.test(prvaA), "in nočni");
+    trdi(!/Horvat/.test(prvaA), "dopoldanskega sodelavca pokrivajočega oddelka pa ne");
+    const drugaA = await stran.$eval(".wardTable tbody tr:nth-child(2) td.pokrivaStolpec",
+      e => e.innerText.replace(/\s+/g, " ").trim());
+    eq(drugaA, "–", "dan brez pokritja je označen, ne tiho prazen");
   }
 
   console.log("6) dežurstvo iz zavihka Dežurstvo je vidno v Razpredelnici");

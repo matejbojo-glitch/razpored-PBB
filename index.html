@@ -1974,6 +1974,13 @@ function WardView({ deptCode, month, myId }){
   // to videlo samo v mreži NZV, oddelek pa ni vedel, kdo ga tisti dan
   // pokriva - tudi kadar je šlo za en sam dan.
   const [nzvPoDnevih, setNzvPoDnevih] = useState({});
+  // Samo za oddelek A: kdo ga ta dan pokriva POPOLDNE in PONOČI. A nima
+  // svojega popoldanskega in nočnega kadra - izmenično ga pokrivata B in
+  // E1 (oddelek-a.js). Na mreži pokrivajočega oddelka to pove oznaka
+  // "(A)", tu pa je obratna smer: na mreži samega A mora biti razvidno,
+  // KDO tisti dan pride (uporabnikova zahteva, september 2026).
+  // "datum" -> [{ ime, sifra }, ...]
+  const [pokrivajoA, setPokrivajoA] = useState({});
   const { startISO, endISO } = monthRange(month);
   const days = useMemo(() => daysInRange(startISO, endISO), [startISO, endISO]);
 
@@ -2005,6 +2012,45 @@ function WardView({ deptCode, month, myId }){
       });
     return () => { cancelled = true; };
   }, [deptCode, startISO, endISO]);
+
+  useEffect(() => {
+    const vir = deptCode === window.OddelekA.KODA ? window.OddelekA.pokriva(month) : null;
+    if (!vir) { setPokrivajoA({}); return; }
+    let cancelled = false;
+    setPokrivajoA({});
+    client.from("profili").select("id, full_name").eq("department_code", vir)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const osebe = data || [];
+        if (!osebe.length) return;
+        const imePoId = {};
+        osebe.forEach(o => { imePoId[o.id] = o.full_name; });
+        client.from("razpored").select("employee_id, work_date, shift_code")
+          .in("employee_id", osebe.map(o => o.id))
+          .gte("work_date", startISO).lte("work_date", endISO)
+          .then(({ data: vpisi }) => {
+            if (cancelled) return;
+            const m = {};
+            (vpisi || []).forEach(v => {
+              // Samo osebe pokrivajočega oddelka. Poizvedba jih sicer že
+              // omeji, a brez te preverbe bi vrstica koga drugega prišla v
+              // stolpec brez imena - in tak zapis je v razporedu nevarnejši
+              // od manjkajočega.
+              if (!imePoId[v.employee_id]) return;
+              // Katere izmene sploh pokrivajo A (popoldanske in nočne),
+              // pove isti modul kot oznaka "(A)" - da se stolpec in oznaka
+              // ne moreta razhajati.
+              if (!window.OddelekA.jePokrivnaIzmena(v.shift_code)) return;
+              (m[v.work_date] = m[v.work_date] || []).push({
+                ime: imePoId[v.employee_id], sifra: v.shift_code,
+              });
+            });
+            Object.keys(m).forEach(d => m[d].sort((a, b) => a.ime.localeCompare(b.ime, "sl")));
+            setPokrivajoA(m);
+          });
+      });
+    return () => { cancelled = true; };
+  }, [deptCode, month, startISO, endISO]);
 
   // Nosilci NZV za ta oddelek. Izračun je v skupnem nzv-zasedba.js
   // (zasedbaEnot), da se ta stolpec in mreža NZV ne moreta razhajati.
@@ -2102,6 +2148,7 @@ function WardView({ deptCode, month, myId }){
   // Stolpec se pokaže samo, kadar za ta oddelek NZV nosilec sploh obstaja -
   // pri FLEXI in pri oddelkih brez nosilca bi bil prazen stolpec le šum.
   const imaNzvStolpec = Object.keys(nzvPoDnevih).length > 0;
+  const virA = deptCode === window.OddelekA.KODA ? window.OddelekA.pokriva(month) : null;
 
   if (employees === null || entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
   if (employees.length === 0) return <p className="sub" style={{marginTop:16}}>Za ta oddelek še ni dodeljenih zaposlenih.</p>;
@@ -2123,6 +2170,7 @@ function WardView({ deptCode, month, myId }){
                   <a href={"imenik.html?id=" + z.id} style={{color:"inherit", textDecoration:"none"}}>{priimekZacetnica(z.full_name)}</a>
                 </th>
               ))}
+              {virA && <th className="pokrivaStolpec">Popoldne / ponoči</th>}
               {imaNzvStolpec && <th className="nzvStolpec">NZV</th>}
             </tr>
             <tr className="vloga">
@@ -2130,6 +2178,7 @@ function WardView({ deptCode, month, myId }){
               {employees.map(z => (
                 <th key={z.id} className={z.id === myId ? "me" : ""}>{z.role === "user" ? "SMS / TZN" : "DMS / DZN"}</th>
               ))}
+              {virA && <th className="pokrivaStolpec">iz oddelka {virA}</th>}
               {imaNzvStolpec && <th className="nzvStolpec">nosilec</th>}
             </tr>
           </thead>
@@ -2191,6 +2240,19 @@ function WardView({ deptCode, month, myId }){
                       </td>
                     );
                   })}
+                  {virA && (
+                    <td className="cell pokrivaStolpec">
+                      {(pokrivajoA[dn.datum] || []).length === 0
+                        ? <span className="pokrivaPrazno" title={"Za ta dan v razporedu oddelka " + virA + " ni popoldanske ali nočne izmene"}>–</span>
+                        : (pokrivajoA[dn.datum] || []).map(o => (
+                            <span key={o.ime} className="pokrivaOseba"
+                              title={o.ime + " – " + window.Izmene.naziv(o.sifra) + " (oddelek " + virA + ", pokriva A)"}>
+                              {window.Imena.kratkoIme(o.ime)}
+                              <span className="pokrivaIzmena">{window.Izmene.kratica(o.sifra)}</span>
+                            </span>
+                          ))}
+                    </td>
+                  )}
                   {imaNzvStolpec && (
                     <td className="cell nzvStolpec">
                       {(nzvPoDnevih[dn.datum] || []).map(ime => (
@@ -2222,11 +2284,11 @@ function WardView({ deptCode, month, myId }){
           <span className="li"><b>(A)</b>&nbsp;– ta izmena pokriva tudi oddelek A</span>
         )}
       </div>
-      {deptCode === window.OddelekA.KODA && (
+      {virA && (
         <p className="hint" style={{marginTop:8}}>
-          Oddelek A ima svoj dopoldanski kader; <b>popoldne in ponoči</b> ga ta mesec pokriva oddelek{" "}
-          <b>{window.OddelekA.pokriva(month)}</b> – tam so te izmene označene z <b>(A)</b>. Oddelka se menjata vsak
-          mesec ({window.OddelekA.POKRIVAJO.join(" in ")}).
+          Oddelek A ima svoj dopoldanski kader; <b>popoldne in ponoči</b> ga ta mesec pokriva oddelek <b>{virA}</b> –
+          kdo pride, je v stolpcu <b>Popoldne / ponoči</b> desno (v razporedu oddelka {virA} so te izmene označene
+          z <b>(A)</b>). Oddelka se menjata vsak mesec ({window.OddelekA.POKRIVAJO.join(" in ")}).
         </p>
       )}
       <RazporedPodpisi entries={entries} />
