@@ -212,26 +212,35 @@ try {
     await ctx.close();
   }
 
-  console.log("8) namizje: cel mesec naenkrat, brez dolgega drsenja (točka 7 pregleda)");
+  console.log("8) namizje: cel mesec kot koledar PON-NED na eni strani (točka 7 pregleda)");
   {
     const { ctx, pg } = await odpri("index.html", 1440, "admin");
     const r = await pg.evaluate(() => {
-      const g = document.querySelector(".weeksGrid");
-      return { stolpcev: g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0,
-        visina: g ? Math.round(g.getBoundingClientRect().height) : 0, okno: window.innerHeight,
+      const k = document.querySelector(".mesecKoledar");
+      const glave = k ? [...k.querySelectorAll(".kglava")].map(x => x.textContent) : [];
+      return { koledar: !!k, glave,
+        stolpcev: k ? getComputedStyle(k).gridTemplateColumns.split(" ").length : 0,
+        dni: k ? k.querySelectorAll(".kcelica:not(.prazna)").length : 0,
+        visina: k ? Math.round(k.getBoundingClientRect().height) : 0, okno: window.innerHeight,
+        seznam: !!document.querySelector(".weeksGrid"),
         sirina: Math.round(document.querySelector(".wrap").getBoundingClientRect().width) };
     });
-    trdi(r.stolpcev === 3, `mesec je razporejen v 3 stolpce (dobil: ${r.stolpcev})`);
+    trdi(r.koledar, "na širokem zaslonu se izriše koledar");
+    trdi(r.stolpcev === 7, `sedem stolpcev, po en na dan v tednu (dobil: ${r.stolpcev})`);
+    trdi(r.glave.join(",") === "PO,TO,SR,ČE,PE,SO,NE", `glave gredo od ponedeljka do nedelje (dobil: ${r.glave.join(",")})`);
+    trdi(r.dni >= 28 && r.dni <= 31, `izrisani so vsi dnevi meseca (${r.dni})`);
+    trdi(!r.seznam, "seznam po tednih se ob koledarju NE izriše hkrati (sicer bi bila vsebina podvojena)");
+    trdi(r.visina < r.okno, `cel mesec gre na en zaslon (koledar ${r.visina}px, okno ${r.okno}px)`);
     trdi(r.sirina > 1000, `vsebina uporabi širino zaslona (${r.sirina}px, prej 608px)`);
-    trdi(r.visina < r.okno + 100, `cel mesec gre skoraj na en zaslon (mreža ${r.visina}px, okno ${r.okno}px)`);
     await ctx.close();
 
     const { ctx: c2, pg: p2 } = await odpri("index.html", 390, "admin");
-    const m = await p2.evaluate(() => {
-      const g = document.querySelector(".weeksGrid");
-      return g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0;
-    });
-    trdi(m <= 1, `na telefonu ostane en stolpec (dobil: ${m})`);
+    const m = await p2.evaluate(() => ({
+      koledar: !!document.querySelector(".mesecKoledar"),
+      seznam: !!document.querySelector(".weeksGrid"),
+    }));
+    trdi(!m.koledar && m.seznam,
+      "na telefonu ostane seznam po dnevih (sedem stolpcev pri 390px ni berljivih)");
     await c2.close();
   }
 

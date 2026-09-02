@@ -51,6 +51,14 @@
      (torej pred aktivacijo @media print), zato mora biti postavitev že
      spremenjena OB MERJENJU, ne šele med dejanskim tiskanjem. */
   #printMy.pdfCols .weeksGrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
+  /* Od septembra 2026 je na širokem zaslonu namesto seznama koledar PON-NED
+     (MesecKoledar). Ta je za tiskanje že v pravi obliki - poskrbeti je treba
+     samo, da se celica ne prelomi čez rob strani in da barve ostanejo. */
+  #printMy .mesecKoledar .kcelica{ break-inside: avoid; page-break-inside: avoid; }
+  @media print{
+    #printMy .mesecKoledar{ gap:4px; }
+    #printMy .mesecKoledar .kcelica{ min-height:70px; }
+  }
 
   /* "Po oddelkih" – tabela postavljena kot uradna predloga "2026 SMS
      RAZPORED": dnevi v vrsticah (stolpec "Dan" je zdaj samo datum, ne ime
@@ -440,6 +448,30 @@ function nzvPrikaz(sifra, danKratica, jeNzv, datum, enota){
 // golo "Dopoldne" - enota in dežurstvo bi tiho izginila. Prazno besedilo
 // pomeni prost dan; "Prosto" tu, ker ga nzvPrikaz namenoma ne izpiše sam
 // (pri NZV vikendu vrne "" tudi sredi letnega dopusta).
+// Ali je zaslon dovolj širok za pogled, ki potrebuje prostor (koledar s
+// sedmimi stolpci). Vrne živo vrednost - ob obračanju telefona ali
+// spreminjanju okna se pogled sam preklopi. Isti vzorec kot pri zaznavanju
+// ležeče usmerjenosti niže v datoteki.
+function useSirokZaslon(najmanj){
+  const [siroko, setSiroko] = useState(
+    () => typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia("(min-width: " + najmanj + "px)").matches : false
+  );
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia("(min-width: " + najmanj + "px)");
+    const naSpremembo = () => setSiroko(mq.matches);
+    naSpremembo();
+    if (mq.addEventListener) mq.addEventListener("change", naSpremembo);
+    else mq.addListener(naSpremembo); // starejši WebView
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", naSpremembo);
+      else mq.removeListener(naSpremembo);
+    };
+  }, [najmanj]);
+  return siroko;
+}
+
 function prikazNaZaslonu(prikaz){
   return prikaz || "Prosto";
 }
@@ -702,6 +734,43 @@ function MyScheduleView({ userId, month, jeNzv }){
   );
   const zdravnikiOpozorilo = zdravnikiOpozoriloBesedilo(imamDezurstvo, zdravnikiStanje);
 
+  // Koledarski pogled (7 stolpcev, PON-NED) samo na širokem zaslonu; na
+  // telefonu ostane seznam po dnevih - glej komentar ob MesecKoledar spodaj.
+  const koledarskiPogled = useSirokZaslon(900);
+
+  // ENA priprava podatkov za en dan, ki jo uporabita OBA prikaza (seznam in
+  // koledar). Prej je bil izračun vpleten kar v izris seznama; ko je prišel
+  // še koledar, bi ga bilo treba prepisati drugič in prikaza bi se prej ali
+  // slej razšla (npr. barva iz druge tabele).
+  const celicaDneva = useCallback((dn) => {
+    const sifra = byDate[dn.datum];
+    // Barva se vedno računa iz IZVIRNE kode (npr. "PRISOTEN + DEŽURSTVO" se
+    // mora obarvati kot dežurstvo, ne kot prisotnost), besedilo pa iz
+    // pravila NZV delovnika.
+    const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum, enotaZaDan(dn.datum));
+    const cls = classify(prikaz === "" ? "" : sifra);
+    // Barva iz URADNE legende (izmene.js), ista kot v Imenik → Razpredelnica
+    // in v "Po oddelkih".
+    const jePrazno = !sifra || prikaz === "" || window.Izmene.jeProst(sifra);
+    const barvaDneva = jePrazno ? null : window.Izmene.barva(sifra);
+    return {
+      cls, jePrazno, barvaDneva,
+      besedilo: prikazNaZaslonu(prikaz),
+      isToday: dn.datum === iso,
+      isWeekend: dn.dan === "SO" || dn.dan === "NE",
+      stDneva: new Date(dn.datum + "T00:00:00").getDate(),
+      zdravniki: cls === "dez" ? zdravnikiZaDan(zdravnikiPoDatumu[dn.datum]) : [],
+      // Dežurstvo je edina izmena, ki se izriše POLNO zapolnjeno (bela pisava
+      // na opekasti podlagi) - tako se na prvi pogled loči od letnega dopusta,
+      // ki je prav tako rdečkast, a le rahlo obarvan.
+      slogChipa: {
+        background: cls === "dez" ? barvaDneva : (jePrazno ? "transparent" : barvaDneva + "26"),
+        border: "1px solid " + (jePrazno ? "var(--line)" : barvaDneva),
+        color: cls === "dez" ? window.Izmene.barvaBesedila(barvaDneva) : undefined,
+      },
+    };
+  }, [byDate, jeNzv, iso, zdravnikiPoDatumu, enotaZaDan]);
+
   if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
@@ -729,59 +798,86 @@ function MyScheduleView({ userId, month, jeNzv }){
         <div className="warnBox">🩺 {zdravnikiOpozorilo}</div>
       )}
 
-      <div className="weeksGrid">
-        {tedni.map((teden, i) => (
-          <div key={i}>
-            <div className="weekLabel">Teden {i+1}</div>
-            {teden.map(dn => {
-              const sifra = byDate[dn.datum];
-              // Barva se vedno računa iz IZVIRNE kode (npr. "PRISOTEN +
-              // DEŽURSTVO" se mora obarvati kot dežurstvo, ne kot prisotnost),
-              // besedilo pa iz pravila NZV delovnika.
-              const prikaz = nzvPrikaz(sifra, dn.dan, jeNzv, dn.datum, enotaZaDan(dn.datum));
-              const cls = classify(prikaz === "" ? "" : sifra);
-              // Barva iz URADNE legende (izmene.js), ista kot v Imenik →
-              // Razpredelnica in v "Po oddelkih". Prej je bila tu ena od
-              // sedmih grobih skupin, zato je bila npr. nočna 12 v enem
-              // pogledu vijolična in v drugem temno modra.
-              const jePrazno = !sifra || prikaz === "" || window.Izmene.jeProst(sifra);
-              const barvaDneva = jePrazno ? null : window.Izmene.barva(sifra);
-              const isToday = dn.datum === iso;
-              const isWeekend = dn.dan === "SO" || dn.dan === "NE";
-              const d = new Date(dn.datum + "T00:00:00");
-              return (
-                <div key={dn.datum} className={"dayRow" + (isToday ? " today" : "") + (isWeekend ? " weekend" : "")}>
-                  <div className="dnum">
-                    <div className="n">{d.getDate()}</div>
-                    <div className="d">{dn.dan}</div>
-                  </div>
-                  {/* Dežurstvo je edina izmena, ki se izriše POLNO zapolnjeno
-                      (bela pisava na opekasti podlagi) - tako se na prvi
-                      pogled loči od letnega dopusta, ki je prav tako rdečkast,
-                      a le rahlo obarvan. Ostale izmene ostanejo lahke
-                      (15% podlaga + obroba v svoji barvi). */}
-                  <div className={"chip" + (jePrazno ? " off" : "") + (cls==="dez" ? " polna" : "")}
-                    style={{
-                      background: cls==="dez" ? barvaDneva : (jePrazno ? "transparent" : barvaDneva + "26"),
-                      border: "1px solid " + (jePrazno ? "var(--line)" : barvaDneva),
-                      color: cls==="dez" ? window.Izmene.barvaBesedila(barvaDneva) : undefined,
-                    }}>
-                    <span className="dot" style={{background: cls==="dez" ? "#fff" : (barvaDneva || "var(--off)")}}></span>
-                    <span style={{minWidth:0, overflow:"hidden"}}>
-                      <span className="txt">{prikazNaZaslonu(prikaz)}</span>
-                      {cls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[dn.datum]).map(z => (
-                        <span key={z.oznaka} className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
-                          🩺 {z.oznaka}: {z.ime}
+      {koledarskiPogled
+        ? <MesecKoledar tedni={tedni} celica={celicaDneva} />
+        : (
+          <div className="weeksGrid">
+            {tedni.map((teden, i) => (
+              <div key={i}>
+                <div className="weekLabel">Teden {i+1}</div>
+                {teden.map(dn => {
+                  const c = celicaDneva(dn);
+                  return (
+                    <div key={dn.datum} className={"dayRow" + (c.isToday ? " today" : "") + (c.isWeekend ? " weekend" : "")}>
+                      <div className="dnum">
+                        <div className="n">{c.stDneva}</div>
+                        <div className="d">{dn.dan}</div>
+                      </div>
+                      {/* Dežurstvo je edina izmena, ki se izriše POLNO zapolnjeno
+                          (bela pisava na opekasti podlagi) - tako se na prvi
+                          pogled loči od letnega dopusta, ki je prav tako rdečkast,
+                          a le rahlo obarvan. Ostale izmene ostanejo lahke
+                          (15% podlaga + obroba v svoji barvi). */}
+                      <div className={"chip" + (c.jePrazno ? " off" : "") + (c.cls==="dez" ? " polna" : "")}
+                        style={c.slogChipa}>
+                        <span className="dot" style={{background: c.cls==="dez" ? "#fff" : (c.barvaDneva || "var(--off)")}}></span>
+                        <span style={{minWidth:0, overflow:"hidden"}}>
+                          <span className="txt">{c.besedilo}</span>
+                          {c.zdravniki.map(z => (
+                            <span key={z.oznaka} className="txt" style={{display:"block", fontSize:11, fontWeight:400, opacity:0.9, lineHeight:1.4}}>
+                              🩺 {z.oznaka}: {z.ime}
+                            </span>
+                          ))}
                         </span>
-                      ))}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+    </div>
+  );
+}
+
+// Mesečni koledar PON-NED za "Moj razpored" (uporabnikova zahteva, september
+// 2026: "da je moj razpored na 1 strani za cel mesec ... v obliki koledarja
+// od ponedeljka do nedelje"). Na telefonu se NE uporablja - sedem stolpcev
+// pri 390px pomeni ~50px na dan, kamor naziv izmene ("Dopoldne (MO)") ne gre;
+// tam ostane seznam po dnevih, ki je za palec tudi bolj uporaben.
+//
+// Podatke za posamezen dan pripravi ISTA funkcija kot za seznam (prop
+// "celica"), da se prikaza ne moreta razjti - barva, besedilo in dežurni
+// zdravnik so v obeh pogledih enaki.
+function MesecKoledar({ tedni, celica }){
+  const DNEVI = ["PO", "TO", "SR", "ČE", "PE", "SO", "NE"];
+  // Prvi teden v mesecu je skoraj vedno krajši (mesec se ne začne v
+  // ponedeljek), zato pred prvi dan vrinemo toliko praznih celic, kolikor
+  // je dni od ponedeljka do prvega v mesecu.
+  const zamik = tedni.length ? Math.max(0, DNEVI.indexOf(tedni[0][0].dan)) : 0;
+  return (
+    <div className="mesecKoledar">
+      {DNEVI.map(d => (
+        <div key={d} className={"kglava" + (d === "SO" || d === "NE" ? " vikend" : "")}>{d}</div>
+      ))}
+      {Array.from({ length: zamik }, (_, i) => <div key={"prazno" + i} className="kcelica prazna" />)}
+      {tedni.flat().map(dn => {
+        const c = celica(dn);
+        return (
+          <div key={dn.datum}
+            className={"kcelica" + (c.isToday ? " today" : "") + (c.isWeekend ? " weekend" : "")}>
+            <div className="kdan">{c.stDneva}</div>
+            <div className={"kizmena" + (c.jePrazno ? " off" : "") + (c.cls === "dez" ? " polna" : "")}
+              style={c.slogChipa} title={c.besedilo}>
+              {c.besedilo}
+              {c.zdravniki.map(z => (
+                <span key={z.oznaka} className="kzdravnik">🩺 {z.oznaka}: {z.ime}</span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
