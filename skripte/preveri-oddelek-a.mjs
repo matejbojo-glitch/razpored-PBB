@@ -372,7 +372,7 @@ try {
     const stolpciSreda = await celice(SREDA);
     trdi(!!stolpciSreda && stolpciSreda.length === 3, "delovni dan ima tri stolpce: " + JSON.stringify(stolpciSreda));
     eq(stolpciSreda[0], "", "med tednom dnevna izmena ni pokrivanje in stolpec ostane prazen (A ima svoj kader)");
-    trdi(/Novak/.test(stolpciSreda[1]), "popoldne: " + stolpciSreda[1]);
+    eq(stolpciSreda[1], "Novak A.", "popoldne: priimek in prva črka imena");
     trdi(/Kovač/.test(stolpciSreda[2]), "ponoči: " + stolpciSreda[2]);
     trdi(!stolpciSreda.join(" ").includes("Horvat"), "dopoldanskega sodelavca pokrivajočega oddelka ni nikjer");
     trdi(!stolpciSreda.join(" ").includes("Turk"), "in tudi popoldanskega iz drugega oddelka ne");

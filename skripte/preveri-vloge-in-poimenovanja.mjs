@@ -80,6 +80,15 @@ console.log("2) izpis imen v obliki \"Priimek Ime\"");
   eq(P("dr. Novak"), "dr. Novak", "zapis, ki ni ves z velikimi črkami, se ne spreminja");
   eq(P(""), "", "prazno ostane prazno");
   eq(P(null), "", "in manjkajoče prav tako");
+
+  console.log("   in kratka oblika \"Priimek Z.\" za ozke stolpce razporeda:");
+  const Z = s.window.Imena.priimekZacetnica;
+  eq(Z("Svetina Sara"), "Svetina S.", "priimek in prva črka imena");
+  eq(Z("Rejc Jan"), "Rejc J.", "isto za drugo osebo");
+  eq(Z("SVETINA SARA"), "Svetina S.", "tudi kadar vir piše z velikimi črkami");
+  eq(Z("Mavri Tratnik Magdalena"), "Mavri Tratnik M.", "dvobesedni priimek ostane cel");
+  eq(Z("Novak"), "Novak", "enobesedni zapis ostane, kakršen je");
+  eq(Z(""), "", "prazno ostane prazno");
   // Vrstni red se NE ugiba - to bi pri dvobesednih priimkih razbilo ime.
   eq(P("NOVAK ANA MARIJA"), "Novak Ana Marija", "vrstni red besed ostane nespremenjen");
   trdi(/priimekIme/.test(index), "Razpored ga uporabi pri izpisu nosilcev/nadomeščanj");

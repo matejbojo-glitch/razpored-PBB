@@ -116,6 +116,22 @@ window.Imena = (function () {
     }).join(" ");
   }
 
+  // "Priimek Z." - priimek in prva črka imena, po vzoru uradne predloge
+  // "2026 SMS RAZPORED". Priimek je VSE RAZEN zadnje besede, da ostanejo
+  // dvobesedni priimki celi ("Mavri Tratnik Magdalena" -> "Mavri Tratnik
+  // M."). Zapis gre skozi priimekIme(), zato je enak ne glede na to, ali
+  // vir piše z velikimi črkami ali ne.
+  //
+  // Sama začetnica ne zadošča za ločevanje ljudi z istim priimkom, zato
+  // se v ozkih stolpcih (mreža NZV) še naprej uporabljajo parafe.
+  function priimekZacetnica(polno) {
+    var t = priimekIme(polno);
+    var deli = t.split(" ");
+    if (deli.length < 2) return t;
+    var ime = deli[deli.length - 1];
+    return deli.slice(0, -1).join(" ") + " " + ime.charAt(0) + ".";
+  }
+
   // -------------------------------------------------------------------
   // Kazalo oseb: MATIČNA ŠTEVILKA najprej, ime šele potem.
   //
@@ -175,6 +191,7 @@ window.Imena = (function () {
     kratkiKljuc: kratkiKljuc,
     kratkoIme: kratkoIme,
     priimekIme: priimekIme,
+    priimekZacetnica: priimekZacetnica,
     kazalo: kazalo,
   };
 })();
