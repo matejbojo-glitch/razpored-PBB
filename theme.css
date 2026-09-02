@@ -1080,26 +1080,31 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 }
 .nzvNosilec + .nzvNosilec{ margin-left: 4px; }
 
-/* Stolpec "Popoldne / ponoči" na razporedu oddelka A: kdo iz pokrivajočega
-   oddelka (B oz. E1, izmenično po mesecih) tisti dan pokriva A. Ni izmena
-   oddelka A, ampak POKRIVANJE od drugod, zato je - tako kot stolpec NZV -
-   ločen z robom in ne obarvan kot izmena. */
-.wardTable th.pokrivaStolpec,
-.wardTable td.pokrivaStolpec{
+/* Stolpci pokrivanja na razporedu oddelka A: kdo iz pokrivajočega oddelka
+   (B oz. E1, izmenično po mesecih) tisti dan pokriva A - ločeno po delu
+   dneva (Dnevna / Popoldne / Nočna). Skupina je od razporeda oddelka A
+   vidno ločena z robom, ker to niso izmene oddelka A, ampak pokrivanje od
+   drugod; posamezna imena pa so obarvana z barvo SVOJE izmene iz uradne
+   legende, enako kot celice mreže - da je del dneva razviden tudi po
+   barvi, ne le po stolpcu. */
+.wardTable th.pokrivaSkupina{
   border-left: 2px solid var(--pop);
-  white-space: normal;
+  color: var(--pop);
+  letter-spacing: .04em;
 }
+.wardTable th.pokrivaPrvi,
+.wardTable td.pokrivaPrvi{ border-left: 2px solid var(--pop); }
+.wardTable th.pokrivaStolpec,
+.wardTable td.pokrivaStolpec{ white-space: normal; }
+.wardTable td.pokrivaStolpec{ background: rgba(201,113,63,.05); }
 .pokrivaOseba{
-  display: inline-flex; align-items: baseline; gap: 4px;
-  padding: 2px 8px; margin: 1px;
-  border: 1px solid var(--pop);
+  display: inline-block;
+  padding: 3px 8px; margin: 1px;
   border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
+  line-height: 1.3;
 }
-.pokrivaOseba .pokrivaIzmena{ font-size: 10px; font-weight: 800; color: var(--pop); }
 .pokrivaPrazno{ color: var(--muted); }
 
 /* Ločnica med oddelčnim kadrom in nosilci NZV v Imenik → Razpredelnica. */
