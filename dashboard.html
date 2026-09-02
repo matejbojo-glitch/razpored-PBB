@@ -88,6 +88,8 @@
 <script src="dashboard-core.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
+<script src="imena.js"></script>
+<script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
@@ -98,7 +100,7 @@
 // Uporabljamo dejanski Supabase klient iz RazporedAuth, ki ga inicializira supabase-client.js.
 const client = (typeof window !== "undefined" && window.RazporedAuth && window.RazporedAuth.client) || null;
 
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useRef } = React;
 
 const PODSKUPINA_NAZIV = { A:"A · rotacijski izmenski kader", B:"B · dnevni z občasnim REDI", C:"C · izključno dnevni", D:"D · dolgotrajna odsotnost" };
 
@@ -148,6 +150,300 @@ function Th({ label, k, sortKey, onSort }){
 
 function FairBar({ value, max, cool }){
   return <div className={"bar" + (cool ? " cool" : "")}><i style={{width: (max>0 ? 100*value/max : 0)+"%"}}></i></div>;
+}
+
+// ---------------------------------------------------------------------
+// Dopust: PRESELJENO iz Generatorja (admin.html) v Statistiko - uporabnikova
+// zahteva, september 2026. Vsebina je nespremenjena, le zavihek stoji zdaj
+// tam, kjer je ostalo spremljanje stanj.
+//
+// Ujemanje imen je v imena.js (skupni modul za vse zaslone) - v Generatorju
+// je bil ta ovoj poimenovan imenaSeUjemataAdmin.
+const imenaSeUjemata = window.Imena.seUjemata;
+//
+// Mesečni uvoz stanja dopusta iz Kadrisa (ime, šifra zaposlenega/
+// "Mat.št", leto, mesec, DOPUST) + pregled z mesečnim trendom. employee_code
+// je edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
+// včasih zapišejo drugače) - povezuje se s kadrovski_podatki.employee_code,
+// če je znan, sicer poskusi ujemanje po imenu (vreča besed). Ob vsakem uvozu
+// sprožilec v shemi drži kadrovski_podatki.leave_balance_days/asof
+// usklajena z najnovejšim mesecem (Imenik torej vedno kaže isto stanje).
+// ---------------------------------------------------------------------
+const DOPUST_GLAVE_MAPA = {
+  full_name: ["full_name", "priimek in ime", "ime in priimek", "ime"],
+  employee_code: ["employee_code", "mat.št", "mat št", "mat.st", "mat st", "šifra zaposlenega", "sifra zaposlenega"],
+  leto: ["leto", "year"],
+  mesec: ["mesec", "month"],
+  dnevi: ["dnevi", "dopust", "stanje", "stanje dopusta"],
+};
+const MESECI_SL2 = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
+
+function DopustTab(){
+  const [obdobja, setObdobja] = useState(null);
+  const [obdobje, setObdobje] = useState("");
+  const [vrstice, setVrstice] = useState([]);
+  const [iskanje, setIskanje] = useState("");
+  const [sort, setSort] = useState({ polje: "full_name", smer: 1 });
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  const [predogled, setPredogled] = useState(null); // { zapisi, leto, mesec, novih, spremenjenih, enakih, manjkajoci }
+  const fileRef = useRef();
+
+  const nalozi = async () => {
+    const { data } = await client.from("stanje_dopusta_obdobja").select("*");
+    setObdobja(data || []);
+    if (data && data.length && !obdobje) setObdobje(data[0].leto + "-" + data[0].mesec);
+  };
+  useEffect(() => { nalozi(); }, []);
+
+  useEffect(() => {
+    if (!obdobje) { setVrstice([]); return; }
+    const [leto, mesec] = obdobje.split("-").map(Number);
+    client.from("stanje_dopusta_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
+      .then(({ data }) => setVrstice(data || []));
+  }, [obdobje]);
+
+  const uvoziDatoteko = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null); setPredogled(null);
+    try {
+      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
+      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
+      const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, DOPUST_GLAVE_MAPA);
+      if (!najdeniStolpci.includes("employee_code") || !najdeniStolpci.includes("dnevi")) {
+        setUvozMsg("V datoteki ni bilo mogoče najti stolpcev za šifro zaposlenega (Mat.št) in DOPUST.");
+        return;
+      }
+      const zapisi = objekti
+        .map(o => ({
+          full_name: (o.full_name || "").trim().toUpperCase(),
+          employee_code: (o.employee_code || "").trim(),
+          leto: Number(o.leto) || null,
+          mesec: Number(o.mesec) || null,
+          dnevi: o.dnevi !== "" && !isNaN(Number(o.dnevi)) ? Number(o.dnevi) : null,
+        }))
+        .filter(z => z.employee_code && z.dnevi != null);
+      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic."); return; }
+
+      // Obdobje: iz datoteke, če ga ima; sicer trenutni mesec (admin lahko
+      // pred potrditvijo popravi spodaj).
+      const zdaj = new Date();
+      const leto = zapisi.find(z => z.leto)?.leto || zdaj.getFullYear();
+      const mesec = zapisi.find(z => z.mesec)?.mesec || (zdaj.getMonth() + 1);
+
+      // Zadnje znano stanje vsake osebe (za primerjavo novo/spremenjeno/enako).
+      const { data: zgodovina } = await client.from("zgodovina_stanja_dopusta")
+        .select("employee_code, leto, mesec, dnevi")
+        .order("leto", { ascending: false }).order("mesec", { ascending: false });
+      const zadnje = new Map();
+      (zgodovina || []).forEach(r => { if (!zadnje.has(r.employee_code)) zadnje.set(r.employee_code, Number(r.dnevi)); });
+
+      // Poveži z obstoječimi profili: najprej po employee_code
+      // (kadrovski_podatki), sicer po imenu (vreča besed).
+      const { data: hrPodatki } = await client.from("kadrovski_podatki").select("profile_id, employee_code");
+      const { data: profili } = await client.from("profili").select("id, full_name");
+      const poEmployeeCode = new Map((hrPodatki || []).filter(h => h.employee_code).map(h => [h.employee_code, h.profile_id]));
+
+      const zVsebino = zapisi.map(z => {
+        let profile_id = poEmployeeCode.get(z.employee_code) || null;
+        if (!profile_id) {
+          const ujemanje = (profili || []).find(p => imenaSeUjemata(p.full_name, z.full_name));
+          if (ujemanje) profile_id = ujemanje.id;
+        }
+        const prej = zadnje.has(z.employee_code) ? zadnje.get(z.employee_code) : undefined;
+        const vrsta = prej === undefined ? "nov" : (prej !== z.dnevi ? "sprem" : "enako");
+        return { ...z, leto, mesec, profile_id, prej, vrsta };
+      });
+
+      const obstojeci = await client.from("zgodovina_stanja_dopusta").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
+      const vNovem = new Set(zVsebino.map(z => z.employee_code));
+      const { data: vsiZgodovina } = await client.from("zgodovina_stanja_dopusta").select("employee_code, full_name").order("full_name");
+      const znaniZaEnkrat = new Map();
+      (vsiZgodovina || []).forEach(r => { if (!znaniZaEnkrat.has(r.employee_code)) znaniZaEnkrat.set(r.employee_code, r.full_name); });
+      const manjkajoci = [...znaniZaEnkrat.entries()].filter(([koda]) => !vNovem.has(koda)).map(([, ime]) => ime);
+
+      setPredogled({
+        zapisi: zVsebino, leto, mesec,
+        novih: zVsebino.filter(z => z.vrsta === "nov").length,
+        spremenjenih: zVsebino.filter(z => z.vrsta === "sprem").length,
+        enakih: zVsebino.filter(z => z.vrsta === "enako").length,
+        manjkajoci,
+      });
+      setUvozMsg(`Prebranih ${zVsebino.length} vrstic iz "${file.name}" – preveri predogled spodaj pred potrditvijo.`);
+    } catch (e) {
+      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const potrdiUvoz = async () => {
+    if (!predogled) return;
+    setUvozBusy(true);
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      const zapisi = predogled.zapisi.map(z => ({
+        employee_code: z.employee_code, full_name: z.full_name, leto: predogled.leto, mesec: predogled.mesec,
+        dnevi: z.dnevi, profile_id: z.profile_id, uvozeno: new Date().toISOString(), uvozil: user ? user.id : null,
+      }));
+      for (let i = 0; i < zapisi.length; i += 200) {
+        const { error } = await client.from("zgodovina_stanja_dopusta").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
+        if (error) throw error;
+      }
+      setUvozMsg(`Uvoženih ${zapisi.length} vrstic za ${MESECI_SL2[predogled.mesec - 1]} ${predogled.leto}.`);
+      setPredogled(null);
+      await nalozi();
+      setObdobje(predogled.leto + "-" + predogled.mesec);
+    } catch (e) {
+      setUvozMsg("Uvoz ni uspel: " + (e.message || String(e)));
+    } finally {
+      setUvozBusy(false);
+    }
+  };
+
+  const razvrsti = (polje) => setSort(s => ({ polje, smer: s.polje === polje ? -s.smer : 1 }));
+
+  const filtrirano = useMemo(() => {
+    const s = iskanje.trim().toLowerCase();
+    let v = !s ? vrstice : vrstice.filter(r =>
+      (r.full_name || "").toLowerCase().includes(s) || String(r.employee_code).includes(s)
+    );
+    v = v.slice().sort((a, b) => {
+      const x = a[sort.polje], y = b[sort.polje];
+      if (typeof x === "string") return sort.smer * String(x).localeCompare(String(y), "sl");
+      return sort.smer * ((x == null ? -1e9 : Number(x)) - (y == null ? -1e9 : Number(y)));
+    });
+    return v;
+  }, [vrstice, iskanje, sort]);
+
+  const izvoziCSV = () => {
+    if (!filtrirano.length) return;
+    const [leto, mesec] = obdobje.split("-");
+    const csv = "full_name,employee_code,dnevi,sprememba\n" + filtrirano.map(r =>
+      [`"${(r.full_name||"").replace(/"/g,'""')}"`, r.employee_code, r.dnevi, r.sprememba ?? ""].join(",")
+    ).join("\n") + "\n";
+    download(`dopust-${leto}-${String(mesec).padStart(2,"0")}.csv`, csv);
+  };
+
+  const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
+  const maxDnevi = Math.max(1, ...filtrirano.map(r => Number(r.dnevi) || 0));
+  const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
+  const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
+
+  return (
+    <div>
+      <h2 className="section no-print">Mesečno stanje dopusta (Kadris)</h2>
+      <p className="hint no-print">
+        Vsak mesec naloži izvoz iz Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec, DOPUST).
+        Šifra zaposlenega je edini stabilen ključ med meseci – ista oseba se ne podvoji, tudi če se ime kdaj zapiše
+        drugače. Ponoven uvoz istega meseca obstoječo vrstico posodobi, ne podvoji. Stanje se samodejno prikaže tudi
+        v Imeniku pri posamezni osebi (najnovejši mesec).
+      </p>
+      <div className="card no-print">
+        <RazporedUvozVir kljuc="stanje-dopusta" ikona="🏖" naziv="Stanje dopusta (Kadris)"
+          opis="CSV / Excel – mat. št., leto, mesec, dnevi"
+          onClick={() => fileRef.current && fileRef.current.click()} />
+        <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
+        <button className="dlBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
+          {uvozBusy ? "Nalagam …" : "📤 Uvoz mesečnega stanja iz datoteke"}
+        </button>
+        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
+      </div>
+
+      {predogled && (
+        <div className="card no-print">
+          <h3 style={{marginTop:0}}>Predogled – {MESECI_SL2[predogled.mesec - 1]} {predogled.leto}</h3>
+          <p className="hint">{predogled.novih} novih · {predogled.spremenjenih} spremenjenih · {predogled.enakih} nespremenjenih</p>
+          {predogled.manjkajoci.length > 0 && (
+            <p className="hint">V tem izvozu jih ni (bodo iz prejšnjih uvozov, podatki ostanejo): {predogled.manjkajoci.join(", ")}</p>
+          )}
+          <button className="genBtn" onClick={potrdiUvoz} disabled={uvozBusy}>{uvozBusy ? "Uvažam …" : "Potrdi uvoz"}</button>
+          <button className="dlBtn" style={{marginLeft:8}} onClick={() => setPredogled(null)}>Prekliči</button>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
+          <div className="field">
+            <label htmlFor="dobd">Obdobje</label>
+            <select id="dobd" value={obdobje} onChange={e => setObdobje(e.target.value)}>
+              {(obdobja || []).length === 0 && <option value="">– ni podatkov –</option>}
+              {(obdobja || []).map(o => (
+                <option key={o.leto+"-"+o.mesec} value={o.leto+"-"+o.mesec}>{MESECI_SL2[o.mesec-1]} {o.leto} – {o.stevilo_oseb} oseb</option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{flex:1, minWidth:180}}>
+            <label htmlFor="disc">Iskanje</label>
+            <input id="disc" type="text" placeholder="Ime ali šifra zaposlenega …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
+          </div>
+        </div>
+        <RazporedIzvozVir
+          naziv="Stanje dopusta"
+          dodatno={[{ label: "Izvozi CSV", onClick: izvoziCSV }]}
+          naslov={(() => { const [leto, mesec] = obdobje.split("-"); return `dopust-${leto}-${String(mesec).padStart(2,"0")}`; })()}
+          pripravi={() => {
+            if (!filtrirano.length) throw new Error("Ni podatkov za izvoz.");
+            return [{
+              ime: "Dopust",
+              glave: ["Priimek in ime", "Šifra zaposlenega", "Dnevi", "Sprememba"],
+              vrstice: filtrirano.map(r => [r.full_name || "", r.employee_code || "", r.dnevi, r.sprememba ?? ""]),
+            }];
+          }}
+        />
+
+        {vrstice.length > 0 && (
+          <p className="hint" style={{marginTop:10}}>
+            {filtrirano.length} zaposlenih · skupaj {Math.round(skupaj*10)/10} dni ·
+            povprečje {(skupaj/(filtrirano.length||1)).toFixed(1)} · brez dopusta {brezDopusta} · brez računa {brezRacuna}
+          </p>
+        )}
+
+        {vrstice.length === 0 ? (
+          <p className="hint">Za to obdobje ni podatkov.</p>
+        ) : (
+          <div style={{overflowX:"auto"}}>
+            <table className="roster">
+              <thead>
+                <tr>
+                  <th className="weekToggle" style={{cursor:"pointer"}} onClick={() => razvrsti("full_name")}>Priimek in ime</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("employee_code")}>Šifra</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("dnevi")}>Dnevi</th>
+                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("sprememba")}>Sprememba</th>
+                  <th>Račun</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrirano.map(r => {
+                  const s = r.sprememba == null ? null : Number(r.sprememba);
+                  const barva = s == null || s === 0 ? "var(--muted)" : (s > 0 ? "var(--ok)" : "var(--danger)");
+                  const besedilo = s == null ? "–" : (s > 0 ? "+" : "") + s;
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.full_name}</td>
+                      <td>{r.employee_code}</td>
+                      <td style={{minWidth:120}}>
+                        <strong>{r.dnevi}</strong>
+                        {/* Vrstica napredka je relativna glede na NAJVEČJE stanje v
+                            tem mesecu - kvota po osebi (annual_leave_total) v tem
+                            izvozu ni na voljo, zato bi bil odstotek izmišljen. */}
+                        <div className="bar" title={`${r.dnevi} dni · najvišje stanje ta mesec: ${maxDnevi}`}>
+                          <i style={{width: (maxDnevi > 0 ? 100 * Number(r.dnevi) / maxDnevi : 0) + "%"}}></i>
+                        </div>
+                      </td>
+                      <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
+                      <td>{r.profile_id ? "povezan" : "ni računa"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function DopustPregled({ oddelki }){
@@ -613,7 +909,17 @@ function NedezTab({ baseline }){
 
 function App({ role, ogled, profil }){
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState("sms");
+  // Zavihek se lahko določi z naslovom ("dashboard.html?tab=dopust"), ker
+  // stran "Uvoz" na uvoz stanja dopusta kaže sem - odkar je ta zavihek
+  // preseljen iz Generatorja (september 2026). Naslov je zunanji vhod,
+  // zato se vrednost preveri proti znanim zavihkom; neznana pomeni
+  // privzeto, ne napake.
+  const [tab, setTab] = useState(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      return ["sms", "dez", "nedez", "dopust"].includes(t) ? t : "sms";
+    } catch (e) { return "sms"; }
+  });
   const [oddelki, setOddelki] = useState([]);
 
   React.useEffect(() => {
@@ -657,7 +963,18 @@ function App({ role, ogled, profil }){
       {data && tab==="sms" && <SmsTab baseline={data.osnova_sms} onUpdate={(n) => update("osnova_sms", n)} />}
       {data && tab==="dez" && <DezTab baseline={data.osnova_dez} onUpdate={(n) => update("osnova_dez", n)} />}
       {data && tab==="nedez" && <NedezTab baseline={data.osnova_nedez} />}
-      {role === "admin" && tab==="dopust" && <DopustPregled oddelki={oddelki} />}
+      {role === "admin" && tab==="dopust" && (
+        <React.Fragment>
+          <DopustPregled oddelki={oddelki} />
+          {/* Preseljeno iz Generatorja (uporabnikova zahteva, september
+              2026): mesečni uvoz stanja dopusta iz Kadrisa in pregled po
+              obdobjih. Stoji pod trenutnim stanjem, ker to stanje ravno
+              ta uvoz posodablja (sprožilec v shemi drži
+              kadrovski_podatki.leave_balance_days usklajen z najnovejšim
+              uvoženim mesecem). Svoj naslov ima že sam. */}
+          <DopustTab />
+        </React.Fragment>
+      )}
 
       <footer className="foot no-print">
         <p><b>Modul 3 – nadzorna plošča pravičnosti.</b> Osnova SMS/TZN je iz obdobja 1. 1.–30. 9. 2026 (56 oseb), osnova dežurnih DMS/DZN iz 1. 1.–30. 9. 2026 (14 oseb, analiza "Dežurstva 2026"), osnova nedežurnih DMS/DZN iz 1. 1.–31. 7. 2026 (11 oseb) – vse iz analiz Kadrisa.</p>
