@@ -1,10 +1,31 @@
 (() => {
   // exceljs-vendor-shim.mjs
-  var exceljs_vendor_shim_default = typeof window !== "undefined" ? window.ExcelJS : void 0;
+  function vrniExcelJS() {
+    return typeof window !== "undefined" ? window.ExcelJS : void 0;
+  }
 
   // export-utils.entry.js
   (function() {
     "use strict";
+    var izvozObljuba = null;
+    function naloziIzvoznKnjiznice() {
+      if (window.XLSX && window.ExcelJS) return Promise.resolve();
+      if (!izvozObljuba) {
+        izvozObljuba = new Promise(function(resolve, reject) {
+          var s = document.createElement("script");
+          s.src = "vendor-izvoz.min.js";
+          s.onload = function() {
+            resolve();
+          };
+          s.onerror = function() {
+            izvozObljuba = null;
+            reject(new Error("Knjižnice za preglednice ni bilo mogoče naložiti (ni povezave?)."));
+          };
+          document.head.appendChild(s);
+        });
+      }
+      return izvozObljuba;
+    }
     function varnoImeLista(ime, uporabljena) {
       var ocisceno = (ime || "List").replace(/[\\/?*\[\]:]/g, " ").trim().slice(0, 31) || "List";
       var koncno = ocisceno, i = 2;
@@ -86,9 +107,11 @@
       if (!listi || !listi.length) throw new Error("Ni podatkov za izvoz.");
     }
     async function izvoziXLSX(imeDatoteke, listi, cilj) {
-      if (!exceljs_vendor_shim_default) throw new Error("Excel knjižnica (ExcelJS) ni naložena na tej strani.");
       if (!listi || !listi.length) throw new Error("Ni podatkov za izvoz.");
-      var wb = new exceljs_vendor_shim_default.Workbook();
+      await naloziIzvoznKnjiznice();
+      var ExcelJS = vrniExcelJS();
+      if (!ExcelJS) throw new Error("Excel knjižnica (ExcelJS) ni naložena na tej strani.");
+      var wb = new ExcelJS.Workbook();
       var uporabljena = {};
       for (var i = 0; i < listi.length; i++) {
         var l = listi[i];
@@ -284,6 +307,7 @@
         }, 1e3);
       }
     }
+    window.VendorIzvoz = { nalozi: naloziIzvoznKnjiznice };
     window.ExportUtils = {
       izvoziXLSX,
       izvoziJSON,

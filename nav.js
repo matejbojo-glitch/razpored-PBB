@@ -31,11 +31,26 @@
       ".rpNav .inner{ max-width:640px; margin:0 auto; display:flex; }" +
       ".rpNav a{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;" +
       " padding:9px 4px 8px; background:none; border:0; color:#8A7F5E; text-decoration:none; font-family:inherit;" +
-      " cursor:pointer; font-size:10.5px; font-weight:700; position:relative; min-width:0; min-height:44px;" +
+      " cursor:pointer; font-size:11px; font-weight:700; position:relative; min-width:0; min-height:44px;" +
       " justify-content:center; }" +
       ".rpNav a.active{ color:#6E5F2A; }" +
       ".rpNav .ic{ font-size:19px; line-height:1; }" +
-      ".rpNav .lbl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }" +
+      ".rpNav .lbl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; letter-spacing:-0.1px; }" +
+      // Kratki napis (glej lblOzko v ITEMS) se pokaže SAMO tam, kjer je
+      // postavk toliko, da se dolgi odreže - torej na ozkem zaslonu. Kjer
+      // kratkega ni, ostane dolgi.
+      ".rpNav .lblOzko{ display:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }" +
+      "@media (max-width:480px){" +
+      // Pri 360px (iPhone SE, starejši Androidi) pride na postavko ~51px;
+      // "Razpored" pri 11px meri ~46px, zato mora odmik na rob dol na 1px
+      // in razmik med črkami rahlo skrčiti - drugače se beseda odreže.
+      // Krajšega nadomestka zanjo namenoma ni: "razpored" je osrednji izraz
+      // te aplikacije in ga ne krajšamo.
+      "  .rpNav a{ padding-left:1px; padding-right:1px; }" +
+      "  .rpNav .lbl, .rpNav .lblOzko{ letter-spacing:-0.3px; }" +
+      "  .rpNav a:has(.lblOzko) .lbl{ display:none; }" +
+      "  .rpNav a:has(.lblOzko) .lblOzko{ display:block; }" +
+      "}" +
       ".rpNav .badge{ position:absolute; top:2px; right:calc(50% - 20px); min-width:15px; height:15px; padding:0 3px;" +
       " border-radius:999px; background:#B3402A; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
       ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
@@ -51,7 +66,7 @@
       "    border-top:0; border-bottom:1px solid #E1D9C2; padding-bottom:0; display:flex; align-items:center; }" +
       "  .rpNav .inner{ max-width:1040px; padding:0 24px; height:100%; align-items:center; justify-content:flex-start; gap:6px; }" +
       "  .rpNav a{ flex:0 0 auto; flex-direction:row; gap:7px; padding:9px 16px; font-size:13.5px;" +
-      "    min-height:auto; border-radius:999px; }" +
+      "    min-height:40px; border-radius:999px; }" +
       "  .rpNav a:hover{ background:#F2EEDF; }" +
       "  .rpNav a.active{ background:#F2EEDF; }" +
       "  .rpNav .ic{ font-size:16px; }" +
@@ -108,13 +123,21 @@
       .join(", ");
   }
 
+  // "lblOzko" je krajši napis za ozke zaslone. Administrator/vodja vidi 6-7
+  // postavk; pri 390px pride na postavko ~55px in dolga napisa sta se
+  // odrezala ("Razpor…", "Genera…"), kar je pri ne-tehničnem uporabniku
+  // slabše od krajše, a cele besede. Navadni zaposleni vidi samo štiri
+  // postavke, kjer se odreže nič - zato je kratki napis SAMO nadomestek na
+  // ozkem zaslonu, poln napis pa ostane povsod drugje (glej .lblOzko/.lbl
+  // v ensureStyle). "Kalup" je izraz, ki ga stran sama uporablja za svoj
+  // glavni zavihek, zato ni nova beseda za uporabnika.
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
     { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
     { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
     { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
-    { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
-    { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", roles: ["admin", "vodja"] },
+    { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", lblOzko: "Kalup", roles: ["admin", "vodja"] },
+    { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", lblOzko: "Pregled", roles: ["admin", "vodja"] },
     // Vsi uvozi na enem mestu. Prej je bila na vsaki strani svoja ikona 📥 in
     // uvoz je bilo treba iskati po straneh - kdo je vedel, da se kvote dopusta
     // uvozijo pod "Oddelki", stanje dopusta pa pod "Dopust"? Uvoz spreminja
@@ -197,7 +220,8 @@
             { key: it.key, href: it.href, className: it.key === active ? "active" : "" },
             e("span", { className: "ic" }, it.ic),
             badge,
-            e("span", { className: "lbl" }, it.lbl)
+            e("span", { className: "lbl" }, it.lbl),
+            it.lblOzko ? e("span", { className: "lblOzko" }, it.lblOzko) : null
           );
         })
       )
@@ -217,6 +241,17 @@
     ensureStyle();
     var trenutna = (location.pathname.split("/").pop() || "").toLowerCase();
     var naNastavitvah = trenutna === "nastavitve.html";
+    // Koliko okroglih ikon je zgoraj desno (2 ali 3 - nekatere strani dodajo
+    // še izvoz prek "pred"). Glava strani mora pustiti točno toliko prostora:
+    // .wordmark je imel trdo zapisanih 96px za dve ikoni, zato je pri TREH
+    // ikonah tretja legla čez naslov/značko (npr. "za koordinatorje" na
+    // Statistiki je bilo skrito pod gumbom za prenos). Zdaj številko pove
+    // ta komponenta, theme.css pa iz nje izračuna odmik.
+    useEffect(function () {
+      var koliko = (props && props.pred) ? 3 : 2;
+      document.documentElement.style.setProperty("--rp-ikon", String(koliko));
+      return function () { document.documentElement.style.removeProperty("--rp-ikon"); };
+    }, [props && props.pred ? 1 : 0]);
     return e(
       "div",
       { className: "rpTopIcons" },

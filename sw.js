@@ -517,6 +517,15 @@
 // ne moreta pokazati različnega števila. Spremenjena sta nav.js in
 // supabase-client.js - oba cache-first, zato je dvig različice nujen.
 
+// v135: mobilne izboljšave - stran je ~3x lažja (vendor-app.min.js z 1,66 MB
+// na 0,34 MB: XLSX in ExcelJS sta zdaj v ločenem vendor-izvoz.min.js, ki se
+// naloži šele ob prvem izvozu/uvozu). Poleg tega: zavihki na ozkem zaslonu
+// pokažejo, da se vrstica nadaljuje (prej so bili "Stanje dopusta"/"Plače"
+// nevidni), napisi v navigaciji se ne režejo več, tarče za prst so vsaj
+// 44px, najmanjše pisave dvignjene, pomikanje s prsti (zoom) ni več
+// onemogočeno. Spremenjeni so vendor-app.min.js, export-utils.js,
+// import-utils.js, nav.js in theme.css - vsi cache-first, zato dvig.
+
 // v119: KLJUČEN POPRAVEK - manjkajoč dvig različice od v118 naprej. Vseh
 // nekaj zadnjih krogov popravkov pri Menjavi (obvestila ob predlogu menjave/
 // dežurstva, rdeč znak na "Menjava", širše iskanje in nova enosmerna oddaja
@@ -526,7 +535,7 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v134';
+const CACHE = 'razpored-pbb-v135';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
@@ -556,6 +565,11 @@ const ASSETS = [
   // vendor-app.min.js (glej build-vendor.mjs). Teh datotek v dist/ ni, zato
   // NE smejo biti na tem seznamu.
   './vendor-app.min.js',
+  // vendor-izvoz.min.js (XLSX + ExcelJS, 1,3 MB) tu NAMENOMA NI: naloži se
+  // šele ob prvem izvozu/uvozu preglednice. Če bi ga predpomnili, bi ga ob
+  // namestitvi service workerja prenesel prav vsak uporabnik - torej točno
+  // to, kar smo z ločitvijo svežnjev odpravili. Ko ga kdo enkrat uporabi,
+  // ga spodnji "cache-first" del vseeno shrani za naprej.
   './supabase-client.js',
   './nav.js',
   './datum.js',

@@ -43,8 +43,15 @@ if (!existsSync(join(koren, "export-utils.js")) || !/window\.ExportUtils/.test(r
 // sklicevanja, kot je pisalo pred avgustom 2026) - to preverja izvorna
 // datoteka, ne zgrajeni sveženj (ta po esbuild alias-u seveda ne vsebuje
 // dobesednega "import").
-trdi(/import ExcelJS from "exceljs"/.test(readFileSync(join(koren, "export-utils.entry.js"), "utf8")),
+trdi(/import vrniExcelJS from "exceljs"/.test(readFileSync(join(koren, "export-utils.entry.js"), "utf8")),
   "export-utils.entry.js uvaža ExcelJS prek pravega `import`");
+// Od ločitve svežnjev (september 2026) ExcelJS ni več naložen ob odprtju
+// strani, ampak ga pripelje VendorIzvoz.nalozi ob prvem izvozu - zato se
+// globalna spremenljivka bere ŠELE OB KLICU (vrniExcelJS()), ne ob
+// nalaganju. Če bi kdo to vrnil na "import ExcelJS from" + branje ob
+// nalaganju, bi bil ExcelJS vedno undefined in izvoz v Excel bi odpovedal.
+trdi(/await naloziIzvoznKnjiznice\(\)/.test(readFileSync(join(koren, "export-utils.entry.js"), "utf8")),
+  "izvoziXLSX pred uporabo počaka na odloženo naložen sveženj");
 trdi(/await\s+wb\.xlsx\.writeBuffer\(\)/.test(readFileSync(join(koren, "export-utils.entry.js"), "utf8")),
   "pisanje je asinhrono (await workbook.xlsx.writeBuffer())");
 

@@ -237,9 +237,14 @@ try {
   trdi(/12/.test(bes), "preostanek dni je izpisan");
 
   console.log("8) navigacija na strani");
-  eq(await st.$$eval(".rnav a, nav a", e => e.map(x => x.textContent.replace(/[^\p{L}\s]/gu, "").trim())),
+  // innerText, ne textContent: postavki "Generator"/"Statistika" imata od
+  // septembra 2026 v DOM tudi krajši napis za ozke zaslone ("Kalup",
+  // "Pregled", glej lblOzko v nav.js), skritega s "display:none". textContent
+  // bi vrnil oba naenkrat ("GeneratorKalup"), innerText pa - tako kot bralnik
+  // zaslona in oko uporabnika - samo VIDNEGA.
+  eq(await st.$$eval(".rnav a, nav a", e => e.map(x => x.innerText.replace(/[^\p{L}\s]/gu, "").trim())),
     ["Razpored", "Imenik", "Menjava", "Želje", "Generator", "Statistika", "Uvoz"],
-    "vrstni red na dejanski strani");
+    "vrstni red na dejanski strani (široki zaslon: polni napisi)");
 
   const prave = [...konzola, ...konzolaIm, ...konzolaSt]
     .filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker|baseline/i.test(t));

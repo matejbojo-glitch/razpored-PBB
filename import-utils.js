@@ -68,8 +68,18 @@ window.ImportUtils = (function () {
     return String(c);
   }
 
+  // XLSX se od ločitve svežnjev naloži šele ob prvi rabi (vendor-izvoz.min.js,
+  // glej VendorIzvoz.nalozi v export-utils.entry.js) - prej je bil del
+  // vendor-app.min.js in je obtežil vsako stran za 1,3 MB skupaj z ExcelJS.
+  // Klicatelji spodaj zato pred branjem preglednice počakajo na sveženj.
+  function naloziXLSX() {
+    if (window.XLSX) return Promise.resolve();
+    if (window.VendorIzvoz && window.VendorIzvoz.nalozi) return window.VendorIzvoz.nalozi();
+    return Promise.reject(new Error("Knjižnica za preglednice ni na voljo na tej strani."));
+  }
+
   function xlsxVVrstice(arrayBuffer) {
-    if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka xlsx.core.min.js).");
+    if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka vendor-izvoz.min.js).");
     const wb = window.XLSX.read(arrayBuffer, { type: "array", cellDates: true });
     const prviList = wb.SheetNames[0];
     const sheet = wb.Sheets[prviList];
@@ -83,7 +93,7 @@ window.ImportUtils = (function () {
   // oddelek/mesec (npr. pravi delovni zvezek "2026 SMS RAZPORED" ima en
   // zavihek na oddelek).
   function xlsxVsiListi(arrayBuffer) {
-    if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka xlsx.core.min.js).");
+    if (!window.XLSX) throw new Error("XLSX knjižnica ni naložena (manjka vendor-izvoz.min.js).");
     const wb = window.XLSX.read(arrayBuffer, { type: "array", cellDates: true });
     return wb.SheetNames.map(naziv => {
       const vrstice = window.XLSX.utils.sheet_to_json(wb.Sheets[naziv], { header: 1, blankrows: false, defval: "" });
@@ -102,8 +112,9 @@ window.ImportUtils = (function () {
       reader.onerror = () => reject(reader.error || new Error("Napaka pri branju datoteke."));
       if (ime.endsWith(".xlsx") || ime.endsWith(".xls") || ime.endsWith(".xlsb")) {
         reader.onload = () => {
-          try { resolve({ listi: xlsxVsiListi(reader.result) }); }
-          catch (e) { reject(e); }
+          naloziXLSX()
+            .then(() => resolve({ listi: xlsxVsiListi(reader.result) }))
+            .catch(reject);
         };
         reader.readAsArrayBuffer(file);
       } else if (ime.endsWith(".csv") || ime.endsWith(".txt")) {
@@ -361,8 +372,9 @@ window.ImportUtils = (function () {
       reader.onerror = () => reject(reader.error || new Error("Napaka pri branju datoteke."));
       if (ime.endsWith(".xlsx") || ime.endsWith(".xls") || ime.endsWith(".xlsb")) {
         reader.onload = () => {
-          try { resolve({ vrsteVrstic: xlsxVVrstice(reader.result), tip: "xlsx" }); }
-          catch (e) { reject(e); }
+          naloziXLSX()
+            .then(() => resolve({ vrsteVrstic: xlsxVVrstice(reader.result), tip: "xlsx" }))
+            .catch(reject);
         };
         reader.readAsArrayBuffer(file);
       } else if (ime.endsWith(".pdf")) {

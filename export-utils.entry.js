@@ -22,10 +22,38 @@
  * koda strani berejo root.ExportUtils TAKOJ, ko jih razčlenjevalnik doseže;
  * modulski <script> bi se izvedel odloženo, po njih, in bi ju pokvaril.
  */
-import ExcelJS from "exceljs";
+import vrniExcelJS from "exceljs";
 
 (function () {
   "use strict";
+
+  // ---- Odloženo nalaganje knjižnic za preglednice --------------------
+  // XLSX (0,42 MB) + ExcelJS (0,90 MB) sta bila prej del vendor-app.min.js,
+  // ki se naloži na VSAKI strani - torej 1,3 MB tudi za zaposlenega, ki si
+  // na telefonu samo ogleda razpored. Zdaj sta v vendor-izvoz.min.js, ki ga
+  // prinesemo šele ob prvem izvozu/uvozu preglednice.
+  //
+  // Isti vzorec kot nalozipdfjs() v import-utils.js: ena sama obljuba, ki
+  // se deli med vse klicatelje, da se sveženj ne naloži dvakrat.
+  var izvozObljuba = null;
+  function naloziIzvoznKnjiznice() {
+    if (window.XLSX && window.ExcelJS) return Promise.resolve();
+    if (!izvozObljuba) {
+      izvozObljuba = new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        // Pot je relativna na stran (vse strani so v korenu, enako kot
+        // vendor-app.min.js v <script src>).
+        s.src = "vendor-izvoz.min.js";
+        s.onload = function () { resolve(); };
+        s.onerror = function () {
+          izvozObljuba = null; // naslednji poskus sme znova poskusiti
+          reject(new Error("Knjižnice za preglednice ni bilo mogoče naložiti (ni povezave?)."));
+        };
+        document.head.appendChild(s);
+      });
+    }
+    return izvozObljuba;
+  }
 
   // listi: [{ ime, glave: [...], vrstice: [[...], ...] }] – vsak vnos postane
   // svoj zavihek v datoteki. Excel omejuje ime zavihka na 31 znakov in
@@ -138,8 +166,10 @@ import ExcelJS from "exceljs";
   }
 
   async function izvoziXLSX(imeDatoteke, listi, cilj) {
-    if (!ExcelJS) throw new Error("Excel knjižnica (ExcelJS) ni naložena na tej strani.");
     if (!listi || !listi.length) throw new Error("Ni podatkov za izvoz.");
+    await naloziIzvoznKnjiznice();
+    var ExcelJS = vrniExcelJS();
+    if (!ExcelJS) throw new Error("Excel knjižnica (ExcelJS) ni naložena na tej strani.");
 
     var wb = new ExcelJS.Workbook();
     var uporabljena = {};
@@ -357,6 +387,10 @@ import ExcelJS from "exceljs";
       }, 1000);
     }
   }
+
+  // Na voljo tudi drugim (import-utils.js bere preglednice z window.XLSX in
+  // mora prav tako počakati na sveženj) - glej uporabo tam.
+  window.VendorIzvoz = { nalozi: naloziIzvoznKnjiznice };
 
   window.ExportUtils = {
     izvoziXLSX: izvoziXLSX,
