@@ -234,6 +234,16 @@ try {
     // pri 1920 px stisnjen na 1240 px in celica spet 56 px.
     if (w === 1920) trdi(m.celica >= 80, `1920 px: celica je ${m.celica} px (prej 56 px pri 1240 px omejitvi)`);
     if (w === 1920) trdi(m.tabela > 1400, `1920 px: tabela je širša od stare omejitve 1400 px (${m.tabela} px)`);
+    // Enobesedni naziv se ne sme lomiti sredi besede ("Dopoldn / e") -
+    // to se je zgodilo, ko je značka smela prelomiti kjer koli, prostora
+    // v celici pa je bilo ~15 px premalo. Rob celice in značke je zato
+    // ožji; večbesedni nazivi se še vedno prelomijo na presledku.
+    const vrstic = await stran.evaluate(() => {
+      const z = [...document.querySelectorAll(".wardTable tbody td.cell .swatch")]
+        .find(e => e.textContent.trim() === "Dopoldne");
+      return z ? z.getClientRects().length : null;
+    });
+    eq(vrstic, 1, `${w} px: "Dopoldne" se izpiše v eni vrstici, brez preloma sredi besede`);
     await stran.close();
   }
 

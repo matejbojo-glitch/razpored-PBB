@@ -94,12 +94,16 @@ if (zacetekIzseka === -1 || konecIzseka === -1) {
   throw new Error("Izseka gradnje mreže (m2 … setPoDnevih) ni najti v index.html.");
 }
 const izsek = html.slice(zacetekIzseka, konecIzseka);
-// V izseku sta dve stvari, ki ju tu ni: JE_NZV_VLOGA in KIND_KRATICA.
+// V izseku so stvari, ki jih tu ni: JE_NZV_VLOGA, KIND_KRATICA in
+// dezUradni (dežurstva iz uradnega dokumenta - rezerva, kadar razpored
+// dežurstev še ni objavljen; privzeto prazna, ta preizkus preverja
+// izpeljano zasedbo enot, ne dežurstev).
 vm.runInContext(`
 var JE_NZV_VLOGA = new Set(["vodja", "admin"]);
 var KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
-function zgradiMrezo(seznam, nosilci, vpisi, odsotnosti, dnevi, pokrivanja){
+function zgradiMrezo(seznam, nosilci, vpisi, odsotnosti, dnevi, pokrivanja, dezUradni){
   pokrivanja = pokrivanja || [];
+  dezUradni = dezUradni || [];
   var jeNzvOseba = {};
   seznam.forEach(function (p) { jeNzvOseba[p.id] = JE_NZV_VLOGA.has(p.role); });
 ${izsek.replace(/^ {6}const m2 = \{\};/m, "  var m2 = {};")
@@ -222,11 +226,11 @@ console.log("4c) V celici piše ENOTA, ne \"DOP\" - vodje delajo vedno dopoldne"
   const src = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/const samoEnota = !!\(zapis && zapis\.enota && kratica === "DOP"\);/.test(src),
     "pravilo je zapisano: samo enota, kadar je kratica DOP in je enota znana");
-  // Oznaka "(M)" (mentor pripravniku) se pripne tudi tu: če je vpisana,
-  // se ne sme tiho izgubiti samo zato, ker je namesto kratice izpisana
-  // enota. V praksi je NZV nosilec ne dobi, a molk bi bil napaka.
-  trdi(/\{samoEnota \? \(mentor \? zapis\.enota \+ " \(M\)" : zapis\.enota\) : \(/.test(src),
-    "izris ga tudi uporabi - namesto kratice izpiše enoto (z morebitno oznako (M))");
+  // Oznaki "(M)" (mentor pripravniku) in "(A)" (izmena pokriva tudi
+  // oddelek A) se pripneta tudi tu: če veljata, se ne smeta tiho izgubiti
+  // samo zato, ker je namesto kratice izpisana enota.
+  trdi(/\{samoEnota \? \(mentor \? zapis\.enota \+ " \(M\)" : zapis\.enota\) \+ oznakaA : \(/.test(src),
+    "izris ga tudi uporabi - namesto kratice izpiše enoto (z morebitnima oznakama (M) in (A))");
 
   // In da to velja SAMO za DOP: dežurstvo in dopust morata ostati vidna.
   const m = mreza();

@@ -95,7 +95,10 @@ console.log("4) zasloni izpisujejo NAZIV, ne surove šifre");
   // zato je preverba tu vezana na to pripravo in ne na posamezen izris:
   // dokler gre besedilo skozi prikazNaZaslonu ENKRAT, je pravilo izpolnjeno
   // v obeh oblikah hkrati.
-  trdi(/besedilo: prikazNaZaslonu\(prikaz\),/.test(index)
+  // Od septembra 2026 se besedilu lahko pripne še oznaka "(A)" (izmena
+  // pokriva tudi oddelek A) - prikazNaZaslonu se zato ne izvede še enkrat,
+  // le rezultat se podaljša.
+  trdi(/besedilo: prikazNaZaslonu\(prikaz\)( \+ oznakaA)?,/.test(index)
     && /\{prikazNaZaslonu\(todayPrikaz\)\}/.test(index),
     "index.html: 'Moj razpored' izpiše prikazNaZaslonu, ne shiftLabel");
   trdi(/\{c\.besedilo\}/.test(index),

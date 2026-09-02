@@ -104,7 +104,14 @@
        se dolga beseda ("Popoldne") ne prelomi in značka se pri fiksni
        postavitvi prelije čez sosednji stolpec, stran pa dobi vodoravno
        drsenje, ki ga tabela sama nima. */
-    table.wardTableT td:not(.name) .swatch{ max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+    /* Ožji rob celice in značke: pri 20+ stolpcih je za besedilo ostalo
+       ~65 px, "Dopoldne" pa meri ~80 px - beseda se je zato lomila sredi
+       ("Dopoldn / e"). S tem prostorom se enobesedni nazivi izpišejo v eni
+       vrstici, večbesedni ("Popoldne do 19") pa se prelomijo na presledku. */
+    table.wardTableT td:not(.name){ padding: 6px 3px; }
+    table.wardTableT td:not(.name) .swatch{
+      max-width:100%; white-space:normal; overflow-wrap:break-word; padding:3px 4px;
+    }
     /* Isto velja za glavo: priimek v stolpcu ("Zupančič A.") je pri ožjem
        namizju širši od stolpca in je edini še silil stran v vodoravno
        drsenje. */
@@ -149,7 +156,10 @@
   html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:88px; }
   html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
-  html.sirsiPogled table.wardTableT td:not(.name) .swatch{ max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+  html.sirsiPogled table.wardTableT td:not(.name){ padding: 6px 3px; }
+  html.sirsiPogled table.wardTableT td:not(.name) .swatch{
+    max-width:100%; white-space:normal; overflow-wrap:break-word; padding:3px 4px;
+  }
   html.sirsiPogled table.wardTableT th:not(.name){ white-space:normal; overflow-wrap:anywhere; }
 
   /* NZV – dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
