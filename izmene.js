@@ -115,6 +115,17 @@ window.Izmene = (function () {
     return null;
   }
 
+  // "(M)" na koncu kode izmene = ta oseba je TISTO IZMENO mentor
+  // pripravniku na oddelku (npr. "dopoldan (M)", "DNEVNA12 (M)"). Zapis
+  // prihaja iz uradnih preglednic in NI svoja izmena: ure, barva, kratica
+  // in pravila počitka ostanejo od osnovne izmene, doda se le oznaka.
+  // Zato ga vnos() zaradi ^-zasidranih vzorcev spregleda že sam, tu pa je
+  // en sam vir za PRIKAZ oznake in za odstranitev pripone.
+  var RE_MENTOR = /\(\s*m\s*\)\s*$/i;
+  function jeMentor(sifra) { return RE_MENTOR.test(String(sifra || "").trim()); }
+  function brezMentorja(sifra) { return String(sifra || "").trim().replace(RE_MENTOR, "").trim(); }
+  function oznakaMentor(sifra) { return jeMentor(sifra) ? " (M)" : ""; }
+
   // "prost" v predlogi = prost dan, isto kot prazna celica.
   function jeProst(sifra) {
     var t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
@@ -135,7 +146,9 @@ window.Izmene = (function () {
   // za legendo pod tabelo.
   function naziv(sifra) {
     var v = vnos(sifra);
-    return v ? v[2] : String(sifra || "").trim();
+    // Neznana koda se izpiše taka, kot je - "(M)" je v njej že vsebovan,
+    // zato se oznaka doda samo pri prepoznanih izmenah (sicer podvojena).
+    return v ? v[2] + oznakaMentor(sifra) : String(sifra || "").trim();
   }
 
   // Naziv za GOSTO MREŽO (dnevi x osebe): Razpredelnica, Kalup, "Po
@@ -151,7 +164,7 @@ window.Izmene = (function () {
   function nazivZaMrezo(sifra) {
     var v = vnos(sifra);
     if (!v) return naziv(sifra);
-    return (v[5] === "delo" || v[5] === "dezurstvo") ? v[2] : v[1];
+    return ((v[5] === "delo" || v[5] === "dezurstvo") ? v[2] : v[1]) + oznakaMentor(sifra);
   }
 
   // Delovni čas izmene ("PON-PET 13:50-19:00"), če je znan.
@@ -190,18 +203,27 @@ window.Izmene = (function () {
   // Namenoma NI izpeljana iz IZMENA_KRATICE po skupini (šesti stolpec) -
   // ta loči delo/dopust/bolniško, tu pa nas zanima DEL DNEVA. Ohranjena
   // je natanko tista razvrstitev, ki jo je imel index.html.
+  // Kratica iz uradne legende -> groba skupina. Prej je bila tu SVOJA
+  // veriga primerjav besedila ("popoldan", "dopoldan", "nočna" …) in ta
+  // je poznala samo STARE zapise: "Dopoldne", "Popoldne" in "Popoldne do
+  // 19" - zapise, ki jih uradna legenda pozna in ki jih generator odslej
+  // sam ustvarja - je razvrstila med "off", torej kot da oseba tisti dan
+  // sploh ni na izmeni. Odslej razvrstitev teče prek iste tabele kot
+  // kratice in barve, zato se ne moreta več raziti.
+  var SKUPINA_PO_KRATICI = {
+    "DEŽ": "dez",
+    "LD": "ld",
+    "KPU": "off", "POR": "off", "STI": "off", "BS": "off",
+    "D12": "h12", "DF12": "h12", "N12": "h12",
+    "N11": "noc", "N10": "noc",
+    "DOP": "dop", "DO7": "dop", "DO6": "dop", "DO4": "dop",
+    "PO7": "pop", "PO6": "pop", "PO5": "pop", "PO4": "pop",
+  };
   function skupina(sifra) {
-    // Brez presledkov: iz Sheets pride tudi "DNEVNA 12F" ali "NOČNA 12".
-    var t = String(sifra || "").toLowerCase().replace(/\s+/g, "");
-    if (t.indexOf("dežurstvo") === 0 || t.indexOf("dezurstvo") === 0) return "dez";
-    if (t.indexOf("ld") === 0) return "ld";   // letni dopust - lastna barva, ločeno od KPU/prostega
-    if (t.indexOf("kpu") === 0) return "off";
-    if (t.indexOf("prisoten") === 0) return "dop"; // vodja je na svoji enoti (ni odsoten)
-    if (t.indexOf("nočna12") >= 0) return "h12";
-    if (t.indexOf("dnevna12") >= 0) return "h12";
-    if (t.indexOf("nočna") === 0) return "noc";
-    if (t.indexOf("dopoldan") === 0) return "dop";
-    if (t.indexOf("popoldan") === 0) return "pop";
+    var v = vnos(sifra);
+    if (v && SKUPINA_PO_KRATICI[v[1]]) return SKUPINA_PO_KRATICI[v[1]];
+    // Koda, ki je v legendi ni (stari razporedi, tipkarske napake): ostane
+    // "off" - enako kot doslej. Prazna celica prav tako.
     return "off";
   }
 
@@ -234,6 +256,8 @@ window.Izmene = (function () {
     vnos: vnos,
     poKratici: poKratici,
     jeProst: jeProst,
+    jeMentor: jeMentor,
+    brezMentorja: brezMentorja,
     kratica: kratica,
     naziv: naziv,
     nazivZaMrezo: nazivZaMrezo,

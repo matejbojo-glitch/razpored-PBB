@@ -121,9 +121,12 @@ console.log("4) Stanje dopusta je PRENESENO iz Imenika v Statistiko");
   trdi(/Stanje dopusta/.test(dashboard), "z zavihkom");
   // Kadrovski podatki ostanejo omejeni na administratorja - prenos ne sme
   // biti tudi razširitev dostopa.
-  trdi(/role === "admin" && tab==="dopust" && <DopustPregled/.test(dashboard)
-    || /tab==="dopust" && role === "admin" && <DopustPregled/.test(dashboard),
+  // Odkar je pod istim zavihkom še preseljeni uvoz iz Kadrisa (september
+  // 2026), je pogoj pred skupino in ne neposredno pred <DopustPregled>.
+  trdi(/role === "admin" && tab==="dopust" && \(/.test(dashboard),
     "in še vedno samo za administratorja");
+  trdi(/<DopustPregled oddelki=\{oddelki\} \/>/.test(dashboard),
+    "pregled po osebah je pod tem pogojem");
 }
 
 const streznik = http.createServer((zahteva, odgovor) => {

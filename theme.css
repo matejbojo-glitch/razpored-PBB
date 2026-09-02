@@ -623,6 +623,11 @@ footer.foot b{ color: var(--text); }
 }
 @media (min-width: 1400px){
   .wrap.wide{ max-width: 1240px; }
+  /* "polna" mora ostati širša od "wide" tudi tu. Strani jo dodajajo skupaj
+     ("wrap wide polna"), enaka specifičnost pa pomeni, da obvelja zadnje
+     pravilo - brez te vrstice je bil mesečni razpored na 1920 px monitorju
+     stisnjen na 1240 px, torej ožji kot pri 1399 px. */
+  .wrap.polna{ max-width: 1400px; }
 }
 
 /* ============================================================
@@ -1150,9 +1155,10 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   .dezDatumPoln{ display: none; }
 }
 
-/* Razpredelnica stanja: cel mesec na en zaslon.
-   Oddelčni razpored ima 1400 px dovolj (dnevi so v vrsticah), tu pa je 31
-   dni v STOLPCIH, zato omejitve širine ni - stran uporabi ves monitor. */
+/* Cel mesec na en zaslon, brez vodoravnega vlečenja: Razpredelnica stanja
+   (31 dni v stolpcih) IN oddelčni razpored (en stolpec na zaposlenega).
+   Pri obeh je stolpcev preveč za katero koli fiksno širino, zato omejitve
+   ni - stran uporabi ves monitor. */
 @media (min-width: 900px){
   .wrap.cezZaslon{ max-width: none; }
 }

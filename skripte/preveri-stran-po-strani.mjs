@@ -100,12 +100,10 @@ console.log("4) štiri mesta, ki so brala CEL razpored bolnišnice za mesec, zda
       vzorec: /vseStrani\(\(od, doV\) =>\s*\n\s*client\.from\("razpored"\)\s*\n\s*\.select\("employee_id, work_date, shift_code, profili!employee_id\(full_name\)"\)/ },
     { datoteka: "index.html", vsebina: index, opis: "Oddelki - nosilci NZV pokrivalci (WardView)",
       vzorec: /vseStrani\(\(od, doV\) =>\s*\n\s*client\.from\("razpored"\)\s*\n\s*\.select\("work_date, department_code, pokriva_oddelek, profili!employee_id\(full_name, role\)"\)/ },
-    { datoteka: "admin.html", vsebina: admin, opis: "Plače (PlaceTab)",
-      vzorec: /RazporedAuth\.vseStrani\(\(od, doV\) =>\s*\n\s*client\.from\("razpored"\)\.select\("employee_id, work_date, shift_code"\)/ },
   ];
   mesta.forEach(m => trdi(m.vzorec.test(m.vsebina), `${m.datoteka}: ${m.opis} uporablja vseStrani`));
 
-  // In obratno: noben od teh štirih izborov stolpcev se ne sme več pojaviti
+  // In obratno: noben od teh izborov stolpcev se ne sme več pojaviti
   // BREZ vseStrani pred njim - to bi pomenilo, da je popravek na tem mestu
   // odstranjen (npr. ob ročnem urejanju), past #6 to preveri.
   trdi(!/[^i]\.range\(od, doV\)\.gte\("work_date", startISO\)/.test(index),

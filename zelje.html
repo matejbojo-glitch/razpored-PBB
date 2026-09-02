@@ -141,34 +141,7 @@
     table.grid td.cell{ width:auto; }
   }
 
-  /* Preklop Mreža/Po dnevih – "Po dnevih" je prilagojen telefonu: en dan
-     naenkrat, kartice namesto ozkih stolpcev, urejanje prek spodnjega
-     drsnega menija (sheet) namesto tapkanja po majhnih celicah. */
-  .viewToggle{ display:flex; gap:8px; margin: 4px 0 10px; }
-  .viewToggle button{ flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--muted); font-weight:700;
-    padding:8px; border-radius:var(--radius-sm); font-size:12.5px; cursor:pointer; }
-  .viewToggle button[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
 
-  .dayNav{ display:flex; align-items:center; justify-content:center; gap:14px; margin:10px 0; }
-  .dayNav .dayLbl{ font-weight:800; font-size:15px; min-width:170px; text-align:center; }
-  .dayNav .dayLbl .dow{ color:var(--muted); font-weight:700; font-size:12px; margin-left:6px; }
-  .dayCards{ display:flex; flex-direction:column; gap:8px; }
-  .dayCard{ display:flex; align-items:center; justify-content:space-between; gap:10px; text-align:left;
-    background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:var(--radius-sm);
-    padding:11px 13px; font-size:14px; font-weight:700; color:var(--text); cursor:pointer; width:100%; font-family:inherit; }
-  .dayCard .pill{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; color:#2A1608; }
-
-  .sheetOverlay{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60; display:flex; align-items:flex-end; }
-  .sheet{ background:var(--surface); width:100%; border-radius:18px 18px 0 0; padding:14px 16px calc(16px + env(safe-area-inset-bottom));
-    max-height:80vh; overflow-y:auto; }
-  .sheetHandle{ width:40px; height:4px; background:var(--line); border-radius:999px; margin:0 auto 12px; }
-  .sheetGrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
-  .sheetOpt{ display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--line);
-    border-radius:var(--radius-sm); padding:10px; font-size:13px; font-weight:700; color:var(--text); cursor:pointer; font-family:inherit; }
-  .sheetOpt .dot{ width:12px; height:12px; border-radius:50%; flex:0 0 auto; }
-  .sheetOpt.active{ outline:2px solid var(--accent-2); outline-offset:-2px; }
-  .sheetOpt.erase{ grid-column:1 / -1; background:transparent; color:var(--danger); }
-  .sheetOpt:disabled{ opacity:.4; cursor:not-allowed; }
 
   .logList{ list-style:none; margin:0; padding:0; max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; }
   .logList li{ padding:7px 11px; font-size:12px; border-bottom:1px solid var(--surface-2); color:var(--text); }
@@ -688,213 +661,6 @@ async function parsirajBarvniExcel(file){
   return vrstice;
 }
 
-// ---------------------------------------------------------------------
-// Spodnji drsni meni (bottom sheet) za urejanje enega vnosa (oseba + dan) –
-// nadomešča tapkanje po majhnih celicah mreže na telefonu z večjimi,
-// lažje zadetimi gumbi. "ime" je podan, če se ureja obstoječa oznaka;
-// "kandidati" (seznam oseb brez vnosa ta dan) se uporabi za "+ Dodaj", kjer
-// admin/uporabnik najprej izbere osebo.
-function UrediSheet({ ime: imeProp, kandidati, dan, dowLabel, mesecLbl, trenutnaVrednost, iso, smemUrejati, onPotrdi, onClose }){
-  const [ime, setIme] = useState(imeProp || (kandidati && kandidati[0] ? kandidati[0].ime : ""));
-  const trenutna = ime ? trenutnaVrednost(ime, iso) : null;
-  const dovoljeno = !!ime && smemUrejati(ime);
-  return (
-    <div className="sheetOverlay no-print" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheetHandle"></div>
-        <h3 style={{margin:"0 0 8px"}}>{dan}. {mesecLbl} <span style={{color:"var(--muted)", fontWeight:700, fontSize:13}}>{dowLabel}</span></h3>
-        {imeProp ? (
-          <p className="hint" style={{marginTop:0, fontWeight:700, color:"var(--text)"}}>{imeProp}</p>
-        ) : (
-          <div className="field">
-            <label htmlFor="sheetIme">Oseba</label>
-            <select id="sheetIme" value={ime} onChange={e => setIme(e.target.value)}>
-              {(kandidati || []).map(o => <option key={o.ime} value={o.ime}>{o.ime}</option>)}
-            </select>
-          </div>
-        )}
-        {ime && !dovoljeno && <p className="hint" style={{color:"var(--danger)"}}>Ni dovoljeno urejati te vrstice (ali je rok za vnos potekel).</p>}
-        <div className="sheetGrid">
-          {Object.keys(PEN_META).map(k => (
-            <button key={k} className={"sheetOpt" + (trenutna===k ? " active" : "")} disabled={!dovoljeno}
-              onClick={() => onPotrdi(ime, trenutna === k ? null : k)}>
-              <span className="dot" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
-            </button>
-          ))}
-          <button className="sheetOpt erase" disabled={!dovoljeno || !trenutna} onClick={() => onPotrdi(ime, null)}>Izbriši vnos</button>
-        </div>
-        <button className="fileBtn" style={{marginTop:12, width:"100%", textAlign:"center"}} onClick={onClose}>Zapri</button>
-      </div>
-    </div>
-  );
-}
-
-// Pogled "Po dnevih" – en dan naenkrat, kartice namesto ozke mreže; misljen
-// za telefon ("hitro preverjanje na poti"), a deluje povsod. Urejanje gre
-// prek UrediSheet zgoraj.
-// Koledar na dotik za SVOJE vnose (telefon). Mesečna mreža 7x5/6, tap
-// nastavi izbrano vrsto, ponoven tap na isti dan jo odstrani. Za daljši
-// dopust je tu še "obseg": tapneš prvi in zadnji dan, vmesni se izpolnijo
-// naenkrat (masovni vnos brez 14 posamičnih tapov).
-function MojKoledar({ view, mojeIme, trenutnaVrednost, smemUrejati, nastaviCelico }){
-  const [pero, setPero] = useState("ld");
-  const [obsegOd, setObsegOd] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  const nd = danovVMesecu(view.year, view.month);
-  const smem = smemUrejati(mojeIme);
-  // Ponedeljek kot prvi stolpec (slovenska navada), zato zamik (dow+6)%7.
-  const prviDow = (new Date(view.year, view.month, 1).getDay() + 6) % 7;
-  const danes = new Date();
-  const danesISO = `${danes.getFullYear()}-${String(danes.getMonth()+1).padStart(2,"0")}-${String(danes.getDate()).padStart(2,"0")}`;
-
-  const nastavi = async (dnevi, vrednost) => {
-    setBusy(true);
-    try {
-      for (const d of dnevi) await nastaviCelico(mojeIme, isoZa(view.year, view.month, d), vrednost);
-    } finally { setBusy(false); }
-  };
-
-  const tap = (d) => {
-    if (!smem || busy) return;
-    const iso = isoZa(view.year, view.month, d);
-    const trenutno = trenutnaVrednost(mojeIme, iso);
-
-    // -1 = "obseg je vklopljen, a prvi dan še ni izbran"
-    if (obsegOd === -1) { setObsegOd(d); return; }
-    if (obsegOd != null) {
-      const od = Math.min(obsegOd, d), doo = Math.max(obsegOd, d);
-      const dnevi = [];
-      for (let x = od; x <= doo; x++) dnevi.push(x);
-      setObsegOd(null);
-      nastavi(dnevi, pero);
-      return;
-    }
-    // Ponoven tap na dan z isto vrsto = brisanje.
-    nastavi([d], trenutno === pero ? null : pero);
-  };
-
-  const celice = [];
-  for (let i = 0; i < prviDow; i++) celice.push(<div key={"p"+i} className="dan prazen"></div>);
-  for (let d = 1; d <= nd; d++) {
-    const iso = isoZa(view.year, view.month, d);
-    const val = trenutnaVrednost(mojeIme, iso);
-    const dow = (new Date(view.year, view.month, d).getDay() + 6) % 7;
-    const razredi = ["dan"];
-    if (dow >= 5) razredi.push("vikend");
-    if (val) razredi.push("izbran-" + val);
-    if (iso === danesISO) razredi.push("danes");
-    if (obsegOd === d) razredi.push("danes");
-    celice.push(
-      <button key={d} type="button" className={razredi.join(" ")} disabled={!smem || busy}
-        onClick={() => tap(d)}
-        title={val ? PEN_META[val].label : "brez vnosa"}>
-        {d}
-      </button>
-    );
-  }
-
-  return (
-    <div>
-      <div className="card no-print">
-        <label className="eyebrow">Kaj vpisujem</label>
-        <div style={{display:"flex", gap:6, flexWrap:"wrap", marginTop:6}}>
-          {Object.keys(PEN_META).map(k => (
-            <button key={k} type="button" className="pill" aria-pressed={pero === k}
-              style={{
-                cursor:"pointer",
-                border: "1px solid " + (pero === k ? "var(--text)" : "var(--line)"),
-                background: PEN_META[k].barva,
-                color: "#2B2712", fontWeight: pero === k ? 800 : 600,
-              }}
-              onClick={() => { setPero(k); setObsegOd(null); }}>
-              {PEN_META[k].label}
-            </button>
-          ))}
-        </div>
-        <div style={{display:"flex", gap:8, marginTop:10, flexWrap:"wrap", alignItems:"center"}}>
-          <button type="button" className="btn btn-ghost btn-sm" disabled={!smem}
-            onClick={() => setObsegOd(obsegOd == null ? -1 : null)}>
-            {obsegOd == null ? "📆 Označi obseg (od–do)" : "✕ Prekliči obseg"}
-          </button>
-          {obsegOd === -1 && <span className="hint" style={{margin:0}}>Tapni PRVI dan obsega …</span>}
-          {obsegOd > 0 && <span className="hint" style={{margin:0}}>Tapni ZADNJI dan obsega …</span>}
-        </div>
-        <p className="hint" style={{marginBottom:0}}>
-          Tap na dan vpiše izbrano vrsto, ponoven tap na isti dan jo odstrani.
-          {!smem && " Urejanje za tvoje ime tu ni mogoče (rok je pretekel ali ime ni prepoznano)."}
-        </p>
-      </div>
-
-      <div className="koledar">
-        {["PO","TO","SR","ČE","PE","SO","NE"].map(d => <div key={d} className="glavaDan">{d}</div>)}
-        {celice}
-      </div>
-      {busy && <p className="hint">Shranjujem …</p>}
-    </div>
-  );
-}
-
-function DnevniPogled({ view, vsiLjudje, trenutnaVrednost, smemUrejati, nastaviCelico }){
-  const nd = danovVMesecu(view.year, view.month);
-  const [dan, setDan] = useState(() => Math.min(new Date().getDate(), nd));
-  const [sheet, setSheet] = useState(null); // { ime: string|null, kandidati: [...] }
-  useEffect(() => { setDan(d => Math.min(d, nd)); }, [nd]);
-
-  const iso = isoZa(view.year, view.month, dan);
-  const dowLabel = dowZa(view.year, view.month, dan);
-  const oznaceni = vsiLjudje.filter(({ ime }) => trenutnaVrednost(ime, iso));
-  const proste = vsiLjudje.filter(({ ime }) => !trenutnaVrednost(ime, iso));
-
-  const potrdiSheet = (ime, vrednost) => {
-    if (!ime) return;
-    nastaviCelico(ime, iso, vrednost);
-    setSheet(null);
-  };
-
-  return (
-    <div>
-      <div className="dayNav no-print">
-        <button className="navBtn" onClick={() => setDan(d => Math.max(1, d - 1))}>‹</button>
-        <div className="dayLbl">{dan}. {MESECI_SL[view.month]} <span className="dow">{dowLabel}</span></div>
-        <button className="navBtn" onClick={() => setDan(d => Math.min(nd, d + 1))}>›</button>
-      </div>
-
-      {oznaceni.length === 0 ? (
-        <p className="hint">Ta dan nima nihče vnosa (dopust/omejitev/bolniška/študijski dopust).</p>
-      ) : (
-        <div className="dayCards">
-          {oznaceni.map(({ ime }) => {
-            const val = trenutnaVrednost(ime, iso);
-            return (
-              <button key={ime} className="dayCard" style={{borderLeftColor: PEN_META[val].barva}}
-                onClick={() => setSheet({ ime, kandidati: null })}>
-                <span>{ime}</span>
-                <span className="pill" style={{background: PEN_META[val].barva}}>{PEN_META[val].label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {proste.length > 0 && (
-        <button className="fileBtn no-print" style={{marginTop:10, width:"100%", textAlign:"center"}}
-          onClick={() => setSheet({ ime: null, kandidati: proste })}>
-          + Dodaj osebo za ta dan
-        </button>
-      )}
-
-      {sheet && (
-        <UrediSheet
-          ime={sheet.ime} kandidati={sheet.kandidati}
-          dan={dan} dowLabel={dowLabel} mesecLbl={MESECI_SL[view.month]}
-          trenutnaVrednost={trenutnaVrednost} iso={iso} smemUrejati={smemUrejati}
-          onPotrdi={potrdiSheet} onClose={() => setSheet(null)}
-        />
-      )}
-    </div>
-  );
-}
 
 // Gumb(i) "Generiraj razpored" pod razpredelnico - glej razlago ob klicu.
 // Skupine se obnašajo različno, ker se tudi razporedi delajo različno:
@@ -945,9 +711,6 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
   // popravek take celice ustvaril drugo vrstico namesto da bi prvo popravil.
   const [zapisanoIme, setZapisanoIme] = useState({});
   const [pen, setPen] = useState("omejitev");
-  const [nacin, setNacin] = useState(() => (
-    typeof window !== "undefined" && window.innerWidth <= 640 ? "dnevi" : "mreza"
-  )); // "mreza" (cela tabela) | "dnevi" (1 dan, kartice – za telefon); na ozkih zaslonih privzeto "dnevi"
   const [nalagam, setNalagam] = useState(true);
   const [status, setStatus] = useState("");
   const [log, setLog] = useState([]);
@@ -1359,14 +1122,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           )}
         </div>
       )}
-      <div className="viewToggle no-print">
-        <button aria-pressed={nacin==="mreza"} onClick={() => setNacin("mreza")}>🗓 Mreža (cel mesec)</button>
-        <button aria-pressed={nacin==="dnevi"} onClick={() => setNacin("dnevi")}>📱 Po dnevih</button>
-        <button aria-pressed={nacin==="koledar"} onClick={() => setNacin("koledar")}>✍️ Moj koledar</button>
-      </div>
-
-      {nacin==="mreza" && (
-        <div className="penRow no-print">
+      {/* Preklopa pogledov ni več: "Po dnevih" in "Moj koledar" sta
+          odstranjena (uporabnikova zahteva, september 2026), ostane sama
+          mreža celega meseca. */}
+      <div className="penRow no-print">
           <span className="penHint">Barva:</span>
           {Object.keys(PEN_META).map(k => (
             <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
@@ -1376,8 +1135,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           <button className={"penBtn eraser" + (pen==="erase" ? " active" : "")} onClick={() => setPen("erase")}>
             <span className="penSwatch"></span>Izbriši
           </button>
-        </div>
-      )}
+      </div>
 
       <div className="monthRow no-print">
         <div className="monthNav">
@@ -1385,14 +1143,11 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           <div className="monthLbl">{MESECI_SL[view.month][0].toUpperCase()+MESECI_SL[view.month].slice(1)} {view.year}</div>
           <button className="navBtn" onClick={() => { let m=view.month+1,y=view.year; if(m>11){m=0;y++;} pojdiNaMesec(y,m); }}>›</button>
         </div>
-        {nacin==="mreza" && (
-          <button className="toolBtn" style={{width:"auto"}} onClick={() => PrintFit.natisni(gridRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
-        )}
+        <button className="toolBtn" style={{width:"auto"}} onClick={() => PrintFit.natisni(gridRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
         <span className="hint" style={{margin:0}}>{nalagam ? "Nalagam …" : status}</span>
       </div>
 
-      {nacin==="mreza" && (
-        <RazporedIzvozVir
+      <RazporedIzvozVir
           naziv="Želje"
           naslov={`zelje-${view.year}-${String(view.month+1).padStart(2,"0")}`}
           pripravi={() => [{
@@ -1403,22 +1158,9 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
               ...dnevi.map(d => { const val = trenutnaVrednost(ime, isoZa(view.year, view.month, d)); return val ? PEN_META[val].label : ""; }),
               ldStevilo(ime),
             ]),
-          }]}
-        />
-      )}
+        }]}
+      />
 
-      {nacin==="dnevi" && (
-        <DnevniPogled view={view} vsiLjudje={vsiLjudje} trenutnaVrednost={trenutnaVrednost} smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
-      )}
-
-      {nacin==="koledar" && (
-        myFullName
-          ? <MojKoledar view={view} mojeIme={myFullName} trenutnaVrednost={trenutnaVrednost}
-              smemUrejati={smemUrejati} nastaviCelico={nastaviCelico} />
-          : <p className="hint">Tvojega imena ni bilo mogoče prebrati iz profila, zato osebnega koledarja ni mogoče prikazati.</p>
-      )}
-
-      {nacin==="mreza" && (
       <div className="gridScroll" ref={gridRef}>
         <table className="grid">
           <thead>
@@ -1478,7 +1220,6 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           </tbody>
         </table>
       </div>
-      )}
 
       {/* Most v Generator. Koordinator je pravkar vpisal dopuste in
           omejitve za TA mesec in TO skupino - naslednji korak je vedno

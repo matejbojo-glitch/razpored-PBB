@@ -40,7 +40,9 @@ function prevediJsxVHtmlu(html) {
   return html.replace(reBabel, () => `<script>\n${code}\n</script>`);
 }
 
-const STRANI = ["index.html", "admin.html", "imenik.html", "zelje.html"];
+// dashboard.html je na seznamu, odkar je zavihek "Dopust" (z uvozom stanja
+// dopusta iz Kadrisa) preseljen iz Generatorja v Statistiko.
+const STRANI = ["index.html", "admin.html", "imenik.html", "zelje.html", "dashboard.html"];
 
 // ------------------------------------------------- 1) povezave se ujemajo
 console.log("1) seznam na strani \"Uvoz\" in ključi v aplikaciji se ujemajo");

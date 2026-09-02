@@ -138,7 +138,9 @@ console.log("5) Klik na ime odpre profil");
     "brez id-ja ostane navadno besedilo");
 
   const obrazec = readFileSync(join(koren, "obrazec.html"), "utf8");
-  trdi(/href=\{"imenik\.html\?id=" \+ k\.profile_id\}/.test(obrazec),
+  // Od septembra 2026 se sodelavec išče ROČNO (seznam oseb, nato njihov
+  // razpored), zato je oseba v seznamu "o", ne kandidatni par "k".
+  trdi(/href=\{"imenik\.html\?id=" \+ o\.id\}/.test(obrazec),
     "Menjava: ime sodelavca je povezava");
 }
 

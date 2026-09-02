@@ -51,15 +51,15 @@
   textarea{ resize:vertical; min-height:60px; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .shiftPreview{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  /* Kdo s kom in kaj za kaj - pred oddajo mora biti menjava vidna na en
+     pogled (uporabnikova pripomba: "ni vidno kdo in s kom želi menjavo"). */
+  .povzetekMenjave > div{ font-size:13.5px; }
+  .povzetekMenjave{ background:var(--surface-2); border:1px solid var(--line);
+    border-radius:var(--radius-sm); padding:10px 12px; }
   .ghostBtn{ width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line);
     padding:11px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; min-height:44px; }
 
   .pill{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
-  /* Značka (.pill.wait/.ok/.no) je samo oznaka stanja in ostane majhna.
-     Gumbi za hitri razlog (HitriRazlog) pa uporabljajo isti razred in so
-     bili zato visoki 20px - premalo, da bi jih na telefonu zanesljivo
-     zadel s prstom. Poveča se torej SAMO <button class="pill">. */
-  button.pill{ min-height:40px; padding:9px 14px; font-size:12.5px; }
   .pill.wait{ background: rgba(167,148,72,.18); color: var(--accent-2); }
   .pill.ok{ background: var(--ok-bg); color: var(--ok); }
   .pill.no{ background: var(--danger-bg); color: var(--danger); }
@@ -110,6 +110,8 @@
 <script src="vendor-app.min.js"></script>
 <script src="izmene.js"></script>
 <script src="delovni-cas.js"></script>
+<script src="prazniki.js"></script>
+<script src="nzv-zasedba.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="datum.js"></script>
@@ -251,15 +253,21 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   const [razlog, setRazlog] = useState("");
   const [opomba, setOpomba] = useState("");
   const [mojaIzmena, setMojaIzmena] = useState(undefined);
-  const [kandidati, setKandidati] = useState(null);
-  const [kandidatiBusy, setKandidatiBusy] = useState(false);
+  // Oddelek, na katerega je oseba TA DAN razporejena - določa, med kom se
+  // sme menjati (glej mozni_sodelavci v shemi). Če za ta dan vrstice ni,
+  // velja domači oddelek iz profila.
+  const [mojOddelek, setMojOddelek] = useState("");
   const [izbranSodelavec, setIzbranSodelavec] = useState(null); // { profile_id, full_name, njihova_izmena, njihov_datum }
-  // Izjema poleg navadne menjave: enosmerna ODDAJA dežurstva komurkoli
-  // DRUGEMU iz kroga dežurnih (department_code='DEZ' ali pokriva_oddelek) -
-  // uporabno, kadar je nekdo že čez mesečno kvoto dežurstev, drug pa pod
-  // njo. Brez povratne izmene - glej oddaja_dezurstva v shemi.
-  const [prejemniki, setPrejemniki] = useState(null);
-  const [izbranPrejemnik, setIzbranPrejemnik] = useState(null); // { profile_id, full_name }
+  // ROČNO iskanje sodelavca (uporabnikova zahteva, september 2026):
+  // najprej datum, nato iskalnik oseb, nato razpored IZBRANE osebe, iz
+  // katerega se izbere dan za menjavo. Prej je bil tu samodejni predlog
+  // parov (dan + oseba), ki je marsikoga izločil, preden ga je predlagatelj
+  // sploh videl.
+  const [iskanje, setIskanje] = useState("");
+  const [osebe, setOsebe] = useState(null);        // nabor, med katerim se sme menjati
+  const [osebeBusy, setOsebeBusy] = useState(false);
+  const [izbranaOseba, setIzbranaOseba] = useState(null);   // { id, full_name }
+  const [razporedOsebe, setRazporedOsebe] = useState(null); // dnevi izbrane osebe
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -283,43 +291,97 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     if (zaposleni !== null) return;
     setZaposleniBusy(true);
     try {
-      const { data } = await client.from("profili").select("id, full_name").order("full_name");
+      const { data } = await client.from("profili").select("id, full_name, department_code").order("full_name");
       setZaposleni(data || []);
     } finally {
       setZaposleniBusy(false);
     }
   };
 
+  // Domači oddelek osebe, za katero se obrazec izpolnjuje (pri administratorju
+  // je to lahko kdo drug) - rezerva, kadar za izbrani dan ni vrstice.
+  const domaciOddelek = (zaDrugega && zaKogaId)
+    ? (((zaposleni || []).find(z => z.id === zaKogaId) || {}).department_code || "")
+    : ((profil && profil.department_code) || "");
+
   useEffect(() => {
-    if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); return; }
-    client.from("razpored").select("shift_code").eq("employee_id", actingId).eq("work_date", datum).maybeSingle()
-      .then(({ data }) => setMojaIzmena(data ? data.shift_code : ""));
-    setKandidati(null); setIzbranSodelavec(null); setPrejemniki(null); setIzbranPrejemnik(null);
-  }, [vrsta, datum, actingId]);
+    if (vrsta !== "menjava_sluzbe" || !datum){ setMojaIzmena(undefined); setMojOddelek(""); return; }
+    client.from("razpored").select("shift_code, department_code").eq("employee_id", actingId).eq("work_date", datum).maybeSingle()
+      .then(({ data }) => {
+        setMojaIzmena(data ? data.shift_code : "");
+        setMojOddelek((data && data.department_code) || domaciOddelek);
+      });
+    setIzbranSodelavec(null); setIzbranaOseba(null); setRazporedOsebe(null); setOsebe(null); setIskanje("");
+  }, [vrsta, datum, actingId, domaciOddelek]);
 
   const jeDezurstvoDan = (mojaIzmena || "").toLowerCase().startsWith("dežurstvo");
 
-  const poisciSodelavce = async () => {
-    setKandidatiBusy(true); setErr(null);
-    try {
-      const { data, error } = await client.rpc("mozni_sodelavci", { p_profile_id: actingId, p_datum: datum });
-      if (error) throw error;
-      setKandidati(data || []);
-      // Enosmerna oddaja dežurstva (prejemniki) nima admin-takojšnje ustreznice -
-      // administrator, ki izvaja namesto drugega, jo zato sploh ne vidi.
-      if (jeDezurstvoDan && !(zaDrugega && zaKogaId)) {
-        const { data: p, error: e2 } = await client.rpc("mozni_prejemniki_dezurstva", { p_profile_id: actingId, p_datum: datum });
-        if (e2) throw e2;
-        setPrejemniki(p || []);
-      } else {
-        setPrejemniki(null);
-      }
-    } catch (e) {
-      setErr(e.message || String(e));
-    } finally {
-      setKandidatiBusy(false);
-    }
-  };
+  // Med kom se sme menjati:
+  //   dežurstvo  -> VSI iz NZV (vodje in administratorji) - uporabnikova
+  //                 zahteva; dežurstvo zahteva pooblastilo, zato oddelčni
+  //                 kader tu ne pride v poštev,
+  //   sicer      -> isti oddelek tistega dne; FLEXI je izjema v obe smeri
+  //                 (floaterji menjajo s komerkoli).
+  // Trde varovalke (počitek, spolno pravilo C1/D, razmik dežurstev) preveri
+  // baza sama ob potrditvi in menjavo, ki bi jih kršila, zavrne - pred
+  // oddajo pa se izpišejo kot opozorila (glej izracunajKrsitveMenjave).
+  useEffect(() => {
+    if (vrsta !== "menjava_sluzbe" || !datum || mojaIzmena === undefined){ setOsebe(null); return; }
+    let cancelled = false;
+    setOsebeBusy(true);
+    client.from("profili").select("id, full_name, role, department_code").order("full_name")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const vsi = (data || []).filter(o => o.id !== actingId);
+        setOsebe(jeDezurstvoDan
+          ? vsi.filter(o => window.NzvZasedba.jeNzvVloga(o.role) || o.department_code === "NZV" || o.department_code === "DEZ")
+          : vsi.filter(o => !mojOddelek || o.department_code === mojOddelek
+              || o.department_code === "FLEXI" || mojOddelek === "FLEXI"));
+      })
+      .finally(() => { if (!cancelled) setOsebeBusy(false); });
+    return () => { cancelled = true; };
+  }, [vrsta, datum, mojaIzmena, mojOddelek, jeDezurstvoDan, actingId]);
+
+  // Okno razporeda izbrane osebe. Dežurstvo pride na vrsto vsakih nekaj dni
+  // (krog ~14 ljudi), zato je ozko okno skoraj vedno prazno - enako kot v
+  // mozni_sodelavci: ±45 dni za dežurstvo, ±7 sicer. Preteklih dni ni
+  // mogoče ponuditi (izmene se za nazaj ne da odslužiti).
+  useEffect(() => {
+    if (!izbranaOseba || !datum){ setRazporedOsebe(null); return; }
+    let cancelled = false;
+    setRazporedOsebe(null);
+    const okno = jeDezurstvoDan ? 45 : 7;
+    const premakni = (n) => {
+      const d = new Date(datum + "T00:00:00");
+      d.setDate(d.getDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    const danes = new Date().toISOString().slice(0, 10);
+    const od = premakni(-okno) < danes ? danes : premakni(-okno);
+    client.from("razpored").select("work_date, shift_code")
+      .eq("employee_id", izbranaOseba.id).gte("work_date", od).lte("work_date", premakni(okno))
+      .order("work_date")
+      .then(({ data }) => {
+        if (cancelled) return;
+        // Samo dnevi, ko je oseba res na delu - dopusta, bolniške ali
+        // prostega dne ni mogoče prevzeti.
+        setRazporedOsebe((data || []).filter(d => {
+          const st = window.Izmene.stanje(d.shift_code);
+          return d.shift_code && (st === "delo" || st === "dezurstvo");
+        }));
+      });
+    return () => { cancelled = true; };
+  }, [izbranaOseba, datum, jeDezurstvoDan]);
+
+  // Iskanje po imenu: brez strešic in velikih črk, po delu besede
+  // ("kova" najde "Kovač"). Vrstni red besed se NE spreminja, zato "kovač a"
+  // najde "Kovač Ana" - drugače kot pri window.Imena.kljuc, ki besede
+  // razvrsti in je namenjen ujemanju dveh CELIH imen, ne iskanju.
+  const iskalniKljuc = (t) => String(t || "").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d")
+    .replace(/\s+/g, " ").trim();
+  const najdene = (osebe || []).filter(o =>
+    !iskanje.trim() || iskalniKljuc(o.full_name).includes(iskalniKljuc(iskanje)));
 
   // Samo informativno (dejansko zaznavanje je server-side v obrazec_oddaj) -
   // menjava dežurstva preskoči vodjo in gre naravnost h koordinatorju
@@ -355,15 +417,13 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     if (!datum){ setErr("Izberi datum."); return; }
     let polja = { opomba: opomba.trim() || undefined };
     let sodelavec_id = null;
-    let vrstaZaOddajo = vrsta;
-    if (vrsta === "menjava_sluzbe" && izbranPrejemnik){
-      // Izjema: enosmerna oddaja dežurstva - ločena vrsta obrazca, brez
-      // povratne izmene (glej oddaja_dezurstva v shemi).
-      vrstaZaOddajo = "oddaja_dezurstva";
-      sodelavec_id = izbranPrejemnik.profile_id;
-      polja = { ...polja, datum };
-    } else if (vrsta === "menjava_sluzbe"){
-      if (!izbranSodelavec){ setErr("Izberi sodelavca za menjavo ali osebo, ki naj dežurstvo prevzame."); return; }
+    // Vrsta "oddaja_dezurstva" (enosmerna predaja dežurstva brez povratne
+    // izmene) se od septembra 2026 ne ustvarja več - uporabnikova odločitev.
+    // Stari obrazci te vrste se še vedno prikažejo in dokončajo, zato ostajata
+    // izpis in shema nespremenjena.
+    const vrstaZaOddajo = vrsta;
+    if (vrsta === "menjava_sluzbe"){
+      if (!izbranSodelavec){ setErr("Izberi sodelavca in dan za menjavo."); return; }
       sodelavec_id = izbranSodelavec.profile_id;
       polja = { ...polja, datum_a: datum, izmena_a: mojaIzmena || "", datum_b: izbranSodelavec.njihov_datum, izmena_b: izbranSodelavec.njihova_izmena };
       // Opozorila (56 ur, zaporedne nočne, prost dan) se shranijo Z obrazcem:
@@ -393,8 +453,8 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
       if (error) throw error;
       const { error: e2 } = await client.rpc("obrazec_oddaj", { p_id: data.id });
       if (e2) throw e2;
-      setDatum(""); setPrihod(""); setOdhod(""); setRazlog(""); setOpomba(""); setKandidati(null); setIzbranSodelavec(null);
-      setPrejemniki(null); setIzbranPrejemnik(null);
+      setDatum(""); setPrihod(""); setOdhod(""); setRazlog(""); setOpomba("");
+      setIzbranSodelavec(null); setIzbranaOseba(null); setRazporedOsebe(null); setIskanje("");
       onOddano();
     } catch (e) {
       setErr(e.message || String(e));
@@ -426,7 +486,8 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
         p_razlog: opomba.trim() || null,
       });
       if (error) throw error;
-      setDatum(""); setOpomba(""); setKandidati(null); setIzbranSodelavec(null); setZaDrugega(false); setZaKogaId("");
+      setDatum(""); setOpomba(""); setIzbranSodelavec(null); setIzbranaOseba(null); setRazporedOsebe(null);
+      setIskanje(""); setZaDrugega(false); setZaKogaId("");
       onOddano();
     } catch (e) {
       setErr(e.message || String(e));
@@ -459,15 +520,15 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               <input id="zaDrugega" type="checkbox" checked={zaDrugega}
                 onChange={e => {
                   const v = e.target.checked;
-                  setZaDrugega(v); setZaKogaId(""); setDatum(""); setKandidati(null); setIzbranSodelavec(null);
-                  setPrejemniki(null); setIzbranPrejemnik(null); setErr(null);
+                  setZaDrugega(v); setZaKogaId(""); setDatum(""); setIzbranSodelavec(null);
+                  setIzbranaOseba(null); setRazporedOsebe(null); setIskanje(""); setErr(null);
                   if (v) nalozizZaposlene();
                 }} />
               Izvedi menjavo namesto drugega zaposlenega (skrajni primer – sam ne utegne/ne more)
             </label>
             {zaDrugega && (
               <React.Fragment>
-                <select value={zaKogaId} onChange={e => { setZaKogaId(e.target.value); setDatum(""); setKandidati(null); setIzbranSodelavec(null); }}
+                <select value={zaKogaId} onChange={e => { setZaKogaId(e.target.value); setDatum(""); setIzbranSodelavec(null); setIzbranaOseba(null); setRazporedOsebe(null); }}
                   disabled={zaposleniBusy} style={{marginTop:6}}>
                   <option value="">{zaposleniBusy ? "Nalagam …" : "– izberi zaposlenega –"}</option>
                   {(zaposleni || []).map(z => <option key={z.id} value={z.id}>{z.full_name}</option>)}
@@ -491,59 +552,92 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
               {mojaIzmena !== undefined && <div className="shiftPreview">Trenutno: {oznakaIzmene(mojaIzmena)}</div>}
               {(mojaIzmena || "").toLowerCase().startsWith("dežurstvo") && (
                 <p className="hint" style={{marginTop:4}}>
-                  Iskanje bo pokazalo sodelavce iz kroga dežurnih (do 45 dni naprej/nazaj), izločeni pa bodo tisti,
-                  ki bi po menjavi imeli dežurstvo dan pred ali po tem datumu.
+                  Dežurstvo: spodaj so vsi iz NZV, razpored izbrane osebe pa se izpiše za 45 dni naprej in nazaj
+                  (dežurstvo pride na vrsto vsakih nekaj dni, zato je ožje okno skoraj vedno prazno).
                 </p>
               )}
             </div>
-            {datum && (
-              <button type="button" className="ghostBtn no-print" disabled={kandidatiBusy} onClick={poisciSodelavce}>
-                {kandidatiBusy ? "Iščem …" : "Poišči sodelavce za menjavo"}
-              </button>
-            )}
-            {kandidati !== null && (
-              <div style={{marginTop:10}}>
-                {kandidati.length === 0 && <p className="empty">Ni najdenih sodelavcev, ki bi tisti dan lahko zamenjali (počitek/odsotnost).</p>}
-                {kandidati.map(k => (
-                  <div className="candidate" key={k.profile_id + k.njihov_datum}>
+            {/* ROČNO iskanje sodelavca (uporabnikova zahteva, september 2026).
+                Prej je bil tu gumb, ki je sam predlagal pare (oseba + dan) in
+                marsikoga izločil, preden ga je predlagatelj sploh videl. Zdaj:
+                poiščeš osebo, vidiš NJEN razpored in izbereš dan. */}
+            {datum && mojaIzmena !== undefined && !izbranaOseba && (
+              <div className="field">
+                <label htmlFor="isc">Poišči sodelavca</label>
+                <input id="isc" type="search" value={iskanje} autoComplete="off"
+                  onChange={e => setIskanje(e.target.value)}
+                  placeholder="Vpiši priimek ali ime …" />
+                <p className="hint" style={{marginTop:4}}>
+                  {jeDezurstvoDan
+                    ? "Dežurstvo: na voljo so vsi iz NZV (vodje in administratorji)."
+                    : (mojOddelek ? "Sodelavci oddelka " + mojOddelek + " (in FLEXI)." : "Sodelavci tvojega oddelka.")}
+                </p>
+                {osebeBusy && <p className="empty">Nalagam …</p>}
+                {!osebeBusy && osebe !== null && najdene.length === 0 && (
+                  <p className="empty">Ni zadetkov.</p>
+                )}
+                {!osebeBusy && najdene.slice(0, 40).map(o => (
+                  <div className="candidate" key={o.id}>
                     <div>
                       <div className="who">
-                        <a href={"imenik.html?id=" + k.profile_id} style={{color:"inherit"}}
-                           title="Odpri profil">{k.full_name}</a>
+                        <a href={"imenik.html?id=" + o.id} style={{color:"inherit"}} title="Odpri profil">{o.full_name}</a>
                       </div>
-                      <div className="meta">
-                        {fmtDatum(k.njihov_datum)} · {oznakaIzmene(k.njihova_izmena)}
-                        {/* "kdo pride prej" primerja URE ZAČETKA - pri dežurstvu je to brezpredmetno,
-                            saj gre za menjavo celih dežurstev na različne datume, ne za primerjavo dveh
-                            izmen znotraj istega dneva. */}
-                        {!jeDezurstvo && " · " + (k.jaz_pridem_prej ? "ti prideš prej" : "on/ona pride prej")}
-                      </div>
+                      {o.department_code && <div className="meta">{o.department_code}</div>}
                     </div>
-                    <button type="button" className="candBtn" aria-pressed={izbranSodelavec && izbranSodelavec.profile_id === k.profile_id && izbranSodelavec.njihov_datum === k.njihov_datum}
-                      onClick={() => { setIzbranSodelavec(k); setIzbranPrejemnik(null); }}>Izberi</button>
+                    <button type="button" className="candBtn"
+                      onClick={() => { setIzbranaOseba(o); setIzbranSodelavec(null); }}>Izberi</button>
+                  </div>
+                ))}
+                {!osebeBusy && najdene.length > 40 && (
+                  <p className="hint">Prikazanih je prvih 40 – zoži iskanje.</p>
+                )}
+              </div>
+            )}
+
+            {izbranaOseba && (
+              <div className="field">
+                <label>Razpored – {izbranaOseba.full_name}</label>
+                <button type="button" className="ghostBtn no-print" style={{marginBottom:8}}
+                  onClick={() => { setIzbranaOseba(null); setIzbranSodelavec(null); setRazporedOsebe(null); }}>
+                  ‹ Izberi drugega sodelavca
+                </button>
+                {razporedOsebe === null && <p className="empty">Nalagam …</p>}
+                {razporedOsebe !== null && razporedOsebe.length === 0 && (
+                  <p className="empty">
+                    {izbranaOseba.full_name} v tem obdobju ({jeDezurstvoDan ? "±45" : "±7"} dni od izbranega datuma)
+                    nima nobene izmene, ki bi jo bilo mogoče zamenjati.
+                  </p>
+                )}
+                {(razporedOsebe || []).map(d => (
+                  <div className="candidate" key={d.work_date}>
+                    <div>
+                      <div className="who">{fmtDatum(d.work_date)}</div>
+                      <div className="meta">{oznakaIzmene(d.shift_code)}</div>
+                    </div>
+                    <button type="button" className="candBtn"
+                      aria-pressed={!!izbranSodelavec && izbranSodelavec.njihov_datum === d.work_date}
+                      onClick={() => setIzbranSodelavec({
+                        profile_id: izbranaOseba.id, full_name: izbranaOseba.full_name,
+                        njihova_izmena: d.shift_code, njihov_datum: d.work_date,
+                      })}>Izberi</button>
                   </div>
                 ))}
               </div>
             )}
-            {prejemniki !== null && prejemniki.length > 0 && (
-              <div style={{marginTop:16}}>
-                <p className="hint" style={{marginBottom:6}}>
-                  Izjema: nihče od zgornjih ti ne ustreza? Dežurstvo lahko namesto menjave <b>oddaš</b> tudi
-                  komukoli drugemu iz kroga dežurnih, ki ta dan lahko dežura - brez da bi ti kaj vrnil/-a nazaj
-                  (uporabno, če ima nekdo že preveč, drug pa premalo dežurstev v tem mesecu).
-                </p>
-                {prejemniki.map(p => (
-                  <div className="candidate" key={p.profile_id}>
-                    <div>
-                      <div className="who">
-                        <a href={"imenik.html?id=" + p.profile_id} style={{color:"inherit"}}
-                           title="Odpri profil">{p.full_name}</a>
-                      </div>
-                    </div>
-                    <button type="button" className="candBtn" aria-pressed={izbranPrejemnik && izbranPrejemnik.profile_id === p.profile_id}
-                      onClick={() => { setIzbranPrejemnik(p); setIzbranSodelavec(null); }}>Oddaj njemu/njej</button>
-                  </div>
-                ))}
+
+            {/* Kdo s kom in kaj za kaj - da je pred oddajo jasno vidno,
+                kaj se bo zgodilo (uporabnikova pripomba). */}
+            {izbranSodelavec && (
+              <div className="field povzetekMenjave">
+                <label>Menjava</label>
+                <div>
+                  <b>{actingIme}</b> · {fmtDatum(datum)} · {oznakaIzmene(mojaIzmena)}
+                </div>
+                <div style={{textAlign:"center", fontSize:18, lineHeight:1.2}}>⇅</div>
+                <div>
+                  <b>{izbranSodelavec.full_name}</b> · {fmtDatum(izbranSodelavec.njihov_datum)} ·{" "}
+                  {oznakaIzmene(izbranSodelavec.njihova_izmena)}
+                </div>
               </div>
             )}
           </React.Fragment>
@@ -569,7 +663,6 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
             <div className="field">
               <label htmlFor="rz">Razlog</label>
               <textarea id="rz" value={razlog} onChange={e => setRazlog(e.target.value)} placeholder="npr. kasnejši prihod, nadomestni prihod zaradi odsotnosti razporejenega delavca" />
-              <HitriRazlog vrednost={razlog} naVnos={setRazlog} />
             </div>
           </React.Fragment>
         )}
@@ -577,7 +670,6 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
         <div className="field">
           <label htmlFor="op">{vrsta === "menjava_sluzbe" ? "Razlog menjave (neobvezno)" : "Opomba (neobvezno)"}</label>
           <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
-          {vrsta === "menjava_sluzbe" && <HitriRazlog vrednost={opomba} naVnos={setOpomba} />}
         </div>
         {jeDezurstvo && !(zaDrugega && zaKogaId) && (
           <p className="hint" style={{marginTop:-6}}>
@@ -683,6 +775,36 @@ function OpozorilaMenjave({ obrazec }){
   );
 }
 
+// Kdo s kom in kaj za kaj - v enem samem zapisu za vse sezname obrazcev
+// ("Čaka name", "Moji obrazci"). Prej je vsak izpisal le številko in vrsto,
+// zato iz seznama ni bilo videti, čigava menjava je to (uporabnikova
+// pripomba, september 2026). Pri obrazcih, ki menjave ne opisujejo (ročno
+// evidentiranje, drugo), ostane samo datum.
+function UdelezencaMenjave({ obrazec }){
+  const p = obrazec.polja || {};
+  const jeMenjava = obrazec.vrsta === "menjava_sluzbe" || obrazec.vrsta === "oddaja_dezurstva";
+  const kdo = obrazec.vlagatelj ? obrazec.vlagatelj.full_name : null;
+  const sKom = obrazec.sodelavec ? obrazec.sodelavec.full_name : null;
+  if (!jeMenjava || (!kdo && !sKom)) {
+    const d = p.datum_a || p.datum;
+    return d ? <div className="meta">{fmtDatum(d)}</div> : null;
+  }
+  return (
+    <React.Fragment>
+      <div className="meta">
+        <b>{kdo || "?"}</b>{obrazec.vrsta === "oddaja_dezurstva" ? " → " : " ↔ "}<b>{sKom || "?"}</b>
+      </div>
+      <div className="meta">
+        {obrazec.vrsta === "oddaja_dezurstva"
+          ? (p.datum ? fmtDatum(p.datum) + " · dežurstvo (brez povratne izmene)" : "")
+          : (p.datum_a ? fmtDatum(p.datum_a) + " · " + oznakaIzmene(p.izmena_a) : "")
+            + " ⇄ "
+            + (p.datum_b ? fmtDatum(p.datum_b) + " · " + oznakaIzmene(p.izmena_b) : "")}
+      </div>
+    </React.Fragment>
+  );
+}
+
 function CakaName({ rows, onOdloceno, ogled }){
   const [busyId, setBusyId] = useState(null);
   const [opombaId, setOpombaId] = useState(null);
@@ -722,7 +844,10 @@ function CakaName({ rows, onOdloceno, ogled }){
           <div className="entry" style={{cursor:"default"}}>
             <div>
               <div className="who">{r.stevilka} · {vrstaLabel(r.vrsta)}</div>
-              <div className="meta">{r.polja && r.polja.datum_a ? fmtDatum(r.polja.datum_a) : (r.polja && r.polja.datum ? fmtDatum(r.polja.datum) : "")}</div>
+              {/* Kdo s kom in kaj za kaj. Prej sta bili tu samo številka
+                  obrazca in datum, zato iz seznama ni bilo videti, čigavo
+                  menjavo sploh odobravaš (uporabnikova pripomba). */}
+              <UdelezencaMenjave obrazec={r} />
               {r.polja && r.polja.opomba && <div className="meta">{r.polja.opomba}</div>}
               <OpozorilaMenjave obrazec={r} />
             </div>
@@ -738,32 +863,6 @@ function CakaName({ rows, onOdloceno, ogled }){
             </div>
           )}
         </div>
-      ))}
-    </div>
-  );
-}
-
-// Pogosti razlogi za menjavo/evidentiranje - hitra izbira namesto tipkanja
-// na telefonu. Izbira samo VPIŠE besedilo v polje, ki ga je nato mogoče
-// dopolniti ali povsem prepisati (ni zaklenjen seznam).
-const HITRI_RAZLOGI = [
-  "Nadomeščanje sodelavca",
-  "Študijske obveznosti",
-  "Osebni razlogi",
-  "Zdravstveni razlog",
-  "Družinske obveznosti",
-  "Uskladitev prevoza",
-];
-
-function HitriRazlog({ vrednost, naVnos }){
-  return (
-    <div style={{display:"flex", gap:6, flexWrap:"wrap", marginTop:6}}>
-      {HITRI_RAZLOGI.map(r => (
-        <button key={r} type="button" className="pill"
-          style={{cursor:"pointer", border:"1px solid var(--line)"}}
-          onClick={() => naVnos(vrednost && vrednost.trim() ? vrednost.trim() + ", " + r.toLowerCase() : r)}>
-          + {r}
-        </button>
       ))}
     </div>
   );
@@ -878,7 +977,8 @@ function MojiObrazci({ rows, onOdpri }){
         <div className="entry" key={r.id} onClick={() => onOdpri(r)}>
           <div>
             <div className="who">{r.stevilka} · {vrstaLabel(r.vrsta)}</div>
-            <div className="meta">{window.Datum.slo(r.ustvarjen)}</div>
+            <UdelezencaMenjave obrazec={r} />
+            <div className="meta">Oddano {window.Datum.slo(r.ustvarjen)}</div>
           </div>
           <StatusPill status={r.status} />
         </div>
@@ -887,13 +987,13 @@ function MojiObrazci({ rows, onOdpri }){
   );
 }
 
-// "V tem mesecu" – vse menjave službe (ne ročno evidentiranje/drugo) tekočega
-// meseca, vidne VSEM prijavljenim (glej razširjeno obrazci_select RLS v
-// supabase/schema.sql, sekcija 22) - ne samo lastnim/udeleženim, ker je
-// uporabnik izrecno zahteval pregleden mesečni seznam za vse.
+// "V tem mesecu" – menjave službe tekočega meseca, v katere je prijavljeni
+// VKLJUČEN (kot predlagatelj ali kot sodelavec). Uporabnikova zahteva,
+// september 2026; prej je bil to seznam vseh menjav v bolnišnici.
+// Pregled po oddelkih je pod razporedom oddelka (index.html -> Oddelki).
 function MenjaveMeseca({ rows }){
   if (rows === null) return <p className="empty">Nalagam …</p>;
-  if (rows.length === 0) return <p className="empty">V tem mesecu še ni bilo nobene menjave.</p>;
+  if (rows.length === 0) return <p className="empty">V tem mesecu nisi vključen(a) v nobeno menjavo.</p>;
   return (
     <div className="card">
       {rows.map(r => {
@@ -998,11 +1098,11 @@ function App(){
     // čakal. Zato nalogo določimo iz osebe, ki je DEJANSKO prikazana (myId +
     // njen profil); pravila so enaka kot v pogledu (glej obrazci_moja_naloga
     // v schema.sql). Vrstice pripelje RLS, ki je nespremenjen.
-    client.from("obrazci").select("*").neq("status", "osnutek").order("ustvarjen")
+    client.from("obrazci").select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)").neq("status", "osnutek").order("ustvarjen")
       .then(({ data }) => setCaka((data || [])
         .map(r => ({ ...r, moje_dejanje: mojeDejanje(r, myId, auth.profile) }))
         .filter(r => r.moje_dejanje)));
-    client.from("obrazci").select("*").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
+    client.from("obrazci").select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
       .then(({ data }) => setMoji(data || []));
 
     const zdaj = new Date();
@@ -1010,9 +1110,15 @@ function App(){
     const naslednjiPrviDan = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1).toISOString().slice(0, 10);
     // Menjava (polja.datum_a) IN enosmerna oddaja dežurstva (polja.datum) -
     // oboje šteje kot "menjava izmen" za namen te mesečne preglednice.
+    //
+    // Samo menjave, v katere je uporabnik VKLJUČEN (uporabnikova zahteva,
+    // september 2026). Prej je bil to bolnišnični seznam vseh menjav
+    // meseca; pregled po oddelkih je pod razporedom oddelka
+    // (index.html -> Oddelki), kjer sodi.
     client.from("obrazci")
       .select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
       .neq("status", "osnutek")
+      .or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`)
       .or(`and(vrsta.eq.menjava_sluzbe,polja->>datum_a.gte.${prviDan},polja->>datum_a.lt.${naslednjiPrviDan}),`
         + `and(vrsta.eq.oddaja_dezurstva,polja->>datum.gte.${prviDan},polja->>datum.lt.${naslednjiPrviDan})`)
       .order("ustvarjen", { ascending: false })
@@ -1069,7 +1175,7 @@ function App(){
           )}
           {zavihek === "mesec" && (
             <React.Fragment>
-              <p className="hint no-print">Vse menjave izmen (ne ročno evidentiranje/drugo) za tekoči mesec, vidne vsem.</p>
+              <p className="hint no-print">Menjave izmen za tekoči mesec, v katere si vključen(a) – kot predlagatelj ali kot sodelavec.</p>
               <MenjaveMeseca rows={mesec} />
               {mesec && mesec.length > 0 && (
                 <RazporedIzvozVir

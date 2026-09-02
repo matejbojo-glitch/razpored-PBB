@@ -179,7 +179,7 @@ const { client } = RazporedAuth;
 // natanko teh 8 (glej supabase/schema.sql sekcija 23, isti seznam kot v
 // imenik.html/zelje.html). Stare kode ostanejo v bazi (razpored jih
 // zgodovinsko referencira), samo tu se jih ne ponuja več za dodeljevanje.
-const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+const RAZPORED_ODDELKI = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
 // ---------------------------------------------------------------------
 // Objava generiranega razporeda naravnost v Supabase (razpored),
@@ -316,6 +316,11 @@ const ANCHOR_MONDAY = "2026-09-28";
 // zdaj pa prihajata živo iz Supabase (profili.department_code +
 // profili.rotation_slot, urejljivo v Imeniku) – glej nalozizOddelek spodaj.
 const WARDS_META = {
+  // "A" je dodan septembra 2026. Ima svoj DOPOLDANSKI kader; popoldne in
+  // ponoči ga izmenično pokrivata B in E1 (pravilo je v oddelek-a.js,
+  // prikaz v index.html). Minimumov po izmeni zato zanj ni - dokler jih
+  // administrator ne vpiše, generator za A pričakuje samo dopoldne.
+  A:  { naziv:"A – oddelek",  hsuffix:false },
   B:  { naziv:"B – oddelek",  hsuffix:false },
   C:  { naziv:"C – oddelek",  hsuffix:false },
   C1: { naziv:"C1 – oddelek", hsuffix:false },
@@ -337,7 +342,7 @@ const WARDS_META = {
 // napake - enako kot pri "index.html?uvoz=1&…" (glej preberiUvozIzNaslova
 // v index.html). Ta funkcija NIČESAR ne generira in ne objavi: samo
 // prednastavi zavihek, oddelek in mesec, sprožiti pa mora uporabnik sam.
-const NAPOTILO_ZAVIHKI = ["kalup", "nzv", "uporabniki", "dopust", "place", "revizija"];
+const NAPOTILO_ZAVIHKI = ["kalup", "nzv", "uporabniki", "revizija"];
 function preberiNapotiloIzNaslova(search){
   const p = new URLSearchParams(search || "");
   const tab = (p.get("tab") || "").trim().toLowerCase();
@@ -1090,7 +1095,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
 // uvoz, preveri-flexi-uvoz, preveri-nzv-*). Druga kopija bi se sčasoma
 // razšla s prvo - to je isti razlog, zaradi katerega sheets-mreza.js
 // (edina namerna podvojitev) potrebuje lasten preizkus usklajenosti.
-const UVOZ_SKUPINE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+const UVOZ_SKUPINE = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 function UvozRazporedaNapotek({ koda, month }){
   // Generator pokriva samo 6 oddelkov, uvoz pa VSE skupine - zato ima ta
   // razdelek svoj izbirnik, ki ni vezan na izbiro oddelka za generator
@@ -1466,7 +1471,9 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         <div className="field">
           <label htmlFor="odd">Oddelek</label>
           <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
-            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k} – {WARDS_META[k].naziv}</option>)}
+            {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
+                je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
           </select>
         </div>
         <div className="field">
@@ -2896,291 +2903,6 @@ function UporabnikiTab(){
   );
 }
 
-// ---------------------------------------------------------------------
-// Dopust: mesečni uvoz stanja dopusta iz Kadrisa (ime, šifra zaposlenega/
-// "Mat.št", leto, mesec, DOPUST) + pregled z mesečnim trendom. employee_code
-// je edini stabilen ključ med meseci (zaporedna št. se spreminja, imena se
-// včasih zapišejo drugače) - povezuje se s kadrovski_podatki.employee_code,
-// če je znan, sicer poskusi ujemanje po imenu (vreča besed). Ob vsakem uvozu
-// sprožilec v shemi drži kadrovski_podatki.leave_balance_days/asof
-// usklajena z najnovejšim mesecem (Imenik torej vedno kaže isto stanje).
-// ---------------------------------------------------------------------
-const DOPUST_GLAVE_MAPA = {
-  full_name: ["full_name", "priimek in ime", "ime in priimek", "ime"],
-  employee_code: ["employee_code", "mat.št", "mat št", "mat.st", "mat st", "šifra zaposlenega", "sifra zaposlenega"],
-  leto: ["leto", "year"],
-  mesec: ["mesec", "month"],
-  dnevi: ["dnevi", "dopust", "stanje", "stanje dopusta"],
-};
-const MESECI_SL2 = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
-
-function DopustTab(){
-  const [obdobja, setObdobja] = useState(null);
-  const [obdobje, setObdobje] = useState("");
-  const [vrstice, setVrstice] = useState([]);
-  const [iskanje, setIskanje] = useState("");
-  const [sort, setSort] = useState({ polje: "full_name", smer: 1 });
-  const [uvozBusy, setUvozBusy] = useState(false);
-  const [uvozMsg, setUvozMsg] = useState(null);
-  const [predogled, setPredogled] = useState(null); // { zapisi, leto, mesec, novih, spremenjenih, enakih, manjkajoci }
-  const fileRef = useRef();
-
-  const nalozi = async () => {
-    const { data } = await client.from("stanje_dopusta_obdobja").select("*");
-    setObdobja(data || []);
-    if (data && data.length && !obdobje) setObdobje(data[0].leto + "-" + data[0].mesec);
-  };
-  useEffect(() => { nalozi(); }, []);
-
-  useEffect(() => {
-    if (!obdobje) { setVrstice([]); return; }
-    const [leto, mesec] = obdobje.split("-").map(Number);
-    client.from("stanje_dopusta_pregled").select("*").eq("leto", leto).eq("mesec", mesec)
-      .then(({ data }) => setVrstice(data || []));
-  }, [obdobje]);
-
-  const uvoziDatoteko = async (file) => {
-    if (!file) return;
-    setUvozBusy(true); setUvozMsg(null); setPredogled(null);
-    try {
-      const { vrsteVrstic, tip } = await window.ImportUtils.preberiDatoteko(file);
-      if (tip === "pdf-besedilo") { setUvozMsg("V tem PDF-ju ni bilo mogoče prepoznati stolpcev (videti je kot navadno besedilo, ne preglednica) – uporabi CSV/Excel ali PDF s pravo tabelo."); return; }
-      const { objekti, najdeniStolpci } = window.ImportUtils.vVrsticeObjekteGlave(vrsteVrstic, DOPUST_GLAVE_MAPA);
-      if (!najdeniStolpci.includes("employee_code") || !najdeniStolpci.includes("dnevi")) {
-        setUvozMsg("V datoteki ni bilo mogoče najti stolpcev za šifro zaposlenega (Mat.št) in DOPUST.");
-        return;
-      }
-      const zapisi = objekti
-        .map(o => ({
-          full_name: (o.full_name || "").trim().toUpperCase(),
-          employee_code: (o.employee_code || "").trim(),
-          leto: Number(o.leto) || null,
-          mesec: Number(o.mesec) || null,
-          dnevi: o.dnevi !== "" && !isNaN(Number(o.dnevi)) ? Number(o.dnevi) : null,
-        }))
-        .filter(z => z.employee_code && z.dnevi != null);
-      if (!zapisi.length) { setUvozMsg("Datoteka ne vsebuje uporabnih vrstic."); return; }
-
-      // Obdobje: iz datoteke, če ga ima; sicer trenutni mesec (admin lahko
-      // pred potrditvijo popravi spodaj).
-      const zdaj = new Date();
-      const leto = zapisi.find(z => z.leto)?.leto || zdaj.getFullYear();
-      const mesec = zapisi.find(z => z.mesec)?.mesec || (zdaj.getMonth() + 1);
-
-      // Zadnje znano stanje vsake osebe (za primerjavo novo/spremenjeno/enako).
-      const { data: zgodovina } = await client.from("zgodovina_stanja_dopusta")
-        .select("employee_code, leto, mesec, dnevi")
-        .order("leto", { ascending: false }).order("mesec", { ascending: false });
-      const zadnje = new Map();
-      (zgodovina || []).forEach(r => { if (!zadnje.has(r.employee_code)) zadnje.set(r.employee_code, Number(r.dnevi)); });
-
-      // Poveži z obstoječimi profili: najprej po employee_code
-      // (kadrovski_podatki), sicer po imenu (vreča besed).
-      const { data: hrPodatki } = await client.from("kadrovski_podatki").select("profile_id, employee_code");
-      const { data: profili } = await client.from("profili").select("id, full_name");
-      const poEmployeeCode = new Map((hrPodatki || []).filter(h => h.employee_code).map(h => [h.employee_code, h.profile_id]));
-
-      const zVsebino = zapisi.map(z => {
-        let profile_id = poEmployeeCode.get(z.employee_code) || null;
-        if (!profile_id) {
-          const ujemanje = (profili || []).find(p => imenaSeUjemataAdmin(p.full_name, z.full_name));
-          if (ujemanje) profile_id = ujemanje.id;
-        }
-        const prej = zadnje.has(z.employee_code) ? zadnje.get(z.employee_code) : undefined;
-        const vrsta = prej === undefined ? "nov" : (prej !== z.dnevi ? "sprem" : "enako");
-        return { ...z, leto, mesec, profile_id, prej, vrsta };
-      });
-
-      const obstojeci = await client.from("zgodovina_stanja_dopusta").select("employee_code").then(r => new Set((r.data || []).map(x => x.employee_code)));
-      const vNovem = new Set(zVsebino.map(z => z.employee_code));
-      const { data: vsiZgodovina } = await client.from("zgodovina_stanja_dopusta").select("employee_code, full_name").order("full_name");
-      const znaniZaEnkrat = new Map();
-      (vsiZgodovina || []).forEach(r => { if (!znaniZaEnkrat.has(r.employee_code)) znaniZaEnkrat.set(r.employee_code, r.full_name); });
-      const manjkajoci = [...znaniZaEnkrat.entries()].filter(([koda]) => !vNovem.has(koda)).map(([, ime]) => ime);
-
-      setPredogled({
-        zapisi: zVsebino, leto, mesec,
-        novih: zVsebino.filter(z => z.vrsta === "nov").length,
-        spremenjenih: zVsebino.filter(z => z.vrsta === "sprem").length,
-        enakih: zVsebino.filter(z => z.vrsta === "enako").length,
-        manjkajoci,
-      });
-      setUvozMsg(`Prebranih ${zVsebino.length} vrstic iz "${file.name}" – preveri predogled spodaj pred potrditvijo.`);
-    } catch (e) {
-      setUvozMsg("Napaka pri branju datoteke: " + (e.message || String(e)));
-    } finally {
-      setUvozBusy(false);
-    }
-  };
-
-  const potrdiUvoz = async () => {
-    if (!predogled) return;
-    setUvozBusy(true);
-    try {
-      const { data: { user } } = await client.auth.getUser();
-      const zapisi = predogled.zapisi.map(z => ({
-        employee_code: z.employee_code, full_name: z.full_name, leto: predogled.leto, mesec: predogled.mesec,
-        dnevi: z.dnevi, profile_id: z.profile_id, uvozeno: new Date().toISOString(), uvozil: user ? user.id : null,
-      }));
-      for (let i = 0; i < zapisi.length; i += 200) {
-        const { error } = await client.from("zgodovina_stanja_dopusta").upsert(zapisi.slice(i, i + 200), { onConflict: "employee_code,leto,mesec" });
-        if (error) throw error;
-      }
-      setUvozMsg(`Uvoženih ${zapisi.length} vrstic za ${MESECI_SL2[predogled.mesec - 1]} ${predogled.leto}.`);
-      setPredogled(null);
-      await nalozi();
-      setObdobje(predogled.leto + "-" + predogled.mesec);
-    } catch (e) {
-      setUvozMsg("Uvoz ni uspel: " + (e.message || String(e)));
-    } finally {
-      setUvozBusy(false);
-    }
-  };
-
-  const razvrsti = (polje) => setSort(s => ({ polje, smer: s.polje === polje ? -s.smer : 1 }));
-
-  const filtrirano = useMemo(() => {
-    const s = iskanje.trim().toLowerCase();
-    let v = !s ? vrstice : vrstice.filter(r =>
-      (r.full_name || "").toLowerCase().includes(s) || String(r.employee_code).includes(s)
-    );
-    v = v.slice().sort((a, b) => {
-      const x = a[sort.polje], y = b[sort.polje];
-      if (typeof x === "string") return sort.smer * String(x).localeCompare(String(y), "sl");
-      return sort.smer * ((x == null ? -1e9 : Number(x)) - (y == null ? -1e9 : Number(y)));
-    });
-    return v;
-  }, [vrstice, iskanje, sort]);
-
-  const izvoziCSV = () => {
-    if (!filtrirano.length) return;
-    const [leto, mesec] = obdobje.split("-");
-    const csv = "full_name,employee_code,dnevi,sprememba\n" + filtrirano.map(r =>
-      [`"${(r.full_name||"").replace(/"/g,'""')}"`, r.employee_code, r.dnevi, r.sprememba ?? ""].join(",")
-    ).join("\n") + "\n";
-    download(`dopust-${leto}-${String(mesec).padStart(2,"0")}.csv`, csv);
-  };
-
-  const skupaj = filtrirano.reduce((s, r) => s + Number(r.dnevi), 0);
-  const maxDnevi = Math.max(1, ...filtrirano.map(r => Number(r.dnevi) || 0));
-  const brezRacuna = filtrirano.filter(r => !r.profile_id).length;
-  const brezDopusta = filtrirano.filter(r => Number(r.dnevi) === 0).length;
-
-  return (
-    <div>
-      <h2 className="section no-print">Mesečno stanje dopusta (Kadris)</h2>
-      <p className="hint no-print">
-        Vsak mesec naloži izvoz iz Kadrisa (stolpci: Priimek in ime, Mat.št/šifra zaposlenega, Leto, Mesec, DOPUST).
-        Šifra zaposlenega je edini stabilen ključ med meseci – ista oseba se ne podvoji, tudi če se ime kdaj zapiše
-        drugače. Ponoven uvoz istega meseca obstoječo vrstico posodobi, ne podvoji. Stanje se samodejno prikaže tudi
-        v Imeniku pri posamezni osebi (najnovejši mesec).
-      </p>
-      <div className="card no-print">
-        <RazporedUvozVir kljuc="stanje-dopusta" ikona="🏖" naziv="Stanje dopusta (Kadris)"
-          opis="CSV / Excel – mat. št., leto, mesec, dnevi"
-          onClick={() => fileRef.current && fileRef.current.click()} />
-        <input ref={fileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
-          onChange={e => { uvoziDatoteko(e.target.files[0]); e.target.value = ""; }} />
-        <button className="dlBtn" disabled={uvozBusy} onClick={() => fileRef.current && fileRef.current.click()}>
-          {uvozBusy ? "Nalagam …" : "📤 Uvoz mesečnega stanja iz datoteke"}
-        </button>
-        {uvozMsg && <p className="hint" style={{marginTop:8, marginBottom:0}}>{uvozMsg}</p>}
-      </div>
-
-      {predogled && (
-        <div className="card no-print">
-          <h3 style={{marginTop:0}}>Predogled – {MESECI_SL2[predogled.mesec - 1]} {predogled.leto}</h3>
-          <p className="hint">{predogled.novih} novih · {predogled.spremenjenih} spremenjenih · {predogled.enakih} nespremenjenih</p>
-          {predogled.manjkajoci.length > 0 && (
-            <p className="hint">V tem izvozu jih ni (bodo iz prejšnjih uvozov, podatki ostanejo): {predogled.manjkajoci.join(", ")}</p>
-          )}
-          <button className="genBtn" onClick={potrdiUvoz} disabled={uvozBusy}>{uvozBusy ? "Uvažam …" : "Potrdi uvoz"}</button>
-          <button className="dlBtn" style={{marginLeft:8}} onClick={() => setPredogled(null)}>Prekliči</button>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
-          <div className="field">
-            <label htmlFor="dobd">Obdobje</label>
-            <select id="dobd" value={obdobje} onChange={e => setObdobje(e.target.value)}>
-              {(obdobja || []).length === 0 && <option value="">– ni podatkov –</option>}
-              {(obdobja || []).map(o => (
-                <option key={o.leto+"-"+o.mesec} value={o.leto+"-"+o.mesec}>{MESECI_SL2[o.mesec-1]} {o.leto} – {o.stevilo_oseb} oseb</option>
-              ))}
-            </select>
-          </div>
-          <div className="field" style={{flex:1, minWidth:180}}>
-            <label htmlFor="disc">Iskanje</label>
-            <input id="disc" type="text" placeholder="Ime ali šifra zaposlenega …" value={iskanje} onChange={e => setIskanje(e.target.value)} />
-          </div>
-        </div>
-        <RazporedIzvozVir
-          naziv="Stanje dopusta"
-          dodatno={[{ label: "Izvozi CSV", onClick: izvoziCSV }]}
-          naslov={(() => { const [leto, mesec] = obdobje.split("-"); return `dopust-${leto}-${String(mesec).padStart(2,"0")}`; })()}
-          pripravi={() => {
-            if (!filtrirano.length) throw new Error("Ni podatkov za izvoz.");
-            return [{
-              ime: "Dopust",
-              glave: ["Priimek in ime", "Šifra zaposlenega", "Dnevi", "Sprememba"],
-              vrstice: filtrirano.map(r => [r.full_name || "", r.employee_code || "", r.dnevi, r.sprememba ?? ""]),
-            }];
-          }}
-        />
-
-        {vrstice.length > 0 && (
-          <p className="hint" style={{marginTop:10}}>
-            {filtrirano.length} zaposlenih · skupaj {Math.round(skupaj*10)/10} dni ·
-            povprečje {(skupaj/(filtrirano.length||1)).toFixed(1)} · brez dopusta {brezDopusta} · brez računa {brezRacuna}
-          </p>
-        )}
-
-        {vrstice.length === 0 ? (
-          <p className="hint">Za to obdobje ni podatkov.</p>
-        ) : (
-          <div style={{overflowX:"auto"}}>
-            <table className="roster">
-              <thead>
-                <tr>
-                  <th className="weekToggle" style={{cursor:"pointer"}} onClick={() => razvrsti("full_name")}>Priimek in ime</th>
-                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("employee_code")}>Šifra</th>
-                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("dnevi")}>Dnevi</th>
-                  <th style={{cursor:"pointer"}} onClick={() => razvrsti("sprememba")}>Sprememba</th>
-                  <th>Račun</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrirano.map(r => {
-                  const s = r.sprememba == null ? null : Number(r.sprememba);
-                  const barva = s == null || s === 0 ? "var(--muted)" : (s > 0 ? "var(--ok)" : "var(--danger)");
-                  const besedilo = s == null ? "–" : (s > 0 ? "+" : "") + s;
-                  return (
-                    <tr key={r.id}>
-                      <td>{r.full_name}</td>
-                      <td>{r.employee_code}</td>
-                      <td style={{minWidth:120}}>
-                        <strong>{r.dnevi}</strong>
-                        {/* Vrstica napredka je relativna glede na NAJVEČJE stanje v
-                            tem mesecu - kvota po osebi (annual_leave_total) v tem
-                            izvozu ni na voljo, zato bi bil odstotek izmišljen. */}
-                        <div className="bar" title={`${r.dnevi} dni · najvišje stanje ta mesec: ${maxDnevi}`}>
-                          <i style={{width: (maxDnevi > 0 ? 100 * Number(r.dnevi) / maxDnevi : 0) + "%"}}></i>
-                        </div>
-                      </td>
-                      <td style={{color:barva, fontWeight:700}}>{besedilo}</td>
-                      <td>{r.profile_id ? "povezan" : "ni računa"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // NZV – oddelek za vodje in administratorje (glej supabase/schema.sql
 // sekcija 23). Na izrecno željo združuje vodstveno pokritost in dežurstva
@@ -3201,221 +2923,12 @@ function NzvTab({ zacetniPod, zacetniMesec }){
   );
 }
 
-// ---------------------------------------------------------------------
-// Plače: zbirni izvoz ur za obračun (redno delo/nočne ure/nedelje/
-// prazniki/dežurstva), po vzoru urne legende iz uradnega delovnika (glej
-// DELOVNI_ČAS v index.html). NAMENOMA konzervativen pri dežurstvih: samo
-// ŠTEVILO dežurstev, ne ur - uradna shema dežurstvenih ur je odvisna od
-// dneva v tednu/praznika (delavnik 15.30-07.00, vikend/praznik 24h) in te
-// aplikacija (še) ne modelira natančno, zato bi izmišljena ura pomenila
-// napačen podatek pri obračunu plač - raje jasna vrzel kot tiha napaka.
-// Prazniki se NE prepišejo ročno, ampak izračunajo (velika noč po Meeus/
-// Jones/Butcher algoritmu), da se izognemo napaki pri ročno vtipkanem
-// datumu premičnega praznika.
-// ---------------------------------------------------------------------
-// Trajanje in vrsta izmene prideta iz skupnega delovni-cas.js (edini vir
-// resnice) – prej je bila ista tabela zapisana še enkrat tu in še enkrat v
-// index.html, kar bi se ob spremembi urnika zlahka razšlo.
-//
-// Ur NE beremo z golim TRAJANJE_UR[sifra] (natančno ujemanje niza) - v pravi
-// bazi je ista izmena zapisana v več oblikah ("NOČNA12", "Nočna 12",
-// "nočna12", glej komentar ob izmena_cas v schema.sql), zato mora iti skozi
-// podatkiIzmene(), ki niz pred primerjavo poenoti (male črke, brez presledkov)
-// - drugače bi taka izmena tiho izpadla iz obračuna kot "neznana koda".
-function ureIzmene(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return i ? i.ure : null; }
-function jeOdsotnostBrezDela(sifra){
-  const k = window.DelovniCas.kljuc(sifra);
-  return window.DelovniCas.NI_DELO.some(n => window.DelovniCas.kljuc(n) === k);
-}
-function jeNocnaSifra(sifra){ const i = window.DelovniCas.podatkiIzmene(sifra); return !!(i && i.nocna); }
+// jeDezurstvoSifra: ali je ta koda dežurstvo. Ostala je iz odstranjenega
+// zavihka "Plače" (september 2026, uporabnikova zahteva) - uporablja jo
+// tudi pregled dežurstev nad njo, zato je ni mogoče odstraniti skupaj z
+// obračunom.
 function jeDezurstvoSifra(sifra){ const t = (sifra || "").toLowerCase(); return t.startsWith("dežurstvo") || t.startsWith("dezurstvo"); }
 
-function velikaNoc(leto){
-  const a = leto % 19, b = Math.floor(leto / 100), c = leto % 100;
-  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const mesec = Math.floor((h + l - 7 * m + 114) / 31), dan = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(Date.UTC(leto, mesec - 1, dan));
-}
-function slovenskiPrazniki(leto){
-  const vn = velikaNoc(leto);
-  const vnPon = new Date(vn); vnPon.setUTCDate(vn.getUTCDate() + 1);
-  const iso = (d) => d.toISOString().slice(0, 10);
-  const p = String(leto);
-  return new Set([
-    p + "-01-01", p + "-01-02", p + "-02-08", iso(vnPon), p + "-04-27",
-    p + "-05-01", p + "-05-02", p + "-06-25", p + "-08-15", p + "-10-31",
-    p + "-11-01", p + "-12-25", p + "-12-26",
-  ]);
-}
-function jeNedelja(iso){ return new Date(iso + "T00:00:00Z").getUTCDay() === 0; }
-
-function PlaceTab(){
-  const [obdobje, setObdobje] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
-  const [vrstice, setVrstice] = useState(null); // null = ni naloženo
-  const [neznane, setNeznane] = useState([]); // šifre izmen, ki jih obračun ne pozna
-  const [busy, setBusy] = useState(false);
-  const [napaka, setNapaka] = useState(null);
-
-  const nalozi = async () => {
-    setBusy(true); setNapaka(null); setVrstice(null); setNeznane([]);
-    try {
-      const [leto, mesec] = obdobje.split("-").map(Number);
-      const startISO = `${leto}-${String(mesec).padStart(2, "0")}-01`;
-      const endISO = `${leto}-${String(mesec).padStart(2, "0")}-${String(new Date(leto, mesec, 0).getDate()).padStart(2, "0")}`;
-      const prazniki = slovenskiPrazniki(leto);
-      const [entries, { data: profili }] = await Promise.all([
-        // Cela bolnišnica, en mesec: lahko preseže 1000 vrstic (Supabase
-        // privzeta stran), zato po straneh - glej RazporedAuth.vseStrani.
-        RazporedAuth.vseStrani((od, doV) =>
-          client.from("razpored").select("employee_id, work_date, shift_code")
-            .gte("work_date", startISO).lte("work_date", endISO).range(od, doV)
-        ),
-        // Matična številka je ključ, po katerem osebo prepozna računovodstvo
-        // in Kadris - ime ni zanesljivo (podvojena/različno zapisana imena).
-        client.from("profili").select("id, full_name, kadrovski_podatki(employee_code)"),
-      ]);
-      const imePoId = {}, matPoId = {};
-      (profili || []).forEach(p => {
-        imePoId[p.id] = p.full_name;
-        const hr = Array.isArray(p.kadrovski_podatki) ? p.kadrovski_podatki[0] : p.kadrovski_podatki;
-        matPoId[p.id] = (hr && hr.employee_code) || "";
-      });
-      const zbir = {}; // employee_id -> { redno, nocne, nedelje, prazniki, dezurstva }
-      const neznaneKode = {}; // koda -> [imena], glej razlago v zanki spodaj
-      const prazenZapis = () => ({ redno: 0, nocne: 0, nedelje: 0, prazniki: 0, dezurstva: 0 });
-      (entries || []).forEach(r => {
-        if (jeDezurstvoSifra(r.shift_code)) {
-          const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
-          z.dezurstva += 1;
-          return;
-        }
-        const ure = ureIzmene(r.shift_code);
-        if (!ure) {
-          // LD/KPU/BS/prosto pravilno NE štejejo kot delo. NEZNANE kode pa so
-          // druga stvar: doslej so tiho izpadle iz obračuna, kar pomeni
-          // neplačano izmeno, ki je nihče ne opazi. Zbiramo jih, da se
-          // izpišejo - tiho izgubljanje ur je hujše od napačnega seštevka,
-          // ker se ne pozna nikjer.
-          const s = (r.shift_code || "").trim();
-          if (s && !jeOdsotnostBrezDela(s)) {
-            (neznaneKode[s] = neznaneKode[s] || []).push(imePoId[r.employee_id] || r.employee_id);
-          }
-          return;
-        }
-        const z = zbir[r.employee_id] || (zbir[r.employee_id] = prazenZapis());
-        if (jeNocnaSifra(r.shift_code)) z.nocne += ure; else z.redno += ure;
-        if (jeNedelja(r.work_date)) z.nedelje += ure;
-        if (prazniki.has(r.work_date)) z.prazniki += ure;
-      });
-      const zaokrozi = (n) => Math.round(n * 10) / 10;
-      const rezultat = Object.keys(zbir).map(id => ({
-        employee_id: id, full_name: imePoId[id] || "(neznana oseba)",
-        employee_code: matPoId[id] || "",
-        redno: zaokrozi(zbir[id].redno), nocne: zaokrozi(zbir[id].nocne),
-        nedelje: zaokrozi(zbir[id].nedelje), prazniki: zaokrozi(zbir[id].prazniki),
-        dezurstva: zbir[id].dezurstva,
-      })).sort((a, b) => a.full_name.localeCompare(b.full_name, "sl"));
-      setVrstice(rezultat);
-      setNeznane(Object.keys(neznaneKode).sort().map(k => ({
-        koda: k,
-        koliko: neznaneKode[k].length,
-        osebe: Array.from(new Set(neznaneKode[k])).sort((a, b) => a.localeCompare(b, "sl")),
-      })));
-    } catch (e) {
-      setNapaka(e.message || String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="section">Zbirni izvoz ur za obračun plač</h2>
-      <p className="hint">
-        Osnutek za računovodstvo - preveri pred oddajo. "Dežurstva" je namenoma prikazano kot ŠTEVILO (ne ur), ker
-        se dežurstvene ure razlikujejo glede na dan v tednu/praznik in tega izvoz (še) ne izračunava natančno.
-        Nočne/nedeljske/praznične ure se lahko prekrivajo (isto uro lahko šteje v več stolpcih hkrati, kot ločeni
-        dodatki) - to je namerno, ne napaka seštevanja.
-      </p>
-      <div className="card">
-        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:10}}>
-          <div className="field">
-            <label htmlFor="placeObdobje">Mesec</label>
-            <input id="placeObdobje" type="month" value={obdobje} onChange={e => setObdobje(e.target.value)} />
-          </div>
-          <button className="genBtn" onClick={nalozi} disabled={busy}>{busy ? "Nalagam …" : "Izračunaj"}</button>
-        </div>
-        {napaka && <p className="err">{napaka}</p>}
-        {neznane.length > 0 && (
-          <div className="warnBox" style={{marginTop:10, borderColor:"var(--danger)"}}>
-            <div className="t">
-              ⚠ Neprepoznane šifre izmen: {neznane.length} – te ure NISO v obračunu
-            </div>
-            <ul style={{margin:"6px 0 0", paddingLeft:18}}>
-              {neznane.map(n => (
-                <li key={n.koda} style={{fontSize:12.5, marginBottom:3}}>
-                  <b>{n.koda}</b> – {n.koliko}× ({n.osebe.slice(0, 4).join(", ")}
-                  {n.osebe.length > 4 ? " in še " + (n.osebe.length - 4) : ""})
-                </li>
-              ))}
-            </ul>
-            <p className="hint" style={{margin:"8px 0 0"}}>
-              Obračun pozna samo šifre iz <code>delovni-cas.js</code>. Zgornje niso med njimi, zato se
-              ne štejejo nikamor – če gre za resnično delo, je izmena neplačana. Preveri, ali je šifra
-              napačno zapisana (npr. presledek ali velika/mala črka), ali pa je treba dodati nov tip izmene.
-            </p>
-          </div>
-        )}
-        {vrstice && vrstice.some(r => !r.employee_code) && (
-          <div className="warnBox" style={{marginTop:10}}>
-            <div className="t">
-              ⚠ Brez matične številke: {vrstice.filter(r => !r.employee_code).length} oseb
-            </div>
-            <p className="hint" style={{margin:"6px 0 0"}}>
-              Računovodstvo in Kadris osebo prepoznata po matični številki, ne po imenu. Te vrstice bo treba
-              povezati ročno. Številko vpiši v Imeniku (klikni "manjka" v razpredelnici spodaj), nato znova
-              pritisni "Izračunaj".
-            </p>
-          </div>
-        )}
-        {vrstice && vrstice.length > 0 && (
-          <RazporedIzvozVir
-            naziv="Plače"
-            naslov={"place-" + obdobje}
-            pripravi={() => [{
-              ime: "Plače",
-              glave: ["Matična številka", "Priimek in ime", "Redno delo (h)", "Nočne ure (h)", "Nedelje (h)", "Prazniki (h)", "Dežurstva (št.)"],
-              vrstice: vrstice.map(r => [r.employee_code, r.full_name, r.redno, r.nocne, r.nedelje, r.prazniki, r.dezurstva]),
-            }]}
-          />
-        )}
-        {vrstice && vrstice.length === 0 && <p className="hint">Za ta mesec ni objavljenega razporeda.</p>}
-        {vrstice && vrstice.length > 0 && (
-          <div className="tableScroller" style={{marginTop:10}}>
-            <table className="fairTable">
-              <thead>
-                <tr><th>Mat. št.</th><th>Priimek in ime</th><th>Redno (h)</th><th>Nočne (h)</th><th>Nedelje (h)</th><th>Prazniki (h)</th><th>Dežurstva</th></tr>
-              </thead>
-              <tbody>
-                {vrstice.map(r => (
-                  <tr key={r.employee_id}>
-                    <td>{r.employee_code
-                      ? r.employee_code
-                      : <a href={"imenik.html?id=" + r.employee_id} className="pill danger" style={{textDecoration:"none"}}>manjka</a>}</td>
-                    <td style={{textAlign:"left"}}>{r.full_name}</td>
-                    <td>{r.redno}</td><td>{r.nocne}</td><td>{r.nedelje}</td><td>{r.prazniki}</td><td>{r.dezurstva}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------
 // Revizijska sled sprememb PRAVIC (dnevnik_profilov - schema.sql sekcija 28).
@@ -3615,17 +3128,13 @@ function App({ ogled, profil }){
           <button role="tab" aria-selected={tab==="kalup"} onClick={() => setTab("kalup")}>Oddelki</button>
           <button role="tab" aria-selected={tab==="nzv"} onClick={() => setTab("nzv")}>NZV</button>
           <button role="tab" aria-selected={tab==="uporabniki"} onClick={() => setTab("uporabniki")}>Uporabniki</button>
-          <button role="tab" aria-selected={tab==="dopust"} onClick={() => setTab("dopust")}>Dopust</button>
-          <button role="tab" aria-selected={tab==="place"} onClick={() => setTab("place")}>Plače</button>
           <button role="tab" aria-selected={tab==="revizija"} onClick={() => setTab("revizija")}>Revizija</button>
         </div>
       </header>
 
       {tab==="kalup" && <KalupTab zacetniOddelek={napotilo && napotilo.oddelek} zacetniMesec={napotilo && napotilo.mesec}/>}
       {tab==="nzv" && <NzvTab zacetniPod={napotilo && napotilo.pod} zacetniMesec={napotilo && napotilo.mesec}/>}
-      {tab==="dopust" && <DopustTab/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
-      {tab==="place" && <PlaceTab/>}
       {tab==="revizija" && <AuditLogTab/>}
 
       <footer className="foot no-print">

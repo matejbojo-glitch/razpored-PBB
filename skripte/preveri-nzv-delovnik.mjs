@@ -103,8 +103,15 @@ console.log("6) barva: 'PRISOTEN + DEŽURSTVO' se mora obarvati kot DEŽURSTVO, 
   // sestavljeno besedilo, ki ga vidi uporabnik, se na nobeno izmeno v
   // legendi ne ujame ("off"), zato bi celica ostala siva namesto rdeča.
   eq(classify("DEŽURSTVO"), "dez", "izvirna koda 'DEŽURSTVO' -> razred dez (rdeče)");
-  eq(classify("Dopoldne + Dežurstvo"), "off",
-    "sestavljeno besedilo se ne ujame z nobeno izmeno - zato se barva NE računa iz njega");
+  // Sestavljeno besedilo se ujame na VODILNO izmeno ("Dopoldne"), torej
+  // na dopoldan - kar je za barvo napačno, saj gre tisti dan za dežurstvo.
+  // Prav zato izris barvo računa iz izvirne kode in nikoli iz tega
+  // besedila. (Za stari zapis "dopoldan + dežurstvo" je to veljalo že
+  // prej; odkar je razvrstitev izpeljana iz uradne legende, velja enako
+  // za novi zapis - prej je ta tiho padel v "off".)
+  eq(classify("Dopoldne + Dežurstvo"), "dop",
+    "sestavljeno besedilo pove barvo VODILNE izmene, ne dežurstva - zato se barva NE računa iz njega");
+  eq(classify("dopoldan + dežurstvo"), "dop", "isto za stari zapis");
 }
 
 console.log("7) isto pravilo velja tudi v mreži 'Po oddelkih -> NZV', ne le v 'Moj razpored'");

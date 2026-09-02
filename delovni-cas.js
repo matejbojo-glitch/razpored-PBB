@@ -107,7 +107,12 @@
   // teče po ključu brez presledkov in v malih črkah – sicer bi se
   // neujemajoč zapis tiho obravnaval kot "ni izmena" in bi izpadel iz
   // obračuna ur in iz preverjanja počitka.
-  function kljuc(s) { return (s || "").toLowerCase().replace(/\s+/g, ""); }
+  // "(M)" na koncu kode = mentor pripravniku tisto izmeno (npr.
+  // "dopoldan (M)"). Ni svoja izmena - ure, trajanje in pravila počitka so
+  // od osnovne izmene, zato se pripona pri iskanju ključa odreže. Brez
+  // tega je "dopoldan (M)" neznana koda: 0 ur v obračunu plač in izmena,
+  // ki je pravilo počitka po nočni sploh ne vidi.
+  function kljuc(s) { return (s || "").toLowerCase().replace(/\(\s*m\s*\)\s*$/, "").replace(/\s+/g, ""); }
 
   var INDEKS = {};
   Object.keys(IZMENE).forEach(function (k) { INDEKS[kljuc(k)] = k; });

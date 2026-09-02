@@ -1,13 +1,17 @@
 #!/usr/bin/env node
-/* Preizkus obračuna ur v Plače (PlaceTab, admin.html) - da izmena, zapisana
- * v drugačni obliki ("Nočna 12" namesto "NOČNA12"), ne izpade tiho iz
- * obračuna kot "neznana koda".
+/* Preizkus branja UR po šifri izmene - da izmena, zapisana v drugačni
+ * obliki ("Nočna 12" namesto "NOČNA12"), ne izpade tiho kot "neznana koda".
  *
  * Kot piše komentar ob public.izmena_cas v schema.sql: ista izmena se v
  * pravi bazi pojavlja v več oblikah ("NOČNA12", "Nočna 12", "nočna12").
- * Obračun ur je prej bral TRAJANJE_UR[r.shift_code] - natančno ujemanje
- * niza - kar bi vsako izmeno, zapisano drugače kot dobesedno "NOČNA12",
- * potisnilo med "neznane kode" in ji odvzelo ure v izplačilu.
+ * Zavihek Plače je te ure prej bral s TRAJANJE_UR[r.shift_code] - natančno
+ * ujemanje niza - kar bi vsaki drugače zapisani izmeni odvzelo ure.
+ *
+ * Zavihek Plače je septembra 2026 v celoti odstranjen (uporabnikova
+ * zahteva), pravilo pa ostaja: ure se berejo prek podatkiIzmene() iz
+ * skupnega delovni-cas.js, ki niz pred primerjavo poenoti. Preizkus zato
+ * odslej preverja TA skupni vir, ne več kode enega zaslona - vsak
+ * naslednji obračun ur bo z njim pravilen že od začetka.
  *
  * Zagon: node skripte/preveri-place-ure.mjs
  */
@@ -29,24 +33,29 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "delovni-cas.js"), "utf8"), sandbox);
 
-const admin = readFileSync(join(koren, "admin.html"), "utf8");
-
-console.log("1) admin.html ne bere ur z natančnim ujemanjem niza (TRAJANJE_UR[r.shift_code])");
+// Nobena stran ne sme brati ur z natančnim ujemanjem niza - past za
+// regresijo, tudi ko obračuna ni.
+console.log("1) nikjer se ure ne berejo z natančnim ujemanjem niza (TRAJANJE_UR[...])");
 {
-  trdi(!/TRAJANJE_UR\[r\.shift_code\]/.test(admin),
-    "TRAJANJE_UR se ne indeksira neposredno s šifro izmene - past za regresijo");
+  ["admin.html", "index.html", "dashboard.html"].forEach(stran => {
+    trdi(!/TRAJANJE_UR\[/.test(readFileSync(join(koren, stran), "utf8")),
+      stran + ": TRAJANJE_UR se ne indeksira s šifro izmene");
+  });
 }
 
-console.log("2) ureIzmene/jeOdsotnostBrezDela obstajata in gresta skozi podatkiIzmene (poenoten zapis)");
+console.log("2) ure in odsotnosti se berejo prek skupnega delovni-cas.js");
 {
-  const mUre = admin.match(/function ureIzmene\(sifra\)\{[^}]*\}/);
-  const mOds = admin.match(/function jeOdsotnostBrezDela\(sifra\)\{[\s\S]*?\n\}/);
-  trdi(!!mUre, "ureIzmene(sifra) je najdena v admin.html");
-  trdi(!!mOds, "jeOdsotnostBrezDela(sifra) je najdena v admin.html");
-  if (mUre && mOds) {
-    vm.runInContext(mUre[0] + "\n" + mOds[0], sandbox);
-    const ureIzmene = sandbox.ureIzmene;
-    const jeOdsotnostBrezDela = sandbox.jeOdsotnostBrezDela;
+  // Natanko ovoja, ki ju je uporabljal obračun - zdaj brana neposredno iz
+  // skupnega vira, da pravilo ne visi na eni sami strani.
+  const ureIzmene = (sifra) => {
+    const i = sandbox.window.DelovniCas.podatkiIzmene(sifra);
+    return i ? i.ure : null;
+  };
+  const jeOdsotnostBrezDela = (sifra) => {
+    const k = sandbox.window.DelovniCas.kljuc(sifra);
+    return sandbox.window.DelovniCas.NI_DELO.some(n => sandbox.window.DelovniCas.kljuc(n) === k);
+  };
+  {
 
     console.log("3) izmena v drugi obliki (drugačna velikost črk/presledki) šteje enako kot kanonična");
     [

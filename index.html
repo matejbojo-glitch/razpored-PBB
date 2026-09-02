@@ -100,6 +100,22 @@
        sosednje celice. Raje se prelomijo v dve vrstici znotraj SVOJEGA
        stolpca. */
     table.wardTableT td:not(.name){ white-space:normal; }
+    /* Naziv izmene je v obarvani znački (.swatch, inline-block): brez tega
+       se dolga beseda ("Popoldne") ne prelomi in značka se pri fiksni
+       postavitvi prelije čez sosednji stolpec, stran pa dobi vodoravno
+       drsenje, ki ga tabela sama nima. */
+    /* Ožji rob celice in značke: pri 20+ stolpcih je za besedilo ostalo
+       ~65 px, "Dopoldne" pa meri ~80 px - beseda se je zato lomila sredi
+       ("Dopoldn / e"). S tem prostorom se enobesedni nazivi izpišejo v eni
+       vrstici, večbesedni ("Popoldne do 19") pa se prelomijo na presledku. */
+    table.wardTableT td:not(.name){ padding: 6px 3px; }
+    table.wardTableT td:not(.name) .swatch{
+      max-width:100%; white-space:normal; overflow-wrap:break-word; padding:3px 4px;
+    }
+    /* Isto velja za glavo: priimek v stolpcu ("Zupančič A.") je pri ožjem
+       namizju širši od stolpca in je edini še silil stran v vodoravno
+       drsenje. */
+    table.wardTableT th:not(.name){ white-space:normal; overflow-wrap:anywhere; }
   }
   @media (min-width:900px){
   }
@@ -140,6 +156,11 @@
   html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:88px; }
   html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
+  html.sirsiPogled table.wardTableT td:not(.name){ padding: 6px 3px; }
+  html.sirsiPogled table.wardTableT td:not(.name) .swatch{
+    max-width:100%; white-space:normal; overflow-wrap:break-word; padding:3px 4px;
+  }
+  html.sirsiPogled table.wardTableT th:not(.name){ white-space:normal; overflow-wrap:anywhere; }
 
   /* NZV – dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
      uradni predlogi "Letni dopusti in omejitve za NZV". Manjše pisave, ker
@@ -194,6 +215,7 @@
 <script src="nav.js"></script>
 <script src="imena.js"></script>
 <script src="izmene.js"></script>
+<script src="oddelek-a.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
 <script src="nzv-zasedba.js"></script>
@@ -698,6 +720,18 @@ function MyScheduleView({ userId, month, jeNzv }){
     };
   }, [entries, enotaNaDan, mojNosilec]);
 
+  // Oddelek, na katerem oseba TA DAN dela - surova koda iz vpisa, ne
+  // berljiv zapis kot enotaZaDan (ta zna vrniti tudi "MO/ŽO"). Potrebuje
+  // ga pravilo oddelka A: popoldanske in nočne izmene pokrivajočega
+  // oddelka dobijo oznako "(A)".
+  const oddelekZaDan = useMemo(() => {
+    const m = {};
+    (entries || []).forEach(e => {
+      m[e.work_date] = ((e.pokriva_oddelek || e.department_code) || "").trim();
+    });
+    return m;
+  }, [entries]);
+
   const byDate = useMemo(() => {
     const m = {};
     (entries || []).forEach(e => { m[e.work_date] = e.shift_code; });
@@ -753,9 +787,12 @@ function MyScheduleView({ userId, month, jeNzv }){
     // in v "Po oddelkih".
     const jePrazno = !sifra || prikaz === "" || window.Izmene.jeProst(sifra);
     const barvaDneva = jePrazno ? null : window.Izmene.barva(sifra);
+    // "(A)": ta mesec oseba dela na oddelku, ki pokriva A, in gre za
+    // popoldansko ali nočno izmeno (oddelek-a.js).
+    const oznakaA = jePrazno ? "" : window.OddelekA.oznaka(month, oddelekZaDan[dn.datum], sifra);
     return {
       cls, jePrazno, barvaDneva,
-      besedilo: prikazNaZaslonu(prikaz),
+      besedilo: prikazNaZaslonu(prikaz) + oznakaA,
       isToday: dn.datum === iso,
       isWeekend: dn.dan === "SO" || dn.dan === "NE",
       stDneva: new Date(dn.datum + "T00:00:00").getDate(),
@@ -769,7 +806,7 @@ function MyScheduleView({ userId, month, jeNzv }){
         color: cls === "dez" ? window.Izmene.barvaBesedila(barvaDneva) : undefined,
       },
     };
-  }, [byDate, jeNzv, iso, zdravnikiPoDatumu, enotaZaDan]);
+  }, [byDate, jeNzv, iso, zdravnikiPoDatumu, enotaZaDan, oddelekZaDan, month]);
 
   if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
@@ -963,7 +1000,18 @@ function menjavaPillRazred(status){
   if (status === "zavrnjen" || status === "preklican") return "pill danger";
   return "pill warn"; // vse "caka_*" stopnje
 }
-function MenjaveVMesecu({ month }){
+// Menjave pod oddelčnim razporedom. Vezane so na ODDELEK (uporabnikova
+// zahteva, september 2026): pod razporedom oddelka B stojijo samo menjave
+// oddelka B, pod NZV samo menjave NZV. Prej je bil tu bolnišnični seznam
+// vseh menjav in koordinator oddelka je moral med tujimi vrsticami iskati
+// svoje.
+//
+// Pripadnost se bere iz oddelka OSEBE (profili.department_code) - istega
+// vira, iz katerega WardView sestavi stolpce mreže. Menjava se pokaže,
+// kadar je z oddelka VSAJ ENA od vpletenih oseb: menjava med oddelkoma je
+// tako vidna obema (za oba je sprememba njunega razporeda), izgubi pa se
+// ne nikjer.
+function MenjaveVMesecu({ month, deptCode }){
   const [vrstice, setVrstice] = useState(null);
   const { startISO, endISO } = monthRange(month);
 
@@ -971,24 +1019,37 @@ function MenjaveVMesecu({ month }){
     let cancelled = false;
     setVrstice(null);
     client.from("obrazci")
-      .select("id, status, je_dezurstvo, polja, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
+      .select("id, status, je_dezurstvo, polja, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name, department_code), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name, department_code)")
       .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
       .filter("polja->>datum_a", "gte", startISO).filter("polja->>datum_a", "lte", endISO)
       .order("ustvarjen", { ascending: false })
-      .then(({ data }) => { if (!cancelled) setVrstice(data || []); });
+      .then(({ data }) => {
+        if (cancelled) return;
+        // Filtriranje je na odjemalcu, ker gre za oddelek POVEZANE osebe,
+        // ne za stolpec obrazca - PostgREST tega prek vgnezdenega vira ne
+        // zna filtrirati brez notranjega stika, ki bi drugo stran menjave
+        // odrezal iz izpisa. Vrstic je na mesec kvečjemu nekaj deset.
+        const vse = data || [];
+        setVrstice(!deptCode ? vse : vse.filter(r =>
+          (r.vlagatelj && r.vlagatelj.department_code === deptCode)
+          || (r.sodelavec && r.sodelavec.department_code === deptCode)));
+      });
     return () => { cancelled = true; };
-  }, [startISO, endISO]);
+  }, [startISO, endISO, deptCode]);
 
   const dan = (iso) => window.Datum.slo(iso) || "–";
 
   return (
     <div className="no-print" style={{marginTop:24}}>
-      <h2 className="section">Menjave v tem mesecu</h2>
+      <h2 className="section">Menjave v tem mesecu{deptCode ? " – " + deptCode : ""}</h2>
       <p className="hint" style={{marginTop:0}}>
-        Potrjena menjava je v razporedu zgoraj že upoštevana – izmeni se zamenjata samodejno ob potrditvi koordinatorja.
+        Samo menjave tega oddelka. Potrjena menjava je v razporedu zgoraj že upoštevana – izmeni se zamenjata samodejno
+        ob potrditvi koordinatorja.
       </p>
       {vrstice === null && <p className="sub">Nalagam …</p>}
-      {vrstice !== null && vrstice.length === 0 && <p className="sub">V tem mesecu ni nobene menjave.</p>}
+      {vrstice !== null && vrstice.length === 0 && (
+        <p className="sub">V tem mesecu za ta oddelek ni nobene menjave.</p>
+      )}
       {vrstice !== null && vrstice.length > 0 && (
         <div className="card" style={{padding:0}}>
           {vrstice.map(r => {
@@ -1026,6 +1087,16 @@ function MenjaveVMesecu({ month }){
 // moduli (izmene.js, imena.js), da ostane en sam vir barv, kratic in
 // pravil ujemanja imen za VSE zaslone.
 // ---------------------------------------------------------------------
+// Naziv oddelka za spustni seznam. Nazivi v tabeli "oddelki" se že
+// začnejo s kodo ("B – oddelek", "NZV – vodje in administratorji"), zato
+// se koda ne sme dodajati še enkrat.
+function nazivOddelka(koda, naziv){
+  const k = String(koda || "").trim();
+  const n = String(naziv || "").trim();
+  if (!n) return k;
+  return new RegExp("^" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(n) ? n : k + " – " + n;
+}
+
 const IZMENA_KRATICE = window.Izmene.KRATICE;
 const STANJE_BARVA = window.Izmene.STANJE_BARVA;
 const vnosPoKratici = window.Izmene.poKratici;
@@ -1359,7 +1430,16 @@ function StanjeRazpredelnica({ oddelki }){
       // vsebuje izključno potrjene menjave.
       client.from("menjave_javno").select("vlagatelj_id, sodelavec_id, datum_a, datum_b")
         .or(`and(datum_a.gte.${startISO},datum_a.lte.${endISO}),and(datum_b.gte.${startISO},datum_b.lte.${endISO})`),
-    ]).then(([{ data: profili }, { data: nosilci }, { data: pokrivanja }, { data: vpisi }, { data: odsotnosti }, { data: menjave }]) => {
+      // Dežurstva iz uradnega dokumenta - isti vir kot zavihek Dežurstvo
+      // in kot mreža NZV. Uporabnikova zahteva (september 2026):
+      // dežurstvo naj bo vidno tudi v Razpredelnici pri vodjih in
+      // administratorjih. Dokler razpored dežurstev ni objavljen, je
+      // razpredelnica pri teh ljudeh kazala prazen dan, čeprav so
+      // dežurni. Objavljen razpored ostane merodajen.
+      client.from("dezurni_zdravniki").select("work_date, kind, full_name")
+        .eq("kind", "sestra").gte("work_date", startISO).lte("work_date", endISO)
+        .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
+    ]).then(([{ data: profili }, { data: nosilci }, { data: pokrivanja }, { data: vpisi }, { data: odsotnosti }, { data: menjave }, { data: dezUradni }]) => {
       if (cancelled) return;
       const seznam = profili || [];
       setOsebe(seznam);
@@ -1417,6 +1497,8 @@ function StanjeRazpredelnica({ oddelki }){
           kratica: izmenaKratica(v.shift_code),
           barva: izmenaBarva(v.shift_code),
           sifra: v.shift_code,
+          // Kje oseba ta dan dela - za pravilo oddelka A (oddelek-a.js).
+          oddelek: ((v.pokriva_oddelek || v.department_code) || "").trim(),
         };
       });
       // Odsotnosti se vpisujejo po IMENU (odsotnosti nima employee_id),
@@ -1547,6 +1629,29 @@ function StanjeRazpredelnica({ oddelki }){
         });
       }
 
+      // ---- Dežurstvo iz uradnega dokumenta (zavihek Dežurstvo) ---------
+      // Zapolni dneve, za katere razpored dežurstva še ni objavljen. Stoji
+      // PRED izpeljano stalno zasedbo, da dežurstvo prevlada nad privzetim
+      // "DOP na svoji enoti" - dežurni vodja je tisti dan v prvi vrsti
+      // dežuren. Objavljen vnos in odsotnost (zgoraj) pa ostaneta
+      // merodajna. Celica je označena kot izpeljana (bledeje, ležeče),
+      // ker vir ni objavljen razpored.
+      (dezUradni || []).forEach(d => {
+        if (!d.full_name) return;
+        const oseba = seznam.find(p => imenaSeUjemataBrezStresic(p.full_name, d.full_name));
+        if (!oseba || !JE_NZV_VLOGA.has(oseba.role)) return;
+        const kljuc = oseba.id + "|" + d.work_date;
+        if (m2[kljuc]) return;
+        m2[kljuc] = {
+          stanje: "dezurstvo",
+          kratica: izmenaKratica("DEŽURSTVO"),
+          barva: izmenaBarva("DEŽURSTVO"),
+          sifra: "DEŽURSTVO",
+          oddelek: "DEZ",
+          izpeljano: true,
+        };
+      });
+
       Object.keys(zapisNosilca).forEach(id => {
         // Katere dneve dopolniti in s čim, pove skupni modul - pravilo
         // (delovni dan, daljša odsotnost, prednost objavljenega vnosa) je
@@ -1628,7 +1733,13 @@ function StanjeRazpredelnica({ oddelki }){
           <label htmlFor="stanjeOddelek">Oddelek</label>
           <select id="stanjeOddelek" value={oddelek} onChange={e => setOddelek(e.target.value)}>
             <option value="">Vsi oddelki</option>
-            {(oddelki || []).map(o => <option key={o.code} value={o.code}>{o.code} – {o.name}</option>)}
+            {/* Naziv oddelka v bazi se že začne s kodo ("B – oddelek"),
+                zato je bila koda tu izpisana dvakrat: "B – B – oddelek"
+                (uporabnikova pripomba). Kadar naziv kode še ne vsebuje,
+                se doda - da nov oddelek ne ostane brez oznake. */}
+            {(oddelki || []).map(o => (
+              <option key={o.code} value={o.code}>{nazivOddelka(o.code, o.name)}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -1672,6 +1783,13 @@ function StanjeRazpredelnica({ oddelki }){
               );
             })}
             <div style={{fontSize:11, color:"var(--muted)", paddingTop:8, borderTop:"1px solid var(--line)"}}>
+              Oznaka <b>(A)</b> za popoldansko ali nočno izmeno pomeni, da ta izmena pokriva tudi <b>oddelek A</b>.
+              A ima svoj dopoldanski kader, popoldne in ponoči pa ga izmenično pokrivata <b>B</b> in <b>E1</b> – cel
+              mesec vsak (september 2026 B, oktober 2026 E1 in tako naprej). Oznako doda aplikacija sama iz meseca in
+              izmene; v razpored je ni treba vpisovati.{" "}
+              Oznaka <b>(M)</b> za izmeno (npr. <i>Dopoldne (M)</i>, <i>Popoldne (M)</i>, <i>Dnevna 12 (M)</i>) pomeni, da je
+              ta oseba tisto izmeno <b>mentor pripravniku</b> na oddelku – ko je pripravnik v razporedu, ima izmeno največ
+              en mentor. Izmena sama ostane ista (isti čas, iste ure, ista barva), oznaka pove le, kdo je mentor.{" "}
               Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
               v tej legendi – postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
               izmena zamenjana s potrjeno menjavo. <b>Bledeje in ležeče</b> zapisana kratica ni objavljen vnos, ampak
@@ -1741,8 +1859,17 @@ function StanjeRazpredelnica({ oddelki }){
                     // STI) ostanejo, ker nosijo podatek, enota pa je nad
                     // njimi.
                     const samoEnota = !!(zapis && zapis.enota && kratica === "DOP");
-                    const opis = vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
-                      : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
+                    // "(M)" = mentor pripravniku tisto izmeno. Izmena je ista
+                    // (kratica in barva se ne spremenita), zato je oznaka
+                    // pripeta h kratici in ne nova koda.
+                    const mentor = !!(zapis && window.Izmene.jeMentor(zapis.sifra));
+                    // "(A)": popoldanska/nočna izmena oddelka, ki ta mesec
+                    // pokriva oddelek A.
+                    const oznakaA = zapis ? window.OddelekA.oznaka(mesec, zapis.oddelek, zapis.sifra) : "";
+                    const opis = (vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
+                      : (zapis ? zapis.sifra : "Prosto / ni v razporedu"))
+                      + (mentor ? " · mentor pripravniku" : "")
+                      + (oznakaA ? " · pokriva tudi oddelek A" : "");
                     return (
                       <td key={d.iso}
                         title={`${o.full_name} · ${d.dan}. – ${opis}`
@@ -1768,14 +1895,14 @@ function StanjeRazpredelnica({ oddelki }){
                             spremeni (Arnež gre s C na C1; ob Leličini
                             odsotnosti ima Maglić "E2, E1"), zato je edino
                             tu razvidno, kje kdo v resnici je. */}
-                        {samoEnota ? zapis.enota : (
+                        {samoEnota ? (mentor ? zapis.enota + " (M)" : zapis.enota) + oznakaA : (
                           <React.Fragment>
                             {zapis && zapis.enota && (
                               <span style={{display:"block", fontSize:8, fontWeight:600, opacity:.85, lineHeight:1.1}}>
                                 {zapis.enota}
                               </span>
                             )}
-                            {kratica}
+                            {kratica}{mentor ? " (M)" : ""}{oznakaA}
                           </React.Fragment>
                         )}
                         {zamenjano && (
@@ -1963,7 +2090,7 @@ function WardView({ deptCode, month, myId }){
       if (!k || poKratici.has(k)) return;
       poKratici.set(k, {
         kratica: k,
-        naziv: window.Izmene.naziv(sifra),
+        naziv: window.Izmene.naziv(window.Izmene.brezMentorja(sifra)),
         cas: window.Izmene.cas(sifra),
         barva: window.Izmene.barva(sifra),
       });
@@ -2038,8 +2165,14 @@ function WardView({ deptCode, month, myId }){
                     // sicer široke stolpce, a cel stavek "Letni dopust" bi
                     // jih razbil (uporabnikova odločitev, avgust 2026).
                     const barvaIzmene = window.Izmene.barva(sifra);
+                    // Oznaka "(A)": ta mesec oddelek pokriva A (popoldne in
+                    // ponoči) in to je ena od takih izmen. Izpeljana je iz
+                    // meseca in izmene (oddelek-a.js), ne vpisana v
+                    // razpored - šifra v bazi ostane nespremenjena.
+                    const oznakaA = window.OddelekA.oznaka(month, deptCode, sifra);
                     const opisIzmene = window.Izmene.naziv(sifra)
-                      + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "");
+                      + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "")
+                      + (oznakaA ? " · pokriva tudi oddelek A" : "");
                     const isMe = z.id === myId;
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
@@ -2052,7 +2185,7 @@ function WardView({ deptCode, month, myId }){
                         {sifra && (
                           <span className="swatch" title={opisIzmene}
                             style={{background: barvaIzmene, color: window.Izmene.barvaBesedila(barvaIzmene)}}>
-                            {window.Izmene.nazivZaMrezo(sifra)}
+                            {window.Izmene.nazivZaMrezo(sifra)}{oznakaA}
                           </span>
                         )}
                       </td>
@@ -2081,7 +2214,21 @@ function WardView({ deptCode, month, myId }){
         <span className="li"><span className="dot" style={{background:"var(--ld)"}}></span>Letni dopust (LD)</span>
         <span className="li"><span className="dot" style={{background:"var(--off)"}}></span>KPU / prosto</span>
         {imaNzvStolpec && <span className="li"><span className="dot" style={{background:"var(--accent)"}}></span>NZV – nosilec oddelka ta dan (iz razporeda NZV, z nadomeščanji)</span>}
+        {/* Oddelek A nima svojega popoldanskega in nočnega kadra - pokrivata
+            ga izmenično B in E1 (oddelek-a.js). Na mreži pokrivajočega
+            oddelka to pove oznaka "(A)", na mreži samega A pa opomba, od
+            kod ta mesec pride pokritost. */}
+        {window.OddelekA.pokriva(month) === deptCode && (
+          <span className="li"><b>(A)</b>&nbsp;– ta izmena pokriva tudi oddelek A</span>
+        )}
       </div>
+      {deptCode === window.OddelekA.KODA && (
+        <p className="hint" style={{marginTop:8}}>
+          Oddelek A ima svoj dopoldanski kader; <b>popoldne in ponoči</b> ga ta mesec pokriva oddelek{" "}
+          <b>{window.OddelekA.pokriva(month)}</b> – tam so te izmene označene z <b>(A)</b>. Oddelka se menjata vsak
+          mesec ({window.OddelekA.POKRIVAJO.join(" in ")}).
+        </p>
+      )}
       <RazporedPodpisi entries={entries} />
     </div>
   );
@@ -2159,7 +2306,7 @@ function nzvEnoteVKode(enote, saKoda){
 // LD/IZOB/BS (iz odsotnosti, ujemano po imenu na profili).
 async function nalozizPodatkeNzv(startISO, endISO){
   const kode = [...NZV_ENOTE.map(([k]) => k), "SA", "DEZ"];
-  const [{ data: entries }, { data: dopusti }, { data: profili }, { data: vodje }, { data: nadomescanja }, { data: nastavitveVrstice }] = await Promise.all([
+  const [{ data: entries }, { data: dopusti }, { data: profili }, { data: vodje }, { data: nadomescanja }, { data: nastavitveVrstice }, { data: dezUradni }] = await Promise.all([
     // "profili!employee_id(...)" in NE samo "profili(...)": razpored
     // ima TRI tuje ključe na profili (employee_id, created_by, updated_by -
     // zadnja dva dodana pozneje, sekcija 30 sheme). Ob nedoločenem vgnezdenem
@@ -2195,6 +2342,15 @@ async function nalozizPodatkeNzv(startISO, endISO){
     client.from("nosilci_oddelkov").select("*"),
     client.from("nadomescanja").select("*"),
     client.from("nzv_nastavitve").select("kljuc, vrednost"),
+    // Dežurstva iz URADNEGA dokumenta (isti vir kot zavihek Dežurstvo).
+    // Dokler razpored dežurstev za nek mesec ni objavljen, je bil stolpec
+    // DEŽURSTVO v tej mreži prazen, zavihek Dežurstvo pa je imena imel -
+    // dva pogleda na isto stvar, od katerih je eden molčal (uporabnikova
+    // zahteva, september 2026: "poveži mi iz zavihka dežurstvo").
+    // Objavljen razpored ostane merodajen; to je samo rezerva.
+    client.from("dezurni_zdravniki").select("work_date, kind, full_name")
+      .eq("kind", "sestra").gte("work_date", startISO).lte("work_date", endISO)
+      .then(r => (r.error ? { data: [] } : r), () => ({ data: [] })),
   ]);
   const saNast = saNastavitveIz(nastavitveVrstice);
   const podatki = {};
@@ -2359,6 +2515,19 @@ async function nalozizPodatkeNzv(startISO, endISO){
       });
     });
   }
+  // ---- Dežurstvo iz uradnega dokumenta ---------------------------------
+  // Zapolni samo DNEVE BREZ objavljenega dežurstva. Označi se kot
+  // izpeljano (bledeje, ležeče) - tako je na prvi pogled vidno, da vir ni
+  // objavljen razpored, ampak uradni dokument, ki ga je naložil admin.
+  (dezUradni || []).forEach(d => {
+    const key = "DEZ|" + d.work_date;
+    if (objavljeno.has(key) || podatki[key]) return;
+    const ujem = (profili || []).find(p => imenaSeUjemataNzv(p.full_name, d.full_name));
+    if (!ujem || !JE_NZV_VLOGA.has(ujem.role)) return;
+    podatki[key] = parafaOd(ujem, d.work_date);
+    izpeljano[key] = true;
+  });
+
   const preglednica = odstopanjaNzv({
     podatki, poPravilu, dopustno, odsotniPoDnevih, nosilci, startISO, endISO,
     profilZaIme: ime => (profili || []).find(p => imenaSeUjemataNzv(p.full_name, ime)),
@@ -2936,10 +3105,14 @@ function NzvView({ month, profile }){
 }
 
 
-// "Po oddelkih" je na izrecno navodilo omejen na 6 SMS/TZN oddelkov + FLEXI
+// "Po oddelkih" je na izrecno navodilo omejen na SMS/TZN oddelke + FLEXI
 // + en virtualen "NZV" (vodje/admin, dežurstva vključena) - ostali oddelki
 // (DEZ, NEDEZ, PDZN, SOBO ...) tu niso na voljo, ne glede na vlogo.
-const PO_ODDELKIH_KODE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI"];
+//
+// "A" je dodan septembra 2026 (uporabnikova zahteva). Ima svoj DOPOLDANSKI
+// kader, popoldne in ponoči pa ga izmenično pokrivata B in E1 - pravilo je
+// v oddelek-a.js, tu je A navaden oddelek s svojim razporedom.
+const PO_ODDELKIH_KODE = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 
 // Uvoz razporeda živi samo tu (ena sama, testirana pot za VSE skupine -
 // 6 oddelkov + FLEXI + NZV), zavihek "Oddelki" v admin.html pa nanj
@@ -4516,7 +4689,12 @@ function App(){
       // zaslon - pri 1440px je bilo prej vidnih ~6 dni, levo in desno pa
       // prazen prostor. Na telefonu ostane vse nespremenjeno.
       + (view === "my" ? " mesecStolpci" : "")
-      + (view === "ward" ? " wide polna" : "")
+      // Oddelčni razpored uporabi VSO širino zaslona (ne 1240/1400 px):
+      // stolpcev je toliko, kolikor ima oddelek zaposlenih, in pri 1240 px
+      // je celica merila 56 px - "Popoldne do 19" se je lomilo v tri
+      // vrstice, del pa se je prelil čez sosednjo celico. Cel oddelčni
+      // razpored mora biti na eni strani (uporabnikova zahteva).
+      + (view === "ward" ? " wide polna cezZaslon" : "")
       // Razpredelnica dobi VSO širino zaslona (ne le 1400 px kot oddelčni
       // razpored): 31 dni × osebe se drugače ne izriše na en zaslon.
       + (view === "stanje" ? " wide polna cezZaslon" : "")}>
@@ -4629,10 +4807,10 @@ function App(){
       {view==="dez" && <DezurstvoPregled key={"dez" + reloadKey} month={month} myId={session.user.id} />}
       {/* Menjave se izpišejo POD mesečnim razporedom in samo adminu
           (uporabnikova izrecna zahteva) - navadni zaposleni jih vidi na
-          strani "Menjava". Ni vezano na izbrani oddelek: menjava lahko
-          poteka tudi med osebama z različnih oddelkov. */}
+          strani "Menjava". Vezane so na IZBRANI oddelek: vsak oddelek
+          (B, C … NZV) vidi pod svojim razporedom samo svoje menjave. */}
       {view==="ward" && wardCode && profile && profile.role === "admin" && (
-        <MenjaveVMesecu key={"menjave" + reloadKey} month={month} />
+        <MenjaveVMesecu key={"menjave" + reloadKey + wardCode} month={month} deptCode={wardCode} />
       )}
 
       <Uvod myId={session.user.id} deferredPrompt={deferredPrompt} naNamesti={install} />

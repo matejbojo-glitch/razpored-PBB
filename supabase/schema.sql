@@ -452,7 +452,7 @@ create table if not exists public.zelje_zaposlenih (
     -- zelje_zaposlenih prinesel oba, stari (VODJE, brez FLEXI/NZV) in novega.
     -- Ker se CHECK omejitve sestevajo z AND, je stari zavracal prav vrstice
     -- oddelkov FLEXI in NZV. Nabor sledi seedu tabele oddelki.
-    CONSTRAINT zelje_zaposlenih_department_code_check CHECK ((department_code = ANY (ARRAY['B'::text, 'C'::text, 'C1'::text, 'D'::text, 'E1'::text, 'E2'::text, 'FLEXI'::text, 'NZV'::text])))
+    CONSTRAINT zelje_zaposlenih_department_code_check CHECK ((department_code = ANY (ARRAY['A'::text, 'B'::text, 'C'::text, 'C1'::text, 'D'::text, 'E1'::text, 'E2'::text, 'FLEXI'::text, 'NZV'::text])))
 );
 
 
@@ -1026,7 +1026,7 @@ do $$ begin
       drop constraint if exists zelje_zaposlenih_department_code_check;
     alter table public.zelje_zaposlenih
       add constraint zelje_zaposlenih_department_code_check
-      check (department_code = any (array['B'::text, 'C'::text, 'C1'::text,
+      check (department_code = any (array['A'::text, 'B'::text, 'C'::text, 'C1'::text,
         'D'::text, 'E1'::text, 'E2'::text, 'FLEXI'::text, 'NZV'::text]));
   end if;
 end $$;
@@ -4322,3 +4322,26 @@ join public.profili p on public.imena_se_ujemata(p.full_name, v.full_name)
 on conflict (employee_id, work_date) do update set
   department_code = excluded.department_code, shift_code = excluded.shift_code, updated_at = now();
 
+
+-- ---------------------------------------------------------------------
+-- 34) Oddelek A (september 2026)
+-- ---------------------------------------------------------------------
+-- Uporabnikova zahteva: A postane polnopraven oddelek povsod, kjer se
+-- oddelki razporejajo (spustni seznami, Imenik, Želje, uvoz, generator).
+--
+-- V TEJ DATOTEKI ni novega vpisa: koda 'A' je v tabeli oddelki že od
+-- prej (razdelek 9, med enotami nosilcev NZV) in ima ustrezen naziv
+-- "A – oddelek". Spremenjena je le omejitev na zelje_zaposlenih
+-- (department_code), ki 'A' prej ni dovoljevala - brez tega zaposleni z
+-- oddelka A ne bi mogel oddati želja.
+--
+-- Posebnost oddelka A: ima svoj DOPOLDANSKI kader, popoldne in ponoči pa
+-- ga izmenično pokrivata oddelka B in E1 - en cel mesec vsak, z
+-- izhodiščem september 2026 = B, oktober 2026 = E1. Tega pravila NI v
+-- bazi: gre za prikaz (te izmene dobijo oznako "(A)"), zapisan na enem
+-- mestu v oddelek-a.js. V razpored se ne vpisuje nič dodatnega, zato so
+-- šifre izmen in obračun ur nespremenjeni.
+--
+-- Zaposlene oddelka A (npr. Vrevc Maja) in nosilca NZV zanj
+-- (Tomaževič Simona, enota "A") administrator nastavi v Imeniku oz. v
+-- Nadomeščanjih - to so podatki, ne shema.
