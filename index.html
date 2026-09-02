@@ -247,12 +247,11 @@ function datumSlo(iso){ return window.Datum.slo(iso); }
 // Tratnik") + presledek + prva črka IMENA (zadnja beseda) + piko. full_name
 // je v aplikaciji dosledno shranjen kot "Priimek Ime" (glej npr.
 // DEZURNI_OSNOVA_DO_31_8_2026 v admin.html).
+// Pravilo živi v imena.js (skupni modul); tu ostane samo velika pisava,
+// ki jo ima GLAVA stolpca ("DŽINIĆ A."). Celice iste mreže isto ime
+// izpišejo v navadni pisavi, zato se pravilo ne sme podvajati.
 function priimekZacetnica(fullName){
-  const deli = (fullName || "").trim().split(/\s+/);
-  if (deli.length < 2) return (fullName || "").toUpperCase();
-  const ime = deli[deli.length - 1];
-  const priimek = deli.slice(0, -1).join(" ");
-  return `${priimek} ${ime[0]}.`.toUpperCase();
+  return window.Imena.priimekZacetnica(fullName).toUpperCase();
 }
 
 // Parafa za NZV celice (po vzoru "Letni dopusti in omejitve za NZV" -
@@ -2277,7 +2276,7 @@ function WardView({ deptCode, month, myId }){
                                 title={o.ime + " – " + window.Izmene.naziv(o.sifra)
                                   + (window.Izmene.cas(o.sifra) ? " · " + window.Izmene.cas(o.sifra) : "")
                                   + " (oddelek " + virA + ", pokriva A)"}>
-                                {window.Imena.kratkoIme(o.ime)}
+                                {window.Imena.priimekZacetnica(o.ime)}
                               </span>
                             ))}
                       </td>
@@ -2287,7 +2286,7 @@ function WardView({ deptCode, month, myId }){
                     <td className="cell nzvStolpec">
                       {(nzvPoDnevih[dn.datum] || []).map(ime => (
                         <span key={ime} className="nzvNosilec" title={ime + " – nosilec oddelka " + deptCode + " ta dan (razpored NZV)"}>
-                          {window.Imena.kratkoIme(ime)}
+                          {window.Imena.priimekZacetnica(ime)}
                         </span>
                       ))}
                     </td>
