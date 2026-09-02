@@ -90,7 +90,12 @@ export const RAZLOGI_IZJEME = {
 // Razpored se uvaža iz Google Sheets, kjer isto izmeno kdo zapiše
 // "DNEVNA12F", kdo "DNEVNA 12 F" in kdo z malimi črkami. Iskanje zato
 // teče po ključu brez presledkov in v malih črkah.
-export function kljuc(s) { return (s || "").toLowerCase().replace(/\s+/g, ""); }
+// "(M)" na koncu kode = mentor pripravniku tisto izmeno (npr.
+// "dopoldan (M)"). Ni svoja izmena - ure, trajanje in pravila počitka so
+// od osnovne izmene, zato se pripona pri iskanju ključa odreže. Brez
+// tega je "dopoldan (M)" neznana koda: 0 ur v obračunu plač in izmena,
+// ki je pravilo počitka po nočni sploh ne vidi.
+export function kljuc(s) { return (s || "").toLowerCase().replace(/\(\s*m\s*\)\s*$/, "").replace(/\s+/g, ""); }
 
 const INDEKS = {};
 Object.keys(IZMENE).forEach((k) => { INDEKS[kljuc(k)] = k; });

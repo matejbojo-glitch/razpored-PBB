@@ -100,6 +100,15 @@
        sosednje celice. Raje se prelomijo v dve vrstici znotraj SVOJEGA
        stolpca. */
     table.wardTableT td:not(.name){ white-space:normal; }
+    /* Naziv izmene je v obarvani znački (.swatch, inline-block): brez tega
+       se dolga beseda ("Popoldne") ne prelomi in značka se pri fiksni
+       postavitvi prelije čez sosednji stolpec, stran pa dobi vodoravno
+       drsenje, ki ga tabela sama nima. */
+    table.wardTableT td:not(.name) .swatch{ max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+    /* Isto velja za glavo: priimek v stolpcu ("Zupančič A.") je pri ožjem
+       namizju širši od stolpca in je edini še silil stran v vodoravno
+       drsenje. */
+    table.wardTableT th:not(.name){ white-space:normal; overflow-wrap:anywhere; }
   }
   @media (min-width:900px){
   }
@@ -140,6 +149,8 @@
   html.sirsiPogled table.wardTableT th.name, html.sirsiPogled table.wardTableT td.name{ width:88px; }
   html.sirsiPogled table.wardTableT th:not(.name), html.sirsiPogled table.wardTableT td:not(.name){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableT td:not(.name){ white-space:normal; }
+  html.sirsiPogled table.wardTableT td:not(.name) .swatch{ max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+  html.sirsiPogled table.wardTableT th:not(.name){ white-space:normal; overflow-wrap:anywhere; }
 
   /* NZV – dnevi v vrsticah, organizacijske ENOTE v stolpcih (ne osebe), po
      uradni predlogi "Letni dopusti in omejitve za NZV". Manjše pisave, ker
@@ -963,7 +974,18 @@ function menjavaPillRazred(status){
   if (status === "zavrnjen" || status === "preklican") return "pill danger";
   return "pill warn"; // vse "caka_*" stopnje
 }
-function MenjaveVMesecu({ month }){
+// Menjave pod oddelčnim razporedom. Vezane so na ODDELEK (uporabnikova
+// zahteva, september 2026): pod razporedom oddelka B stojijo samo menjave
+// oddelka B, pod NZV samo menjave NZV. Prej je bil tu bolnišnični seznam
+// vseh menjav in koordinator oddelka je moral med tujimi vrsticami iskati
+// svoje.
+//
+// Pripadnost se bere iz oddelka OSEBE (profili.department_code) - istega
+// vira, iz katerega WardView sestavi stolpce mreže. Menjava se pokaže,
+// kadar je z oddelka VSAJ ENA od vpletenih oseb: menjava med oddelkoma je
+// tako vidna obema (za oba je sprememba njunega razporeda), izgubi pa se
+// ne nikjer.
+function MenjaveVMesecu({ month, deptCode }){
   const [vrstice, setVrstice] = useState(null);
   const { startISO, endISO } = monthRange(month);
 
@@ -971,24 +993,37 @@ function MenjaveVMesecu({ month }){
     let cancelled = false;
     setVrstice(null);
     client.from("obrazci")
-      .select("id, status, je_dezurstvo, polja, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)")
+      .select("id, status, je_dezurstvo, polja, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name, department_code), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name, department_code)")
       .eq("vrsta", "menjava_sluzbe").neq("status", "osnutek")
       .filter("polja->>datum_a", "gte", startISO).filter("polja->>datum_a", "lte", endISO)
       .order("ustvarjen", { ascending: false })
-      .then(({ data }) => { if (!cancelled) setVrstice(data || []); });
+      .then(({ data }) => {
+        if (cancelled) return;
+        // Filtriranje je na odjemalcu, ker gre za oddelek POVEZANE osebe,
+        // ne za stolpec obrazca - PostgREST tega prek vgnezdenega vira ne
+        // zna filtrirati brez notranjega stika, ki bi drugo stran menjave
+        // odrezal iz izpisa. Vrstic je na mesec kvečjemu nekaj deset.
+        const vse = data || [];
+        setVrstice(!deptCode ? vse : vse.filter(r =>
+          (r.vlagatelj && r.vlagatelj.department_code === deptCode)
+          || (r.sodelavec && r.sodelavec.department_code === deptCode)));
+      });
     return () => { cancelled = true; };
-  }, [startISO, endISO]);
+  }, [startISO, endISO, deptCode]);
 
   const dan = (iso) => window.Datum.slo(iso) || "–";
 
   return (
     <div className="no-print" style={{marginTop:24}}>
-      <h2 className="section">Menjave v tem mesecu</h2>
+      <h2 className="section">Menjave v tem mesecu{deptCode ? " – " + deptCode : ""}</h2>
       <p className="hint" style={{marginTop:0}}>
-        Potrjena menjava je v razporedu zgoraj že upoštevana – izmeni se zamenjata samodejno ob potrditvi koordinatorja.
+        Samo menjave tega oddelka. Potrjena menjava je v razporedu zgoraj že upoštevana – izmeni se zamenjata samodejno
+        ob potrditvi koordinatorja.
       </p>
       {vrstice === null && <p className="sub">Nalagam …</p>}
-      {vrstice !== null && vrstice.length === 0 && <p className="sub">V tem mesecu ni nobene menjave.</p>}
+      {vrstice !== null && vrstice.length === 0 && (
+        <p className="sub">V tem mesecu za ta oddelek ni nobene menjave.</p>
+      )}
       {vrstice !== null && vrstice.length > 0 && (
         <div className="card" style={{padding:0}}>
           {vrstice.map(r => {
@@ -1672,6 +1707,9 @@ function StanjeRazpredelnica({ oddelki }){
               );
             })}
             <div style={{fontSize:11, color:"var(--muted)", paddingTop:8, borderTop:"1px solid var(--line)"}}>
+              Oznaka <b>(M)</b> za izmeno (npr. <i>Dopoldne (M)</i>, <i>Popoldne (M)</i>, <i>Dnevna 12 (M)</i>) pomeni, da je
+              ta oseba tisto izmeno <b>mentor pripravniku</b> na oddelku – ko je pripravnik v razporedu, ima izmeno največ
+              en mentor. Izmena sama ostane ista (isti čas, iste ure, ista barva), oznaka pove le, kdo je mentor.{" "}
               Prazna celica = prost dan oz. oseba ta dan ni v razporedu. <b>Siva</b> celica pomeni kodo izmene, ki je ni
               v tej legendi – postavi kazalec nanjo za izvirni zapis. Kotna oznaka <b>↔</b> pomeni, da je bila
               izmena zamenjana s potrjeno menjavo. <b>Bledeje in ležeče</b> zapisana kratica ni objavljen vnos, ampak
@@ -1741,8 +1779,13 @@ function StanjeRazpredelnica({ oddelki }){
                     // STI) ostanejo, ker nosijo podatek, enota pa je nad
                     // njimi.
                     const samoEnota = !!(zapis && zapis.enota && kratica === "DOP");
-                    const opis = vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
-                      : (zapis ? zapis.sifra : "Prosto / ni v razporedu");
+                    // "(M)" = mentor pripravniku tisto izmeno. Izmena je ista
+                    // (kratica in barva se ne spremenita), zato je oznaka
+                    // pripeta h kratici in ne nova koda.
+                    const mentor = !!(zapis && window.Izmene.jeMentor(zapis.sifra));
+                    const opis = (vnos ? vnos[2] + (vnos[3] ? " · " + vnos[3] : "")
+                      : (zapis ? zapis.sifra : "Prosto / ni v razporedu"))
+                      + (mentor ? " · mentor pripravniku" : "");
                     return (
                       <td key={d.iso}
                         title={`${o.full_name} · ${d.dan}. – ${opis}`
@@ -1768,14 +1811,14 @@ function StanjeRazpredelnica({ oddelki }){
                             spremeni (Arnež gre s C na C1; ob Leličini
                             odsotnosti ima Maglić "E2, E1"), zato je edino
                             tu razvidno, kje kdo v resnici je. */}
-                        {samoEnota ? zapis.enota : (
+                        {samoEnota ? (mentor ? zapis.enota + " (M)" : zapis.enota) : (
                           <React.Fragment>
                             {zapis && zapis.enota && (
                               <span style={{display:"block", fontSize:8, fontWeight:600, opacity:.85, lineHeight:1.1}}>
                                 {zapis.enota}
                               </span>
                             )}
-                            {kratica}
+                            {kratica}{mentor ? " (M)" : ""}
                           </React.Fragment>
                         )}
                         {zamenjano && (
@@ -1963,7 +2006,7 @@ function WardView({ deptCode, month, myId }){
       if (!k || poKratici.has(k)) return;
       poKratici.set(k, {
         kratica: k,
-        naziv: window.Izmene.naziv(sifra),
+        naziv: window.Izmene.naziv(window.Izmene.brezMentorja(sifra)),
         cas: window.Izmene.cas(sifra),
         barva: window.Izmene.barva(sifra),
       });
@@ -4516,7 +4559,12 @@ function App(){
       // zaslon - pri 1440px je bilo prej vidnih ~6 dni, levo in desno pa
       // prazen prostor. Na telefonu ostane vse nespremenjeno.
       + (view === "my" ? " mesecStolpci" : "")
-      + (view === "ward" ? " wide polna" : "")
+      // Oddelčni razpored uporabi VSO širino zaslona (ne 1240/1400 px):
+      // stolpcev je toliko, kolikor ima oddelek zaposlenih, in pri 1240 px
+      // je celica merila 56 px - "Popoldne do 19" se je lomilo v tri
+      // vrstice, del pa se je prelil čez sosednjo celico. Cel oddelčni
+      // razpored mora biti na eni strani (uporabnikova zahteva).
+      + (view === "ward" ? " wide polna cezZaslon" : "")
       // Razpredelnica dobi VSO širino zaslona (ne le 1400 px kot oddelčni
       // razpored): 31 dni × osebe se drugače ne izriše na en zaslon.
       + (view === "stanje" ? " wide polna cezZaslon" : "")}>
@@ -4629,10 +4677,10 @@ function App(){
       {view==="dez" && <DezurstvoPregled key={"dez" + reloadKey} month={month} myId={session.user.id} />}
       {/* Menjave se izpišejo POD mesečnim razporedom in samo adminu
           (uporabnikova izrecna zahteva) - navadni zaposleni jih vidi na
-          strani "Menjava". Ni vezano na izbrani oddelek: menjava lahko
-          poteka tudi med osebama z različnih oddelkov. */}
+          strani "Menjava". Vezane so na IZBRANI oddelek: vsak oddelek
+          (B, C … NZV) vidi pod svojim razporedom samo svoje menjave. */}
       {view==="ward" && wardCode && profile && profile.role === "admin" && (
-        <MenjaveVMesecu key={"menjave" + reloadKey} month={month} />
+        <MenjaveVMesecu key={"menjave" + reloadKey + wardCode} month={month} deptCode={wardCode} />
       )}
 
       <Uvod myId={session.user.id} deferredPrompt={deferredPrompt} naNamesti={install} />

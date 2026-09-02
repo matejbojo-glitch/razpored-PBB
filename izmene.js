@@ -115,6 +115,17 @@ window.Izmene = (function () {
     return null;
   }
 
+  // "(M)" na koncu kode izmene = ta oseba je TISTO IZMENO mentor
+  // pripravniku na oddelku (npr. "dopoldan (M)", "DNEVNA12 (M)"). Zapis
+  // prihaja iz uradnih preglednic in NI svoja izmena: ure, barva, kratica
+  // in pravila počitka ostanejo od osnovne izmene, doda se le oznaka.
+  // Zato ga vnos() zaradi ^-zasidranih vzorcev spregleda že sam, tu pa je
+  // en sam vir za PRIKAZ oznake in za odstranitev pripone.
+  var RE_MENTOR = /\(\s*m\s*\)\s*$/i;
+  function jeMentor(sifra) { return RE_MENTOR.test(String(sifra || "").trim()); }
+  function brezMentorja(sifra) { return String(sifra || "").trim().replace(RE_MENTOR, "").trim(); }
+  function oznakaMentor(sifra) { return jeMentor(sifra) ? " (M)" : ""; }
+
   // "prost" v predlogi = prost dan, isto kot prazna celica.
   function jeProst(sifra) {
     var t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
@@ -135,7 +146,9 @@ window.Izmene = (function () {
   // za legendo pod tabelo.
   function naziv(sifra) {
     var v = vnos(sifra);
-    return v ? v[2] : String(sifra || "").trim();
+    // Neznana koda se izpiše taka, kot je - "(M)" je v njej že vsebovan,
+    // zato se oznaka doda samo pri prepoznanih izmenah (sicer podvojena).
+    return v ? v[2] + oznakaMentor(sifra) : String(sifra || "").trim();
   }
 
   // Naziv za GOSTO MREŽO (dnevi x osebe): Razpredelnica, Kalup, "Po
@@ -151,7 +164,7 @@ window.Izmene = (function () {
   function nazivZaMrezo(sifra) {
     var v = vnos(sifra);
     if (!v) return naziv(sifra);
-    return (v[5] === "delo" || v[5] === "dezurstvo") ? v[2] : v[1];
+    return ((v[5] === "delo" || v[5] === "dezurstvo") ? v[2] : v[1]) + oznakaMentor(sifra);
   }
 
   // Delovni čas izmene ("PON-PET 13:50-19:00"), če je znan.
@@ -234,6 +247,8 @@ window.Izmene = (function () {
     vnos: vnos,
     poKratici: poKratici,
     jeProst: jeProst,
+    jeMentor: jeMentor,
+    brezMentorja: brezMentorja,
     kratica: kratica,
     naziv: naziv,
     nazivZaMrezo: nazivZaMrezo,
