@@ -48,6 +48,9 @@ function eq(a, b, opis) {
 
 const sandbox = { console }; sandbox.window = sandbox; vm.createContext(sandbox);
 vm.runInContext(readFileSync(join(koren, "izmene.js"), "utf8"), sandbox);
+// oddelek-a.js vpraša prazniki.js, kateri dan je dela prost (dnevna
+// 12-urna izmena pokriva A samo ob sobotah, nedeljah in praznikih).
+vm.runInContext(readFileSync(join(koren, "prazniki.js"), "utf8"), sandbox);
 vm.runInContext(readFileSync(join(koren, "oddelek-a.js"), "utf8"), sandbox);
 const I = sandbox.window.Izmene, A = sandbox.window.OddelekA;
 
@@ -85,31 +88,51 @@ console.log("2) oddelek-a.js: kdo pokriva A in kdaj");
   eq(A.pokriva("2026-08"), "E1", "pravilo velja tudi za nazaj (avgust 2026 = E1)");
   eq(A.pokriva(""), null, "brez meseca ni odgovora");
 
-  console.log("   katere izmene pokrivajo A (popoldanske in nočne):");
+  // 4. 9. 2026 je petek, 5. in 6. 9. sta sobota in nedelja, 31. 10. 2026
+  // je dan reformacije (dela prost).
+  const PETEK = "2026-09-04", SOBOTA = "2026-09-05", NEDELJA = "2026-09-06", PRAZNIK = "2026-10-31";
+  console.log("   popoldanske in nočne izmene pokrivajo A vsak dan:");
   ["Popoldne", "Popoldne do 19", "popoldan do 20", "Nočna", "Nočna 11", "Nočna 12"]
-    .forEach(s => trdi(A.jePokrivnaIzmena(s), s + " pokriva A"));
-  ["Dopoldne", "Dnevna 12", "DNEVNA12 (7-19)", "DEŽURSTVO", "LD", "KPU", ""]
-    .forEach(s => trdi(!A.jePokrivnaIzmena(s), JSON.stringify(s) + " ne pokriva A"));
+    .forEach(s => trdi(A.jePokrivnaIzmena(s, PETEK), s + " pokriva A tudi med tednom"));
+  ["Dopoldne", "DEŽURSTVO", "LD", "KPU", ""]
+    .forEach(s => trdi(!A.jePokrivnaIzmena(s, SOBOTA), JSON.stringify(s) + " ne pokriva A"));
+
+  console.log("   dnevna 12-urna pokriva A SAMO ob sobotah, nedeljah in praznikih:");
+  ["Dnevna 12", "DNEVNA12 (7-19)"].forEach(s => {
+    trdi(!A.jePokrivnaIzmena(s, PETEK), s + " med tednom NE pokriva A (A ima svoj dopoldanski kader)");
+    trdi(A.jePokrivnaIzmena(s, SOBOTA), s + " v soboto pokriva A");
+    trdi(A.jePokrivnaIzmena(s, NEDELJA), s + " v nedeljo prav tako");
+    trdi(A.jePokrivnaIzmena(s, PRAZNIK), s + " in na dela prost praznik");
+  });
+  eq(A.vrstaPokrivanja("Popoldne", PETEK), "popoldne", "vrsta pokrivanja: popoldne");
+  eq(A.vrstaPokrivanja("Nočna 12", PETEK), "nocna", "vrsta pokrivanja: nočna");
+  eq(A.vrstaPokrivanja("Dnevna 12", SOBOTA), "dnevna", "vrsta pokrivanja: dnevna");
+  eq(A.vrstaPokrivanja("Dnevna 12", PETEK), null, "med tednom dnevna ni pokrivanje");
+  // Brez datuma se dnevna NE sme šteti - raje manjkajoča oznaka kot napačna.
+  eq(A.vrstaPokrivanja("Dnevna 12"), null, "brez datuma se dnevna ne šteje");
 
   // Varovalka pred razhajanjem z legendo: če se v izmene.js doda nova
-  // popoldanska ali nočna izmena, mora biti tudi tu - sicer bi tiho
-  // manjkala in oseba ne bi dobila oznake.
-  // Uradne kratice so poimenovane po delu dneva: PO* = popoldne (PO4-PO7),
-  // N* = nočna (N10-N12), DO*/DOP = dopoldne, D12/DF12 = dnevna 12-urna.
-  // Vse PO* in N* morajo biti tu - in nič drugega.
+  // izmena, mora biti tudi tu - sicer bi tiho manjkala in oseba ne bi
+  // dobila oznake. Uradne kratice so poimenovane po delu dneva:
+  // PO* = popoldne, N* = nočna, D12/DF12 = dnevna 12-urna, DO*/DOP =
+  // dopoldne (te A ne pokrivajo).
+  const vseNastete = A.VRSTE.reduce((a, v) => a.concat(v[2]), []).sort();
   const izLegende = I.KRATICE.map(v => v[1])
-    .filter(k => /^PO\d/.test(k) || /^N\d/.test(k)).sort();
-  eq(A.POKRIVNE_KRATICE.slice().sort(), izLegende,
-    "seznam pokrivnih kratic zajame vse popoldanske in nočne izmene iz legende");
+    .filter(k => /^PO\d/.test(k) || /^N\d/.test(k) || k === "D12" || k === "DF12").sort();
+  eq(vseNastete, izLegende,
+    "seznami kratic zajamejo vse popoldanske, nočne in dnevne 12-urne izmene iz legende");
+  eq(A.VRSTE.map(v => v[0]), ["dnevna", "popoldne", "nocna"], "tri vrste pokrivanja, v tem vrstnem redu");
 
   console.log("   oznaka se pripne samo pravemu oddelku, mesecu in izmeni:");
-  eq(A.oznaka("2026-09", "B", "Popoldne"), " (A)", "september, B, popoldne");
-  eq(A.oznaka("2026-09", "B", "Nočna 12"), " (A)", "september, B, nočna");
-  eq(A.oznaka("2026-09", "E1", "Popoldne"), "", "september, E1 – ta mesec ne pokriva");
-  eq(A.oznaka("2026-10", "E1", "Popoldne"), " (A)", "oktober, E1 – zdaj pa da");
-  eq(A.oznaka("2026-09", "B", "Dopoldne"), "", "dopoldanska izmena je nikoli ne dobi");
-  eq(A.oznaka("2026-09", "C1", "Popoldne"), "", "drug oddelek je ne dobi");
-  eq(A.oznaka("2026-09", "b", "Popoldne"), " (A)", "koda oddelka ni občutljiva na velikost črk");
+  eq(A.oznaka("2026-09", "B", "Popoldne", PETEK), " (A)", "september, B, popoldne");
+  eq(A.oznaka("2026-09", "B", "Nočna 12", PETEK), " (A)", "september, B, nočna");
+  eq(A.oznaka("2026-09", "B", "Dnevna 12", SOBOTA), " (A)", "september, B, sobotna dnevna");
+  eq(A.oznaka("2026-09", "B", "Dnevna 12", PETEK), "", "med tednom pa dnevna ne");
+  eq(A.oznaka("2026-09", "E1", "Popoldne", PETEK), "", "september, E1 – ta mesec ne pokriva");
+  eq(A.oznaka("2026-10", "E1", "Popoldne", PETEK), " (A)", "oktober, E1 – zdaj pa da");
+  eq(A.oznaka("2026-09", "B", "Dopoldne", PETEK), "", "dopoldanska izmena je nikoli ne dobi");
+  eq(A.oznaka("2026-09", "C1", "Popoldne", PETEK), "", "drug oddelek je ne dobi");
+  eq(A.oznaka("2026-09", "b", "Popoldne", PETEK), " (A)", "koda oddelka ni občutljiva na velikost črk");
 }
 
 console.log("3) A je dodan povsod, kjer se naštevajo oddelki");
@@ -160,12 +183,28 @@ const MESEC = zdaj.getFullYear() + "-" + String(zdaj.getMonth() + 1).padStart(2,
 const POKRIVA = A.pokriva(MESEC);            // "B" ali "E1"
 const NE_POKRIVA = A.POKRIVAJO.find(k => k !== POKRIVA);
 const dan = (n) => MESEC + "-" + String(n).padStart(2, "0");
+// Deterministična delovni dan in sobota v TEM mesecu - dnevna 12-urna
+// izmena pokriva A samo ob sobotah, nedeljah in praznikih, zato mora
+// preizkus imeti oboje, ne glede na to, kdaj se poganja.
+const prviTakDan = (dow) => {
+  for (let d = 1; d <= 28; d++) {
+    if (new Date(dan(d) + "T00:00:00").getDay() === dow) return dan(d);
+  }
+  return dan(1);
+};
+const SREDA = prviTakDan(3), SOBOTA_M = prviTakDan(6);
 
 const PROFILI = [
-  // Pokrivajoči oddelek: ena oseba popoldne, ena ponoči, ena dopoldne.
+  // Pokrivajoči oddelek: popoldne, ponoči, dopoldne.
   { id: "p1", full_name: "Novak Ana",   role: "user",  department_code: POKRIVA },
   { id: "p2", full_name: "Kovač Beti",  role: "user",  department_code: POKRIVA },
   { id: "p3", full_name: "Horvat Cilka",role: "user",  department_code: POKRIVA },
+  // Oseba, ki je po Imeniku v pokrivajočem oddelku, a je tisti dan zaradi
+  // MENJAVE razporejena drugam - v stolpcih A je ne sme biti.
+  { id: "p4", full_name: "Zupan Ema",   role: "user",  department_code: POKRIVA },
+  // FLEXI: domači oddelek FLEXI, pravi oddelek tistega dne v
+  // pokriva_oddelek - mora se pojaviti.
+  { id: "fx", full_name: "Flek Eva",    role: "user",  department_code: "FLEXI" },
   // Drugi oddelek iz para - ta mesec NE pokriva A.
   { id: "d1", full_name: "Turk Dora",   role: "user",  department_code: NE_POKRIVA },
   // Oddelek A ima svoj dopoldanski kader.
@@ -174,14 +213,24 @@ const PROFILI = [
   { id: "v1", full_name: "Tomaževič Simona", role: "vodja", department_code: "NZV" },
 ];
 const VPISI = [
-  { employee_id: "p1", work_date: dan(1), shift_code: "Popoldne",  department_code: POKRIVA },
-  { employee_id: "p2", work_date: dan(1), shift_code: "Nočna 12",  department_code: POKRIVA },
-  { employee_id: "p3", work_date: dan(1), shift_code: "Dopoldne",  department_code: POKRIVA },
-  { employee_id: "d1", work_date: dan(1), shift_code: "Popoldne",  department_code: NE_POKRIVA },
-  { employee_id: "a1", work_date: dan(1), shift_code: "Dopoldne",  department_code: "A" },
-  // Drugi dan v pokrivajočem oddelku nihče ni popoldne/ponoči - stolpec
-  // mora to POVEDATI ("–"), ne pa tiho ostati prazen.
-  { employee_id: "p1", work_date: dan(2), shift_code: "Dopoldne",  department_code: POKRIVA },
+  // --- delovni dan: popoldne in ponoči pokriva A, dopoldne ne ---
+  { employee_id: "p1", work_date: SREDA, shift_code: "Popoldne",  department_code: POKRIVA },
+  { employee_id: "p2", work_date: SREDA, shift_code: "Nočna 12",  department_code: POKRIVA },
+  { employee_id: "p3", work_date: SREDA, shift_code: "Dopoldne",  department_code: POKRIVA },
+  // Dnevna 12-urna MED TEDNOM ni pokrivanje - A ima takrat svoj kader.
+  { employee_id: "p4", work_date: SREDA, shift_code: "Dnevna 12", department_code: POKRIVA },
+  { employee_id: "d1", work_date: SREDA, shift_code: "Popoldne",  department_code: NE_POKRIVA },
+  { employee_id: "a1", work_date: SREDA, shift_code: "Dopoldne",  department_code: "A" },
+  // --- sobota: dnevno službo prav tako pokrije pokrivajoči oddelek ---
+  { employee_id: "p3", work_date: SOBOTA_M, shift_code: "Dnevna 12", department_code: POKRIVA },
+  { employee_id: "p2", work_date: SOBOTA_M, shift_code: "Nočna 12",  department_code: POKRIVA },
+  // FLEXI, ki tisti dan pokriva prav ta oddelek.
+  { employee_id: "fx", work_date: SOBOTA_M, shift_code: "Popoldne", department_code: "FLEXI",
+    pokriva_oddelek: POKRIVA },
+  // MENJAVA: Zupan je po Imeniku v pokrivajočem oddelku, a jo je potrjena
+  // menjava tisti dan prestavila na tuj oddelek - stolpci A je ne smejo
+  // več šteti (menjava zamenja tudi oddelek vpisa).
+  { employee_id: "p4", work_date: SOBOTA_M, shift_code: "Popoldne", department_code: "C1" },
 ];
 // Dežurstvo SAMO v uradnem dokumentu, ne v razporedu - to je bistvo zahteve.
 const ZDRAVNIKI = [{ work_date: dan(2), kind: "sestra", full_name: "Tomaževič Simona" }];
@@ -268,16 +317,30 @@ try {
     await stran.selectOption("#wd", POKRIVA);
     await stran.waitForSelector(".wardTable", { timeout: 15000 });
     await stran.waitForTimeout(700);
-    const prva = await stran.$eval(".wardTable tbody tr:nth-child(1)", e => e.innerText.replace(/\s+/g, " ").trim());
-    trdi(/Popoldne \(A\)/.test(prva), `${POKRIVA}: popoldanska izmena je označena – ${prva}`);
-    trdi(/Nočna 12 \(A\)/.test(prva), "nočna izmena prav tako");
-    trdi(/Dopoldne(?! \(A\))/.test(prva), "dopoldanska izmena oznake NE dobi");
+    // Vrstica se poišče po datumu, ne po zaporedni številki.
+    const vrstica = (iso) => stran.evaluate((d) => {
+      const t = [...document.querySelectorAll(".wardTable tbody tr")]
+        .find(v => v.querySelector("td.name") && v.querySelector("td.name").textContent.includes(d));
+      return t ? t.innerText.replace(/\s+/g, " ").trim() : "";
+    }, Number(iso.slice(8, 10)) + ".");
+
+    const vSredo = await vrstica(SREDA);
+    trdi(/Popoldne \(A\)/.test(vSredo), `${POKRIVA}: popoldanska izmena je označena – ${vSredo}`);
+    trdi(/Nočna 12 \(A\)/.test(vSredo), "nočna izmena prav tako");
+    trdi(/Dopoldne(?! \(A\))/.test(vSredo), "dopoldanska izmena oznake NE dobi");
+    trdi(/Dnevna 12(?! \(A\))/.test(vSredo), "in med tednom tudi dnevna 12-urna ne");
+    const vSoboto = await vrstica(SOBOTA_M);
+    trdi(/Dnevna 12 \(A\)/.test(vSoboto), "v soboto pa dnevna 12-urna oznako DOBI – " + vSoboto);
     const legenda = await stran.$eval(".legend", e => e.innerText.replace(/\s+/g, " ").trim());
     trdi(/\(A\)/.test(legenda) && /oddelek A/i.test(legenda), "legenda pod mrežo pojasni oznako: " + legenda.slice(-70));
 
     await stran.selectOption("#wd", NE_POKRIVA);
     await stran.waitForTimeout(700);
-    const drugi = await stran.$eval(".wardTable tbody tr:nth-child(1)", e => e.innerText.replace(/\s+/g, " ").trim());
+    const drugi = await stran.evaluate((d) => {
+      const t = [...document.querySelectorAll(".wardTable tbody tr")]
+        .find(v => v.querySelector("td.name") && v.querySelector("td.name").textContent.includes(d));
+      return t ? t.innerText.replace(/\s+/g, " ").trim() : "";
+    }, Number(SREDA.slice(8, 10)) + ".");
     trdi(/Popoldne/.test(drugi) && !/\(A\)/.test(drugi),
       `${NE_POKRIVA} ta mesec ne pokriva A, zato brez oznake – ${drugi}`);
 
@@ -288,19 +351,47 @@ try {
     trdi(new RegExp("pokriva oddelek " + POKRIVA).test(besedilo),
       "in opombo, kateri oddelek ga ta mesec pokriva popoldne in ponoči");
 
-    // Stolpec s TISTIM, ki A pokriva popoldne in ponoči (obratna smer od
-    // oznake "(A)" na mreži pokrivajočega oddelka).
+    // Stolpci s TISTIMI, ki A pokrivajo (obratna smer od oznake "(A)" na
+    // mreži pokrivajočega oddelka), ločeni po delu dneva.
     const glave = await stran.$$eval(".wardTable thead th", e => e.map(x => x.textContent.trim()));
-    trdi(glave.includes("Popoldne / ponoči"), "mreža A ima stolpec pokrivanja: " + glave.join(" | "));
-    trdi(glave.includes("iz oddelka " + POKRIVA), "z navedbo, iz katerega oddelka pride");
-    const prvaA = await stran.$eval(".wardTable tbody tr:nth-child(1) td.pokrivaStolpec",
-      e => e.innerText.replace(/\s+/g, " ").trim());
-    trdi(/Novak/.test(prvaA), "prvi dan je izpisan popoldanski sodelavec: " + prvaA);
-    trdi(/Kovač/.test(prvaA), "in nočni");
-    trdi(!/Horvat/.test(prvaA), "dopoldanskega sodelavca pokrivajočega oddelka pa ne");
-    const drugaA = await stran.$eval(".wardTable tbody tr:nth-child(2) td.pokrivaStolpec",
-      e => e.innerText.replace(/\s+/g, " ").trim());
-    eq(drugaA, "–", "dan brez pokritja je označen, ne tiho prazen");
+    trdi(glave.includes("Pokriva oddelek " + POKRIVA),
+      "mreža A ima skupino stolpcev pokrivanja: " + glave.join(" | "));
+    ["Dnevna", "Popoldne", "Nočna"].forEach(n =>
+      trdi(glave.includes(n), "s stolpcem " + n));
+
+    // Vrstica se poišče po datumu, ne po zaporedni številki - prvi dan v
+    // mesecu je lahko kateri koli dan v tednu.
+    const celice = (iso) => stran.evaluate((d) => {
+      const vrstica = [...document.querySelectorAll(".wardTable tbody tr")]
+        .find(t => t.querySelector("td.name") && t.querySelector("td.name").textContent.includes(d));
+      if (!vrstica) return null;
+      return [...vrstica.querySelectorAll("td.pokrivaStolpec")]
+        .map(t => t.innerText.replace(/\s+/g, " ").trim());
+    }, Number(iso.slice(8, 10)) + ".");
+
+    const stolpciSreda = await celice(SREDA);
+    trdi(!!stolpciSreda && stolpciSreda.length === 3, "delovni dan ima tri stolpce: " + JSON.stringify(stolpciSreda));
+    eq(stolpciSreda[0], "", "med tednom dnevna izmena ni pokrivanje in stolpec ostane prazen (A ima svoj kader)");
+    trdi(/Novak/.test(stolpciSreda[1]), "popoldne: " + stolpciSreda[1]);
+    trdi(/Kovač/.test(stolpciSreda[2]), "ponoči: " + stolpciSreda[2]);
+    trdi(!stolpciSreda.join(" ").includes("Horvat"), "dopoldanskega sodelavca pokrivajočega oddelka ni nikjer");
+    trdi(!stolpciSreda.join(" ").includes("Turk"), "in tudi popoldanskega iz drugega oddelka ne");
+
+    const stolpciSobota = await celice(SOBOTA_M);
+    trdi(/Horvat/.test(stolpciSobota[0]), "sobota: dnevno službo pokrije pokrivajoči oddelek – " + stolpciSobota[0]);
+    trdi(/Kovač/.test(stolpciSobota[2]), "in nočno prav tako");
+    trdi(/Flek/.test(stolpciSobota[1]), "FLEXI, ki tisti dan pokriva ta oddelek, se šteje: " + stolpciSobota[1]);
+    trdi(!stolpciSobota.join(" ").includes("Zupan"),
+      "kdor je zaradi MENJAVE tisti dan na tujem oddelku, se ne šteje: " + JSON.stringify(stolpciSobota));
+
+    // Vrzel mora biti vidna: popoldne in ponoči se pričakujeta vsak dan.
+    const brezPokritja = await stran.evaluate(() => {
+      const vrstice = [...document.querySelectorAll(".wardTable tbody tr")];
+      const prazna = vrstice.find(t => [...t.querySelectorAll("td.pokrivaStolpec")]
+        .every(c => c.innerText.trim() === "–"));
+      return prazna ? [...prazna.querySelectorAll("td.pokrivaStolpec")].map(c => c.innerText.trim()) : null;
+    });
+    eq(brezPokritja, ["–", "–", "–"], "dan brez pokritja je označen s črticami, ne tiho prazen");
   }
 
   console.log("6) dežurstvo iz zavihka Dežurstvo je vidno v Razpredelnici");
