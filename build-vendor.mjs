@@ -21,15 +21,30 @@ import { dirname, join } from "node:path";
 
 const koren = dirname(fileURLToPath(import.meta.url));
 
-await build({
-  entryPoints: [join(koren, "vendor-app.entry.js")],
-  outfile: join(koren, "vendor-app.min.js"),
+const skupno = {
   bundle: true,
   format: "iife",
   platform: "browser",
   target: ["es2020"],
   minify: true,
   logLevel: "info",
+};
+
+// 1) Osnovni sveženj - naloži se na VSAKI strani, sinhrono (glej zgoraj).
+await build({
+  ...skupno,
+  entryPoints: [join(koren, "vendor-app.entry.js")],
+  outfile: join(koren, "vendor-app.min.js"),
 });
 
-console.log("✓ vendor-app.min.js zgrajen (React, ReactDOM, supabase, XLSX, ExcelJS)");
+// 2) Knjižnici za preglednice - ločeno, ker se naložita šele ob prvem
+// izvozu/uvozu (VendorIzvoz.nalozi v export-utils.js). Prej sta bili v
+// svežnju zgoraj in sta vsako stran obtežili za 1,3 MB, čeprav ju velika
+// večina uporabnikov nikoli ne potrebuje.
+await build({
+  ...skupno,
+  entryPoints: [join(koren, "vendor-izvoz.entry.js")],
+  outfile: join(koren, "vendor-izvoz.min.js"),
+});
+
+console.log("✓ vendor-app.min.js (React, ReactDOM, supabase) + vendor-izvoz.min.js (XLSX, ExcelJS) zgrajena");

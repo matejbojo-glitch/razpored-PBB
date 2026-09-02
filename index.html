@@ -2,10 +2,13 @@
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Razpored · Begunje</title>
 <meta name="description" content="Mesečni razpored dela zdravstvene nege, Psihiatrična bolnišnica Begunje" />
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#FAF8F1" media="(prefers-color-scheme: light)" />
+<!-- Temni način sledi nastavitvi naprave (glej prefers-color-scheme v theme.css);
+     brez te vrstice bi vrstica brskalnika/PWA ostala kremna nad temno stranjo. -->
+<meta name="theme-color" content="#14130D" media="(prefers-color-scheme: dark)" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -4411,7 +4414,13 @@ function App(){
   );
 
   return (
-    <div className={"wrap" + (view === "ward" ? " wide polna" : "")
+    <div className={"wrap"
+      // "Moj razpored" je na namizju širši: mesec se izriše v več stolpcih
+      // (glej .weeksGrid v theme.css), da ga ni treba prevrteti čez cel
+      // zaslon - pri 1440px je bilo prej vidnih ~6 dni, levo in desno pa
+      // prazen prostor. Na telefonu ostane vse nespremenjeno.
+      + (view === "my" ? " mesecStolpci" : "")
+      + (view === "ward" ? " wide polna" : "")
       // Razpredelnica dobi VSO širino zaslona (ne le 1400 px kot oddelčni
       // razpored): 31 dni × osebe se drugače ne izriše na en zaslon.
       + (view === "stanje" ? " wide polna cezZaslon" : "")}>

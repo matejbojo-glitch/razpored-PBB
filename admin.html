@@ -2,9 +2,12 @@
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Generator razporeda · Begunje</title>
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#FAF8F1" media="(prefers-color-scheme: light)" />
+<!-- Temni način sledi nastavitvi naprave (glej prefers-color-scheme v theme.css);
+     brez te vrstice bi vrstica brskalnika/PWA ostala kremna nad temno stranjo. -->
+<meta name="theme-color" content="#14130D" media="(prefers-color-scheme: dark)" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
@@ -1098,11 +1101,17 @@ function UvozRazporedaNapotek({ koda, month }){
   return (
     <div className="card no-print" style={{marginTop:12, marginBottom:12}}>
       <h3 style={{margin:"0 0 6px", fontSize:15}}>📥 Uvozi že sestavljen razpored</h3>
-      <p className="hint" style={{marginTop:0}}>
-        Naloži Excel/PDF/CSV izvoz razporeda (npr. cel dokument "2026 SMS RAZPORED" – vsi zavihki naenkrat) ali
-        poveži Google Sheets. Velja za vse skupine: 6 oddelkov, FLEXI in NZV. To je ločeno od generatorja zgoraj –
-        uvozi obstoječ razpored, namesto da ga izračuna.
-      </p>
+      {/* Pojasnilo je zloženo: na telefonu je teh pet vrstic besedila
+          odrinilo sam izbirnik in gumb (torej to, kar uporabnik pride
+          naredit) pod rob zaslona. Kdor razlago potrebuje, jo odpre. */}
+      <details className="navodilo">
+        <summary>Kaj to naredi</summary>
+        <p className="hint" style={{marginTop:8}}>
+          Naloži Excel/PDF/CSV izvoz razporeda (npr. cel dokument "2026 SMS RAZPORED" – vsi zavihki naenkrat) ali
+          poveži Google Sheets. Velja za vse skupine: 6 oddelkov, FLEXI in NZV. To je ločeno od generatorja zgoraj –
+          uvozi obstoječ razpored, namesto da ga izračuna.
+        </p>
+      </details>
       <div style={{display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap"}}>
         <div className="field" style={{marginBottom:0}}>
           <label htmlFor="uvozSkupina">Skupina</label>

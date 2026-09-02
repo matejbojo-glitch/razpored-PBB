@@ -26,19 +26,34 @@
     var css =
       "body{ padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important; }" +
       ".rpNav{ position:fixed; left:0; right:0; bottom:0; z-index:40;" +
-      " background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);" +
-      " border-top:1px solid #E1D9C2; padding-bottom: env(safe-area-inset-bottom); }" +
+      " background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);" +
+      " border-top:1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }" +
       ".rpNav .inner{ max-width:640px; margin:0 auto; display:flex; }" +
       ".rpNav a{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;" +
-      " padding:9px 4px 8px; background:none; border:0; color:#8A7F5E; text-decoration:none; font-family:inherit;" +
-      " cursor:pointer; font-size:10.5px; font-weight:700; position:relative; min-width:0; min-height:44px;" +
+      " padding:9px 4px 8px; background:none; border:0; color:var(--muted); text-decoration:none; font-family:inherit;" +
+      " cursor:pointer; font-size:11px; font-weight:700; position:relative; min-width:0; min-height:44px;" +
       " justify-content:center; }" +
-      ".rpNav a.active{ color:#6E5F2A; }" +
+      ".rpNav a.active{ color:var(--accent-2); }" +
       ".rpNav .ic{ font-size:19px; line-height:1; }" +
-      ".rpNav .lbl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }" +
+      ".rpNav .lbl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; letter-spacing:-0.1px; }" +
+      // Kratki napis (glej lblOzko v ITEMS) se pokaže SAMO tam, kjer je
+      // postavk toliko, da se dolgi odreže - torej na ozkem zaslonu. Kjer
+      // kratkega ni, ostane dolgi.
+      ".rpNav .lblOzko{ display:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }" +
+      "@media (max-width:480px){" +
+      // Pri 360px (iPhone SE, starejši Androidi) pride na postavko ~51px;
+      // "Razpored" pri 11px meri ~46px, zato mora odmik na rob dol na 1px
+      // in razmik med črkami rahlo skrčiti - drugače se beseda odreže.
+      // Krajšega nadomestka zanjo namenoma ni: "razpored" je osrednji izraz
+      // te aplikacije in ga ne krajšamo.
+      "  .rpNav a{ padding-left:1px; padding-right:1px; }" +
+      "  .rpNav .lbl, .rpNav .lblOzko{ letter-spacing:-0.3px; }" +
+      "  .rpNav a:has(.lblOzko) .lbl{ display:none; }" +
+      "  .rpNav a:has(.lblOzko) .lblOzko{ display:block; }" +
+      "}" +
       ".rpNav .badge{ position:absolute; top:2px; right:calc(50% - 20px); min-width:15px; height:15px; padding:0 3px;" +
-      " border-radius:999px; background:#B3402A; color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
-      ".rpNav .badge.warn{ background:#A79448; color:#2B2712; }" +
+      " border-radius:999px; background:var(--danger); color:#fff; font-size:9.5px; font-weight:800; line-height:15px; text-align:center; }" +
+      ".rpNav .badge.warn{ background:var(--accent); color:var(--accent-ink); }" +
       "@media (min-width:700px){ .rpNav .inner{ max-width:760px; } }" +
       // Spletna/namizna različica (≥900px): vrstica se preseli na vrh
       // zaslona (nad vsebino, pod morebitnim opozorilnim trakom "ogled kot
@@ -48,12 +63,12 @@
       "@media (min-width:" + DESKTOP_BP + "px){" +
       "  body{ padding-bottom:0 !important; padding-top:" + NAV_DESKTOP_H + "px; }" +
       "  .rpNav{ top:var(--ogled-h,0px); bottom:auto; height:" + NAV_DESKTOP_H + "px;" +
-      "    border-top:0; border-bottom:1px solid #E1D9C2; padding-bottom:0; display:flex; align-items:center; }" +
+      "    border-top:0; border-bottom:1px solid var(--line); padding-bottom:0; display:flex; align-items:center; }" +
       "  .rpNav .inner{ max-width:1040px; padding:0 24px; height:100%; align-items:center; justify-content:flex-start; gap:6px; }" +
       "  .rpNav a{ flex:0 0 auto; flex-direction:row; gap:7px; padding:9px 16px; font-size:13.5px;" +
-      "    min-height:auto; border-radius:999px; }" +
-      "  .rpNav a:hover{ background:#F2EEDF; }" +
-      "  .rpNav a.active{ background:#F2EEDF; }" +
+      "    min-height:40px; border-radius:999px; }" +
+      "  .rpNav a:hover{ background:var(--surface-2); }" +
+      "  .rpNav a.active{ background:var(--surface-2); }" +
       "  .rpNav .ic{ font-size:16px; }" +
       "  .rpNav .lbl{ max-width:none; }" +
       "  .rpNav .badge{ position:static; margin-left:1px; }" +
@@ -63,24 +78,24 @@
       " display:flex; align-items:center; gap:8px; }" +
       "@media (min-width:" + DESKTOP_BP + "px){ .rpTopIcons{ top:calc(var(--ogled-h,0px) + 12px); } }" +
       ".rpIconBtn{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" +
-      " background:rgba(255,255,255,0.96); border:1px solid #E1D9C2; color:#6E5F2A; font-size:17px; line-height:1;" +
-      " text-decoration:none; cursor:pointer; padding:0; box-shadow:0 2px 8px rgba(43,39,18,0.10);" +
+      " background:color-mix(in srgb, var(--surface) 96%, transparent); border:1px solid var(--line); color:var(--accent-2); font-size:17px; line-height:1;" +
+      " text-decoration:none; cursor:pointer; padding:0; box-shadow:0 2px 8px rgba(var(--senca-rgb),0.10);" +
       " transition:transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease; }" +
-      ".rpIconBtn:hover{ background:#F2EEDF; box-shadow:0 4px 12px rgba(43,39,18,0.16); transform:translateY(-1px); }" +
-      ".rpIconBtn:active{ transform:translateY(0) scale(.94); box-shadow:0 1px 4px rgba(43,39,18,0.12); }" +
-      ".rpIconBtn.logout:hover{ background:#FBEAE6; color:#B3402A; border-color:#F0C9BE; }" +
-      ".rpIconBtn.settings.active{ background:#F2EEDF; color:#2B2712; border-color:#A79448; }" +
+      ".rpIconBtn:hover{ background:var(--surface-2); box-shadow:0 4px 12px rgba(var(--senca-rgb),0.16); transform:translateY(-1px); }" +
+      ".rpIconBtn:active{ transform:translateY(0) scale(.94); box-shadow:0 1px 4px rgba(var(--senca-rgb),0.12); }" +
+      ".rpIconBtn.logout:hover{ background:var(--danger-bg); color:var(--danger); border-color:var(--danger); }" +
+      ".rpIconBtn.settings.active{ background:var(--surface-2); color:var(--text); border-color:var(--accent); }" +
       // Izvozni gumb (export-buttons.js, "compact") je lahko postavljen v to
       // vrstico prek "pred" – ima svojo obliko, zato tu dobi enak videz kot
       // sosedi, sicer bi izstopal z drugim ozadjem in brez sence.
-      ".rpTopIcons .dlIconBtn{ background:rgba(255,255,255,0.96); border-color:#E1D9C2; color:#6E5F2A;" +
-      " box-shadow:0 2px 8px rgba(43,39,18,0.10); }" +
-      ".rpTopIcons .dlIconBtn:hover{ background:#F2EEDF; }" +
+      ".rpTopIcons .dlIconBtn{ background:color-mix(in srgb, var(--surface) 96%, transparent); border-color:var(--line); color:var(--accent-2);" +
+      " box-shadow:0 2px 8px rgba(var(--senca-rgb),0.10); }" +
+      ".rpTopIcons .dlIconBtn:hover{ background:var(--surface-2); }" +
       "@media print{ .rpTopIcons{ display:none !important; } }" +
-      ".rpOgledTrak{ position:fixed; top:0; left:0; right:0; z-index:100; background:#B3402A; color:#fff;" +
+      ".rpOgledTrak{ position:fixed; top:0; left:0; right:0; z-index:100; background:var(--danger); color:#fff;" +
       " display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;" +
       " padding: calc(env(safe-area-inset-top) + 8px) 14px 8px; font-size:12.5px; font-weight:700; text-align:center; }" +
-      ".rpOgledExit{ background:#fff; color:#B3402A; border:0; border-radius:999px; padding:6px 14px;" +
+      ".rpOgledExit{ background:var(--surface); color:var(--danger); border:0; border-radius:999px; padding:6px 14px;" +
       " font-weight:800; font-size:12px; cursor:pointer; white-space:nowrap; }" +
       "@media print{ .rpOgledTrak{ display:none !important; } }";
     var style = document.createElement("style");
@@ -108,13 +123,21 @@
       .join(", ");
   }
 
+  // "lblOzko" je krajši napis za ozke zaslone. Administrator/vodja vidi 6-7
+  // postavk; pri 390px pride na postavko ~55px in dolga napisa sta se
+  // odrezala ("Razpor…", "Genera…"), kar je pri ne-tehničnem uporabniku
+  // slabše od krajše, a cele besede. Navadni zaposleni vidi samo štiri
+  // postavke, kjer se odreže nič - zato je kratki napis SAMO nadomestek na
+  // ozkem zaslonu, poln napis pa ostane povsod drugje (glej .lblOzko/.lbl
+  // v ensureStyle). "Kalup" je izraz, ki ga stran sama uporablja za svoj
+  // glavni zavihek, zato ni nova beseda za uporabnika.
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
     { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
     { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
     { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
-    { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", roles: ["admin", "vodja"] },
-    { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", roles: ["admin", "vodja"] },
+    { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", lblOzko: "Kalup", roles: ["admin", "vodja"] },
+    { key: "dashboard", href: "dashboard.html", ic: "📊", lbl: "Statistika", lblOzko: "Pregled", roles: ["admin", "vodja"] },
     // Vsi uvozi na enem mestu. Prej je bila na vsaki strani svoja ikona 📥 in
     // uvoz je bilo treba iskati po straneh - kdo je vedel, da se kvote dopusta
     // uvozijo pod "Oddelki", stanje dopusta pa pod "Dopust"? Uvoz spreminja
@@ -197,7 +220,8 @@
             { key: it.key, href: it.href, className: it.key === active ? "active" : "" },
             e("span", { className: "ic" }, it.ic),
             badge,
-            e("span", { className: "lbl" }, it.lbl)
+            e("span", { className: "lbl" }, it.lbl),
+            it.lblOzko ? e("span", { className: "lblOzko" }, it.lblOzko) : null
           );
         })
       )
@@ -217,6 +241,17 @@
     ensureStyle();
     var trenutna = (location.pathname.split("/").pop() || "").toLowerCase();
     var naNastavitvah = trenutna === "nastavitve.html";
+    // Koliko okroglih ikon je zgoraj desno (2 ali 3 - nekatere strani dodajo
+    // še izvoz prek "pred"). Glava strani mora pustiti točno toliko prostora:
+    // .wordmark je imel trdo zapisanih 96px za dve ikoni, zato je pri TREH
+    // ikonah tretja legla čez naslov/značko (npr. "za koordinatorje" na
+    // Statistiki je bilo skrito pod gumbom za prenos). Zdaj številko pove
+    // ta komponenta, theme.css pa iz nje izračuna odmik.
+    useEffect(function () {
+      var koliko = (props && props.pred) ? 3 : 2;
+      document.documentElement.style.setProperty("--rp-ikon", String(koliko));
+      return function () { document.documentElement.style.removeProperty("--rp-ikon"); };
+    }, [props && props.pred ? 1 : 0]);
     return e(
       "div",
       { className: "rpTopIcons" },

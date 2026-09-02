@@ -12,14 +12,16 @@
  * datoteke. Modulski <script> bi se (kot vsi moduli) izvedel odloženo,
  * po vseh klasičnih <script>, kar bi te tri datoteke pokvarilo.
  */
+/* XLSX in ExcelJS TU NAMENOMA NISTA. Skupaj merita 1,3 MB od 1,66 MB
+ * svežnja in sta se doslej naložila ob VSAKEM odprtju VSAKE strani - tudi
+ * medicinski sestri, ki si na telefonu samo ogleda svoj razpored in nikoli
+ * ničesar ne izvozi. Zdaj sta v ločenem vendor-izvoz.min.js, ki se naloži
+ * šele ob prvem izvozu/uvozu (glej VendorIzvoz.nalozi v export-utils.js).
+ */
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
-import * as XLSX from "xlsx";
-import ExcelJS from "exceljs/dist/exceljs.min.js";
 
 window.React = React;
 window.ReactDOM = { createRoot };
 window.supabase = { createClient };
-window.XLSX = XLSX;
-window.ExcelJS = ExcelJS;

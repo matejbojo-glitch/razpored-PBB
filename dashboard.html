@@ -2,9 +2,12 @@
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Statistika · Begunje</title>
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#FAF8F1" media="(prefers-color-scheme: light)" />
+<!-- Temni način sledi nastavitvi naprave (glej prefers-color-scheme v theme.css);
+     brez te vrstice bi vrstica brskalnika/PWA ostala kremna nad temno stranjo. -->
+<meta name="theme-color" content="#14130D" media="(prefers-color-scheme: dark)" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
@@ -49,7 +52,7 @@
   .statusMsg.err{ color: var(--danger); }
 
   table.fair{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
-  table.fair th{ text-align:left; color:var(--muted); font-weight:700; font-size:10.5px; text-transform:uppercase;
+  table.fair th{ text-align:left; color:var(--muted); font-weight:700; font-size:11.5px; text-transform:uppercase;
     letter-spacing:.03em; padding:7px 8px; border-bottom:1px solid var(--line); cursor:pointer; white-space:nowrap; }
   table.fair th.active{ color: var(--accent-2); }
   table.fair td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
@@ -313,7 +316,7 @@ function ToplotnaKarta({ podatki, mere }){
         <span className="ime"></span>
         <span className="heatCelice" style={{gap:6}}>
           {mere.map(m => (
-            <span key={m.kljuc} style={{fontSize:10, color:"var(--muted)", width:44, textTransform:"uppercase", letterSpacing:".04em"}}>
+            <span key={m.kljuc} style={{fontSize:11, color:"var(--muted)", width:44, textTransform:"uppercase", letterSpacing:".04em"}}>
               {m.kratko}
             </span>
           ))}
@@ -333,7 +336,9 @@ function ToplotnaKarta({ podatki, mere }){
                     background: delez > 0 ? `rgba(var(--danger-rgb), ${(0.12 + 0.78 * delez).toFixed(3)})` : "var(--surface-2)",
                     color: delez > 0.55 ? "#fff" : "var(--text)",
                     display:"flex", alignItems:"center", justifyContent:"center",
-                    fontSize:10.5, fontWeight:700,
+                    // 10.5px je bilo za 212 celic s številkami premalo; celica
+                    // je široka 44px, zato 12px brez težav gre noter.
+                    fontSize:12, fontWeight:700,
                   }}
                   title={`${z.ime} – ${m.naziv}: ${v}`}>
                   {v}
@@ -390,14 +395,20 @@ function SmsTab({ baseline, onUpdate }){
 
   return (
     <div>
-      <h2 className="section no-print">Dodaj mesec</h2>
-      <p className="hint">Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → »Prenesi JSON«). Prišteje se k spodnji osnovi.</p>
-      <div className="card">
-        <div className="uploadRow">
-          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
-          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+      {/* Orodje za uvoz je zloženo in POD vsebino: uporablja se enkrat na
+          mesec, prej pa je s celotnim opisom zasedlo prvi zaslon telefona,
+          tako da statistike (zaradi katere je stran odprta) ni bilo videti
+          brez drsenja. */}
+      <details className="navodilo no-print" style={{marginTop:10}}>
+        <summary>Dodaj mesec (uvoz JSON)</summary>
+        <p className="hint" style={{marginTop:8}}>Naložite JSON, ki ga je izdelal generator kalupa (admin.html → kartica Kalup → »Prenesi JSON«). Prišteje se k spodnji osnovi.</p>
+        <div className="card">
+          <div className="uploadRow">
+            <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+            {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+          </div>
         </div>
-      </div>
+      </details>
 
       <h2 className="section">Pregled – {baseline.obdobje}</h2>
       <KpiKartice postavke={kpi} />
@@ -495,14 +506,17 @@ function DezTab({ baseline, onUpdate }){
 
   return (
     <div>
-      <h2 className="section no-print">Dodaj mesec</h2>
-      <p className="hint">Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → »Prenesi JSON«). Posodobi se samo število dežurstev – ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
-      <div className="card">
-        <div className="uploadRow">
-          <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
-          {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+      {/* Zloženo in pod vsebino - glej razlago pri istem orodju zgoraj. */}
+      <details className="navodilo no-print" style={{marginTop:10}}>
+        <summary>Dodaj mesec (uvoz JSON)</summary>
+        <p className="hint" style={{marginTop:8}}>Naložite JSON iz generatorja dežurstev (admin.html → kartica Dežurstva → »Prenesi JSON«). Posodobi se samo število dežurstev – ure/REDI/NZV zahtevajo uvoz iz Kadrisa (faza 4).</p>
+        <div className="card">
+          <div className="uploadRow">
+            <label className="fileBtn">⬆ Izberi datoteko<input type="file" accept="application/json" onChange={onFile} /></label>
+            {status && <span className={"statusMsg" + (status.ok ? "" : " err")}>{status.msg}</span>}
+          </div>
         </div>
-      </div>
+      </details>
 
       <h2 className="section">Pregled – {baseline.obdobje}</h2>
       <KpiKartice postavke={kpi} />

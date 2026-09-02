@@ -2,9 +2,12 @@
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Uvoz · Begunje</title>
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#FAF8F1" media="(prefers-color-scheme: light)" />
+<!-- Temni način sledi nastavitvi naprave (glej prefers-color-scheme v theme.css);
+     brez te vrstice bi vrstica brskalnika/PWA ostala kremna nad temno stranjo. -->
+<meta name="theme-color" content="#14130D" media="(prefers-color-scheme: dark)" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />

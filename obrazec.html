@@ -2,9 +2,12 @@
 <html lang="sl">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Menjava · Begunje</title>
-<meta name="theme-color" content="#FAF8F1" />
+<meta name="theme-color" content="#FAF8F1" media="(prefers-color-scheme: light)" />
+<!-- Temni način sledi nastavitvi naprave (glej prefers-color-scheme v theme.css);
+     brez te vrstice bi vrstica brskalnika/PWA ostala kremna nad temno stranjo. -->
+<meta name="theme-color" content="#14130D" media="(prefers-color-scheme: dark)" />
 <link rel="icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="theme.css" />
@@ -52,6 +55,11 @@
     padding:11px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer; min-height:44px; }
 
   .pill{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:800; white-space:nowrap; }
+  /* Značka (.pill.wait/.ok/.no) je samo oznaka stanja in ostane majhna.
+     Gumbi za hitri razlog (HitriRazlog) pa uporabljajo isti razred in so
+     bili zato visoki 20px - premalo, da bi jih na telefonu zanesljivo
+     zadel s prstom. Poveča se torej SAMO <button class="pill">. */
+  button.pill{ min-height:40px; padding:9px 14px; font-size:12.5px; }
   .pill.wait{ background: rgba(167,148,72,.18); color: var(--accent-2); }
   .pill.ok{ background: var(--ok-bg); color: var(--ok); }
   .pill.no{ background: var(--danger-bg); color: var(--danger); }
