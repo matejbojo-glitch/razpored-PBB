@@ -517,6 +517,14 @@
 // ne moreta pokazati različnega števila. Spremenjena sta nav.js in
 // supabase-client.js - oba cache-first, zato je dvig različice nujen.
 
+// v136: nadaljevanje pregleda - namizje in temni način. "Moj razpored" na
+// širokem zaslonu pokaže cel mesec v treh stolpcih (prej ~6 dni naenkrat in
+// prazen prostor ob straneh), polja niso več raztegnjena čez vso širino,
+// obroč ob premikanju s tipkovnico je viden tudi na zlati podlagi (prej
+// zlat na zlatem = neviden, izbirniki pa sploh brez), dodan je temni način
+// po nastavitvi naprave (pomembno za nočne izmene), dolga pojasnila nad
+// vsebino pa so zložena. Spremenjena sta theme.css in nav.js (cache-first).
+
 // v135: mobilne izboljšave - stran je ~3x lažja (vendor-app.min.js z 1,66 MB
 // na 0,34 MB: XLSX in ExcelJS sta zdaj v ločenem vendor-izvoz.min.js, ki se
 // naloži šele ob prvem izvozu/uvozu). Poleg tega: zavihki na ozkem zaslonu
@@ -535,7 +543,7 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v135';
+const CACHE = 'razpored-pbb-v136';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

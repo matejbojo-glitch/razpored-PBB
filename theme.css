@@ -65,15 +65,67 @@
   --slow: 240ms;
 
   /* --- sence: mehke, plastovite, tople (ne sive) --- */
-  --shadow-xs: 0 1px 2px rgba(var(--text-rgb),.05);
-  --shadow-sm: 0 1px 1px rgba(var(--text-rgb),.04), 0 6px 16px -6px rgba(var(--text-rgb),.14);
-  --shadow-md: 0 2px 6px rgba(var(--text-rgb),.05), 0 16px 32px -12px rgba(var(--text-rgb),.20);
-  --shadow-lg: 0 8px 16px rgba(var(--text-rgb),.08), 0 30px 60px -20px rgba(var(--text-rgb),.28);
+  /* Sence in prekrivalo imata SVOJ žeton (--senca-rgb), ločen od barve
+     besedila. V temnem načinu je namreč besedilo svetlo, senca pod kartico
+     in zatemnitev za pogovornim oknom pa morata ostati temni. */
+  --senca-rgb: var(--text-rgb);
+  --shadow-xs: 0 1px 2px rgba(var(--senca-rgb),.05);
+  --shadow-sm: 0 1px 1px rgba(var(--senca-rgb),.04), 0 6px 16px -6px rgba(var(--senca-rgb),.14);
+  --shadow-md: 0 2px 6px rgba(var(--senca-rgb),.05), 0 16px 32px -12px rgba(var(--senca-rgb),.20);
+  --shadow-lg: 0 8px 16px rgba(var(--senca-rgb),.08), 0 30px 60px -20px rgba(var(--senca-rgb),.28);
   --shadow-accent: 0 10px 22px -10px rgba(var(--accent-rgb),.55);
 
   /* --- tipografija --- */
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: "Fraunces", ui-serif, Georgia, serif;
+}
+
+/* ---------- temni način ----------------------------------------------
+   Sledi nastavitvi telefona/računalnika (prefers-color-scheme) - posebnega
+   stikala v aplikaciji NI, ker si ga uporabnik nastavi enkrat v sistemu in
+   velja povsod. Pomembno za nočne izmene (N10/N11/N12): svetel zaslon ob
+   treh zjutraj je moteč, na oddelku pa tudi za bolnike.
+
+   Spremenijo se SAMO podlage, besedilo, črte in zlata (ta je na temnem
+   ozadju svetlejša, da ostane berljiva). Barve izmen (dopoldne/popoldne/
+   nočna/12-urne) so rahlo posvetljene, a ostanejo iste barve - te nosijo
+   pomen in jih zaposleni prepozna iz papirnatih razporedov, zato jih ni
+   dovoljeno zamenjati, le prilagoditi kontrastu.
+   -------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg: #14130D;
+    --bg-grad: #1C1A13;
+    --surface: #1E1C15;
+    --surface-2: #2A2720;
+    --line: #3B3729;
+    --text: #F2EDDE;
+    --muted: #A99E80;
+    --accent: #C9B45F;
+    --accent-2: #E2D08C;
+    --accent-ink: #221F14;
+
+    --dop: #6FBF8C;
+    --pop: #E08A5B;
+    --noc: #7C95E0;
+    --h12: #A882CC;
+    --off: #9A947E;
+    --off-text: #ADA68D;
+    --ld: #64AC85;
+    --danger: #E5735A;
+    --ok: #6FBF8C;
+
+    --text-rgb: 242,237,222;
+    --senca-rgb: 0,0,0;
+    --accent-rgb: 201,180,95;
+    --danger-rgb: 229,115,90;
+    --ok-rgb: 111,191,140;
+    --ok-bg: #1B2A20;
+    --danger-bg: #2E1B16;
+    --cool: #7C95E0;
+    --predlog: #C7A93F;
+    --predlog-rgb: 199,169,63;
+  }
 }
 
 /* ---------- osnove ---------- */
@@ -111,7 +163,14 @@ body{
    ------------------------------------------------------------------ */
 a{ color: inherit; }
 a, button, input, select, textarea{ font-family: inherit; }
-:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+/* Obroč ob premikanju s tipkovnico. Barva je TEMNO zlata (--accent-2), ne
+   svetlo zlata: svetlo zlat obroč na svetlo zlati podlagi (izbrani zavihek,
+   glavni gumb) je bil praktično neviden. Svetel odsev okoli njega poskrbi,
+   da se obroč loči tudi od temnih podlag - torej je viden na obojem. */
+:focus-visible{
+  outline: 3px solid var(--accent-2); outline-offset: 2px; border-radius: 8px;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.85);
+}
 ::selection{ background: rgba(var(--accent-rgb),.30); }
 
 /* scrollbar (webkit) – tanek, v barvah sheme */
@@ -272,8 +331,27 @@ input:hover, select:hover, textarea:hover{ border-color: var(--muted); }
 input:focus, select:focus, textarea:focus{
   outline:none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),.18);
 }
+/* Pri MIŠKI zadošča nežen odsev zgoraj, pri TIPKOVNICI pa ne: 18-odstotni
+   odsev je bilo komaj mogoče opaziti, izbirnik (select) pa je ostal celo
+   brez vsakršne oznake, ker zgornje pravilo obroč izklopi. Kdor se po
+   aplikaciji premika s tabulatorjem, mora vedno videti, kje je. */
+input:focus-visible, select:focus-visible, textarea:focus-visible{
+  outline: 3px solid var(--accent-2); outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.85);
+}
 input:disabled, select:disabled, textarea:disabled{ opacity:.6; cursor:not-allowed; }
 textarea{ resize: vertical; min-height: 76px; line-height:1.5; }
+
+/* Na namizju polja NE smejo biti raztegnjena čez vso širino vsebine:
+   iskalno polje v Imeniku je bilo pri 1440px široko 1208px, izbirnik meseca
+   1120px - to ni lažje za uporabo, le težje za oko (kazalec mora prepotovati
+   pol zaslona, vsebina polja pa je kratka). Meja velja SAMO za širok zaslon
+   in samo kot zgornja meja: polje v ozkem stolpcu ostane, kakršno je.
+   Besedilna polja dobijo več prostora, ker vanje gre daljše besedilo. */
+@media (min-width: 900px){
+  .field input, .field select{ max-width: 520px; }
+  .field textarea{ max-width: 720px; }
+}
 
 /* ---------- gumbi: en sistem za vso aplikacijo ---------- */
 button{ cursor:pointer; }
@@ -335,6 +413,26 @@ button{ cursor:pointer; }
   font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
   color: var(--muted); margin: 24px 2px 8px;
 }
+/* "Moj razpored" na namizju: cel mesec naenkrat, v stolpcih po tednih.
+   Na telefonu (privzeto) ostane en teden pod drugim - tam je navpično
+   drsenje naravno. Isti prijem že uporablja PDF izvoz (#printMy.pdfCols v
+   index.html), le da tam vedno trije stolpci. */
+@media (min-width: 900px){
+  .wrap.mesecStolpci{ max-width: 1040px; }
+  .wrap.mesecStolpci .weeksGrid{
+    display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 32px;
+    align-items:start;
+  }
+  /* Kartica "Danes" in opozorila ostanejo v širini branja - raztegnjena
+     čez cel zaslon bi bila slabše berljiva, ne boljše. */
+  .wrap.mesecStolpci .todayCard,
+  .wrap.mesecStolpci .warnBox{ max-width: 640px; }
+}
+@media (min-width: 1240px){
+  .wrap.mesecStolpci{ max-width: 1240px; }
+  .wrap.mesecStolpci .weeksGrid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 .dayRow{
   display:flex; align-items:center; gap:12px; padding: 10px 4px;
   border-bottom: 1px solid var(--line); border-radius: 10px;
@@ -748,7 +846,7 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 
 /* ---------- modalno okno (navodila, uvoz, pomoč) ---------- */
 .modalOzadje{
-  position:fixed; inset:0; background: rgba(var(--text-rgb),.45); z-index:60;
+  position:fixed; inset:0; background: rgba(var(--senca-rgb),.55); z-index:60;
   display:flex; align-items:flex-end; justify-content:center; padding:0;
   animation: modalPojav var(--fast) var(--ease);
 }

@@ -212,6 +212,99 @@ try {
     await ctx.close();
   }
 
+  console.log("8) namizje: cel mesec naenkrat, brez dolgega drsenja (točka 7 pregleda)");
+  {
+    const { ctx, pg } = await odpri("index.html", 1440, "admin");
+    const r = await pg.evaluate(() => {
+      const g = document.querySelector(".weeksGrid");
+      return { stolpcev: g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0,
+        visina: g ? Math.round(g.getBoundingClientRect().height) : 0, okno: window.innerHeight,
+        sirina: Math.round(document.querySelector(".wrap").getBoundingClientRect().width) };
+    });
+    trdi(r.stolpcev === 3, `mesec je razporejen v 3 stolpce (dobil: ${r.stolpcev})`);
+    trdi(r.sirina > 1000, `vsebina uporabi širino zaslona (${r.sirina}px, prej 608px)`);
+    trdi(r.visina < r.okno + 100, `cel mesec gre skoraj na en zaslon (mreža ${r.visina}px, okno ${r.okno}px)`);
+    await ctx.close();
+
+    const { ctx: c2, pg: p2 } = await odpri("index.html", 390, "admin");
+    const m = await p2.evaluate(() => {
+      const g = document.querySelector(".weeksGrid");
+      return g ? getComputedStyle(g).gridTemplateColumns.split(" ").length : 0;
+    });
+    trdi(m <= 1, `na telefonu ostane en stolpec (dobil: ${m})`);
+    await c2.close();
+  }
+
+  console.log("9) namizje: polja niso raztegnjena čez vso širino (točka 8 pregleda)");
+  {
+    for (const stran of ["index.html", "imenik.html", "admin.html"]) {
+      const { ctx, pg } = await odpri(stran, 1440, "admin");
+      const najsirse = await pg.evaluate(() => Math.max(0, ...[...document.querySelectorAll(
+        "input:not([type=checkbox]):not([type=radio]), select")].map(el => el.getBoundingClientRect().width)));
+      trdi(najsirse <= 560, `${stran}: najširše polje ${Math.round(najsirse)}px (meja 560, prej do 1208)`);
+      await ctx.close();
+    }
+  }
+
+  console.log("10) obroč ob premikanju s tipkovnico je viden tudi na zlati podlagi (točka 9 pregleda)");
+  {
+    const { ctx, pg } = await odpri("index.html", 1440, "admin");
+    const brez = [];
+    for (let i = 0; i < 12; i++) {
+      await pg.keyboard.press("Tab");
+      const r = await pg.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        const st = getComputedStyle(el);
+        return { kdo: el.tagName.toLowerCase() + "." + (el.className || "").toString().slice(0, 18),
+          obroc: st.outlineStyle, sirina: st.outlineWidth, barva: st.outlineColor };
+      });
+      if (r && (r.obroc === "none" || parseFloat(r.sirina) === 0)) brez.push(r.kdo);
+    }
+    trdi(brez.length === 0, "vsak element pod tabulatorjem ima viden obroč" + (brez.length ? " – brez: " + [...new Set(brez)].join(", ") : ""));
+    await ctx.close();
+  }
+
+  console.log("11) temni način (točka 10 pregleda)");
+  {
+    for (const stran of ["index.html", "dashboard.html", "imenik.html"]) {
+      const ctx = await brskalnik.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
+      const pg = await ctx.newPage();
+      await pg.route("**://fonts.googleapis.com/**", r => r.abort());
+      await pg.route("**://fonts.gstatic.com/**", r => r.abort());
+      await pg.addInitScript(mock("admin"), "admin");
+      await pg.goto(`http://127.0.0.1:${VRATA}/${stran}`, { waitUntil: "load" });
+      await pg.waitForTimeout(1200);
+      const r = await pg.evaluate(() => {
+        const svetlo = (c) => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(c);
+          if (!m) return false; const a = m[4] === undefined ? 1 : parseFloat(m[4]); if (a < 0.5) return false;
+          return (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) > 200; };
+        const ostanki = [];
+        document.querySelectorAll("*").forEach(el => { const st = getComputedStyle(el); const b = el.getBoundingClientRect();
+          if (b.width < 40 || b.height < 12) return;
+          if (svetlo(st.backgroundColor)) ostanki.push((el.className || el.tagName).toString().slice(0, 24)); });
+        return { telo: getComputedStyle(document.body).backgroundColor, ostanki: [...new Set(ostanki)].slice(0, 4) };
+      });
+      trdi(!/rgb\(2[45]\d/.test(r.telo), `${stran}: podlaga strani je temna (${r.telo})`);
+      trdi(r.ostanki.length === 0, `${stran}: brez svetlih ostankov` + (r.ostanki.length ? " – " + r.ostanki.join(", ") : ""));
+      await ctx.close();
+    }
+    const strani = readdirSync(koren).filter(f => f.endsWith(".html"));
+    const brezTemne = strani.filter(f => !/prefers-color-scheme: dark/.test(readFileSync(join(koren, f), "utf8")));
+    trdi(brezTemne.length === 0, "vse strani povedo barvo vrstice brskalnika za temni način"
+      + (brezTemne.length ? " – manjka: " + brezTemne.join(", ") : ""));
+  }
+
+  console.log("12) dolga pojasnila ne zasedajo prvega zaslona (točka 11 pregleda)");
+  {
+    const dash = readFileSync(join(koren, "dashboard.html"), "utf8");
+    const admin = readFileSync(join(koren, "admin.html"), "utf8");
+    trdi((dash.match(/<summary>Dodaj mesec \(uvoz JSON\)<\/summary>/g) || []).length === 2,
+      "obe orodji za uvoz JSON na Statistiki sta zloženi");
+    trdi(/<summary>Kaj to naredi<\/summary>/.test(admin),
+      "pojasnilo uvoza razporeda v Generatorju je zloženo");
+  }
+
   console.log("");
   if (napake.length) { console.error(`NEUSPEŠNO – ${napake.length} napak`); napake.forEach(n => console.error("  - " + n)); process.exit(1); }
   console.log("VSE V REDU");
