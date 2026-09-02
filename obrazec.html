@@ -266,6 +266,7 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
   const [iskanje, setIskanje] = useState("");
   const [osebe, setOsebe] = useState(null);        // nabor, med katerim se sme menjati
   const [osebeBusy, setOsebeBusy] = useState(false);
+  const [krogPoln, setKrogPoln] = useState(true);   // je krog dežurnih znan iz baze?
   const [izbranaOseba, setIzbranaOseba] = useState(null);   // { id, full_name }
   const [razporedOsebe, setRazporedOsebe] = useState(null); // dnevi izbrane osebe
   const [busy, setBusy] = useState(false);
@@ -329,16 +330,37 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
     if (vrsta !== "menjava_sluzbe" || !datum || mojaIzmena === undefined){ setOsebe(null); return; }
     let cancelled = false;
     setOsebeBusy(true);
-    client.from("profili").select("id, full_name, role, department_code").order("full_name")
-      .then(({ data }) => {
-        if (cancelled) return;
-        const vsi = (data || []).filter(o => o.id !== actingId);
-        setOsebe(jeDezurstvoDan
-          ? vsi.filter(o => window.NzvZasedba.jeNzvVloga(o.role) || o.department_code === "NZV" || o.department_code === "DEZ")
-          : vsi.filter(o => !mojOddelek || o.department_code === mojOddelek
-              || o.department_code === "FLEXI" || mojOddelek === "FLEXI"));
-      })
-      .finally(() => { if (!cancelled) setOsebeBusy(false); });
+    // Pri DEŽURSTVU je nabor natanko KROG DEŽURNIH - 14 oseb, ki jih
+    // našteva pokriva_oddelek z department_code = 'DEZ' (glej
+    // supabase/dezurni-kader.sql). To je isti vir, iz katerega generator
+    // sestavlja razpored dežurstev, zato se seznama ne moreta raziti.
+    // NZV je širši od tega kroga (vsi vodje in administratorji), zato
+    // vloga tu ni dovolj: dežurstvo zahteva pooblastilo.
+    const kljucniKrog = jeDezurstvoDan
+      ? client.from("pokriva_oddelek").select("profile_id").eq("department_code", "DEZ")
+          .then(r => (r.error ? null : (r.data || []).map(v => v.profile_id)), () => null)
+      : Promise.resolve(null);
+    Promise.all([
+      client.from("profili").select("id, full_name, role, department_code").order("full_name"),
+      kljucniKrog,
+    ]).then(([{ data }, krog]) => {
+      if (cancelled) return;
+      const vsi = (data || []).filter(o => o.id !== actingId);
+      if (!jeDezurstvoDan) {
+        setOsebe(vsi.filter(o => !mojOddelek || o.department_code === mojOddelek
+          || o.department_code === "FLEXI" || mojOddelek === "FLEXI"));
+        return;
+      }
+      // Če kroga (še) ni v bazi - nova namestitev, dezurni-kader.sql še ni
+      // pognan - se raje vrnemo na vlogo, kot da bi seznam ostal prazen in
+      // menjava dežurstva sploh ne bi bila mogoča. Da to ni tiho, se pod
+      // iskalnikom izpiše opozorilo (glej krogNepopoln spodaj).
+      const vKrogu = krog && krog.length ? new Set(krog) : null;
+      setKrogPoln(!!vKrogu);
+      setOsebe(vKrogu
+        ? vsi.filter(o => vKrogu.has(o.id))
+        : vsi.filter(o => window.NzvZasedba.jeNzvVloga(o.role) || o.department_code === "NZV"));
+    }).finally(() => { if (!cancelled) setOsebeBusy(false); });
     return () => { cancelled = true; };
   }, [vrsta, datum, mojaIzmena, mojOddelek, jeDezurstvoDan, actingId]);
 
@@ -569,7 +591,9 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
                   placeholder="Vpiši priimek ali ime …" />
                 <p className="hint" style={{marginTop:4}}>
                   {jeDezurstvoDan
-                    ? "Dežurstvo: na voljo so vsi iz NZV (vodje in administratorji)."
+                    ? (krogPoln
+                        ? "Dežurstvo: na voljo je krog dežurnih (" + (osebe ? osebe.length : "…") + " oseb). Drugih ni mogoče izbrati."
+                        : "Dežurstvo: kroga dežurnih ni v bazi (poženi supabase/dezurni-kader.sql), zato so začasno na voljo vsi NZV vodje.")
                     : (mojOddelek ? "Sodelavci oddelka " + mojOddelek + " (in FLEXI)." : "Sodelavci tvojega oddelka.")}
                 </p>
                 {osebeBusy && <p className="empty">Nalagam …</p>}
@@ -667,10 +691,16 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
           </React.Fragment>
         )}
 
-        <div className="field">
-          <label htmlFor="op">{vrsta === "menjava_sluzbe" ? "Razlog menjave (neobvezno)" : "Opomba (neobvezno)"}</label>
-          <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
-        </div>
+        {/* Pri "Drugo" polja Opomba ni več (uporabnikova zahteva, september
+            2026): razlog je tam obvezen in pove isto, dve prosti polji sta
+            samo podvajali vnos. Pri menjavi službe in ročnem evidentiranju
+            ostane. */}
+        {vrsta !== "drugo" && (
+          <div className="field">
+            <label htmlFor="op">{vrsta === "menjava_sluzbe" ? "Razlog menjave (neobvezno)" : "Opomba (neobvezno)"}</label>
+            <textarea id="op" value={opomba} onChange={e => setOpomba(e.target.value)} />
+          </div>
+        )}
         {jeDezurstvo && !(zaDrugega && zaKogaId) && (
           <p className="hint" style={{marginTop:-6}}>
             🔁 Menjava dežurstva: po potrditvi sodelavca gre predlog naravnost h koordinatorju

@@ -133,7 +133,12 @@
   // glavni zavihek, zato ni nova beseda za uporabnika.
   var ITEMS = [
     { key: "index", href: "index.html", ic: "🏠", lbl: "Razpored", roles: ["admin", "vodja", "user"] },
-    { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja", "user"] },
+    // Imenik in Razpredelnica (zavihek v Razporedu) sta od septembra 2026
+    // samo za administratorje in vodje - uporabnikova zahteva. Navadni
+    // zaposleni ima Razpored (Moj razpored, Oddelki, Dežurstvo), Menjavo
+    // in Želje. imenik.html to še enkrat preveri prek requireRole, da
+    // skrit meni ni edina zapora.
+    { key: "imenik", href: "imenik.html", ic: "📇", lbl: "Imenik", roles: ["admin", "vodja"] },
     { key: "menjava", href: "obrazec.html", ic: "🔁", lbl: "Menjava", roles: ["admin", "vodja", "user"], badge: "menjava" },
     { key: "zelje", href: "zelje.html", ic: "💬", lbl: "Želje", roles: ["admin", "vodja", "user"] },
     { key: "admin", href: "admin.html", ic: "🗓️", lbl: "Generator", lblOzko: "Kalup", roles: ["admin", "vodja"] },

@@ -135,7 +135,9 @@ console.log("5) mesta, ki so bila že popravljena, ostanejo popravljena");
     ["admin.html", /glave: \["Zaposleni", \.\.\.rezultat\.dnevi\.map\(dn => window\.Datum\.slo\(dn\.datum\)\)\]/, "Izvoz kalupa – glave dni"],
     ["index.html", /window\.Datum\.sloSCasom\(objava\.created_at\)/, "Podpisi – datum objave"],
     ["index.html", /\{window\.Datum\.mesecLeto\(month\)\}/, "Naslov meseca"],
-    ["zelje.html", /\{window\.Datum\.sloSCasom\(e\.created_at\)\}/, "Zgodovina želja"],
+    // Sekcija "Zapisane želje" je septembra 2026 odstranjena; časovni žig
+    // je odslej samo še v zgodovini sprememb mreže.
+    ["zelje.html", /\{window\.Datum\.sloSCasom\(dt\)\}/, "Zgodovina sprememb"],
     ["zelje.html", /window\.Datum\.slo\(isoZa\(view\.year, view\.month, d\)\)/, "Izvoz mreže želja – glave dni"],
     ["obrazec.html", /return window\.Datum\.slo\(iso\);/, "Menjava – datum"],
   ];

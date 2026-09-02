@@ -88,6 +88,34 @@ window.Imena = (function () {
     return priimek.charAt(0).toUpperCase() + priimek.slice(1).toLowerCase();
   }
 
+  // Ime za IZPIS, v uradni obliki "Priimek Ime".
+  //
+  // Viri zapisujejo isto osebo različno: profili "Alukić Dino",
+  // nosilci_oddelkov in nadomescanja pa "ALUKIĆ DINO" (velike črke, iz
+  // uradnih preglednic). Na zaslonu se je zato ista oseba enkrat pisala
+  // tako, drugič drugače. Tu se zapis poenoti: velike črke se pretvorijo
+  // v "Prva velika", vezaji in presledki ostanejo (dvobesedni priimki
+  // "Mavri Tratnik Magdalena" se ne smejo razbiti).
+  //
+  // VRSTNI RED besed se NE spreminja. Vsi viri v tej aplikaciji pišejo
+  // priimek prvi; ugibanje, katera beseda je priimek in katera ime, bi
+  // pri dvobesednih priimkih in tujih imenih naredilo več škode kot
+  // koristi. Kjer je vrstni red narobe, je to podatek za popravek v
+  // Imeniku, ne stvar izrisa.
+  function priimekIme(polno) {
+    var t = String(polno || "").replace(/\s+/g, " ").trim();
+    if (!t) return "";
+    // Samo zapisi V CELOTI z velikimi črkami - "dr. Novak" ali že
+    // pravilno "Alukić Dino" ostaneta nedotaknjena.
+    if (t !== t.toUpperCase()) return t;
+    return t.split(" ").map(function (beseda) {
+      return beseda.split("-").map(function (del) {
+        if (!del) return del;
+        return del.charAt(0).toUpperCase() + del.slice(1).toLowerCase();
+      }).join("-");
+    }).join(" ");
+  }
+
   // -------------------------------------------------------------------
   // Kazalo oseb: MATIČNA ŠTEVILKA najprej, ime šele potem.
   //
@@ -146,6 +174,7 @@ window.Imena = (function () {
     seUjemata: seUjemata,
     kratkiKljuc: kratkiKljuc,
     kratkoIme: kratkoIme,
+    priimekIme: priimekIme,
     kazalo: kazalo,
   };
 })();

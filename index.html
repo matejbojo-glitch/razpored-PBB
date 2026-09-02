@@ -1136,7 +1136,9 @@ function NadomescanjaPregled(){
       // pišejo z različnimi strešicami in v drugem vrstnem redu.
       const ujem = (a, b) => imenaSeUjemataBrezStresic(a, b);
       setVrstice((nosilci || []).filter(n => jeResnicna(n.full_name)).map(n => ({
-        oseba: n.full_name,
+        // Uradna oblika izpisa je "Priimek Ime"; nosilci_oddelkov ima
+        // imena z VELIKIMI črkami, kot pridejo iz preglednic.
+        oseba: window.Imena.priimekIme(n.full_name),
         enote: n.enote || "",
         mene: p.filter(v => ujem(v.nosilec, n.full_name)).map(v => kratkoIme(v.nadomesca)),
         pokrivam: p.filter(v => ujem(v.nadomesca, n.full_name))
@@ -1880,7 +1882,7 @@ function StanjeRazpredelnica({ oddelki }){
                           // ta dan pokriva njegov oddelek.
                           + ((nosilec && (nosilec.nadomescajoMene || []).length && zapis
                               && (zapis.stanje === "dopust" || zapis.stanje === "bolniska"))
-                             ? " · nadomešča: " + nosilec.nadomescajoMene.join(", ") : "")}
+                             ? " · nadomešča: " + nosilec.nadomescajoMene.map(window.Imena.priimekIme).join(", ") : "")}
                         style={{background: zapis ? barva : barva + "55", position:"relative",
                           textAlign:"center", fontSize:10, fontWeight:700,
                           // Izpeljana stalna zasedba (nosilec enote, brez
@@ -4578,14 +4580,24 @@ function App(){
   }, []);
 
   useEffect(() => {
+    // "profile" je razstavljen iz auth šele pod pogojem "if (!auth)"
+    // spodaj, torej ŠELE ZA tem učinkom - tu ga zato beremo iz auth.
+    const vloga = auth && auth.profile ? auth.profile.role : null;
+    if (!vloga) return;
     client.from("oddelki").select("code, name").order("code").then(({ data }) => {
       const imenaPoKodi = {};
       (data || []).forEach(d => { imenaPoKodi[d.code] = d.name; });
       const seznam = PO_ODDELKIH_KODE.map(k => ({ code: k, name: imenaPoKodi[k] || k }));
-      seznam.push({ code: "NZV", name: "NZV – vodje, administratorji (+ dežurstva)" });
+      // Razpored NZV vodij je od septembra 2026 na voljo samo
+      // administratorjem in vodjem (uporabnikova zahteva) - navadni
+      // zaposleni te izbire v spustnem seznamu nima. Podatki so v bazi
+      // še naprej berljivi vsem (schedule_select), skrit je prikaz.
+      if (vloga === "admin" || vloga === "vodja") {
+        seznam.push({ code: "NZV", name: "NZV vodje" });
+      }
       setDepts(seznam);
     });
-  }, []);
+  }, [auth]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator){
@@ -4731,6 +4743,11 @@ function App(){
   if (!auth) return null; // requireAuth preusmeri, če ni prijave
 
   const { session, profile } = auth;
+  // Administrator ali vodja. Od septembra 2026 se po tem ločita dva
+  // pogleda (uporabnikova zahteva): vodstvo vidi še Razpredelnico in
+  // razpored NZV vodij, navadni zaposleni pa samo Moj razpored, Oddelke
+  // in Dežurstvo.
+  const jeVodstvo = !!profile && (profile.role === "admin" || profile.role === "vodja");
   // "Po oddelkih" je odprt vsem prijavljenim, za vse oddelke. Pravice za
   // pisanje (generiranje, objava) in odobritve ostajajo nespremenjene - te
   // še naprej ločuje vloga, tako v vmesniku kot v RLS politikah.
@@ -4826,7 +4843,10 @@ function App(){
           {[
             ["my", "Moj razpored", "Moj", "🗓️"],
             ["ward", "Oddelki", "Oddelki", "👥"],
-            ["stanje", "Razpredelnica", "Razpredelnica", "▦"],
+            // Razpredelnica (vsi zaposleni x vsi dnevi) je od septembra
+            // 2026 samo za administratorje in vodje - uporabnikova
+            // zahteva. Navadnemu zaposlenemu ostanejo trije zavihki.
+            ...(jeVodstvo ? [["stanje", "Razpredelnica", "Razpredelnica", "▦"]] : []),
             ["dez", "Dežurstvo", "Dežurstvo", "🌙"],
           ].map(([koda, naziv, kratko, ikona]) => (
             <button key={koda} role="tab" aria-selected={view===koda} title={naziv}
@@ -4895,7 +4915,7 @@ function App(){
       {/* Razpredelnica in Dežurstvo sta prišla sem iz Imenika oz. iz
           razporeda NZV (uporabnikova zahteva, avgust 2026) - oboje sodi k
           Razporedu, ne drugam. */}
-      {view==="stanje" && <StanjeRazpredelnica key={"stanje" + reloadKey} oddelki={depts} />}
+      {view==="stanje" && jeVodstvo && <StanjeRazpredelnica key={"stanje" + reloadKey} oddelki={depts} />}
       {view==="dez" && <DezurstvoPregled key={"dez" + reloadKey} month={month} myId={session.user.id} />}
       {/* Menjave se izpišejo POD mesečnim razporedom in samo adminu
           (uporabnikova izrecna zahteva) - navadni zaposleni jih vidi na

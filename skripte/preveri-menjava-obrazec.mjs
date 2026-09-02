@@ -232,7 +232,9 @@ try {
     const plusiDrugo = await stran.$$eval("button.pill", e => e.map(x => x.textContent.trim()));
     eq(plusiDrugo, [], "in tudi pri 'Drugo' ne");
     trdi((await stran.$$("#rz")).length === 1, "polje Razlog ostane");
-    trdi((await stran.$$("#op")).length === 1, "polje Opomba ostane");
+    // Polje Opomba je pri "Drugo" septembra 2026 odstranjeno (uporabnikova
+    // zahteva): razlog je tam obvezen in pove isto.
+    trdi((await stran.$$("#op")).length === 0, "polja Opomba pri 'Drugo' ni več");
   }
 
   console.log("6) 'Čaka name' in 'Moji obrazci' povesta, kdo s kom");

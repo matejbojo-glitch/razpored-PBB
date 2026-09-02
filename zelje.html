@@ -193,14 +193,14 @@ const { useState, useEffect, useMemo, useRef } = React;
 // A, B1B2, DB, SA, URGENCA, U2) tu niso več uporabljene.
 // ---------------------------------------------------------------------
 const RAZPOREDNICA_ODDELKI = [
+  ["A", "A – oddelek (SMS/TZN)"],
   ["B", "B – oddelek (SMS/TZN)"],
   ["C", "C – oddelek (SMS/TZN)"],
   ["C1", "C1 – oddelek (SMS/TZN)"],
   ["D", "D – oddelek (SMS/TZN)"],
   ["E1", "E1 – oddelek (SMS/TZN)"],
   ["E2", "E2 – oddelek (SMS/TZN)"],
-  ["FLEXI", "FLEXI – plavajoče osebje"],
-  ["NZV", "NZV – vodje in administratorji"],
+  ["FLEXI", "FLEXI"],
 ];
 
 async function nalozizRoster(){
@@ -252,12 +252,21 @@ function compressImage(file){
 // dežurstev pa te vnose samodejno prebere (glej admin.html "Osveži iz Želje").
 // ---------------------------------------------------------------------
 
+// Vse vrste vnosa, ki jih mreža ZNA IZRISATI. Ostane cel seznam: v bazi
+// so stari vnosi in barvni uvoz iz Kadrisa jih še vedno ustvarja, zato
+// se morajo izrisati in izvoziti tudi naprej.
 const PEN_META = {
   omejitev: { label: "Omejitev", barva: "#FFD966" },
   ld: { label: "LD (dopust)", barva: "#E06666" },
   bs: { label: "BS (bolniška)", barva: "#93C47D" },
   sti: { label: "STI (štud. dopust)", barva: "#B4A7D6" },
 };
+// Kaj je mogoče vpisati ROČNO (uporabnikova zahteva, september 2026):
+// samo letni dopust. Omejitev, bolniška in študijski dopust se v Želje
+// ne vnašajo več - bolniška pride iz Kadrisa, omejitve pa se dogovorijo
+// drugje. Obstoječi vnosi teh vrst ostanejo vidni in jih generator še
+// naprej upošteva; le nov vnos ni več mogoč.
+const PEN_ROCNO = ["ld"];
 
 const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
 
@@ -710,7 +719,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
   // imena med ročnim vnosom in uvozom iz CSV razlikuje; brez tega bi
   // popravek take celice ustvaril drugo vrstico namesto da bi prvo popravil.
   const [zapisanoIme, setZapisanoIme] = useState({});
-  const [pen, setPen] = useState("omejitev");
+  const [pen, setPen] = useState(PEN_ROCNO[0]);
   const [nalagam, setNalagam] = useState(true);
   const [status, setStatus] = useState("");
   const [log, setLog] = useState([]);
@@ -1127,7 +1136,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           mreža celega meseca. */}
       <div className="penRow no-print">
           <span className="penHint">Barva:</span>
-          {Object.keys(PEN_META).map(k => (
+          {PEN_ROCNO.map(k => (
             <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
               <span className="penSwatch" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
             </button>
@@ -1256,200 +1265,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
   );
 }
 
-// Seznam želja je zdaj razdeljen po oddelkih (glej SeznamZeljTab spodaj) –
-// 6 SMS/TZN oddelkov + FLEXI + NZV (na izrecno navodilo). Imena oseb za
-// izbirnik (samo za admina/vodjo, ki lahko vnese željo za kogar koli)
-// pridobimo iz živega seznama oddelkov (skupine, glej nalozizRoster) – NZV
-// je tam že pravilno napolnjen (vsi z vlogo vodja/admin), enako kot
-// ostalih 7 skupin, zato ni več potreben poseben primer za nosilci_oddelkov.
-function VnosForma({ oddelek, skupine, myId, myFullName, jeKoordinator, onAdded }){
-  const [imena, setImena] = useState(null); // null dokler se ne naloži
-  useEffect(() => {
-    const skupina = skupine.find(g => g.koda === oddelek);
-    setImena(skupina ? skupina.ljudje : []);
-  }, [oddelek, skupine]);
 
-  const [ime, setIme] = useState(myFullName || "");
-  useEffect(() => {
-    if (jeKoordinator) setIme(imena && imena.length ? imena[0] : "");
-    else setIme(myFullName || "");
-  }, [imena, jeKoordinator, myFullName]);
-
-  const [obdobje, setObdobje] = useState("");
-  const [opis, setOpis] = useState("");
-  const [slika, setSlika] = useState(null); // data URL
-  const [nalaga, setNalaga] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const fileRef = useRef();
-
-  const onFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setNalaga(true);
-    try { setSlika(await compressImage(file)); }
-    finally { setNalaga(false); }
-    e.target.value = "";
-  };
-
-  const shrani = async () => {
-    if (!obdobje.trim() && !opis.trim() && !slika) return;
-    setBusy(true); setMsg(null);
-    try {
-      const { error } = await RazporedAuth.client.from("zelje_zaposlenih").insert({
-        profile_id: jeKoordinator ? null : myId,
-        full_name: (ime || myFullName || "").trim(),
-        department_code: oddelek,
-        obdobje: obdobje.trim() || null, opis: opis.trim() || null, slika,
-        created_by: myId,
-      });
-      if (error) throw error;
-      setObdobje(""); setOpis(""); setSlika(null);
-      onAdded();
-    } catch (e) {
-      setMsg(e.message || String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="card">
-      {jeKoordinator ? (
-        <div className="field">
-          <label htmlFor="ime">Zaposleni</label>
-          <select id="ime" value={ime} onChange={e => setIme(e.target.value)} disabled={!imena}>
-            {(imena || []).map(l => <option key={l} value={l}>{l}</option>)}
-          </select>
-        </div>
-      ) : (
-        <p className="hint" style={{marginTop:0}}>Vnašaš željo zase: <b>{myFullName}</b></p>
-      )}
-      <div className="field">
-        <label htmlFor="obd">Obdobje</label>
-        <input id="obd" type="text" placeholder="npr. 9.–15. november, ali cel december"
-          value={obdobje} onChange={e => setObdobje(e.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="op">Želja / opomba (neobvezno, če je slika dovolj)</label>
-        <textarea id="op" placeholder="npr. želi prost vikend, ne more delati nočnih ..."
-          value={opis} onChange={e => setOpis(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Fotografija (neobvezno)</label>
-        <div className="fileRow">
-          <label className="fileBtn">
-            {nalaga ? "Obdelujem …" : "⬆ Dodaj fotografijo"}
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} />
-          </label>
-          {slika && <img className="thumbPreview" src={slika} alt="predogled" />}
-          {slika && <button className="clearImg" onClick={() => setSlika(null)}>odstrani sliko</button>}
-        </div>
-      </div>
-      <button className="submitBtn" onClick={shrani} disabled={nalaga || busy}>{busy ? "Shranjujem …" : "Shrani željo"}</button>
-      {msg && <p className="err">{msg}</p>}
-    </div>
-  );
-}
-
-// "oddelek" pride od zunaj (skupen izbirnik nad razpredelnico) - prej je
-// imela ta komponenta SVOJ izbirnik in koordinator je isti oddelek izbiral
-// dvakrat, enkrat tu in enkrat v razpredelnici.
-function SeznamZeljTab({ role, myId, myFullName, oddelek, skupine }){
-  const jeKoordinator = role === "admin" || role === "vodja";
-  const [zapisi, setZapisi] = useState([]);
-  const [nalagam, setNalagam] = useState(true);
-  const [filter, setFilter] = useState("");
-  const [lightbox, setLightbox] = useState(null);
-
-  const nalozi = () => {
-    if (!oddelek) { setZapisi([]); setNalagam(false); return; }
-    setNalagam(true);
-    RazporedAuth.client.from("zelje_zaposlenih").select("*").eq("department_code", oddelek)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => { setZapisi(data || []); setNalagam(false); });
-  };
-  useEffect(() => { nalozi(); }, [oddelek]);
-
-  const obrisi = async (id) => {
-    const { error } = await RazporedAuth.client.from("zelje_zaposlenih").delete().eq("id", id);
-    if (error) { alert(error.message); return; }
-    nalozi();
-  };
-
-  const grouped = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    const filtered = zapisi.filter(e =>
-      !f || e.full_name.toLowerCase().includes(f) || (e.obdobje||"").toLowerCase().includes(f) || (e.opis||"").toLowerCase().includes(f)
-    );
-    const byIme = {};
-    filtered.forEach(e => { (byIme[e.full_name] = byIme[e.full_name] || []).push(e); });
-    return Object.keys(byIme).sort().map(ime => ({ ime, list: byIme[ime] }));
-  }, [zapisi, filter]);
-
-  const skupajSlik = zapisi.filter(e => e.slika).length;
-
-  if (!oddelek) {
-    return <p className="hint">Seznam želja ni na voljo za tvoj oddelek.</p>;
-  }
-
-  return (
-    <div>
-      <div className="no-print">
-        <h2 className="section">Nov vnos – {oddelek === "NZV" ? "NZV" : "oddelek " + oddelek}</h2>
-        <VnosForma oddelek={oddelek} skupine={skupine} myId={myId} myFullName={myFullName} jeKoordinator={jeKoordinator} onAdded={nalozi} />
-      </div>
-
-      <div className="toolRow no-print">
-        <input type="text" placeholder="Iskanje po imenu, obdobju ali besedilu …" value={filter}
-          onChange={e => setFilter(e.target.value)}
-          style={{flex:"1 1 200px", background:"var(--surface-2)", border:"1px solid var(--line)", color:"var(--text)",
-            padding:"9px 12px", borderRadius:"999px", fontSize:13}} />
-        <button className="toolBtn" onClick={() => PrintFit.natisni(null, { orientacija:"portrait" })}>📄 Izvozi v PDF (A4 pokončno)</button>
-      </div>
-
-      <h2 className="section">Vneseni seznam {skupajSlik > 0 && <span style={{fontWeight:400, color:"var(--muted)", fontSize:12}}>({skupajSlik} s fotografijo)</span>}</h2>
-
-      {nalagam && <p className="hint">Nalagam …</p>}
-      {!nalagam && grouped.length === 0 && <p className="empty">Ni vnesenih želja{filter ? " za ta iskalni niz" : ""}.</p>}
-
-      {grouped.map(g => (
-        <div key={g.ime}>
-          <div className="groupHead">
-            <span className="n">{g.ime}</span>
-            <span className="g">{g.list.length} {steviloVnosov(g.list.length)}</span>
-          </div>
-          {g.list.map(e => (
-            <div className="entry" key={e.id}>
-              <div className="top2">
-                <div>
-                  {e.obdobje && <div className="obdobje">{e.obdobje}</div>}
-                  <div className="datum">{window.Datum.sloSCasom(e.created_at)}</div>
-                </div>
-                {(jeKoordinator || e.profile_id === myId) && (
-                  <button className="delBtn no-print" onClick={() => obrisi(e.id)} title="Izbriši">✕</button>
-                )}
-              </div>
-              {e.opis && <div className="opis">{e.opis}</div>}
-              {e.slika && <img className="thumb" src={e.slika} onClick={() => setLightbox(e.slika)} alt="priložena fotografija" />}
-            </div>
-          ))}
-        </div>
-      ))}
-
-      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
-    </div>
-  );
-}
-
-function Lightbox({ src, onClose }){
-  if (!src) return null;
-  return (
-    <div className="modalOverlay" onClick={onClose}>
-      <img src={src} alt="fotografija želje v polni velikosti" />
-    </div>
-  );
-}
 
 // Ena skupina naenkrat + "Vse". Prej sta bila dva ločena zavihka, vsak s
 // svojim izbirnikom oddelka - koordinator je moral isti oddelek izbrati
@@ -1463,7 +1279,6 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
   // Privzeto svoja skupina - koordinator najprej gleda svoj oddelek.
   const [skupina, setSkupina] = useState(() =>
     RAZPOREDNICA_ODDELKI.some(([k]) => k === myDept) ? myDept : VSE_SKUPINE);
-  const [zeljeOdprte, setZeljeOdprte] = useState(false);
   useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
 
   const nazivSkupine = Object.fromEntries(RAZPOREDNICA_ODDELKI);
@@ -1499,32 +1314,12 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
             skupina={skupina === VSE_SKUPINE ? null : skupina}
             naslovSkupine={skupina === VSE_SKUPINE ? "Vse skupine" : nazivSkupine[skupina]} />
 
-          {/* Želje iste skupine so tik pod razpredelnico, ne v drugem
-              zavihku: gre za isto osebo in isti mesec, le da je eno barva
-              in drugo besedilo. Zaprte, da ne tekmujejo z mrežo. */}
-          {skupina !== VSE_SKUPINE && (
-            <div className="zeljeSekcija no-print">
-              <button className="zeljeToggle" aria-expanded={zeljeOdprte}
-                onClick={() => setZeljeOdprte(v => !v)}>
-                📝 Zapisane želje – {nazivSkupine[skupina]} {zeljeOdprte ? "▲" : "▼"}
-              </button>
-              {zeljeOdprte && (
-                <SeznamZeljTab role={role} myId={myId} myFullName={myFullName}
-                  oddelek={skupina} skupine={roster.skupine} />
-              )}
-            </div>
-          )}
-          {skupina === VSE_SKUPINE && (
-            <p className="hint no-print" style={{marginTop:14}}>
-              Za vnos in pregled zapisanih želja izberi posamezno skupino zgoraj.
-            </p>
-          )}
         </React.Fragment>
       )}
 
       <footer className="foot no-print">
-        <p><b>Barve</b> (dopust, omejitev, bolniška, izobraževanje) so shranjene v Supabase in jih generatorji razporedov preberejo samodejno.</p>
-        <p><b>Zapisane želje</b> so prosto besedilo ali fotografija za isto skupino in isti mesec – vse na enem mestu, brez preklapljanja.</p>
+        <p><b>Letni dopust</b> se vpiše v mrežo in je shranjen v Supabase; generatorji razporedov ga preberejo samodejno.</p>
+        <p>Starejši vnosi (omejitev, bolniška, izobraževanje) ostanejo vidni in se še naprej upoštevajo – novih se ročno ne vpisuje več.</p>
       </footer>
 
       <RazporedNav active="zelje" role={role} unread={0} />

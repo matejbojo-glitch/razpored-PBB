@@ -3802,7 +3802,7 @@ update public.nosilci_oddelkov l
 -- Novi oddelek se avtomatsko pojavi v Imeniku (dropdown bere oddelki),
 -- brez sprememb UI kode.
 insert into public.oddelki (code, name) values
-  ('FLEXI', 'FLEXI – plavajoče osebje (več oddelkov)')
+  ('FLEXI', 'FLEXI')
 on conflict (code) do update set name = excluded.name;
 
 
@@ -4230,7 +4230,7 @@ update public.profili set is_koordinator = true where lower(email) = 'denis.dzam
 --     izrecno željo uporabnika – "naknadno bom popravil").
 -- ---------------------------------------------------------------------
 insert into public.oddelki (code, name) values
-  ('NZV', 'NZV – vodje in administratorji (vključno z dežurstvi)')
+  ('NZV', 'NZV vodje')
 on conflict (code) do update set name = excluded.name;
 
 
