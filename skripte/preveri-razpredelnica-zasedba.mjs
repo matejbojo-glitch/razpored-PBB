@@ -222,8 +222,11 @@ console.log("4c) V celici piše ENOTA, ne \"DOP\" - vodje delajo vedno dopoldne"
   const src = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/const samoEnota = !!\(zapis && zapis\.enota && kratica === "DOP"\);/.test(src),
     "pravilo je zapisano: samo enota, kadar je kratica DOP in je enota znana");
-  trdi(/\{samoEnota \? zapis\.enota : \(/.test(src),
-    "izris ga tudi uporabi - namesto kratice izpiše enoto");
+  // Oznaka "(M)" (mentor pripravniku) se pripne tudi tu: če je vpisana,
+  // se ne sme tiho izgubiti samo zato, ker je namesto kratice izpisana
+  // enota. V praksi je NZV nosilec ne dobi, a molk bi bil napaka.
+  trdi(/\{samoEnota \? \(mentor \? zapis\.enota \+ " \(M\)" : zapis\.enota\) : \(/.test(src),
+    "izris ga tudi uporabi - namesto kratice izpiše enoto (z morebitno oznako (M))");
 
   // In da to velja SAMO za DOP: dežurstvo in dopust morata ostati vidna.
   const m = mreza();
