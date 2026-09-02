@@ -88,10 +88,16 @@ await new Promise(r => streznik.listen(VRATA, r));
 const brskalnik = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 
 const ZAPOSLENI = [
-  { id: "u-x", full_name: "Bolan Boris" },
-  { id: "u-y", full_name: "Prost Peter" },
+  { id: "u-x", full_name: "Bolan Boris", role: "user", department_code: "B" },
+  { id: "u-y", full_name: "Prost Peter", role: "user", department_code: "B" },
 ];
-const KANDIDAT = { profile_id: "u-y", full_name: "Prost Peter", njihova_izmena: "Nočna", njihov_datum: "2026-10-06", jaz_pridem_prej: false };
+// Od septembra 2026 se sodelavec izbere ROČNO: iskalnik oseb, nato razpored
+// izbrane osebe. Zato mora peskovnik znati vrniti vrstice razporeda po
+// osebi (prej je "razpored" vračal null in poti sploh ni bilo treba).
+const RAZPORED = [
+  { employee_id: "u-x", work_date: "2026-10-05", shift_code: "Dopoldne", department_code: "B" },
+  { employee_id: "u-y", work_date: "2026-10-06", shift_code: "Nočna",    department_code: "B" },
+];
 
 async function odpri(profil, { potrdiDialog } = { potrdiDialog: true }) {
   const stran = await brskalnik.newPage({ viewport: { width: 1200, height: 900 } });
@@ -103,12 +109,20 @@ async function odpri(profil, { potrdiDialog } = { potrdiDialog: true }) {
   stran.on("console", m => { if (m.type() === "error") konzola.push(m.text()); });
   stran.on("dialog", async (d) => { if (potrdiDialog) await d.accept(); else await d.dismiss(); });
   await stran.exposeFunction("zabeleziKlic", (ime, arg) => klici.push({ ime, arg }));
-  await stran.addInitScript(({ profil, zaposleni, kandidat }) => {
+  await stran.addInitScript(({ profil, zaposleni, razpored }) => {
     const poizvedba = (v) => {
+      const filtri = [];
+      const izbrani = () => (Array.isArray(v)
+        ? v.filter(r => filtri.every(([k, x]) => r[k] === x))
+        : v);
       const b = new Proxy({}, { get(_, n) {
-        if (n === "then") return (nx) => Promise.resolve({ data: v, error: null }).then(nx);
+        if (n === "eq") return (k, x) => { filtri.push([k, x]); return b; };
+        if (n === "then") return (nx) => Promise.resolve({ data: izbrani(), error: null }).then(nx);
         if (n === "insert" || n === "upsert") return () => Promise.resolve({ data: [], error: null });
-        if (n === "maybeSingle" || n === "single") return () => Promise.resolve({ data: Array.isArray(v) ? (v[0] || null) : v, error: null });
+        if (n === "maybeSingle" || n === "single") return () => {
+          const d = izbrani();
+          return Promise.resolve({ data: Array.isArray(d) ? (d[0] || null) : d, error: null });
+        };
         if (typeof n !== "string") return undefined;
         return () => b;
       }});
@@ -122,11 +136,9 @@ async function odpri(profil, { potrdiDialog } = { potrdiDialog: true }) {
         if (v && typeof v === "object") {
           const seja = { session: { user: { id: profil.id } }, profile: profil, ogled: false };
           v.client = {
-            from: (t) => poizvedba(t === "profili" ? zaposleni : (t === "razpored" ? null : [])),
+            from: (t) => poizvedba(t === "profili" ? zaposleni : (t === "razpored" ? razpored : [])),
             rpc: (ime, arg) => {
               window.zabeleziKlic(ime, arg);
-              if (ime === "mozni_sodelavci") return Promise.resolve({ data: [kandidat], error: null });
-              if (ime === "mozni_prejemniki_dezurstva") return Promise.resolve({ data: [], error: null });
               if (ime === "obrazec_admin_izvedi_menjavo") return Promise.resolve({ data: "novi-obrazec-id", error: null });
               return Promise.resolve({ data: null, error: null });
             },
@@ -142,7 +154,7 @@ async function odpri(profil, { potrdiDialog } = { potrdiDialog: true }) {
         }
       },
     });
-  }, { profil, zaposleni: ZAPOSLENI, kandidat: KANDIDAT });
+  }, { profil, zaposleni: ZAPOSLENI, razpored: RAZPORED });
   await stran.goto(`http://127.0.0.1:${VRATA}/obrazec.html`, { waitUntil: "load" });
   await stran.waitForTimeout(1000);
   return { stran, konzola, klici };
@@ -186,12 +198,19 @@ try {
       "polje se preimenuje po izbrani osebi, ne po adminu samem");
 
     await stran.fill("#da", "2026-10-05");
-    await stran.waitForTimeout(200);
-    await stran.click("button:has-text('Poišči sodelavce za menjavo')");
+    await stran.waitForTimeout(400);
+    // Izmena se prebere za IZBRANO osebo (u-x), ne za admina.
+    trdi(/Trenutno: Dopoldne/.test(await stran.evaluate(() => document.body.innerText)),
+      "prikazana je izmena izbrane osebe za ta dan");
+    // Ročno iskanje sodelavca: najprej oseba, nato njen razpored.
+    await stran.fill("#isc", "Prost");
     await stran.waitForTimeout(300);
-    trdi(klici.some(k => k.ime === "mozni_sodelavci" && k.arg.p_profile_id === "u-x"),
-      "iskanje sodelavcev gre za IZBRANO osebo (u-x), ne za admina (a): " + JSON.stringify(klici.map(k => [k.ime, k.arg && k.arg.p_profile_id])));
-
+    await stran.click("button.candBtn");
+    await stran.waitForTimeout(400);
+    // Oznaka je <label>, ta pa je v slogu text-transform:uppercase - zato /i.
+    const poIzbiri = await stran.evaluate(() => document.body.innerText);
+    trdi(/Razpored – Prost Peter/i.test(poIzbiri), "po izbiri osebe se izpiše NJEN razpored");
+    trdi(/6\.10\.2026/.test(poIzbiri) && /Nočna/i.test(poIzbiri), "z dnevi in izmenami, med katerimi se izbira");
     await stran.click("button.candBtn");
     await stran.waitForTimeout(200);
     trdi((await stran.locator("button:has-text('Izvedi takoj')").count()) === 1,
@@ -220,8 +239,11 @@ try {
     await stran.waitForTimeout(200);
     await stran.selectOption("select", "u-x");
     await stran.fill("#da", "2026-10-05");
-    await stran.click("button:has-text('Poišči sodelavce za menjavo')");
+    await stran.waitForTimeout(400);
+    await stran.fill("#isc", "Prost");
     await stran.waitForTimeout(300);
+    await stran.click("button.candBtn");
+    await stran.waitForTimeout(400);
     await stran.click("button.candBtn");
     await stran.waitForTimeout(200);
     await stran.click("button:has-text('Izvedi takoj')");
