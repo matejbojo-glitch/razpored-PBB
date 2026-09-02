@@ -179,7 +179,7 @@ const { client } = RazporedAuth;
 // natanko teh 8 (glej supabase/schema.sql sekcija 23, isti seznam kot v
 // imenik.html/zelje.html). Stare kode ostanejo v bazi (razpored jih
 // zgodovinsko referencira), samo tu se jih ne ponuja več za dodeljevanje.
-const RAZPORED_ODDELKI = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+const RAZPORED_ODDELKI = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 
 // ---------------------------------------------------------------------
 // Objava generiranega razporeda naravnost v Supabase (razpored),
@@ -316,6 +316,11 @@ const ANCHOR_MONDAY = "2026-09-28";
 // zdaj pa prihajata živo iz Supabase (profili.department_code +
 // profili.rotation_slot, urejljivo v Imeniku) – glej nalozizOddelek spodaj.
 const WARDS_META = {
+  // "A" je dodan septembra 2026. Ima svoj DOPOLDANSKI kader; popoldne in
+  // ponoči ga izmenično pokrivata B in E1 (pravilo je v oddelek-a.js,
+  // prikaz v index.html). Minimumov po izmeni zato zanj ni - dokler jih
+  // administrator ne vpiše, generator za A pričakuje samo dopoldne.
+  A:  { naziv:"A – oddelek",  hsuffix:false },
   B:  { naziv:"B – oddelek",  hsuffix:false },
   C:  { naziv:"C – oddelek",  hsuffix:false },
   C1: { naziv:"C1 – oddelek", hsuffix:false },
@@ -1090,7 +1095,7 @@ function PokritostPoDnevih({ rezultat, celica, pragPopravki, setPragPopravki, mi
 // uvoz, preveri-flexi-uvoz, preveri-nzv-*). Druga kopija bi se sčasoma
 // razšla s prvo - to je isti razlog, zaradi katerega sheets-mreza.js
 // (edina namerna podvojitev) potrebuje lasten preizkus usklajenosti.
-const UVOZ_SKUPINE = ["B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
+const UVOZ_SKUPINE = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"];
 function UvozRazporedaNapotek({ koda, month }){
   // Generator pokriva samo 6 oddelkov, uvoz pa VSE skupine - zato ima ta
   // razdelek svoj izbirnik, ki ni vezan na izbiro oddelka za generator
@@ -1466,7 +1471,9 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         <div className="field">
           <label htmlFor="odd">Oddelek</label>
           <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
-            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{k} – {WARDS_META[k].naziv}</option>)}
+            {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
+                je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
           </select>
         </div>
         <div className="field">

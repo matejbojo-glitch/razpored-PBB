@@ -73,7 +73,7 @@ function prekopirajStaticnoOb() {
     // VendorIzvoz.nalozi v export-utils.entry.js), zato ga ne referencira
     // noben <script src> - Vite ga sam ne bi prekopiral.
     "vendor-izvoz.min.js",
-    "supabase-client.js", "push-client.js", "nav.js", "imena.js", "izmene.js",
+    "supabase-client.js", "push-client.js", "nav.js", "imena.js", "izmene.js", "oddelek-a.js",
     "parafa.js", "prazniki.js", "nzv-zasedba.js", "datum.js", "print-fit.js",
     "import-utils.js", "delovni-cas.js", "export-utils.js", "gsheets-client.js",
     "export-buttons.js", "dashboard-core.js", "generator-core.js",
