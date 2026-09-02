@@ -401,8 +401,11 @@ console.log("17) seznam pokrivanj (nosilci_oddelkov) se poveže s pravo osebo");
     "izračunata se OBE smeri: kdo nadomešča mene in koga pokrivam jaz");
   trdi(/\(a\.prednost \|\| 1\) - \(b\.prednost \|\| 1\)/.test(html3),
     "nadomeščevalci so razvrščeni po prednosti (kdo je prvi na vrsti)");
-  trdi(/nadomešča: " \+ nosilec\.nadomescajoMene\.join/.test(html3),
-    "ob dopustu/bolniški opis pove, kdo pokriva");
+  // Imena iz nadomescanja so zapisana z velikimi črkami; v opisu se
+  // izpišejo v uradni obliki "Priimek Ime" (imena.js), zato gredo skozi
+  // priimekIme pred join.
+  trdi(/nadomešča: " \+ nosilec\.nadomescajoMene\.map\(window\.Imena\.priimekIme\)\.join/.test(html3),
+    "ob dopustu/bolniški opis pove, kdo pokriva – v obliki \"Priimek Ime\"");
 
   trdi(/function NadomescanjaPregled\(\)/.test(html3),
     "pregled nadomeščanj (Oseba | Enote | Nadomeščajo mene | Pokrivam) obstaja");

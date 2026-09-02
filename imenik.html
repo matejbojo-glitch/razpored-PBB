@@ -1759,7 +1759,11 @@ function App(){
   const [napakaOsebe, setNapakaOsebe] = useState(null);
 
   useEffect(() => {
-    RazporedAuth.requireAuth().then(res => {
+    // Imenik je od septembra 2026 samo za administratorje in vodje
+    // (uporabnikova zahteva). V nav.js je vnos za navadnega zaposlenega
+    // skrit, a skrit meni ni zapora - stran je dosegljiva tudi z
+    // neposrednim naslovom, zato se vloga preveri tudi tu.
+    RazporedAuth.requireRole(["admin", "vodja"]).then(res => {
       if (!res) return;
       setAuth(res);
       const params = new URLSearchParams(location.search);
