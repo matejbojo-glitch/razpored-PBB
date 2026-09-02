@@ -88,9 +88,18 @@ console.log("4) zasloni izpisujejo NAZIV, ne surove šifre");
   // "Moj razpored" pa izpiše ŽE sestavljeno besedilo (z enoto in
   // dežurstvom) - nikoli še enkrat skozi shiftLabel, sicer se skrči
   // nazaj na golo "Dopoldne".
-  trdi(/\{prikazNaZaslonu\(prikaz\)\}/.test(index)
+  //
+  // Od septembra 2026 ima ta pogled dve obliki (koledar PON-NED na širokem
+  // zaslonu, seznam po dnevih na telefonu), zato besedilo pripravi ena sama
+  // skupna funkcija celicaDneva - obe obliki izpišeta njen rezultat. Prav
+  // zato je preverba tu vezana na to pripravo in ne na posamezen izris:
+  // dokler gre besedilo skozi prikazNaZaslonu ENKRAT, je pravilo izpolnjeno
+  // v obeh oblikah hkrati.
+  trdi(/besedilo: prikazNaZaslonu\(prikaz\),/.test(index)
     && /\{prikazNaZaslonu\(todayPrikaz\)\}/.test(index),
     "index.html: 'Moj razpored' izpiše prikazNaZaslonu, ne shiftLabel");
+  trdi(/\{c\.besedilo\}/.test(index),
+    "index.html: oba prikaza (koledar in seznam) izpišeta isto pripravljeno besedilo");
   trdi(!/\{shiftLabel\((prikaz|todayPrikaz)\)\}/.test(index),
     "index.html: nikjer dvojnega izpisa shiftLabel(nzvPrikaz(...))");
   const obrazec = readFileSync(join(koren, "obrazec.html"), "utf8");
