@@ -402,6 +402,45 @@ button{ cursor:pointer; }
 .todayCard .shiftName{ font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing:-0.01em; }
 .todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
 
+/* ---------- pas krmil (oddelek · mesec · današnja izmena) ----------
+   Uporabnikova zahteva (september 2026): vsi izbirniki v ENI vrstici.
+   Prej so bili trije bloki pod sabo in so pri NZV mreži porinili tabelo
+   ~560 px navzdol - razporeda brez drsenja ni bilo videti. Na telefonu se
+   vrstica normalno prelomi (flex-wrap), tam je prostora po širini premalo. */
+.ctrlRow{
+  display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px 14px; margin-top:12px;
+}
+.ctrlRow .field{ margin-top:0; min-width:0; }
+.ctrlRow .field:first-child{ flex:0 1 260px; }
+.ctrlRow .field select, .ctrlRow .field input{ width:100%; }
+.ctrlRow .dlBtn{ margin:0; }
+/* Današnja izmena: ista vrstica kot mesec, zato drobno in v eni vrsti -
+   ne več velika kartica pod krmili. */
+.danesCip{
+  display:flex; align-items:center; flex-wrap:wrap; gap:4px 9px;
+  padding:8px 12px; border:1px solid var(--line); border-radius: var(--radius-pill);
+  background: var(--surface-2); font-size:13.5px; min-height:40px;
+}
+.danesCip .dot{ width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
+.danesCip .danesLbl{
+  font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--muted); font-weight:700;
+}
+.danesCip b{ font-weight:700; }
+.danesCip .danesCas{ font-size:12px; color:var(--muted); }
+/* Gumb za legendo stoji v istem pasu kot izbirniki (Razpredelnica). */
+.ctrlRow .legendaGumb{
+  display:flex; align-items:center; gap:8px; min-height:40px;
+  padding:8px 12px; border:1px solid var(--line); border-radius: var(--radius-pill);
+  background: var(--surface-2); cursor:pointer; font:inherit; color:inherit;
+}
+.ctrlRow .legendaGumb:hover{ border-color: var(--accent); }
+@media (max-width: 560px){
+  .ctrlRow .field:first-child{ flex:1 1 100%; }
+  .danesCip{ flex:1 1 100%; border-radius: var(--radius-sm); }
+}
+
+
 /* ---------- seznami / vrstice ---------- */
 .row{
   display:flex; align-items:center; gap:12px; padding: 12px 4px;
@@ -491,6 +530,15 @@ button{ cursor:pointer; }
 .wardScroller, .tableScroller{
   margin-top: 16px; overflow-x:auto; border:1px solid var(--line); border-radius: var(--radius);
   -webkit-overflow-scrolling: touch; box-shadow: var(--shadow-xs); background: var(--surface);
+}
+/* Mreža drsi ZNOTRAJ okvirja, ne s celo stranjo. Lepljiva glava tabele se
+   tako zalepi na vrh OKVIRJA in ne na vrh okna, kjer je prekrivala
+   izbirnik meseca (uporabnikov posnetek zaslona, september 2026); hkrati
+   glava in stolpec z datumom ostaneta vidna med popravljanjem celic. Isti
+   vzorec kot .gridScroll v zelje.html. Pri tiskanju se okvir sprosti
+   (@media print v index.html). */
+@media (min-width: 900px){
+  .wardScroller.vOkvirju{ overflow:auto; max-height: calc(100vh - 230px); min-height: 360px; }
 }
 table{ border-collapse:separate; border-spacing:0; width:100%; }
 table.wardTable, table.dutyTable, table.fairTable{ width:max-content; min-width:100%; }
@@ -1212,4 +1260,17 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
     min-width: 0;
     width: 2.6%;
   }
+  /* Cel mesec v širino ENE strani (uporabnikova zahteva, september 2026).
+     Prej je bila razpredelnica pri 1536 px široka 1585 px in se je odrezala
+     pri 28. dnevu: table.wardTable ima "width:max-content", zato je
+     odstotna širina dnevnega stolpca merila po VSEBINI, ne po okvirju.
+     Fiksna postavitev meri stolpce po okvirju, zato jih gre 31 v vrsto.
+     Ime se sme prelomiti v dve vrstici - "Mavri Tratnik Magdalena" pri
+     118 px drugače izgine pod tri pike. */
+  table.razpPolna{ width:100%; table-layout:fixed; }
+  .razpPolna td.name, .razpPolna th.name{
+    width:118px; min-width:118px; max-width:118px;
+    white-space:normal; overflow-wrap:break-word; overflow:visible; text-overflow:clip;
+  }
+  .razpPolna td:not(.name){ overflow:hidden; }
 }

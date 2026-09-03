@@ -98,8 +98,12 @@ console.log("4) zasloni izpisujejo NAZIV, ne surove šifre");
   // Od septembra 2026 se besedilu lahko pripne še oznaka "(A)" (izmena
   // pokriva tudi oddelek A) - prikazNaZaslonu se zato ne izvede še enkrat,
   // le rezultat se podaljša.
+  // Današnja izmena se od septembra 2026 ne izriše več v svoji kartici,
+  // ampak se javi navzgor v pas krmil (isti vrstici kot izbirnik meseca) -
+  // skozi prikazNaZaslonu gre še vedno natanko enkrat, le rezultat potuje
+  // kot vrednost namesto neposredno v JSX.
   trdi(/besedilo: prikazNaZaslonu\(prikaz\)( \+ oznakaA)?,/.test(index)
-    && /\{prikazNaZaslonu\(todayPrikaz\)\}/.test(index),
+    && /izmena: prikazNaZaslonu\(todayPrikaz\)/.test(index),
     "index.html: 'Moj razpored' izpiše prikazNaZaslonu, ne shiftLabel");
   trdi(/\{c\.besedilo\}/.test(index),
     "index.html: oba prikaza (koledar in seznam) izpišeta isto pripravljeno besedilo");

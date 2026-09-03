@@ -259,7 +259,15 @@ try {
   {
     const { ctx, pg } = await odpri("index.html", 1440, "admin");
     const brez = [];
-    for (let i = 0; i < 12; i++) {
+    // Merilo je "vsak element, ki dobi fokus s tipkovnico, obroč vsaj
+    // ENKRAT pokaže". Sestavljena polja (input type="month"/"date") imajo
+    // več tabulatorskih postaj v svojem senčnem drevesu - mesec, leto,
+    // gumb za koledar - in ko je fokus na notranjem gumbu, obroč nariše
+    // brskalnik SAM na tem gumbu, gostitelj pa ga takrat nima. Ločeno
+    // štetje po elementih to loči od pravega manjkajočega obroča:
+    // gostitelj mora obroč pokazati na svoji prvi postaji.
+    const zObrocem = new Set();
+    for (let i = 0; i < 14; i++) {
       await pg.keyboard.press("Tab");
       const r = await pg.evaluate(() => {
         const el = document.activeElement;
@@ -268,7 +276,9 @@ try {
         return { kdo: el.tagName.toLowerCase() + "." + (el.className || "").toString().slice(0, 18),
           obroc: st.outlineStyle, sirina: st.outlineWidth, barva: st.outlineColor };
       });
-      if (r && (r.obroc === "none" || parseFloat(r.sirina) === 0)) brez.push(r.kdo);
+      if (!r) continue;
+      if (r.obroc !== "none" && parseFloat(r.sirina) > 0) zObrocem.add(r.kdo);
+      else if (!zObrocem.has(r.kdo)) brez.push(r.kdo);
     }
     trdi(brez.length === 0, "vsak element pod tabulatorjem ima viden obroč" + (brez.length ? " – brez: " + [...new Set(brez)].join(", ") : ""));
     await ctx.close();

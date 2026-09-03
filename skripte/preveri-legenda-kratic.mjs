@@ -51,10 +51,21 @@ function izvleci(ime) {
   throw new Error("Konec funkcije " + ime + " ni najden.");
 }
 
-const zac = html.indexOf('      <div className="card" style={{marginBottom:10, padding:"10px 12px"}}>');
+// Legenda je od septembra 2026 razdeljena na DVOJE: gumb stoji v pasu
+// krmil (v isti vrstici kot izbirnika meseca in oddelka - uporabnikova
+// zahteva), panel pa se izriše pod njim. Zato se izvlečeta oba dela in
+// sestavita nazaj - preizkus tako še vedno gleda PRAVO kodo strani, ne
+// svoje kopije.
+const zacGumb = html.indexOf('        <button type="button" className="legendaGumb"');
+const konGumb = html.indexOf("</button>", zacGumb);
+if (zacGumb === -1 || konGumb === -1) throw new Error("Gumba legende (.legendaGumb) v index.html ni bilo mogoče najti.");
+const gumbKoda = html.slice(zacGumb, konGumb + "</button>".length);
+
+const zac = html.indexOf("      {legendaOdprta && (");
 const kon = html.indexOf("      {osebe === null");
-if (zac === -1 || kon === -1 || zac > kon) throw new Error("Kartice legende v index.html ni bilo mogoče najti.");
-const kartica = html.slice(zac, kon).trimEnd();
+if (zac === -1 || kon === -1 || zac > kon) throw new Error("Panela legende v index.html ni bilo mogoče najti.");
+const panelKoda = html.slice(zac, kon).trimEnd();
+const kartica = gumbKoda + "\n" + panelKoda;
 
 const stran = `<!doctype html><html><head><meta charset="utf-8">
 <style>${theme}</style>
@@ -93,8 +104,11 @@ try {
   const gumb = await stran2.$("button[aria-expanded]");
   trdi(!!gumb, "gumb za odpiranje obstaja");
   trdi((await gumb.getAttribute("aria-expanded")) === "false", "privzeto zaprta (aria-expanded=false)");
-  const visinaZaprta = await stran2.$eval(".card", e => e.getBoundingClientRect().height);
-  trdi(visinaZaprta < 80, `zaprta kartica je nizka (${Math.round(visinaZaprta)} px < 80)`);
+  // Zaprta legenda ni več nizka kartica, ampak je panela SPLOH NI -
+  // tabela tako začne takoj pod pasom krmil.
+  trdi((await stran2.$$(".card")).length === 0, "zaprta ne izriše panela z legendo");
+  const visinaZaprta = await stran2.$eval(".legendaGumb", e => e.getBoundingClientRect().height);
+  trdi(visinaZaprta < 80, `zaprt gumb je nizek (${Math.round(visinaZaprta)} px < 80)`);
   trdi((await stran2.$$("b")).length === 0, "zaprta ne izriše nobene kratice");
 
   console.log("2) klik na 'i' jo odpre in znova zapre");
