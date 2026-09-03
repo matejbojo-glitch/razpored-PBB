@@ -38,6 +38,21 @@ from (
 where d.work_date = o.work_date and d.kind = o.kind
   and o.ime <> '' and d.full_name <> o.ime;
 
+-- 1b. Znani zlepki iz PDF-ja, ki jih rezanje samo ne more razvozlati -
+--     tu je ime IZ DVEH VRSTIC dokumenta zlepljeno v eno celico.
+--
+--     "Petra Tina Šubic Peternel" (8. in 19. 8. 2026): zlepek dežurne
+--     dipl. m.s. "Petra Šubic" in zdravnice "Tina Šubic Peternel" iz
+--     sosednjega stolpca. Kdo je res dežural, pove OBJAVLJENI razpored -
+--     oba dneva ima izmeno DEŽURSTVO Šubic Petra (NZV). Popravek zato ni
+--     ugibanje, ampak prepis tega, kar je v razporedu.
+update public.dezurni_zdravniki d
+set full_name = v.pravilno
+from (values
+  ('Petra Tina Šubic Peternel', 'Šubic Petra')
+) as v(napacno, pravilno)
+where d.kind = 'sestra' and d.full_name = v.napacno;
+
 -- 2. Negovalni kader (kind 'sestra') ima profil v aplikaciji - ime
 --    prepišemo v OBLIKO IZ IMENIKA ("Priimek Ime"), da je en sam zapis
 --    osebe. Samo kadar se ujame natanko en profil; dvoumnih se ne dotikamo.

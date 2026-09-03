@@ -127,7 +127,11 @@ const VRSTICE = [
   ["2026-09-02", "sestra", "Amal Perviz", "Perviz Amal", "obratni vrstni red -> oblika iz Imenika"],
   ["2026-08-12", "sestra", "Magdalena Mavri Tratnik", "Magdalena Mavri Tratnik", "že enak zapisu v Imeniku"],
   ["2026-08-05", "dezurstvo", "Dr. Lea Žmuc Veranič", "Lea Žmuc Veranič", "zdravnik: samo naziv proč, profila nima"],
-  ["2026-08-19", "sestra", "Petra Tina Šubic Peternel", "Petra Tina Šubic Peternel", "DVOUMNO: ostane nedotaknjeno"],
+  // Zlepek dveh stolpcev iz PDF-ja; objavljeni razpored pove, da je bila
+  // dežurna Šubic Petra - popravek je zato v skripti imenovan izrecno.
+  ["2026-08-19", "sestra", "Petra Tina Šubic Peternel", "Šubic Petra", "znan zlepek iz PDF-ja"],
+  // Neznano ime mora ostati NEDOTAKNJENO in končati v poročilu.
+  ["2026-08-20", "sestra", "Kdorkoli Neznan", "Kdorkoli Neznan", "neznano ime: ostane nedotaknjeno"],
 ];
 psql(VRSTICE.map(([d, k, ime]) =>
   `insert into public.dezurni_zdravniki (work_date, kind, full_name) values ('${d}', '${k}', '${ime.replace(/'/g, "''")}');`
@@ -145,8 +149,10 @@ VRSTICE.forEach(([d, k, , pricakovano, opis]) => {
 });
 
 console.log("6) dvoumnega/neujetega imena skripta NE ugiba, ampak ga javi");
-trdi(izhod.includes("Petra Tina Šubic Peternel"),
+trdi(izhod.includes("Kdorkoli Neznan"),
   "neujeto ime je v poročilu 'NI NAJDEN PROFIL', ne izgine tiho");
+trdi(!izhod.includes("Petra Tina Šubic Peternel"),
+  "znan zlepek pa je razvozlan in ga v poročilu ni več");
 trdi(!izhod.toUpperCase().includes("POZOR"),
   "brez 'POZOR' vrstice (nobeno ime se ne ujame z dvema profiloma)");
 
