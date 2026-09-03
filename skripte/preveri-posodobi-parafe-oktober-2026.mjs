@@ -120,21 +120,24 @@ console.log("4) preveri rezultat");
 }
 {
   // Naključno preverjeni 3 osebe (ki SO spremenile parafo) - da sta PRAVI stari/novi parafi prišli na PRAVO osebo.
+  // Branje nazaj gre prek imena_se_ujemata(), ne prek `full_name = '...'`: sprožilec
+  // trg_standardiziraj_polno_ime (schema.sql) zapisano IME V CELOTI Z VELIKIMI ČRKAMI
+  // pretvori v initcap, zato dobesedna primerjava z vhodnim zapisom ne najde vrstice.
   const spremenjeni = zaSeed.filter(v => v.nova !== v.stara);
   const preveri = [spremenjeni[0], spremenjeni[Math.floor(spremenjeni.length / 2)], spremenjeni[spremenjeni.length - 1]];
   preveri.forEach(v => {
-    const vrstica = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
+    const vrstica = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where public.imena_se_ujemata(full_name, '${v.full_name.replace(/'/g, "''")}');`).trim();
     const [nova, stara] = vrstica.split("|");
     trdi(nova === v.nova && stara === v.stara, `"${v.full_name}" -> nova "${nova}", stara "${stara}" (pričakovano nova "${v.nova}", stara "${v.stara}")`);
   });
 }
 {
-  const bojic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = 'BOJIĆ MATEJ';`).trim();
+  const bojic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where public.imena_se_ujemata(full_name, 'BOJIĆ MATEJ');`).trim();
   const [nova, stara] = bojic.split("|");
   trdi(nova === "MBO" && stara === "BOJ", `"BOJIĆ MATEJ" -> nova "${nova}" (pričakovano "MBO"), stara "${stara}" (pričakovano "BOJ", starejši NZV zapis)`);
 }
 {
-  const maglic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
+  const maglic = psql(`select parafa, parafa_pred_oktobrom_2026 from public.profili where public.imena_se_ujemata(full_name, 'MAGLIĆ ALEKSANDER');`).trim();
   const [nova, stara] = maglic.split("|");
   trdi(nova === "MAG" && stara === "MAG", `"MAGLIĆ ALEKSANDER" (parafa se ni spremenila) -> nova "${nova}", stara "${stara}" (obe "MAG")`);
 }

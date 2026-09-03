@@ -374,34 +374,49 @@ async function nalozizOddelek(koda){
   return (data || []).map(p => [p.full_name, p.rotation_slot || "A", !p.rotation_slot, p.id]);
 }
 
-// Dnevne "rumene" omejitve (Razpredelnica Želje, odsotnosti.kind="omejitev")
-// za dani razpon – Kalup generator jih uporabi za samodejno iskanje
-// nadomestila (glej generirajKalup v generator-core.js).
+// Vrsta vnosa v Razpredelnici Želje -> koda, ki jo generator vpiše v
+// celico razporeda. Vse te vrste pomenijo "ta dan te osebe na oddelku ni":
+// generator zanjo ne razporedi izmene, njeno izmeno po kalupu pa ponudi v
+// nadomeščanje ostalim (glej generirajKalup -> odsotnosti).
+//
+// "omejitev" (rumena želja) NI v tej tabeli in se obravnava posebej: oseba
+// je na delu, le tisti dan ne more na svojo izmeno, zato celica ostane
+// prazna in ne dobi kode odsotnosti.
+//
+// Letni dopust je v OBEH poteh: v celih tednih (ldTedni -> kalupska črka C,
+// ker je prosti teden del petetedenske rotacije) in po posameznih dnevih
+// (spodaj), da se dan ali dva dopusta sredi tedna vidita v razporedu,
+// namesto da bi tiho izpadla.
+const ZELJE_KODA = { ld: "LD", bs: "BS", sti: "STI", kro: "KRO" };
+
+// Vse iz Razpredelnice Želje za dani razpon, v eni poizvedbi - prej sta
+// bili dve (omejitve in dopust), vsaka je brala isto tabelo in vsaka je
+// poznala samo svoj del vrst.
+//
 // "imena" so imena osebja, kot jih pozna kalup - izid se vrne pod TEMI
 // imeni, ne pod tistimi iz odsotnosti. Ujemanje gre prek imena.js
 // (isti modul kot NZV), ker so imena v odsotnosti zapisana različno:
 // ročni vnos v Razpredelnici tako kot v Imeniku, uvoz iz CSV pa z velikimi
 // črkami. Z dobesedno primerjavo se je prenesel le tisti del, ki se je
 // slučajno ujemal črko v črko.
-// Katere vrste odsotnosti pomenijo "ta dan ne more delati na oddelku".
-// Poleg rumene omejitve tudi BOLNIŠKA in STROKOVNO IZOBRAŽEVANJE: prej ju
-// kalup sploh ni bral, zato je osebo na bolniški vseeno razporedil na
-// izmeno in zanjo ni iskal nadomestila. Letni dopust ima svojo pot
-// (nalozizLdTedne), ker se šteje v CELIH tednih.
-const KALUP_ODSOTNOST_KIND = ["omejitev", "bs", "sti"];
-
-async function nalozizOmejitve(startISO, endISO, imena){
-  const { data } = await client.from("odsotnosti").select("full_name, work_date")
-    .in("kind", KALUP_ODSOTNOST_KIND).gte("work_date", startISO).lte("work_date", endISO);
+async function nalozizZelje(startISO, endISO, imena){
+  const { data } = await client.from("odsotnosti").select("full_name, work_date, kind")
+    .gte("work_date", startISO).lte("work_date", endISO);
   const poKljucu = {};
   (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
-  const map = {};
+  const omejitve = {};    // ime -> [iso, ...]
+  const odsotnosti = {};  // ime -> { iso: "LD"|"BS"|"STI"|"KRO" }
+  const ldDnevi = {};     // ime -> [iso, ...] (za pretvorbo v cele tedne)
   (data || []).forEach(r => {
     const ime = poKljucu[kljucImena(r.full_name)];
     if (!ime) return;
-    (map[ime] = map[ime] || []).push(r.work_date);
+    if (r.kind === "omejitev") { (omejitve[ime] = omejitve[ime] || []).push(r.work_date); return; }
+    const koda = ZELJE_KODA[r.kind];
+    if (!koda) return;   // neznana vrsta (novejša baza od te strani) - ne ugibaj
+    (odsotnosti[ime] = odsotnosti[ime] || {})[r.work_date] = koda;
+    if (r.kind === "ld") (ldDnevi[ime] = ldDnevi[ime] || []).push(r.work_date);
   });
-  return map;
+  return { omejitve, odsotnosti, ldDnevi };
 }
 
 // Zadnji dan PRED začetkom meseca, ki ga generiramo - prebran iz
@@ -410,10 +425,11 @@ async function nalozizOmejitve(startISO, endISO, imena){
 // bil morda ročno popravljen ali predelan z menjavami. Kdor je tisti dan
 // dejansko delal nočno, ne sme prvega dne novega meseca na dnevno izmeno -
 // glej Generator.krsiPocitek.
-async function nalozizPrejsnjiDan(startISO, imena){
-  const dan = new Date(startISO + "T00:00:00Z");
-  dan.setUTCDate(dan.getUTCDate() - 1);
-  const prejISO = dan.toISOString().slice(0, 10);
+// Objavljen razpored za dani razpon, po IMENIH osebja: { ime: { iso: izmena } }.
+// Skupna pot za oboje, kar generator potrebuje iz preteklosti - zadnji dan
+// prejšnjega meseca (počitek po nočni) in cel prejšnji mesec (nadaljevanje
+// kalupa) - da se pravilo o ujemanju imen ne razide med njima.
+async function nalozizObjavljenRazpored(odISO, doISO, imena){
   const { data: profili } = await client.from("profili").select("id, full_name");
   const poKljucu = {};
   (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
@@ -425,39 +441,60 @@ async function nalozizPrejsnjiDan(startISO, imena){
   const idji = Object.keys(idVIme);
   if (!idji.length) return {};
   const { data } = await client.from("razpored")
-    .select("employee_id, shift_code").eq("work_date", prejISO).in("employee_id", idji);
+    .select("employee_id, work_date, shift_code")
+    .gte("work_date", odISO).lte("work_date", doISO).in("employee_id", idji);
   const map = {};
   (data || []).forEach(r => {
     const ime = idVIme[r.employee_id];
-    if (ime && r.shift_code) map[ime] = r.shift_code;
+    if (!ime || !r.shift_code) return;
+    (map[ime] = map[ime] || {})[r.work_date] = r.shift_code;
   });
   return map;
 }
 
-// Letni dopust (Razpredelnica Želje, odsotnosti.kind="ld") za dani
-// razpon, pretvorjen v CELE tedne, kot jih pričakuje generator kalupa.
-// Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD - en sam
-// dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po nepotrebnem
-// izpraznil cel teden rotacije.
-async function nalozizLdTedne(startISO, endISO, tedni, imena){
-  const { data } = await client.from("odsotnosti").select("full_name, work_date")
-    .eq("kind", "ld").gte("work_date", startISO).lte("work_date", endISO);
-  const poKljucu = {};
-  (imena || []).forEach(ime => { poKljucu[kljucImena(ime)] = ime; });
+async function nalozizPrejsnjiDan(startISO, imena){
+  const prejISO = zamakniDan(startISO, -1);
+  const razpored = await nalozizObjavljenRazpored(prejISO, prejISO, imena);
+  const map = {};
+  Object.keys(razpored).forEach(ime => { map[ime] = razpored[ime][prejISO]; });
+  return map;
+}
+
+// Cel KOLEDARSKI mesec pred izbranim - podlaga za nadaljevanje kalupa
+// (Generator.predlagajCrke). Namenoma ne le zadnji teden: ročni popravek
+// enega dne ne sme prevagati nad vzorcem celega meseca.
+function prejsnjiMesecRazpon(startISO){
+  const konec = zamakniDan(startISO, -1);
+  return { odISO: konec.slice(0, 8) + "01", doISO: konec };
+}
+
+function zamakniDan(iso, dni){
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + dni);
+  return d.toISOString().slice(0, 10);
+}
+
+// Letni dopust (Razpredelnica Želje, odsotnosti.kind="ld"), pretvorjen iz
+// posameznih dni (nalozizZelje) v CELE tedne, kot jih pričakuje generator
+// kalupa. Teden šteje za dopustniški, če ima oseba v njem vsaj 3 dni LD -
+// en sam dan LD sredi tedna je odsotnost, ne "prosti teden", in bi po
+// nepotrebnem izpraznil cel teden rotacije (tak dan se v razpored vpiše
+// kot koda LD, glej ZELJE_KODA).
+// Ključ je IME OSEBJA (ne ime iz odsotnosti) - ročni popravki v
+// razpredelnici uporabljajo isti zapis in se morajo z izpeljanimi tedni
+// sešteti, ne izključevati.
+function ldTedniIzDni(ldDnevi, tedni){
   const stetje = {}; // "ime|ponedeljek" -> stevilo dni LD
-  (data || []).forEach(r => {
-    const d = new Date(r.work_date + "T00:00:00Z");
-    const zamik = (d.getUTCDay() + 6) % 7;          // 0 = ponedeljek
-    d.setUTCDate(d.getUTCDate() - zamik);
-    const mo = d.toISOString().slice(0, 10);
-    if (!tedni.includes(mo)) return;
-    // Ključ pod IMENOM OSEBJA (ne pod imenom iz odsotnosti) - ročni
-    // popravki v razpredelnici uporabljajo isti zapis in se morajo z
-    // izpeljanimi tedni sešteti, ne izključevati.
-    const ime = poKljucu[kljucImena(r.full_name)];
-    if (!ime) return;
-    const k = ime + "|" + mo;
-    stetje[k] = (stetje[k] || 0) + 1;
+  Object.keys(ldDnevi || {}).forEach(ime => {
+    ldDnevi[ime].forEach(iso => {
+      const d = new Date(iso + "T00:00:00Z");
+      const zamik = (d.getUTCDay() + 6) % 7;          // 0 = ponedeljek
+      d.setUTCDate(d.getUTCDate() - zamik);
+      const mo = d.toISOString().slice(0, 10);
+      if (!tedni.includes(mo)) return;
+      const k = ime + "|" + mo;
+      stetje[k] = (stetje[k] || 0) + 1;
+    });
   });
   const out = {};
   Object.keys(stetje).forEach(k => { if (stetje[k] >= 3) out[k] = "LD"; });
@@ -1142,6 +1179,10 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // generatorja, ampak z razporedom na ciljnem oddelku.
   const [tedenskoStanje, setTedenskoStanje] = useState({});
   const [samodejnoLdSt, setSamodejnoLdSt] = useState(0); // koliko tednov LD je bilo samodejno prebranih iz baze
+  // Kalupske črke, izpeljane iz objavljenega PREJŠNJEGA meseca
+  // (Generator.predlagajCrke) - { crke, ujemanja, opozorila }. null pomeni
+  // "še ni bilo generiranja"; takrat velja črka iz Imenika.
+  const [crkePredlog, setCrkePredlog] = useState(null);
   const [kvote, setKvote] = useState({}); // letna kvota dopusta po imenu (ročni vnos, ni v Kadrisu)
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -1191,7 +1232,12 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
     (staffList || []).forEach(([ime, , , id]) => { if (id) m[ime] = id; });
     return m;
   }, [staffList]);
-  useEffect(() => { setStaffList(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
+  useEffect(() => { setStaffList(null); setCrkePredlog(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
+  // Ročno izbrane črke veljajo za TISTI oddelek in mesec. Brez tega bi
+  // ročni popravek za oktober tiho prevladal nad kalupom, izpeljanim za
+  // november - in prav to (kalup, ki se ne nadaljuje) je težava, ki jo
+  // izpeljava rešuje.
+  useEffect(() => { setLetters({}); }, [koda, month]);
   const [genBusy, setGenBusy] = useState(false);
   // Minimumi po izmeni (minimalna_zasedba) – natančnejša osnova za
   // "Pokritost po dnevih" kot bazni-kalup primerjava, glej PokritostPoDnevih.
@@ -1237,31 +1283,51 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   const generiraj = async () => {
     setGenBusy(true);
     try {
-      // "Generiraj takoj": vse iz baze naenkrat - omejitve IN letni dopust.
-      // Ročno nastavljeni tedni (klik v razpredelnici spodaj) imajo prednost
-      // pred samodejno zaznanimi, da samodejno branje nikoli ne povozi
+      // "Generiraj takoj": vse iz baze naenkrat - želje (omejitve, LD, BS,
+      // STI, KRO), zadnji dan prejšnjega meseca (počitek po nočni) in cel
+      // prejšnji mesec (nadaljevanje kalupa). Ročno nastavljeni tedni in
+      // ročno izbrane črke (razpredelnica spodaj) imajo prednost pred
+      // samodejno prebranimi, da samodejno branje nikoli ne povozi
       // odločitve koordinatorja.
-      const [omejitveMap, samodejniLd, prejsnjiDan] = await Promise.all([
-        nalozizOmejitve(startISO, endISO, staffList.map(([ime]) => ime)),
-        nalozizLdTedne(startISO, endISO, tedni, staffList.map(([ime]) => ime)),
-        nalozizPrejsnjiDan(startISO, staffList.map(([ime]) => ime)),
+      const imena = staffList.map(([ime]) => ime);
+      const prejsnjiRazpon = prejsnjiMesecRazpon(startISO);
+      const [zelje, prejsnjiDan, prejsnjiMesec] = await Promise.all([
+        nalozizZelje(startISO, endISO, imena),
+        nalozizPrejsnjiDan(startISO, imena),
+        nalozizObjavljenRazpored(prejsnjiRazpon.odISO, prejsnjiRazpon.doISO, imena),
       ]);
+      const samodejniLd = ldTedniIzDni(zelje.ldDnevi, tedni);
       const zdruzenoStanje = { ...samodejniLd, ...tedenskoStanje };
       setTedenskoStanje(zdruzenoStanje);
       setSamodejnoLdSt(Object.keys(samodejniLd).filter(k => tedenskoStanje[k] == null).length);
 
+      // Kalupske črke: izpeljane iz DEJANSKEGA prejšnjega meseca in
+      // razdeljene tako, da dva človeka dobita isti kalup šele, ko je oseb
+      // več kot kalupov. Ročna izbira v razpredelnici (letters) ostane
+      // močnejša od izpeljane.
+      const predlog = Generator.predlagajCrke({
+        anchorMondayISO: ANCHOR_MONDAY,
+        startISO: prejsnjiRazpon.odISO, endISO: prejsnjiRazpon.doISO,
+        staff: staffList.map(([ime, defLetter, manjka]) => ({
+          ime, hsuffix: meta.hsuffix, crka: manjka ? null : defLetter,
+        })),
+        razpored: prejsnjiMesec,
+      });
+      setCrkePredlog(predlog);
+
       const staff = staffList.map(([ime, defLetter]) => ({
         ime,
-        startLetter: letters[ime] || defLetter,
+        startLetter: letters[ime] || predlog.crke[ime] || defLetter,
         hsuffix: meta.hsuffix,
         dopustTedni: tedni.filter(mo => zdruzenoStanje[ime + "|" + mo] === "LD"),
-        omejitve: omejitveMap[ime] || [],
+        omejitve: zelje.omejitve[ime] || [],
+        odsotnosti: zelje.odsotnosti[ime] || {},
       }));
       const res = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff, prejsnjiDan });
       // Pokritost po dnevih: kar bi kalup ta dan običajno zasedel, ČE nihče
       // ne bi bil na dopustu/pomoči drugje (isto osebje/rotacija, brez
       // odsotnosti) – izhodišče za primerjavo z dejansko zasedbo spodaj.
-      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], omejitve: [] }));
+      const staffBazni = staff.map(z => ({ ...z, dopustTedni: [], omejitve: [], odsotnosti: {} }));
       const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
       const pricakovanoPoDnevih = {};
       bazno.dnevi.forEach(dn => {
@@ -1478,14 +1544,16 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         </div>
         <div className="field">
           <label htmlFor="mm">Mesec in leto</label>
-          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
+          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); setCrkePredlog(null); }} />
         </div>
         <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
           {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
         </button>
       </div>
       <p className="hint no-print">
-        Ob kliku se želje, letni dopust in omejitve preberejo naravnost iz baze – vmesnih potrditev ni.
+        Ob kliku se iz baze naravnost preberejo vse želje za ta mesec – omejitve (OM), bolniška (BS),
+        strokovno izobraževanje (STI), kroženje (KRO) in letni dopust (LD) – ter objavljen razpored
+        prejšnjega meseca, iz katerega se kalup vsakega zaposlenega nadaljuje. Vmesnih potrditev ni.
         Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
       </p>
 
@@ -1513,7 +1581,13 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
 
       <Zlozljivo naslov="Kalup in dopust po zaposlenih"
         opis={samodejnoLdSt > 0 ? `Iz baze samodejno prebran dopust: ${tedniBesedilo(samodejnoLdSt)} – po potrebi popravi` : "Ročni popravki rotacije in dopusta – neobvezno"}>
-      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (samodejno izračunano od sidra 28. 9. 2026 naprej, privzeto iz Imenika). Kliknite teden, da med LD (letni dopust), POM (začasna pomoč drugemu oddelku – cilj oddelek osebo za ta teden doda ročno) in navadno rotacijo kroži. Rumene omejitve (Razpredelnica Želje) generator samodejno pokrije z nadomestilom, če je kdo na oddelku ta dan prost – sicer opozori spodaj.</p>
+      <p className="hint">Črka je izhodiščno stanje 5-tedenskega kalupa (rotacija teče od sidra 28. 9. 2026 naprej). Ob generiranju se <b>izpelje iz objavljenega prejšnjega meseca</b> – vsak zaposleni nadaljuje svoj kalup tam, kjer ga je prejšnji mesec končal – in razdeli tako, da dva človeka dobita isti kalup šele, ko je oseb več kot kalupov (pet). Črko iz Imenika se uporabi le, kadar prejšnjega meseca za to osebo ni. Izbira v tem stolpcu je ročni popravek in vedno prevlada. Kliknite teden, da preklopite med LD (letni dopust) in navadno rotacijo. Odsotnosti in omejitve iz Razpredelnice Želje (OM, BS, STI, KRO, LD) generator prebere sam: za sproščeno izmeno poišče nadomestilo med tistimi, ki so ta dan po svojem kalupu prosti – sicer opozori spodaj.</p>
+      {crkePredlog && crkePredlog.opozorila.length > 0 && (
+        <div className="warnBox no-print">
+          <div className="t">⚠ Kalup: {crkePredlog.opozorila.length} opozoril</div>
+          <ul>{crkePredlog.opozorila.map((o, i) => <li key={i}>{o}</li>)}</ul>
+        </div>
+      )}
       <div className="card" style={{overflowX:"auto"}}>
         <table className="roster">
           <thead>
@@ -1524,13 +1598,33 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
             </tr>
           </thead>
           <tbody>
-            {staffList.map(([ime, defLetter, manjka]) => (
+            {staffList.map(([ime, defLetter, manjka]) => {
+              const izpeljana = crkePredlog && crkePredlog.crke[ime];
+              const ujem = crkePredlog && (crkePredlog.ujemanja || []).find(u => u.ime === ime);
+              return (
               <tr key={ime}>
-                <td>{ime}{manjka && <span className="hint" style={{color:"var(--danger)", marginLeft:6}} title="Rotacijska črka ni nastavljena v Imeniku – privzeto A">⚠</span>}</td>
+                <td>{ime}{manjka && !izpeljana && <span className="hint" style={{color:"var(--danger)", marginLeft:6}} title="Rotacijska črka ni nastavljena v Imeniku – privzeto A">⚠</span>}</td>
                 <td>
-                  <select value={letters[ime] || defLetter} onChange={e => setLetters(l => ({...l, [ime]: e.target.value}))}>
+                  <select value={letters[ime] || izpeljana || defLetter} onChange={e => setLetters(l => ({...l, [ime]: e.target.value}))}>
                     {["A","B","C","D","E"].map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
+                  {/* Od kod je črka: brez tega ni razvidno, ali gre za
+                      nadaljevanje prejšnjega meseca ali za nastavitev iz
+                      Imenika - in ravno to loči "kalup se nadaljuje" od
+                      "kalup se je zavrtel na začetek". */}
+                  {ujem && !letters[ime] && (
+                    <span className="hint" style={{display:"block", margin:0}}
+                      title={ujem.vir === "prejsnji-mesec"
+                        ? `Ujemanje s prejšnjim mesecem: ${ujem.ujemanje} od ${ujem.dni} dni`
+                        : "Prejšnji mesec ni dal uporabnega vzorca"}>
+                      {ujem.vir === "prejsnji-mesec"
+                        ? `↳ iz prejšnjega meseca (${ujem.ujemanje}/${ujem.dni} dni)`
+                        : ujem.vir === "nastavitev" ? "↳ iz Imenika" : "↳ dodeljena prosta črka"}
+                    </span>
+                  )}
+                  {letters[ime] && izpeljana && letters[ime] !== izpeljana && (
+                    <span className="hint" style={{display:"block", margin:0}}>↳ ročno (izpeljana: {izpeljana})</span>
+                  )}
                 </td>
                 {tedni.map(mo => (
                   <td key={mo}>
@@ -1540,7 +1634,8 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1798,8 +1893,9 @@ function DezurstvaTab({ zacetniMesec }){
   };
 
   // Prebere barvno razpredelnico "Želje" (odsotnosti) za izbrani mesec in
-  // vrne { IME: { dopust:[iso,...], omejitve:[iso,...] } }. "bs"/"sti" se
-  // obravnavata kot omejitve (blokiran samo ta dan, brez pravila "dan prej").
+  // vrne { IME: { dopust:[iso,...], omejitve:[iso,...] } }. Vse, kar ni "ld"
+  // ("omejitev", "bs", "sti", "kro"), se obravnava kot omejitev: blokiran je
+  // samo ta dan, brez pravila "dan prej", ki velja za letni dopust.
   const nalozitIzZelja = async (mesec) => {
     const { startISO: s, endISO: e } = monthRange(mesec);
     const { data, error } = await client.from("odsotnosti").select("full_name, work_date, kind")

@@ -16,8 +16,16 @@ koledarska naročnina, zato se prikaz in obračun ne moreta razíti.
 | `DNEVNA12F` | 07:00–19:00 | 12:00 | ne |
 | `DEŽURSTVO` | 15:30–07:00 | – | da |
 
-Odsotnosti in prosto (`LD`, `KPU`, `BS`, `STI`, `POR`, `POMOČ DRUGJE`,
+Odsotnosti in prosto (`LD`, `KPU`, `BS`, `STI`, `POR`, `KRO`, `POMOČ DRUGJE`,
 prazno) niso delo – ne štejejo v ure niti v počitek med izmenama.
+
+`KRO` (**kroženje**) je posebnost: oseba tisti dan **dela**, a po razporedu
+**drugega oddelka**. V obračunu ur zato šteje kot poln delovni dan (8 h),
+med pravila počitka pa ne gre – časa tiste izmene matični razpored ne
+pozna, zato bi vsaka predpostavka o njem lažno sprožila ali potlačila
+pravilo o 11-urnem počitku. V zasedbo izmen matičnega oddelka `KRO` ne
+šteje. Vpisuje se v **Želje → Razpredelnica** (kot `LD`/`BS`/`STI`),
+generator pa zanj poišče nadomestilo.
 
 ---
 

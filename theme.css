@@ -1160,6 +1160,13 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   font-weight: 700;
   color: var(--accent-2);
 }
+/* Ob vikendih in praznikih urgentne ambulante ni. Prazna celica je videti
+   kot manjkajoč podatek, zato stoji tam pomišljaj - blede barve, da se ne
+   bere kot ime. */
+.dezBrezUrgence{
+  color: var(--muted);
+  opacity: .75;
+}
 /* Na telefonu morajo vsi trije stolpci na zaslon hkrati - tabela s tremi
    stolpci, ki jo je treba vodoravno vleči, je pri dežurstvu neuporabna
    (pogleda se "kdo je nocoj"). Dan in glave se zato skrajšajo. */

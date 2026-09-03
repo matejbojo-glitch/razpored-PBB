@@ -5,7 +5,7 @@
  * "vse skupaj nepregledno" – razpredelnica dopustov/omejitev in seznam
  * zapisanih želja sta bila DVA ločena zavihka, vsak s svojim izbirnikom
  * oddelka. Isti oddelek je bilo treba izbrati dvakrat, mreža pa je risala
- * vseh osem skupin pod sabo. Da je zdaj res eno samo mesto z eno samo
+ * vse skupine pod sabo. Da je zdaj res eno samo mesto z eno samo
  * izbiro, se vidi le na izrisani strani, ne v izvorni kodi.
  *
  * Stran se naloži DOBESEDNO taka, kot gre v produkcijo (prek majhnega
@@ -166,8 +166,8 @@ try {
   const { stran, konzola } = await odpri(1100, 900);
   const oznake = await stran.$$eval(".skupinaBtn", els => els.map(e => e.textContent.trim()));
   trdi(
-    JSON.stringify(oznake) === JSON.stringify(["Vse", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"]),
-    "izbirnik ima 'Vse' + vseh 8 skupin: " + oznake.join(", ")
+    JSON.stringify(oznake) === JSON.stringify(["Vse", "A", "B", "C", "C1", "D", "E1", "E2", "FLEXI", "NZV"]),
+    "izbirnik ima 'Vse' + vseh 9 skupin (A je dodan): " + oznake.join(", ")
   );
   trdi((await stran.$$('.tabs [role="tab"]')).length === 0,
     "starega dvojnega zavihka (Razpredelnica / Seznam želja) ni več");
@@ -187,27 +187,24 @@ try {
   await izberi(stran, "Vse");
   trdi((await imenaVMrezi(stran)).length === PROFILI.length, "'Vse' pokaže vseh " + PROFILI.length + " oseb");
 
-  console.log("4) ista izbira žene TUDI zapisane želje (bistvo združitve)");
-  trdi((await stran.$$(".zeljeToggle")).length === 0, "pri 'Vse' seznama želja ni – želje so vezane na eno skupino");
+  console.log("4) seznama ZAPISANE ŽELJE na tej strani ni več (izrecna zahteva)");
+  // Uporabnik je zahteval odstranitev zavihkov "nzv", "po dnevih", "moj
+  // koledar" in "ZAPISANE ŽELJE" - ostane samo mreža. Podtaknjena baza
+  // ZELJE dva zapisa VSEBUJE, zato bi se ob vrnitvi seznama takoj izrisala;
+  // tako ta preizkus ujame tiho vrnitev, ne le manjkajoč gumb.
+  trdi((await stran.$$(".zeljeToggle")).length === 0, "gumba za razgrnitev želja ni pri 'Vse'");
   await izberi(stran, "B");
-  const gumbZelj = await stran.$(".zeljeToggle");
-  trdi(!!gumbZelj, "pri izbrani skupini je gumb za želje na voljo");
-  trdi((await gumbZelj.getAttribute("aria-expanded")) === "false", "želje so privzeto zložene (mreža ostane v ospredju)");
-  await gumbZelj.click();
-  await stran.waitForTimeout(600);
+  trdi((await stran.$$(".zeljeToggle")).length === 0, "in ga ni niti pri izbrani skupini");
   let besedilo = await stran.innerText("body");
-  trdi(besedilo.includes("ZELJA-ODDELKA-B"), "odprte želje pokažejo zapis oddelka B");
-  trdi(!besedilo.includes("ZELJA-SKUPINE-NZV"), "in NE zapisa druge skupine (NZV)");
-  trdi((await stran.$$('.zeljeSekcija .tabs, .zeljeSekcija [role="tablist"]')).length === 0,
-    "seznam želja nima več svojega, drugega izbirnika oddelka");
+  trdi(!besedilo.includes("ZELJA-ODDELKA-B"), "zapisana želja oddelka B se ne izriše");
+  trdi(!/ZAPISANE ŽELJE/i.test(besedilo), "napisa 'ZAPISANE ŽELJE' ni na strani");
 
-  console.log("5) preklop skupine prestavi OBOJE hkrati");
+  console.log("5) preklop skupine prestavi mrežo");
   await izberi(stran, "NZV");
   await stran.waitForTimeout(600);
   besedilo = await stran.innerText("body");
   trdi((await imenaVMrezi(stran)).includes("Zupan Meta"), "mreža je skočila na NZV");
-  trdi(besedilo.includes("ZELJA-SKUPINE-NZV") && !besedilo.includes("ZELJA-ODDELKA-B"),
-    "in seznam želja z njo – brez druge izbire");
+  trdi(!besedilo.includes("ZELJA-SKUPINE-NZV"), "tudi tu brez zapisanih želja");
 
   console.log("6) brez praznih belih škatel in brez napak");
   const prazneKartice = await stran.$$eval(".card", els => els.filter(e => !e.innerText.trim()).length);
@@ -238,11 +235,17 @@ try {
   await izberi(g, "C1");
   // Mesec vzame iz razpredelnice, ki je odprta - ne iz današnjega dne.
   const mesecVPrikazu = await g.$eval(".monthLbl", e => e.textContent.trim());
-  trdi(await naslovGumba("Generiraj razpored") === "admin.html?tab=kalup&oddelek=C1&mesec=2026-08",
+  // Mesec izpeljemo iz DANAŠNJEGA dne - stran se odpre na tekočem mesecu,
+  // zato bi trdno vpisan "2026-08" preizkus tiho pokvaril, ko ta mesec mine.
+  const zdaj = new Date();
+  const tekoci = zdaj.getFullYear() + "-" + String(zdaj.getMonth() + 1).padStart(2, "0");
+  const naslednji = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 1);
+  const naprej = naslednji.getFullYear() + "-" + String(naslednji.getMonth() + 1).padStart(2, "0");
+  trdi(await naslovGumba("Generiraj razpored") === `admin.html?tab=kalup&oddelek=C1&mesec=${tekoci}`,
     `gumb pri C1 vodi v Generator → Oddelki z že izbranim C1 in mesecem (${mesecVPrikazu}): ` + await naslovGumba("Generiraj razpored"));
   await g.click(".monthRow .navBtn >> nth=1");   // en mesec naprej
   await g.waitForTimeout(400);
-  trdi((await naslovGumba("Generiraj razpored") || "").endsWith("mesec=2026-09"),
+  trdi((await naslovGumba("Generiraj razpored") || "").endsWith("mesec=" + naprej),
     "gumb sledi izbranemu mesecu razpredelnice: " + await naslovGumba("Generiraj razpored"));
   await izberi(g, "NZV");
   trdi((await naslovGumba("vodstveno pokritost") || "").includes("tab=nzv&pod=vodje"),

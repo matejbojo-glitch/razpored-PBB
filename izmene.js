@@ -24,6 +24,11 @@ window.Izmene = (function () {
     dezurstvo:{ oznaka: "DEŽ", naziv: "Dežurstvo",  barva: "#B3402A" },
     dopust:   { oznaka: "LD",  naziv: "Dopust",     barva: "#E06666" },
     bolniska: { oznaka: "BS",  naziv: "Bolniška",   barva: "#3F8F86" },
+    // Kroženje (KRO): oseba TISTI DAN dela, a po razporedu DRUGEGA
+    // oddelka. Za matični oddelek to ni ne delo ne dopust - je odsotnost s
+    // svojim razlogom, zato svoje stanje in ne "prosto" (prost dan) ali
+    // "delo" (kar bi jo štelo v zasedbo izmene, ki je ne pokriva).
+    krozenje: { oznaka: "KRO", naziv: "Kroženje (drug oddelek)", barva: "#9FC5E8" },
     prosto:   { oznaka: "",    naziv: "Prosto / ni v razporedu", barva: "#D8D2BE" },
   };
 
@@ -88,7 +93,29 @@ window.Izmene = (function () {
     [/^por/,                   "POR",  "Porodniški dopust",       "", "#E8A0C8", "dopust"],
     [/^sti/,                   "STI",  "Strokovno izobraževanje", "", "#B4A7D6", "dopust"],
     [/^bs/,                    "BS",   "Bolniški stalež",         "", "#3F8F86", "bolniska"],
+    // KRO ni v izvirni preglednici delovnik.xlsx - dodan je bil skupaj s
+    // kroženjem v Razpredelnici Želje (september 2026). Zapisuje se samo
+    // iz Želja, zato ima en sam vzorec.
+    [/^kro/,                   "KRO",  "Kroženje (drug oddelek)", "", "#9FC5E8", "krozenje"],
   ];
+
+  // Kaj se za posamezno kratico DEJANSKO zapiše v celico razporeda.
+  //
+  // Kratica sama ni zapis izmene: vzorci zgoraj opisujejo zapise iz uradnih
+  // preglednic ("DNEVNA12 (7-19)", "Popoldne do 19"), zato vnos("DF12") ne
+  // najde ničesar. Urejevalnik razporeda (index.html -> "Uredi razpored")
+  // mora vpisati zapis, ki ga zna prebrati nazaj CELA aplikacija, zato je
+  // tu en sam seznam - in moznosti() vsak zapis sproti preveri, da se res
+  // prebere nazaj v svojo kratico (round-trip), da se seznama ne moreta
+  // tiho razhajati.
+  var ZAPIS_PO_KRATICI = {
+    "DEŽ": "Dežurstvo",
+    DF12: "DNEVNA12 (7-19)", D12: "Dnevna 12", N12: "Nočna 12",
+    N11: "Nočna od 19", N10: "Nočna",
+    PO5: "Popoldne do 19", PO6: "Popoldne do 20", PO7: "Popoldne", PO4: "Popoldne 4 ure",
+    DOP: "Dopoldne", DO7: "DO7", DO6: "Dopoldne 6 ur", DO4: "Dopoldne 4 ure",
+    KPU: "KPU", LD: "LD", POR: "POR", STI: "STI", BS: "BS", KRO: "KRO",
+  };
 
   // Vrstica legende za dano kodo izmene. Vrstni red v IZMENA_KRATICE je
   // pomemben (bolj določena pravila stojijo pred splošnimi), zato se
@@ -249,8 +276,24 @@ window.Izmene = (function () {
     off: "#8B8672", ld: "#E06666", dez: "#B3402A",
   };
 
+  // Izbire za urejevalnik razporeda: cela legenda v vrstnem redu legende,
+  // vsaka s zapisom, ki se ob branju prevede nazaj v svojo kratico.
+  // Zapis, ki round-tripa narobe, se NE izpusti (možnost bi tiho izginila
+  // iz izbirnika), ampak se javi v konzolo - napaka je v tabeli, ne v
+  // razporedu.
+  function moznosti() {
+    return IZMENA_KRATICE.map(function (v) {
+      var zapis = ZAPIS_PO_KRATICI[v[1]] || v[1];
+      if (kratica(zapis) !== v[1] && typeof console !== "undefined" && console.warn) {
+        console.warn("Izmene.moznosti: zapis \"" + zapis + "\" se ne prebere nazaj v kratico " + v[1]);
+      }
+      return { kratica: v[1], naziv: v[2], cas: v[3], barva: v[4], stanje: v[5], zapis: zapis };
+    });
+  }
+
   return {
     KRATICE: IZMENA_KRATICE,
+    moznosti: moznosti,
     STANJE_BARVA: STANJE_BARVA,
     SKUPINA_BARVA: SKUPINA_BARVA,
     vnos: vnos,

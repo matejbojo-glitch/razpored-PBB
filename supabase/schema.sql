@@ -131,7 +131,7 @@ create table if not exists public.barvne_oznake (
     posodobil uuid,
     posodobljeno timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT barvne_oznake_check CHECK (((prezri AND (kind IS NULL)) OR ((NOT prezri) AND (kind IS NOT NULL)))),
-    CONSTRAINT barvne_oznake_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text])))
+    CONSTRAINT barvne_oznake_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text, 'kro'::text])))
 );
 
 create table if not exists public.dezurni_zdravniki (
@@ -324,7 +324,7 @@ create table if not exists public.odsotnosti (
     note text,
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT odsotnosti_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text])))
+    CONSTRAINT odsotnosti_kind_check CHECK ((kind = ANY (ARRAY['omejitev'::text, 'ld'::text, 'bs'::text, 'sti'::text, 'kro'::text])))
 );
 
 create table if not exists public.pokriva_oddelek (
