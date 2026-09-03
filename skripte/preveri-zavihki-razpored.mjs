@@ -205,6 +205,26 @@ try {
   // Kdor tisti dan dela navadno izmeno, ni dežuren.
   trdi(!/Arnež/.test(peti), "oseba z navadno izmeno ni v stolpcu dežurstva");
 
+  console.log("5b) ob vikendih in praznikih urgentne ambulante ni – celica to pove");
+  // Uporabnik je javil "določene ikone so prazne". Podatek NE manjka:
+  // urgentna ambulanta ob vikendih in praznikih ne dela, dežuren je samo
+  // zdravnik dežurstva. Prazna celica je bila videti kot izgubljen podatek,
+  // zato mora tam stati pomišljaj - in samo tam.
+  const stolpecUrgenca = await stran.$$eval(".dezTabela tbody tr", vrstice => vrstice.map(v => ({
+    vikend: v.classList.contains("weekend"),
+    besedilo: (v.children[1].textContent || "").trim(),
+    pomisljaj: !!v.children[1].querySelector(".dezBrezUrgence"),
+  })));
+  const praznaDelovna = stolpecUrgenca.filter(v => !v.vikend && v.pomisljaj);
+  const praznaVikend = stolpecUrgenca.filter(v => v.vikend && !v.besedilo);
+  trdi(stolpecUrgenca.some(v => v.vikend && v.pomisljaj),
+    "vikend brez urgence ima pomišljaj, ne prazne celice");
+  trdi(praznaVikend.length === 0, "nobena vikend celica ni popolnoma prazna");
+  trdi(praznaDelovna.length === 0,
+    "na delovni dan pomišljaja NI – tam prazno res pomeni manjkajoč podatek");
+  trdi(/urgentne ambulante ni/i.test(await stran.innerText(".legend")),
+    "legenda pomišljaj tudi pojasni");
+
   console.log("6) zavihek Razpredelnica se izriše");
   await stran.click('.segIkone button:has-text("Razpredelnica")');
   await stran.waitForTimeout(1200);

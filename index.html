@@ -1332,7 +1332,16 @@ function DezurstvoPregled({ month, myId }){
                     <span className="dezDatumPoln">{datumSlo(dn.datum)}</span>
                     {" " + dn.dan}{praznik ? " *" : ""}
                   </td>
-                  <td className="cell">{dn.urgenca}</td>
+                  {/* Urgentna ambulanta ob vikendih in praznikih ne dela -
+                      takrat je dežuren samo zdravnik v naslednjem stolpcu.
+                      Prazna celica je bila videti kot manjkajoč podatek
+                      (uporabnik je to javil), zato je tu izrecni "–". */}
+                  <td className="cell">
+                    {dn.urgenca || ((vikend || praznik) ? (
+                      <span className="dezBrezUrgence"
+                        title="Ob vikendih in praznikih urgentne ambulante ni – dežuren je samo zdravnik v stolpcu Dežurstvo ZDR.">–</span>
+                    ) : "")}
+                  </td>
                   <td className="cell">{dn.dezurstvoZdr}</td>
                   <td className="cell">
                     {dn.sestre.map(o => (
@@ -1354,6 +1363,7 @@ function DezurstvoPregled({ month, myId }){
       <div className="legend">
         <span className="li">↔ dežurstvo je bilo zamenjano s potrjeno menjavo</span>
         <span className="li">* podatek iz uradnega dokumenta (razpored za ta dan še ni objavljen)</span>
+        <span className="li">– ob vikendih in praznikih urgentne ambulante ni; dežuren je samo zdravnik dežurstva</span>
         <span className="li">Zdravnikov ni mogoče zamenjati v aplikaciji – vpiše jih uradni dokument.</span>
       </div>
     </div>
@@ -3733,8 +3743,18 @@ function najdiStolpceZdravnikov(vrsteVrstic){
 // bilo prvotno razporejeno. Oklepaj se v PDF-ju včasih razlije v naslednji
 // stolpec in ostane NEZAPRT ("Tjaša Petrič ( Špela Žagar Gabron"), zato
 // režemo od prvega oklepaja naprej, ne šele od zaprtega.
+// Ime iz celice uradnega dokumenta. Uvoz iz PDF-ja celice včasih razlomi
+// sredi oklepaja ("(dipl. m.s.\n) Saša Trpin"), zato je v bazo prišlo ") Saša
+// Trpin" in oseba se ni ujela z nobenim profilom - dežurstvo je bilo videti
+// prazno. Tu odstranimo oklepaje, vodilna ločila in nazive, da tak ostanek
+// ne more več priti v tabelo.
 function zdrIme(celica){
-  return String(celica || "").split("(")[0].replace(/\s+/g, " ").trim();
+  return String(celica || "")
+    .replace(/\([^)]*\)/g, " ")                       // cel oklepaj "(dipl. m.s.)"
+    .split("(")[0]                                     // odprt, nezaprt oklepaj do konca celice
+    .replace(/\b(?:dr|mag|prof|spec|univ|dipl)\.\s*/gi, "")   // nazivi
+    .replace(/^[^A-Za-zČŠŽĆĐčšžćđ]+/, "")              // vodilna ločila, npr. ostanek ") "
+    .replace(/\s+/g, " ").trim();
 }
 
 function obdelajZdravnikiVrstice(vrsteVrstic, ciljniMesec){

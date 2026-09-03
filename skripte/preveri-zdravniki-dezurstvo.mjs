@@ -118,7 +118,14 @@ console.log("3) zamenjava v oklepaju: obvelja PRVO ime");
   // rezanje "od ( do )" bi tu odpovedalo, zato režemo od prvega oklepaja.
   eq(zdrIme("Luka Vučkič ( Špela Žagar Gabron"), "Luka Vučkič", "NEZAPRT oklepaj");
   eq(zdrIme("Matjaž Demšar"), "Matjaž Demšar", "brez oklepaja ostane cel");
-  eq(zdrIme("  Dr. Lea  Žmuc   Veranič "), "Dr. Lea Žmuc Veranič", "odvečni presledki se počistijo");
+  eq(zdrIme("  Dr. Lea  Žmuc   Veranič "), "Lea Žmuc Veranič", "naziv in odvečni presledki se počistijo");
+  // Uporabnik je javil prazna dežurstva: uvoz je celico razlomil sredi
+  // oklepaja ("(dipl. m.s.\n) Saša Trpin") in v bazo je šel ostanek
+  // ") Saša Trpin", ki se ni ujel z nobenim profilom. Vodilna ločila in
+  // nazivi zato ne smejo priti skozi.
+  eq(zdrIme(") Saša Trpin"), "Saša Trpin", "ostanek ') ' iz razlomljene celice");
+  eq(zdrIme(") dr. Tanja Torkar"), "Tanja Torkar", "ostanek ') ' skupaj z nazivom");
+  eq(zdrIme("Ana Novak (dipl. m. s.)"), "Ana Novak", "naziv v oklepaju za imenom");
 }
 
 console.log("4) uvoz cele tabele");
@@ -137,6 +144,9 @@ console.log("4) uvoz cele tabele");
 
   eq(zaDan("2026-09-10", "urgenca"), "Tanja Cebin Skale", "10.9. (razbita števka) pristane na pravem dnevu");
   eq(zaDan("2026-09-11", "dezurstvo"), "Luka Vučkič", "11.9. nezaprt oklepaj");
+  eq(zaDan("2026-09-11", "sestra"), "Tanja Torkar", "11.9. razlomljena celica ') dr. Tanja Torkar' pride v bazo čista");
+  trdi(!zapisi.some(z => /^[^A-Za-zČŠŽĆĐčšžćđ]/.test(z.full_name)),
+    "noben zapis se ne začne z ločilom");
 }
 
 console.log("5) vikend nima urgentne ambulante");
