@@ -160,19 +160,52 @@ describe("počitek med izmenama", () => {
 });
 
 describe("zaporedne nočne izmene", () => {
-  it("dve zaporedni sta v redu, tri so kršitev", () => {
-    const noci = (n) =>
-      preveriPravila(
-        Array.from({ length: n }, (_, i) => ({
-          oseba: "Z",
-          datum: `2026-09-0${i + 1}`,
-          sifra: "Nočna",
-        }))
-      ).filter((k) => k.vrsta === "nocne");
+  // Pravilo ima DVE meji (odločitev vodstva ZN, avgust 2026): do 3 nočne
+  // zapored so običajne in se ne javljajo, 4 in 5 sta dopustni "po
+  // dogovoru" (opozorilo, ne napaka), nad 5 pa je kritično - tam dogovor
+  // ne pomaga. Prej je bila ena sama meja 2, kar je pomenilo, da je že sam
+  // kalup (vzorec B ima tri zaporedne nočne) v vsakem razporedu javljal
+  // kršitev; opozorilo, ki gori vedno, se ga človek nauči spregledati.
+  const noci = (n) =>
+    preveriPravila(
+      Array.from({ length: n }, (_, i) => ({
+        oseba: "Z",
+        datum: `2026-09-${String(i + 1).padStart(2, "0")}`,
+        sifra: "Nočna",
+      }))
+    ).filter((k) => k.vrsta === "nocne");
 
-    expect(PRIVZETA_PRAVILA.maxZaporednihNocnih).toBe(2);
+  it("obe meji sta nastavljeni", () => {
+    expect(PRIVZETA_PRAVILA.maxZaporednihNocnih).toBe(3);
+    expect(PRIVZETA_PRAVILA.absolutnoMaxZaporednihNocnih).toBe(5);
+  });
+
+  it("do treh zaporednih nočnih ni pripombe", () => {
     expect(noci(2)).toHaveLength(0);
-    expect(noci(3).length).toBeGreaterThan(0);
+    expect(noci(3)).toHaveLength(0);
+  });
+
+  it("četrta in peta sta OPOZORILO – dopustno po dogovoru", () => {
+    [4, 5].forEach((n) => {
+      const k = noci(n);
+      expect(k.length).toBeGreaterThan(0);
+      expect(k.every((x) => x.resnost === "opozorilo")).toBe(true);
+    });
+  });
+
+  it("nad absolutno mejo je KRITIČNO, tudi če je izjema evidentirana", () => {
+    const k = noci(6);
+    expect(k.some((x) => x.resnost === "kriticno")).toBe(true);
+
+    const zIzjemo = preveriPravila(
+      Array.from({ length: 6 }, (_, i) => ({
+        oseba: "Z",
+        datum: `2026-09-${String(i + 1).padStart(2, "0")}`,
+        sifra: "Nočna",
+        izjema: { razlog: "POVECAN_OBSEG_DELA" },
+      }))
+    ).filter((x) => x.vrsta === "nocne");
+    expect(zIzjemo.some((x) => x.resnost === "kriticno")).toBe(true);
   });
 });
 
