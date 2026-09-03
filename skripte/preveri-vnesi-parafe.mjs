@@ -118,14 +118,17 @@ console.log("4) preveri rezultat");
 }
 {
   // Naključno preverjeni 3 osebe - da je PRAVA (ne katera koli) parafa prišla na PRAVO osebo.
+  // Branje nazaj gre prek imena_se_ujemata(), ne prek `full_name = '...'`: sprožilec
+  // trg_standardiziraj_polno_ime (schema.sql) zapisano IME V CELOTI Z VELIKIMI ČRKAMI
+  // pretvori v initcap, zato dobesedna primerjava z vhodnim zapisom ne najde vrstice.
   const preveri = [zaSeed[0], zaSeed[Math.floor(zaSeed.length / 2)], zaSeed[zaSeed.length - 1]];
   preveri.forEach(v => {
-    const dobljena = psql(`select parafa from public.profili where full_name = '${v.full_name.replace(/'/g, "''")}';`).trim();
+    const dobljena = psql(`select parafa from public.profili where public.imena_se_ujemata(full_name, '${v.full_name.replace(/'/g, "''")}');`).trim();
     trdi(dobljena === v.parafa, `"${v.full_name}" -> parafa "${dobljena}" (pričakovano "${v.parafa}")`);
   });
 }
 {
-  const maglic = psql(`select parafa from public.profili where full_name = 'MAGLIĆ ALEKSANDER';`).trim();
+  const maglic = psql(`select parafa from public.profili where public.imena_se_ujemata(full_name, 'MAGLIĆ ALEKSANDER');`).trim();
   trdi(maglic === "MAG", `"MAGLIĆ ALEKSANDER" -> parafa "${maglic}" (pričakovano potrjeno "MAG", ne stara "AMG"/"MA")`);
 }
 {

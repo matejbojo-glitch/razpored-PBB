@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Preizkus prve strani Razporeda po preureditvi (avgust 2026):
+/* Preizkus prve strani Razporeda po preureditvi:
  * štirje zavihki — Moj razpored | Oddelki | Razpredelnica | Dežurstvo.
  *
  * Kaj se tu varuje:
@@ -80,19 +80,26 @@ const PROFILI = [
   { id: "v1", full_name: "Salkić Maruša", role: "vodja", department_code: "NZV" },
   { id: "v2", full_name: "Arnež Grega", role: "vodja", department_code: "NZV" },
 ];
-// 5. 8.: razpored JE objavljen (dežurna Salkić) in uradni PDF trdi nekaj
-// drugega -> obvelja objava. 6. 8.: objave NI -> obvelja PDF, označen z *.
+// Mesec izpeljemo iz DANAŠNJEGA dne, ne trdno vpisanega: stran se odpre na
+// tekočem mesecu, zato bi vpisan "2026-08" preizkus tiho pokvaril takoj, ko
+// ta mesec mine - vrstica nth-child(5) bi bila 5. tekočega meseca, brez
+// zasejanih podatkov, in trditve bi padle iz koledarskega razloga.
+const zdaj = new Date();
+const MESEC = zdaj.getFullYear() + "-" + String(zdaj.getMonth() + 1).padStart(2, "0");
+const dan = (n) => MESEC + "-" + String(n).padStart(2, "0");
+// 5.: razpored JE objavljen (dežurna Salkić) in uradni PDF trdi nekaj
+// drugega -> obvelja objava. 6.: objave NI -> obvelja PDF, označen z *.
 const VPISI = [
-  { employee_id: "v1", work_date: "2026-08-05", shift_code: "DEŽURSTVO" },
-  { employee_id: "v2", work_date: "2026-08-05", shift_code: "Dopoldne" },   // ni dežurstvo
+  { employee_id: "v1", work_date: dan(5), shift_code: "DEŽURSTVO" },
+  { employee_id: "v2", work_date: dan(5), shift_code: "Dopoldne" },   // ni dežurstvo
 ];
 const ZDRAVNIKI = [
-  { work_date: "2026-08-05", kind: "urgenca", full_name: "dr. Novak" },
-  { work_date: "2026-08-05", kind: "dezurstvo", full_name: "dr. Kos" },
-  { work_date: "2026-08-05", kind: "sestra", full_name: "Nekdo Drug" },
-  { work_date: "2026-08-06", kind: "sestra", full_name: "Arnež Grega" },
+  { work_date: dan(5), kind: "urgenca", full_name: "dr. Novak" },
+  { work_date: dan(5), kind: "dezurstvo", full_name: "dr. Kos" },
+  { work_date: dan(5), kind: "sestra", full_name: "Nekdo Drug" },
+  { work_date: dan(6), kind: "sestra", full_name: "Arnež Grega" },
 ];
-const MENJAVE = [{ vlagatelj_id: "v1", sodelavec_id: "v2", datum_a: "2026-08-05", datum_b: "2026-08-12" }];
+const MENJAVE = [{ vlagatelj_id: "v1", sodelavec_id: "v2", datum_a: dan(5), datum_b: dan(12) }];
 
 const brskalnik = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 try {
@@ -180,7 +187,7 @@ try {
     const dan = Number(iso.slice(8, 10));
     return stran.$eval(`.dezTabela tbody tr:nth-child(${dan})`, e => e.innerText.replace(/\s+/g, " ").trim());
   };
-  const peti = await vrstica("2026-08-05");
+  const peti = await vrstica(dan(5));
   trdi(/dr\. Novak/.test(peti), "zdravnik urgence: " + peti);
   trdi(/dr\. Kos/.test(peti), "dežurni zdravnik je izpisan");
 
@@ -192,7 +199,7 @@ try {
   trdi(!/Nekdo Drug/.test(peti), "in ne iz uradnega PDF-ja, ki je zastarel");
   trdi(/↔/.test(peti), "zamenjani dan je označen z ↔");
   // Dan brez objave: PDF je rezerva, označena z *, da se ve, od kod je.
-  const sesti = await vrstica("2026-08-06");
+  const sesti = await vrstica(dan(6));
   trdi(/Arnež/.test(sesti), "dan brez objave vzame ime iz uradnega dokumenta: " + sesti);
   trdi(/\*/.test(sesti), "in ga označi z *");
   // Kdor tisti dan dela navadno izmeno, ni dežuren.
@@ -208,8 +215,8 @@ try {
   console.log("7) Razpredelnica: cel mesec na en zaslon, brez vodoravnega vlečenja");
   // Uporabnikova zahteva: "razpredelnica naj bo čez celoten zaslon, da
   // lahko vidiš cel mesec". Zato ta pogled NI omejen na 1400 px kot
-  // oddelčni razpored - 31 dni je tu v stolpcih, ne v vrsticah.
-  await stran.fill("#stanjeMesec", "2026-08");
+  // oddelčni razpored - vsi dnevi meseca so tu v stolpcih, ne v vrsticah.
+  await stran.fill("#stanjeMesec", MESEC);
   await stran.waitForTimeout(1000);
   const mere = await stran.evaluate(() => {
     const t = document.querySelector(".razpPolna");
@@ -223,8 +230,9 @@ try {
       stranDrsi: document.documentElement.scrollWidth > window.innerWidth + 1,
     };
   });
-  eq(mere.stolpcev, 32, "ime + 31 dni avgusta");
-  eq((mere.zadnjiDan || "").trim(), "31", "zadnji stolpec je 31.");
+  const dniVMesecu = new Date(zdaj.getFullYear(), zdaj.getMonth() + 1, 0).getDate();
+  eq(mere.stolpcev, dniVMesecu + 1, `ime + ${dniVMesecu} dni meseca ${MESEC}`);
+  eq((mere.zadnjiDan || "").trim(), String(dniVMesecu), `zadnji stolpec je ${dniVMesecu}.`);
   trdi(!mere.drsi, `tabela se vidi cela, brez vodoravnega vlečenja (${mere.tabela} px v ${mere.okvir} px)`);
   trdi(!mere.stranDrsi, "in stran ne sili v vodoravno drsenje");
   // Kontrolna točka: brez razširitve bi bila tabela ožja od 1400 px (stara
