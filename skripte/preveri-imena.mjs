@@ -60,6 +60,25 @@ console.log("3) potrjeni tipkarski napaki iz uradnih predlog");
   trdi(!I.seUjemata("Novak Ana", "Novak Ane"), "podobno, a različno ime se ne zlije");
 }
 
+console.log("3b) ostanki razčlenjevanja PDF-ja ne preprečijo ujemanja");
+{
+  // Uvoz uradnega dokumenta "Razporeditev zaposlenih v UA in DEŽ" je
+  // septembra 2026 pripeljal zapise z vodilnim zaklepajem in nazivom.
+  // Brez čiščenja se taka vrstica ni ujela z nobenim profilom in je
+  // dežurstvo tistega dne v mreži ostalo PRAZNO (uporabnikova pripomba).
+  trdi(I.seUjemata(") Saša Trpin", "Trpin Saša"), "vodilni \")\" se ne šteje v ime");
+  trdi(I.seUjemata(") Petra Šubic", "Šubic Petra"), "isto pri drugem zapisu");
+  trdi(I.seUjemata("dr. Tanja Torkar", "Torkar Tanja"), "naziv \"dr.\" ni del imena");
+  trdi(I.seUjemata(") dr. Tanja Torkar", "Torkar Tanja"), "oboje hkrati");
+  // Beseda BREZ pike mora ostati - priimek "Mag" sicer izgine.
+  trdi(I.seUjemata("Mag Ana", "Ana Mag"), "\"Mag\" brez pike je priimek, ne naziv");
+  trdi(!I.seUjemata("dr. Tanja Torkar", "Torkar Metka"), "in čiščenje ne zlije dveh oseb");
+  // Prikaz: zaklepaj se odstrani, naziv zdravnika pa OSTANE (v stolpcih
+  // "Urgenca ZDR"/"Dežurstvo ZDR" je del uradnega zapisa).
+  eq(I.priimekIme(") Saša Trpin"), "Saša Trpin", "izpis brez vodilnega ločila");
+  eq(I.priimekIme("dr. Tanja Torkar"), "dr. Tanja Torkar", "naziv zdravnika se pri izpisu ohrani");
+}
+
 console.log("4) na RESNIČNEM seznamu zaposlenih ne zlije dveh različnih oseb");
 {
   // Vir: roster/imenik-uvoz.csv (uvozni seznam, ki je bil dejansko

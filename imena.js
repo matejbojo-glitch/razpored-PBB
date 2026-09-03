@@ -41,12 +41,30 @@ window.Imena = (function () {
       .replace(/[ČĆ]/g, "C").replace(/Š/g, "S").replace(/Ž/g, "Z").replace(/Đ/g, "D");
   }
 
+  // Nazivi in ostanki razčlenjevanja, ki NISO del imena. Uvoz uradnega
+  // PDF-ja ("Razporeditev zaposlenih v UA in DEŽ") je v septembru 2026
+  // pripeljal zapise ") Saša Trpin", ") Petra Šubic" in "dr. Tanja
+  // Torkar": zaklepaj je ostanek stolpca, "dr." pa naziv. Brez tega se
+  // taka vrstica ni ujela z nobenim profilom in je dežurstvo tistega dne
+  // v mreži ostalo prazno.
+  //
+  // Odstranjujejo se SAMO žetoni, ki so v celoti ločila, in točno
+  // našteti nazivi s piko - beseda brez pike ostane (priimek "Mag" bi
+  // sicer izginil).
+  var NAZIV = { "DR.": true, "MAG.": true, "PROF.": true, "SPEC.": true, "DIPL.": true, "UNIV.": true };
+  function jeZetonImena(b) {
+    return !!b && !NAZIV[b] && /[A-ZČŠŽĆĐ]/.test(b);
+  }
+
   // Velike črke, en presledek, popravek znanih tipkarskih napak.
   // Psevdonimi se uporabijo PRED odstranitvijo strešic, ker gre pri
   // "HORVAT" -> "HROVAT" za zamenjan vrstni red črk, ne za strešico.
   function normaliziraj(s) {
     return String(s || "").trim().toUpperCase().replace(/\s+/g, " ")
-      .split(" ").map(function (b) { return PSEVDONIM[b] || b; }).join(" ");
+      .split(" ")
+      .filter(jeZetonImena)
+      .map(function (b) { return PSEVDONIM[b] || b; })
+      .join(" ");
   }
 
   // Ključ za primerjavo in za uporabo v Set/slovarju: "vreča besed" –
@@ -103,7 +121,11 @@ window.Imena = (function () {
   // koristi. Kjer je vrstni red narobe, je to podatek za popravek v
   // Imeniku, ne stvar izrisa.
   function priimekIme(polno) {
-    var t = String(polno || "").replace(/\s+/g, " ").trim();
+    // Vodilna ločila so ostanek razčlenjevanja PDF-ja (") Saša Trpin") in
+    // niso del imena. Nazivi ("dr.") se NE odstranijo: pri zdravnikih v
+    // stolpcih "Urgenca ZDR"/"Dežurstvo ZDR" so del zapisa, kot ga da
+    // uradni dokument.
+    var t = String(polno || "").replace(/^[^A-Za-zČŠŽĆĐčšžćđ]+/, "").replace(/\s+/g, " ").trim();
     if (!t) return "";
     // Samo zapisi V CELOTI z velikimi črkami - "dr. Novak" ali že
     // pravilno "Alukić Dino" ostaneta nedotaknjena.
