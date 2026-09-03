@@ -2003,14 +2003,54 @@ exception
 end;
 $$;
 
-create or replace function public.imena_se_ujemata(a text, b text) RETURNS boolean
-    LANGUAGE sql STABLE
+-- Ključ imena za primerjavo med viri - SQL dvojnik funkcije kljuc() iz
+-- imena.js. Isto dejstvo je zapisano na dveh mestih (brskalnik in baza),
+-- zato morata biti pravili enaki; skripte/preveri-imena-sql.mjs ju požene
+-- na PRAVI bazi in primerja odgovore, sicer se tiho razideta.
+--
+-- Doslej je bila ta funkcija OŽJA od brskalnikove: primerjala je samo
+-- vrečo besed z velikimi črkami, brez strešic in brez potrjenih tipkarskih
+-- napak. Posledica: "Bećirović" se ni ujel z "Becirovic" in "Nina Horvat"
+-- ne s "Hrovat Nina" - v aplikaciji sta se ujela, v bazi pa ne, zato so
+-- SQL skripte (uvozi, seedi) take osebe tiho izpustile.
+--
+-- Koraki so v ISTEM vrstnem redu kot v imena.js:
+--   1. velike črke, deljenje po presledkih,
+--   2. izpust žetonov, ki niso del imena: sami ločila (ostanek
+--      razčlenjevanja PDF-ja ") Saša Trpin") in nazivi s piko,
+--   3. potrjeni tipkarski napaki - PRED odstranitvijo strešic, ker gre pri
+--      HORVAT -> HROVAT za zamenjan vrstni red črk, ne za strešico,
+--      TOMAŽEVIĆ -> TOMAŽEVIČ pa mora ujeti Ć, dokler je še Ć,
+--   4. odstranitev strešic (Č in Ć oba v C - dveh oseb, ki bi se
+--      razlikovali samo po tem znaku, na resničnem seznamu ni),
+--   5. razvrstitev besed, ker viri pišejo enkrat "Priimek Ime" in drugič
+--      "Ime Priimek".
+create or replace function public.imena_kljuc(a text) RETURNS text
+    LANGUAGE sql IMMUTABLE
     AS $$
-  select a is not null and b is not null and (
-    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(a)), '\s+')) w
-  ) = (
-    select array_agg(w order by w) from unnest(regexp_split_to_array(upper(trim(b)), '\s+')) w
-  );
+  select coalesce(string_agg(w, ' ' order by w), '')
+  from (
+    select translate(
+             case upper(t)
+               when 'HORVAT' then 'HROVAT'
+               when 'TOMAŽEVIĆ' then 'TOMAŽEVIČ'
+               else upper(t)
+             end,
+             'ČĆŠŽĐ', 'CCSZD') as w
+    from unnest(regexp_split_to_array(coalesce(a, ''), '\s+')) t
+    where upper(t) ~ '[A-ZČŠŽĆĐ]'
+      and upper(t) not in ('DR.', 'MAG.', 'PROF.', 'SPEC.', 'DIPL.', 'UNIV.')
+  ) x;
+$$;
+
+-- Prazen ključ se NE ujema z ničimer - tudi ne sam s sabo. Brez tega bi
+-- dve vrstici brez imena veljali za isto osebo.
+create or replace function public.imena_se_ujemata(a text, b text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select a is not null and b is not null
+     and public.imena_kljuc(a) <> ''
+     and public.imena_kljuc(a) = public.imena_kljuc(b);
 $$;
 
 create or replace function public.izmena_cas(p_sifra text) RETURNS TABLE(zacetek time without time zone, konec time without time zone, cez_polnoc boolean)
