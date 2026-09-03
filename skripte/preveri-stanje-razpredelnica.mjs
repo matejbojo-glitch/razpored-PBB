@@ -76,12 +76,16 @@ const { stanjeIzKode, izmenaKratica, izmenaBarva, vnosPoKratici, barvaBesedila,
         KIND_KRATICA, STANJE_BARVA, IZMENA_KRATICE,
         imenaSeUjemataBrezStresic, kratkoIme } = sandbox;
 
-console.log("1) vseh pet stanj je opredeljenih in ima svojo barvo");
+console.log("1) vsa stanja so opredeljena in imajo svojo barvo");
 {
-  const pricakovana = ["delo", "dezurstvo", "dopust", "bolniska", "prosto"];
+  // "krozenje" (KRO) je prišlo septembra 2026: oseba tisti dan dela, a po
+  // razporedu DRUGEGA oddelka - za matični oddelek torej ni ne delo ne
+  // dopust. Ob vsakem novem stanju je treba to številko dvigniti
+  // NAMENOMA, da nova barva/naziv gresta skozi človeški pregled.
+  const pricakovana = ["delo", "dezurstvo", "dopust", "bolniska", "krozenje", "prosto"];
   pricakovana.forEach(k => trdi(!!STANJE_BARVA[k] && !!STANJE_BARVA[k].barva && !!STANJE_BARVA[k].naziv,
     `stanje "${k}" ima naziv in barvo`));
-  eq(Object.keys(STANJE_BARVA).length, 5, "natanko pet stanj, brez odvečnih");
+  eq(Object.keys(STANJE_BARVA).length, pricakovana.length, "natanko šest stanj, brez odvečnih");
 }
 
 console.log("2) prave kode izmen iz uradnih predlog -> 'na delu'");
