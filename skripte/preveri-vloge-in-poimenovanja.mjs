@@ -246,6 +246,11 @@ try {
     const oddelkiVodja = await vodja.$$eval("#wd option", e => e.map(x => x.textContent.trim()));
     trdi(oddelkiVodja.includes("NZV vodje"), "in NZV v seznamu, z novim nazivom: " + oddelkiVodja.join(" | "));
     trdi(oddelkiVodja.includes("FLEXI"), "FLEXI je zapisan brez pripisa");
+    // NZV vodja se mora odpreti NA SVOJEM razporedu. Prej je pristal na
+    // prvem oddelku po abecedi (NZV ni v PO_ODDELKIH_KODE) in je izgledalo,
+    // kot da njegovega razporeda ni.
+    eq(await vodja.$eval("#wd", e => e.value), "NZV", "NZV vodji se privzeto odpre razpored NZV");
+    trdi((await vodja.$$(".wardTableNzv")).length === 1, "in izriše se mreža NZV, ne oddelčna");
     await vodja.close();
   }
 

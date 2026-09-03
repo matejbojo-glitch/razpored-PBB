@@ -4569,11 +4569,21 @@ function App(){
       if (!res) return;
       setAuth(res);
       const dept = res.profile ? res.profile.department_code : null;
+      const vodstvo = !!res.profile && (res.profile.role === "admin" || res.profile.role === "vodja");
       // Razpored je viden vsem zaposlenim za VSE oddelke (dogovorjeno) - enako,
       // kot že velja v bazi (schedule_select: "to authenticated using (true)").
       // Privzeto se odpre svoj oddelek, preklop na katerega koli drugega pa je
       // prost; kdor oddelka nima, začne na prvem v seznamu.
-      setWardCode(PO_ODDELKIH_KODE.includes(dept) ? dept : PO_ODDELKIH_KODE[0]);
+      //
+      // "NZV" ni v PO_ODDELKIH_KODE - to ni oddelčni razpored, ampak mreža
+      // enot (NzvView). Brez izrecne veje spodaj je NZV vodja ob odprtju
+      // "Oddelki" pristal na prvem oddelku po abecedi in je izgledalo, kot
+      // da njegovega razporeda ni; v spustnem seznamu je bil ves čas, le
+      // čisto na dnu. Izbira sama ni bila nikoli omejena - NzvView se
+      // izriše vsakomur, ki NZV izbere.
+      setWardCode(PO_ODDELKIH_KODE.includes(dept) ? dept
+        : (dept === "NZV" && vodstvo) ? "NZV"
+        : PO_ODDELKIH_KODE[0]);
       RazporedAuth.unreadNotificationCount(res.session.user.id).then(setUnread);
     });
   }, []);
