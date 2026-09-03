@@ -208,8 +208,9 @@ try {
       department_code: "MO", pokriva_oddelek: "" }],
   }, PROFIL);
   await stran.waitForSelector(".segIkone button", { timeout: 15000 });
-  await stran.selectOption("#ySel", "2026");
-  await stran.selectOption("#mmSel", "8");
+  // Izbirnik meseca je koledarsko polje type="month" (isto kot povsod
+   // drugod v aplikaciji) - prej sta bila tu dva spustna seznama.
+  await stran.fill("#mmSel", "2026-08");
   await stran.waitForTimeout(1500);
   const besedilo = (await stran.innerText("body")).replace(/\s+/g, " ");
   trdi(/\(MO, ŽO\)/.test(besedilo), "izpiše se »Dopoldne (MO, ŽO)«");

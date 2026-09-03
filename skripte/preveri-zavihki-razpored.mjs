@@ -228,7 +228,13 @@ try {
   console.log("6) zavihek Razpredelnica se izriše");
   await stran.click('.segIkone button:has-text("Razpredelnica")');
   await stran.waitForTimeout(1200);
-  trdi(/Razpredelnica stanja/.test(await stran.innerText("body")), "naslov je na strani");
+  // Naslov "Razpredelnica stanja" in uvodni odstavek sta bila septembra
+  // 2026 na uporabnikovo zahtevo odstranjena (zavihek že pove, kje si, opis
+  // pa je vzel ~110 px prvega zaslona). Da se izris vseeno preveri, gledamo
+  // mrežo samo - ne besedilo, ki ga ni več.
+  trdi((await stran.$$(".razpPolna")).length === 1, "mreža razpredelnice se izriše");
+  trdi(!/Razpredelnica stanja/.test(await stran.innerText("body")),
+    "starega naslova nad njo ni več");
   trdi((await stran.$$("#stanjeMesec")).length === 1, "s svojim izbirnikom meseca");
   trdi((await stran.$$("#mmSel")).length === 0, "zgornji izbirnik meseca je takrat skrit (ne bi si nasprotovala)");
 

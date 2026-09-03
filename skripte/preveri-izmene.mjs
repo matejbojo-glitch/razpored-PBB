@@ -2,7 +2,7 @@
 /* Preizkus izmene.js – uradna legenda, barve in razvrstitev izmen.
  *
  * Zakaj obstaja: iste stvari so bile na treh mestih in vsako je poznalo
- * drug del resnice – imenik.html polno uradno legendo (19 kratic z
+ * drug del resnice – imenik.html polno uradno legendo (20 kratic z
  * natančnimi barvami), index.html in admin.html pa vsak svojo grobo
  * razvrstitev v 7 oz. 5 skupin. Posledica: ista izmena je bila v Imeniku
  * ena barva in v Razporedu druga.
@@ -109,7 +109,10 @@ console.log("2) razvrstitvi se RAZLIKUJETA točno tam, kjer se morata");
 
 console.log("3) uradna legenda je popolna in nedvoumna");
 {
-  eq(I.KRATICE.length, 19, "19 vrstic uradne legende");
+  // Ob vsaki novi vrstici legende (nazadnje KRO – kroženje, september
+  // 2026) je treba to številko dvigniti NAMENOMA: legenda je uradni
+  // šifrant, nova koda mora skozi človeški pregled, ne mimo njega.
+  eq(I.KRATICE.length, 20, "20 vrstic uradne legende");
   const kratice = I.KRATICE.map(v => v[1]);
   eq(new Set(kratice).size, kratice.length, "nobena kratica se ne ponovi");
   const predolge = kratice.filter(k => k.length > 3 && k !== "DF12");

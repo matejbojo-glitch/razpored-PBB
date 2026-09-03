@@ -103,6 +103,10 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--text); }
   .navBtn:hover{ background:var(--surface-2); border-color:var(--accent); }
   .monthLbl{ font-size:14.5px; font-weight:800; min-width:130px; text-align:center; }
+  .mesecIzbirnik{
+    padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:var(--surface); color:var(--text); font:inherit; font-size:13px;
+  }
 
   .gridScroll{ overflow:auto; max-height:66vh; border:1px solid var(--line); border-radius:var(--radius-sm); }
   table.grid{ border-collapse:separate; border-spacing:0; font-size:11.5px; min-width:100%; }
@@ -1163,6 +1167,18 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           <button className="navBtn" onClick={() => { let m=view.month-1,y=view.year; if(m<0){m=11;y--;} pojdiNaMesec(y,m); }}>‹</button>
           <div className="monthLbl">{MESECI_SL[view.month][0].toUpperCase()+MESECI_SL[view.month].slice(1)} {view.year}</div>
           <button className="navBtn" onClick={() => { let m=view.month+1,y=view.year; if(m>11){m=0;y++;} pojdiNaMesec(y,m); }}>›</button>
+          {/* Koledarski izbirnik meseca - isti kot v Razporedu →
+              Razpredelnici (uporabnikova zahteva, september 2026: "ta
+              koledarski pogled dodaj povsod v aplikaciji"). Puščici ostaneta
+              za sosednji mesec, koledar pa je za skok čez več mesecev; brez
+              njega je bilo do oktobra prihodnjega leta 13 klikov. */}
+          <input id="zeljeMesec" className="mesecIzbirnik" type="month" aria-label="Mesec"
+            value={view.year + "-" + String(view.month + 1).padStart(2, "0")}
+            onChange={e => {
+              if (!e.target.value) return;
+              const [y, m] = e.target.value.split("-").map(Number);
+              pojdiNaMesec(y, m - 1);
+            }} />
         </div>
         <button className="toolBtn" style={{width:"auto"}} onClick={() => PrintFit.natisni(gridRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
         <span className="hint" style={{margin:0}}>{nalagam ? "Nalagam …" : status}</span>

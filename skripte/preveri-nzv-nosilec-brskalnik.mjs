@@ -140,11 +140,11 @@ try {
   await stran.waitForTimeout(1200);
   await stran.click('.segIkone button:has-text("Oddelki")');
   await stran.waitForSelector(".wardTable", { timeout: 15000 });
-  // Mesec prestavi na oktober 2026. Izbirnik sta DVA spustna seznama
-  // (mesec + leto), ne polje type="month" - brez tega je preizkus gledal
-  // tekoči mesec in bi "uspel" tudi, če bi bil nosilec vedno isti.
-  await stran.selectOption("#ySel", "2026");
-  await stran.selectOption("#mmSel", "10");
+  // Mesec prestavi na oktober 2026 - brez tega bi preizkus gledal tekoči
+  // mesec in bi "uspel" tudi, če bi bil nosilec vedno isti. Izbirnik je
+  // koledarsko polje type="month" (isto kot povsod drugod v aplikaciji);
+  // prej sta bila tu dva spustna seznama, mesec in leto.
+  await stran.fill("#mmSel", "2026-10");
   await stran.waitForTimeout(1500);
   const prikazanDatum = await stran.$eval(".wardTable tbody tr td.name", e => e.textContent.trim());
   trdi(/10\.2026/.test(prikazanDatum), "prikazan je oktober 2026: " + prikazanDatum);

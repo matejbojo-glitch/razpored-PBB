@@ -204,6 +204,29 @@
   html.sirsiPogled table.wardTableNzv td.name{ width:60px; }
   html.sirsiPogled table.wardTableNzv th:not(.name):not(.dez), html.sirsiPogled table.wardTableNzv td.enotaCell:not(.dez){ width:auto; min-width:0; }
   html.sirsiPogled table.wardTableNzv th.dez, html.sirsiPogled table.wardTableNzv td.dez{ width:90px; }
+
+  /* Vse nad NZV mrežo v ENI vrstici: urejanje, pregled odstopanj, števec
+     sprememb. Prej so bili trije bloki pod sabo (~200 px), zato je mreža
+     začela šele pod prvim zaslonom. */
+  .nzvKrmila{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin:10px 0 8px; }
+  .nzvKrmila > div{ margin:0 !important; }
+  .nzvKrmila .opozorilnoPolje{ padding:6px 10px; }
+  /* Datum "1.9.2026 PO" se je pri 60 px odrezal na "1.9.2026 …". */
+  @media (min-width:900px), (orientation: landscape){
+    table.wardTableNzv td.name, table.wardTableNzv th.name{ width:82px; max-width:82px; }
+  }
+  /* Vnosno polje med urejanjem ne sme raztegniti stolpca - z minimalno
+     širino 56 px je 22 stolpcev zahtevalo 1230 px samo zase in mreža je
+     spet drsela vodoravno. */
+  input.nzvVnos{
+    width:100%; min-width:0; text-align:center; font-size:12px; padding:2px;
+    border:1px solid var(--line); border-radius:6px;
+    background:var(--surface); color:var(--text); line-height:1.25;
+  }
+  /* Med urejanjem so celice vnosna polja - brez tesnejšega roba je v
+     okvirju videti le sedem dni in mesec je treba prevrteti. */
+  table.wardTableNzv.urejam td{ padding:2px; }
+  table.wardTableNzv.urejam td.name{ padding:2px 4px; }
 </style>
 </head>
 <body>
@@ -535,7 +558,7 @@ function zdravnikiOpozoriloBesedilo(imamDezurstvo, stanje){
     "»Razporeditev zaposlenih v UA in DEŽ«.";
 }
 
-function MyScheduleView({ userId, month, jeNzv }){
+function MyScheduleView({ userId, month, jeNzv, naDanes }){
   const [entries, setEntries] = useState(null);
   const [dopustiLD, setDopustiLD] = useState([]); // datumi (ISO), ko je oseba na LD po odsotnosti
   const { startISO, endISO } = monthRange(month);
@@ -807,29 +830,29 @@ function MyScheduleView({ userId, month, jeNzv }){
     };
   }, [byDate, jeNzv, iso, zdravnikiPoDatumu, enotaZaDan, oddelekZaDan, month]);
 
+  // Današnja izmena se izriše v PASU KRMIL zgoraj, v isti vrstici kot
+  // izbirnik meseca (uporabnikova zahteva, september 2026) - prej je stala
+  // v svoji kartici pod njim. Podatke ima samo ta komponenta, zato jih
+  // javi navzgor; sam izris ostane en sam, v App.
+  const vDanasnjemMesecu = startISO <= iso && iso <= endISO;
+  useEffect(() => {
+    if (!naDanes) return;
+    if (entries === null || !vDanasnjemMesecu) { naDanes(null); return; }
+    naDanes({
+      izmena: prikazNaZaslonu(todayPrikaz) || "Prosto",
+      cas: DELOVNI_ČAS[todaySifra] || "",
+      barva: (todayPrikaz === "" || !todaySifra)
+        ? window.Izmene.STANJE_BARVA.prosto.barva : window.Izmene.barva(todaySifra),
+      zdravniki: todayCls === "dez" ? zdravnikiZaDan(zdravnikiPoDatumu[iso]) : [],
+    });
+  }, [entries, vDanasnjemMesecu, todayPrikaz, todaySifra, todayCls, iso, zdravnikiPoDatumu]);
+  // Ob zapustitvi pogleda pas ne sme obviseti s starim podatkom.
+  useEffect(() => () => { if (naDanes) naDanes(null); }, []);
+
   if (entries === null) return <p className="sub" style={{marginTop:16}}>Nalagam …</p>;
 
   return (
     <div id="printMy">
-      {startISO <= iso && iso <= endISO && (
-        <div className="todayCard">
-          <div className="lbl">Danes · {window.Datum.slo(iso)}</div>
-          <div className="shift">
-            {/* Ista barva kot v vrstici tega dne spodaj - iz uradne
-                legende (izmene.js), ne iz grobe skupine. */}
-            <span className="dot" style={{background: todayPrikaz === "" || !todaySifra
-              ? window.Izmene.STANJE_BARVA.prosto.barva : window.Izmene.barva(todaySifra)}}></span>
-            <div>
-              <div className="shiftName">{prikazNaZaslonu(todayPrikaz)}</div>
-              <div className="shiftTime">{DELOVNI_ČAS[todaySifra] || ""}</div>
-              {todayCls === "dez" && zdravnikiZaDan(zdravnikiPoDatumu[iso]).map(z => (
-                <div key={z.oznaka} className="shiftTime">🩺 {z.oznaka}: {z.ime}</div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {zdravnikiOpozorilo && (
         <div className="warnBox">🩺 {zdravnikiOpozorilo}</div>
       )}
@@ -1731,18 +1754,17 @@ function StanjeRazpredelnica({ oddelki }){
 
   return (
     <React.Fragment>
-      <h2 className="section">Razpredelnica stanja</h2>
-      <p className="hint" style={{marginTop:0}}>
-        Kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost. Združuje objavljen razpored in
-        vpise iz Želja, vključno s <b>potrjenimi menjavami</b> za vse mesece (te so v razporedu že zamenjane, v celici pa označene z ↔).
-        Kratice so uradne, iz dokumenta <i>Razpored delovnega časa</i> – vsaka ima svojo barvo, glej legendo spodaj.
-      </p>
-      <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:10}}>
-        <div className="field" style={{marginBottom:0, maxWidth:200}}>
+      {/* Brez naslova in uvodnega odstavka (uporabnikova zahteva, september
+          2026): zavihek je že poimenovan "Razpredelnica", opis pa je vzel
+          ~110 px prvega zaslona - ravno toliko, da mesec ni šel v višino.
+          Vsebina opisa je ohranjena v legendi kratic, ki je zdaj v isti
+          vrstici kot izbirnika. */}
+      <div className="ctrlRow no-print">
+        <div className="field">
           <label htmlFor="stanjeMesec">Mesec</label>
           <input id="stanjeMesec" type="month" value={mesec} onChange={e => setMesec(e.target.value)} />
         </div>
-        <div className="field" style={{marginBottom:0, maxWidth:220}}>
+        <div className="field">
           <label htmlFor="stanjeOddelek">Oddelek</label>
           <select id="stanjeOddelek" value={oddelek} onChange={e => setOddelek(e.target.value)}>
             <option value="">Vsi oddelki</option>
@@ -1755,24 +1777,20 @@ function StanjeRazpredelnica({ oddelki }){
             ))}
           </select>
         </div>
-      </div>
-
-      {/* Legenda je privzeto zložena za gumbom "i", da tabela ostane na
-          vrhu zaslona - na telefonu je zavzela skoraj cel prvi zaslon.
-          Odprta je mreža z DVEMA stolpcema (kratica | razlaga), da so vse
-          vrstice enako poravnane: kratica vedno prva in vedno enako
-          široka, razlaga vedno na isti navpičnici. */}
-      <div className="card" style={{marginBottom:10, padding:"10px 12px"}}>
-        <button type="button" onClick={() => setLegendaOdprta(o => !o)}
-          aria-expanded={legendaOdprta}
-          style={{display:"flex", alignItems:"center", gap:8, background:"none", border:"none",
-            padding:0, cursor:"pointer", font:"inherit", color:"inherit"}}>
+        {/* Legenda kratic stoji v ISTI vrstici kot izbirnika (uporabnikova
+            zahteva) in ostane zložena - odprta zavzame skoraj cel zaslon.
+            Panel se izriše pod vrstico, gumb pa ne prelomi postavitve. */}
+        <button type="button" className="legendaGumb" onClick={() => setLegendaOdprta(o => !o)}
+          aria-expanded={legendaOdprta}>
           <span className="infoToggle" aria-hidden="true">i</span>
           <span style={{fontSize:12, fontWeight:700}}>Legenda kratic</span>
           <span style={{fontSize:11, color:"var(--muted)"}}>{legendaOdprta ? "skrij" : "pokaži"}</span>
         </button>
+      </div>
 
-        {legendaOdprta && (
+      {legendaOdprta && (
+        <div className="card" style={{marginBottom:10, padding:"10px 12px"}}>
+          <React.Fragment>
           <div className="infoPanel">
             {["delo", "dezurstvo", "dopust", "bolniska", "krozenje", "prosto"].map(skupina => {
               const vnosi = IZMENA_KRATICE.filter(v => v[5] === skupina);
@@ -1796,6 +1814,13 @@ function StanjeRazpredelnica({ oddelki }){
               );
             })}
             <div style={{fontSize:11, color:"var(--muted)", paddingTop:8, borderTop:"1px solid var(--line)"}}>
+              {/* Ta stavek je prišel sem iz uvodnega odstavka nad tabelo, ki
+                  je bil na uporabnikovo zahtevo odstranjen - podatek sam pa
+                  ni odveč, saj pove, IZ ČESA je razpredelnica sestavljena. */}
+              Razpredelnica pove, kdo je na dani dan na delu, na dežurstvu, na dopustu, na bolniški ali prost.
+              Združuje objavljen razpored in vpise iz Želja, vključno s <b>potrjenimi menjavami</b> za vse mesece
+              (te so v razporedu že zamenjane, v celici pa označene z ↔). Kratice so uradne, iz dokumenta
+              <i> Razpored delovnega časa</i>.{" "}
               Oznaka <b>(A)</b> za popoldansko ali nočno izmeno pomeni, da ta izmena pokriva tudi <b>oddelek A</b>.
               A ima svoj dopoldanski kader, popoldne in ponoči pa ga izmenično pokrivata <b>B</b> in <b>E1</b> – cel
               mesec vsak (september 2026 B, oktober 2026 E1 in tako naprej). Oznako doda aplikacija sama iz meseca in
@@ -1812,8 +1837,9 @@ function StanjeRazpredelnica({ oddelki }){
               <i> Razpored delovnega časa – Služba za ZN in oskrbo</i> (velja od 1. 7. 2022).
             </div>
           </div>
-        )}
-      </div>
+          </React.Fragment>
+        </div>
+      )}
 
       {osebe === null && <p className="hint">Nalagam …</p>}
       {osebe !== null && prikazane.length === 0 && <p className="hint">Za izbrani oddelek ni oseb.</p>}
@@ -3293,11 +3319,19 @@ function NzvView({ month, profile }){
 
   return (
     <div className="wardPrintArea">
-      {jeAdmin && (
-        <NzvUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />
-      )}
-      <OdstopanjaNzv odstopanja={odstopanja} brezNosilca={brezNosilca} />
-      {profile && profile.role === "admin" && saNast && (
+      {/* Vse nad mrežo je v ENI vrstici (uporabnikova zahteva, september
+          2026: "naredi stran bolj pregledno, da bo možnost popravljanja na
+          eni strani"). Prej so se urejanje, pregled odstopanj in nastavitve
+          SA zlagali drug pod drugega in porinili mrežo čez rob zaslona.
+          Nastavitve SA so vidne SAMO med urejanjem - takrat so tudi edino
+          uporabne. */}
+      <div className="nzvKrmila no-print">
+        {jeAdmin && (
+          <NzvUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />
+        )}
+        <OdstopanjaNzv odstopanja={odstopanja} brezNosilca={brezNosilca} />
+      </div>
+      {urejam && profile && profile.role === "admin" && saNast && (
         <SaNastavitveUrejanje saNast={saNast} naShranjeno={() => setOsvezi(k => k + 1)} />
       )}
       {urejam && jeAdmin && ur.poParafi && (
@@ -3307,8 +3341,13 @@ function NzvView({ month, profile }){
           ))}
         </datalist>
       )}
-      <div className="wardScroller">
-        <table className="wardTable wardTableNzv">
+      {/* Mreža drsi ZNOTRAJ svojega okvirja, ne s celo stranjo: glava
+          (enote) in stolpec z datumom tako ostaneta vidna, medtem ko
+          administrator popravlja celice nižje v mesecu. Prej se je lepljiva
+          glava tabele zalepila na vrh OKNA in prekrila izbirnik meseca
+          (vidno na uporabnikovem posnetku). */}
+      <div className="wardScroller vOkvirju">
+        <table className={"wardTable wardTableNzv" + (urejam && jeAdmin ? " urejam" : "")}>
           <thead>
             <tr>
               <th className="name">Datum</th>
@@ -3337,9 +3376,7 @@ function NzvView({ month, profile }){
                           <input type="text" value={besedilo} list="nzvParafe"
                             onChange={e => ur.nastavi(koda, dn.datum, e.target.value)}
                             aria-label={koda + " " + datumSlo(dn.datum)}
-                            style={{width:"100%", minWidth:56, textAlign:"center", fontSize:12,
-                                    padding:"3px 2px", border:"1px solid var(--line)",
-                                    borderRadius:6, background:"var(--surface)", color:"var(--text)"}} />
+                            className="nzvVnos" />
                         </td>
                       );
                     }
@@ -4721,6 +4758,10 @@ function App(){
   const [sirsiPogled, setSirsiPogled] = useState(() => {
     try { return localStorage.getItem("razpored-sirsi-pogled") === "1"; } catch (e) { return false; }
   });
+  // Današnja izmena za pas krmil ("Moj razpored") - podatek pride iz
+  // MyScheduleView, ki edini bere razpored te osebe; izris je tu, da je v
+  // isti vrstici kot izbirnik meseca.
+  const [danes, setDanes] = useState(null);
   useEffect(() => {
     document.documentElement.classList.toggle("sirsiPogled", sirsiPogled);
     try { localStorage.setItem("razpored-sirsi-pogled", sirsiPogled ? "1" : "0"); } catch (e) { /* zasebni način ipd. - ni usodno */ }
@@ -5061,38 +5102,51 @@ function App(){
           ))}
         </div>
 
-        {view==="ward" && (
-          <div className="field no-print">
-            <label htmlFor="wd">Oddelek</label>
-            <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
-              <option value="" disabled>Izberi oddelek …</option>
-              {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-            </select>
+        {/* EN sam pas krmil (uporabnikova zahteva, september 2026): oddelek,
+            mesec in - pri "Moj razpored" - današnja izmena stojijo v ISTI
+            vrstici. Prej so bili trije bloki pod sabo in so pri NZV mreži
+            porinili tabelo 560 px navzdol, tako da razporeda brez drsenja
+            ni bilo videti.
+            Razpredelnica ima svoj pas krmil (prišla je z njim iz Imenika),
+            zato je ta tam skrit - dva bi si nasprotovala. */}
+        {view !== "stanje" && (
+          <div className="ctrlRow no-print">
+            {view==="ward" && (
+              <div className="field">
+                <label htmlFor="wd">Oddelek</label>
+                <select id="wd" value={wardCode || ""} onChange={e => setWardCode(e.target.value)}>
+                  <option value="" disabled>Izberi oddelek …</option>
+                  {depts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
+                </select>
+              </div>
+            )}
+            {/* Isti koledarski izbirnik kot v Razpredelnici (uporabnikova
+                zahteva: "ta koledarski pogled dodaj povsod"). Prej sta bila
+                tu dva spustna seznama (mesec + leto) - edina taka na vsej
+                strani, drugod je bil koledar že povsod. */}
+            <div className="field">
+              <label htmlFor="mmSel">Mesec</label>
+              <input id="mmSel" type="month" value={month}
+                onChange={e => { if (e.target.value) setMonth(e.target.value); }} />
+            </div>
+            {view==="my" && danes && (
+              <div className="danesCip" title={danes.cas || undefined}>
+                <span className="dot" style={{background: danes.barva}}></span>
+                <span className="danesLbl">Danes · {window.Datum.slo(todayISO())}</span>
+                <b>{danes.izmena}</b>
+                {danes.cas && <span className="danesCas">{danes.cas}</span>}
+                {(danes.zdravniki || []).map(z => (
+                  <span key={z.oznaka} className="danesCas">🩺 {z.oznaka}: {z.ime}</span>
+                ))}
+              </div>
+            )}
+            {view === "ward" && !resnicnoLezece && (
+              <button type="button" className="dlBtn"
+                aria-pressed={sirsiPogled} onClick={() => setSirsiPogled(s => !s)}>
+                {sirsiPogled ? "📱 Pokončno" : "🔄 Ležeče"}
+              </button>
+            )}
           </div>
-        )}
-        {/* Razpredelnica ima svoj izbirnik meseca in oddelka (prišla je z
-            njima iz Imenika), zato bi bila zgornja dva odvečna in bi si
-            nasprotovala. */}
-        {view !== "stanje" && <div className="field no-print">
-          <label htmlFor="mmSel">Mesec</label>
-          <div style={{display:"flex", gap:8, alignItems:"center"}}>
-            <select id="mmSel" value={Number(month.split("-")[1])}
-              onChange={e => setMonth(month.split("-")[0] + "-" + String(e.target.value).padStart(2,"0"))}
-              style={{flex:"1 1 auto", minWidth:0}}>
-              {MESECI.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
-            </select>
-            <select id="ySel" value={Number(month.split("-")[0])}
-              onChange={e => setMonth(e.target.value + "-" + month.split("-")[1])}
-              style={{flex:"0 0 auto", minWidth:0}}>
-              {Array.from({length:5}, (_, i) => new Date().getFullYear() - 1 + i).map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-        </div>}
-        {view === "ward" && !resnicnoLezece && (
-          <button type="button" className="dlBtn no-print" style={{marginTop:10}}
-            aria-pressed={sirsiPogled} onClick={() => setSirsiPogled(s => !s)}>
-            {sirsiPogled ? "📱 Nazaj na pokončni prikaz" : "🔄 Obrni na ležeči prikaz"}
-          </button>
         )}
       </header>
 
@@ -5108,7 +5162,7 @@ function App(){
       />
 
       {view==="my" && <MyScheduleView key={"my" + reloadKey} userId={session.user.id} month={month}
-        jeNzv={!!profile && profile.department_code === "NZV"} />}
+        jeNzv={!!profile && profile.department_code === "NZV"} naDanes={setDanes} />}
       {view==="ward" && wardCode && (
         wardCode === "NZV"
           ? <NzvView key={"nzv" + reloadKey} month={month} profile={profile} />
