@@ -116,6 +116,134 @@ describe("kalup: 5-tedenska rotacija (A–E)", () => {
     expect(opozorila).toHaveLength(1);
     expect(opozorila[0].sporocilo).toMatch(/nihče.*ni na voljo/);
   });
+
+  // Odsotnosti iz Razpredelnice Želje (BS, STI, KRO, posamezen dan LD).
+  // Za razliko od rumene omejitve pustijo v celici SVOJO kodo - drugače v
+  // razporedu ni videti, zakaj oseba tisti dan ne dela.
+  it("bolniška vpiše kodo v celico in izmeno prevzame nekdo drug", () => {
+    const { dnevi, opozorila } = Generator.generirajKalup({
+      anchorMondayISO: PONEDELJEK,
+      startISO: "2026-09-05", // sobota: A dela "Dnevna 12", B je prost
+      endISO: "2026-09-05",
+      staff: [
+        { ime: "X", startLetter: "A", hsuffix: false, odsotnosti: { "2026-09-05": "BS" } },
+        { ime: "Y", startLetter: "B", hsuffix: false },
+      ],
+    });
+    expect(dnevi[0].izmene.X).toBe("BS");
+    expect(dnevi[0].izmene.Y).toBe("Dnevna 12");
+    expect(opozorila).toHaveLength(0);
+  });
+
+  it("odsoten ostane odsoten tudi brez nadomestila (izmene mu ne vrne)", () => {
+    const { dnevi, opozorila } = Generator.generirajKalup({
+      anchorMondayISO: PONEDELJEK,
+      startISO: "2026-09-02",
+      endISO: "2026-09-02",
+      staff: [{ ime: "Sam Svoj", startLetter: "A", hsuffix: false, odsotnosti: { "2026-09-02": "KRO" } }],
+    });
+    expect(dnevi[0].izmene["Sam Svoj"]).toBe("KRO");
+    expect(opozorila).toHaveLength(1);
+    expect(opozorila[0].sporocilo).toMatch(/odsoten \(KRO\)/);
+  });
+
+  it("odsotna oseba ni kandidat za nadomeščanje tuje izmene", () => {
+    const { dnevi, opozorila } = Generator.generirajKalup({
+      anchorMondayISO: PONEDELJEK,
+      startISO: "2026-09-05",
+      endISO: "2026-09-05",
+      staff: [
+        { ime: "X", startLetter: "A", hsuffix: false, omejitve: ["2026-09-05"] },
+        // Y bi bil ta dan prost (vzorec B), a je na strokovnem izobraževanju.
+        { ime: "Y", startLetter: "B", hsuffix: false, odsotnosti: { "2026-09-05": "STI" } },
+      ],
+    });
+    expect(dnevi[0].izmene.Y).toBe("STI");
+    expect(dnevi[0].izmene.X).toBe("Dnevna 12"); // nadomestila ni – izmena ostane
+    expect(opozorila).toHaveLength(1);
+  });
+
+  it("prost dan po vzorcu dobi kodo odsotnosti, a nikogar ne razbremeni", () => {
+    const { dnevi, opozorila } = Generator.generirajKalup({
+      anchorMondayISO: PONEDELJEK,
+      startISO: PONEDELJEK, // po vzorcu A je ponedeljek "KPU"
+      endISO: PONEDELJEK,
+      staff: [{ ime: "X", startLetter: "A", hsuffix: false, odsotnosti: { [PONEDELJEK]: "LD" } }],
+    });
+    expect(dnevi[0].izmene.X).toBe("LD");
+    expect(opozorila).toHaveLength(0);
+  });
+});
+
+describe("predlagajCrke: kalup se nadaljuje iz prejšnjega meseca", () => {
+  const ANCHOR = "2026-08-31";
+  const OD = "2026-10-01";
+  const DO = "2026-10-31";
+
+  // Prejšnji mesec, kot bi bil objavljen v bazi: { ime: { datum: izmena } }.
+  const objavljen = (staff) => {
+    const { dnevi } = Generator.generirajKalup({
+      anchorMondayISO: ANCHOR, startISO: OD, endISO: DO, staff,
+    });
+    const m = {};
+    dnevi.forEach((dn) => {
+      Object.keys(dn.izmene).forEach((ime) => {
+        (m[ime] = m[ime] || {})[dn.datum] = dn.izmene[ime];
+      });
+    });
+    return m;
+  };
+
+  it("prepozna črko vsakega zaposlenega iz njegovega dejanskega razporeda", () => {
+    const razpored = objavljen([
+      { ime: "Prva", startLetter: "B", hsuffix: false },
+      { ime: "Druga", startLetter: "D", hsuffix: false },
+      { ime: "Tretja", startLetter: "E", hsuffix: false },
+    ]);
+    // Vsi trije so v Imeniku nastavljeni na "A" - napačno, ker se
+    // nastavitev ob ročnih popravkih prejšnjega meseca ne posodablja.
+    const { crke, ujemanja } = Generator.predlagajCrke({
+      anchorMondayISO: ANCHOR, startISO: OD, endISO: DO, razpored,
+      staff: [
+        { ime: "Prva", crka: "A" }, { ime: "Druga", crka: "A" }, { ime: "Tretja", crka: "A" },
+      ],
+    });
+    expect(crke).toEqual({ Prva: "B", Druga: "D", Tretja: "E" });
+    expect(ujemanja.every((u) => u.vir === "prejsnji-mesec")).toBe(true);
+  });
+
+  it("dva zaposlena ne dobita istega kalupa, dokler jih je manj kot kalupov", () => {
+    const { crke } = Generator.predlagajCrke({
+      anchorMondayISO: ANCHOR, startISO: OD, endISO: DO, razpored: {},
+      staff: [
+        { ime: "A oseba", crka: "A" }, { ime: "B oseba", crka: "A" },
+        { ime: "C oseba", crka: "A" }, { ime: "D oseba", crka: null },
+      ],
+    });
+    expect(new Set(Object.values(crke)).size).toBe(4);
+  });
+
+  it("nad petimi zaposlenimi se kalupi podvojijo, a enakomerno in z opozorilom", () => {
+    const staff = [];
+    for (let i = 0; i < 7; i++) staff.push({ ime: "Oseba " + i, crka: null });
+    const { crke, opozorila } = Generator.predlagajCrke({
+      anchorMondayISO: ANCHOR, startISO: OD, endISO: DO, razpored: {}, staff,
+    });
+    const poCrki = {};
+    Object.values(crke).forEach((c) => { poCrki[c] = (poCrki[c] || 0) + 1; });
+    // 7 ljudi / 5 kalupov: nihče ne sme imeti treh na istem vzorcu.
+    expect(Math.max(...Object.values(poCrki))).toBe(2);
+    expect(opozorila.some((o) => /ima 2 oseb/.test(o))).toBe(true);
+  });
+
+  it("brez prejšnjega meseca obdrži črko iz Imenika", () => {
+    const { crke, ujemanja } = Generator.predlagajCrke({
+      anchorMondayISO: ANCHOR, startISO: OD, endISO: DO, razpored: {},
+      staff: [{ ime: "Nova", crka: "C" }],
+    });
+    expect(crke.Nova).toBe("C");
+    expect(ujemanja[0].vir).toBe("nastavitev");
+  });
 });
 
 describe("preveriDezurstva: ista kršitev na zaslonu in v generatorju", () => {

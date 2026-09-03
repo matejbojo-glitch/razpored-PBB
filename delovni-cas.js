@@ -71,7 +71,11 @@
   };
 
   // Kode, ki NISO delo (odsotnost/prosto) – ne štejejo v počitek niti v ure.
-  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", ""];
+  // "KRO" (kroženje) je tu, ker oseba tisti dan res dela, a po razporedu
+  // DRUGEGA oddelka: njenih ur in časa izmene matični razpored ne pozna,
+  // zato bi vsaka predpostavka o njiju (npr. 07:00-15:00) lažno sprožila
+  // ali potlačila pravilo o počitku.
+  var NI_DELO = ["LD", "KPU", "BS", "STI", "POR", "KRO", ""];
 
   // Privzeta delovnopravna pravila. NAMENOMA nastavljiva (in ne trdo
   // zapisana v kodo), ker gre za razlago kolektivne pogodbe/ZDR-1 in jih
@@ -367,6 +371,10 @@
     DF12: 12, D12: 12, N12: 12, N11: 11, N10: 10,
     PO5: 5, PO6: 6, DO6: 6, DO4: 4, PO4: 4, PO7: 7, DO7: 7, DOP: 8,
     LD: 8, POR: 8, STI: 8, BS: 8,
+    // KRO: delovni dan na drugem oddelku. Ur tiste izmene matični
+    // razpored ne pozna, zato se šteje kot poln delovni dan (8 h) - enako
+    // kot ostale kode brez lastnega urnika.
+    KRO: 8,
     KPU: 0, "": 0,
   };
 

@@ -266,6 +266,12 @@ const PEN_META = {
   ld: { label: "LD (dopust)", barva: "#E06666" },
   bs: { label: "BS (bolniška)", barva: "#93C47D" },
   sti: { label: "STI (štud. dopust)", barva: "#B4A7D6" },
+  // Kroženje: oseba tisti dan dela, a po razporedu DRUGEGA oddelka.
+  // Generator jo zato na matičnem oddelku ne razporedi in za njeno izmeno
+  // poišče nadomestilo - enako kot pri bolniški in izobraževanju.
+  // Za vnos v bazo je potrebna supabase/krozenje-kind.sql (razširjena
+  // omejitev odsotnosti.kind), sicer Supabase vnos zavrne.
+  kro: { label: "KRO (kroženje)", barva: "#9FC5E8" },
 };
 // Kaj je mogoče vpisati ROČNO (uporabnikova zahteva, september 2026):
 // samo letni dopust. Omejitev, bolniška in študijski dopust se v Želje

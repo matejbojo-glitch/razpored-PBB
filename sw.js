@@ -543,7 +543,15 @@
 // je zato ves ta čas dobival STARO supabase-client.js (star unreadNotification
 // Count, staro logiko), zato se ni nikoli nič spremenilo - videti je bilo,
 // kot da popravki ne delujejo, čeprav so bili v Supabase pravilno objavljeni.
-const CACHE = 'razpored-pbb-v149';
+// v150: Generator (Oddelki) upošteva VSE vrste želja - poleg omejitve (OM)
+// in letnega dopusta (LD) še bolniško (BS), strokovno izobraževanje (STI) in
+// novo kroženje (KRO) - kalup vsakega zaposlenega pa nadaljuje iz
+// objavljenega prejšnjega meseca in ga razdeli tako, da se dva človeka ne
+// znajdeta na istem vzorcu, dokler jih je manj kot kalupov. Oddelčni
+// razpored je odslej mogoče urejati tudi v Razporedu ("✎ Uredi razpored",
+// enako kot pri NZV). Spremenjeni so izmene.js, generator-core.js in
+// delovni-cas.js - vsi cache-first, zato dvig.
+const CACHE = 'razpored-pbb-v150';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

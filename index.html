@@ -1108,7 +1108,9 @@ const imenaSeUjemataBrezStresic = window.Imena.seUjemata;
 const kratkoIme = window.Imena.kratkoIme;
 // odsotnosti.kind -> kratica iz uradne legende. "omejitev" (rumena
 // želja) NI odsotnost - oseba je na delu, le z omejitvijo - zato null.
-const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", omejitev: null };
+// "kro" (kroženje) je: oseba tisti dan dela po razporedu drugega oddelka,
+// zato je na svojem oddelku odsotna in ima svojo kodo v legendi.
+const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", kro: "KRO", omejitev: null };
 
 function NadomescanjaPregled(){
   const [vrstice, setVrstice] = useState(null);
@@ -1772,7 +1774,7 @@ function StanjeRazpredelnica({ oddelki }){
 
         {legendaOdprta && (
           <div className="infoPanel">
-            {["delo", "dezurstvo", "dopust", "bolniska", "prosto"].map(skupina => {
+            {["delo", "dezurstvo", "dopust", "bolniska", "krozenje", "prosto"].map(skupina => {
               const vnosi = IZMENA_KRATICE.filter(v => v[5] === skupina);
               if (!vnosi.length) return null;
               return (
@@ -1975,9 +1977,150 @@ function StanjeRazpredelnica({ oddelki }){
   );
 }
 
-function WardView({ deptCode, month, myId }){
+// Urejanje ODDELČNEGA razporeda v aplikaciji – ista pot kot pri mreži NZV
+// ("✎ Uredi razpored"), samo nad drugo obliko mreže (osebe v stolpcih,
+// dnevi v vrsticah).
+//
+// Zakaj: doslej je bilo oddelčni razpored mogoče popraviti samo v
+// Generatorju (admin.html → Kalup, in še to le tik po generiranju, pred
+// objavo) ali z novim uvozom iz Excela. Ko je bil mesec enkrat objavljen,
+// je vsaka sprememba – zamenjava izmene, vpis kroženja, dodan dopust –
+// pomenila ponovno generiranje celega meseca ali popravek v Excelu in
+// vnovičen uvoz. Odslej se posamezna celica popravi tu in objavi takoj.
+//
+// Vpisujejo se ZAPISI iz uradne legende (izmene.js → moznosti()), ne
+// prosto besedilo: vsak zapis se prebere nazaj v svojo kratico, zato se
+// barve, ure in delovnopravna pravila ujemajo z ostalim razporedom.
+const IZMENA_MOZNOSTI = window.Izmene.moznosti();
+
+function OddelekUrejevalnik({ ur, urejam, setUrejam }){
+  return (
+    <div style={{display:"flex", flexWrap:"wrap", gap:8, alignItems:"center", margin:"8px 0 12px"}}>
+      <button className={"btn btn-sm " + (urejam ? "btn-primary" : "btn-ghost")}
+        onClick={() => setUrejam(v => !v)}>
+        {urejam ? "Končaj urejanje" : "✎ Uredi razpored"}
+      </button>
+      {urejam && (
+        <React.Fragment>
+          <button className="btn btn-primary btn-sm" disabled={ur.busy || !ur.spremenjenih} onClick={ur.objavi}>
+            {ur.busy ? "Objavljam …" : "Objavi razpored"}
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={ur.busy || !ur.spremenjenih} onClick={ur.razveljavi}>
+            Razveljavi spremembe
+          </button>
+          <span className="sub">
+            {ur.spremenjenih ? `${ur.spremenjenih} spremenjenih celic` : "ni sprememb"}
+          </span>
+        </React.Fragment>
+      )}
+      {ur.sporocilo && <span className="sub" style={{color:"var(--ok)"}}>{ur.sporocilo}</span>}
+      {ur.napaka && <span className="napaka">{ur.napaka}</span>}
+    </div>
+  );
+}
+
+function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavljeno }){
+  const [urejeno, setUrejeno] = useState({});   // "employee_id|datum" -> zapis izmene
+  const [busy, setBusy] = useState(false);
+  const [sporocilo, setSporocilo] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+
+  // Ob menjavi oddelka ali meseca se nedokončani popravki zavržejo -
+  // sicer bi se ključi "id|datum" prenesli na drug mesec in bi objava
+  // pisala v dneve, ki jih koordinator sploh ni gledal.
+  useEffect(() => { setUrejeno({}); setSporocilo(null); setNapaka(null); }, [deptCode, month]);
+
+  const vrednost = (empId, datum) => {
+    const k = empId + "|" + datum;
+    if (k in urejeno) return urejeno[k];
+    const zapis = byEmpDate[k];
+    return (zapis && zapis.shift_code) || "";
+  };
+  const nastavi = (empId, datum, v) => {
+    setUrejeno(prej => Object.assign({}, prej, { [empId + "|" + datum]: v }));
+    setSporocilo(null); setNapaka(null);
+  };
+  const spremenjeniKljuci = Object.keys(urejeno).filter(k => {
+    const zapis = byEmpDate[k];
+    return (urejeno[k] || "") !== ((zapis && zapis.shift_code) || "");
+  });
+  const razveljavi = () => { setUrejeno({}); setSporocilo(null); setNapaka(null); };
+
+  async function objavi(){
+    setBusy(true); setNapaka(null); setSporocilo(null);
+    try {
+      const vrstice = spremenjeniKljuci.map(k => {
+        const [employee_id, work_date] = k.split("|");
+        const obstojeci = byEmpDate[k];
+        // Oddelek vpisa se OHRANI, kadar vrstica že obstaja: FLEXI kader in
+        // kdor tisti dan pokriva drug oddelek, imata v vpisu svoj
+        // department_code/pokriva_oddelek in popravek izmene ju ne sme
+        // prepisati na oddelek, čigar mrežo koordinator pravkar gleda.
+        return {
+          employee_id, work_date,
+          shift_code: urejeno[k] || "",
+          department_code: (obstojeci && obstojeci.department_code) || deptCode,
+          ...(obstojeci && obstojeci.pokriva_oddelek ? { pokriva_oddelek: obstojeci.pokriva_oddelek } : {}),
+        };
+      });
+      await shraniZapiseRazporeda(vrstice);
+      // Obvestila zaposlenim - enako kot ob objavi iz Generatorja. Napaka
+      // tu ne sme razveljaviti že shranjenega razporeda, zato se samo
+      // pripiše sporočilu.
+      const datumi = vrstice.map(v => v.work_date).sort();
+      let obvestila = null;
+      try {
+        const { error } = await client.rpc("obvesti_o_objavi_razporeda", {
+          p_start: datumi[0], p_end: datumi[datumi.length - 1], p_oddelek: deptCode,
+        });
+        if (error) throw error;
+      } catch (e) {
+        obvestila = e.message || String(e);
+      }
+      setUrejeno({});
+      setSporocilo(`Objavljeno: ${vrstice.length} ${vrstice.length === 1 ? "celica" : "celic"}.`
+        + (obvestila ? ` Opozorilo: obvestila niso bila poslana (${obvestila}).` : ""));
+      naObjavljeno();
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { vrednost, nastavi, objavi, razveljavi, busy, sporocilo, napaka,
+           spremenjenih: spremenjeniKljuci.length };
+}
+
+// Ena celica v načinu urejanja. Izbirnik in ne prosto besedilo: koda, ki je
+// legenda ne pozna, bi v razporedu ostala siva in brez ur. Vrednost, ki je
+// v seznamu ni (star uvoz, zapis iz Excela), se doda kot dodatna izbira,
+// da je popravek ene celice ne izbriše iz sosednjih.
+function IzmenaIzbirnik({ vrednost, naSpremembo, oznaka }){
+  const znana = IZMENA_MOZNOSTI.some(m => m.zapis === vrednost);
+  return (
+    <select value={vrednost} onChange={e => naSpremembo(e.target.value)} aria-label={oznaka}
+      style={{width:"100%", minWidth:92, fontSize:11, padding:"2px 1px",
+              border:"1px solid var(--line)", borderRadius:6,
+              background: vrednost ? window.Izmene.barva(vrednost) : "var(--surface)",
+              color: vrednost ? window.Izmene.barvaBesedila(window.Izmene.barva(vrednost)) : "var(--text)"}}>
+      <option value="">– prosto –</option>
+      {IZMENA_MOZNOSTI.map(m => (
+        <option key={m.kratica} value={m.zapis}>{m.kratica} · {m.naziv}</option>
+      ))}
+      {!znana && vrednost && <option value={vrednost}>{vrednost} (obstoječi zapis)</option>}
+    </select>
+  );
+}
+
+function WardView({ deptCode, month, myId, profile }){
   const [employees, setEmployees] = useState(null);
   const [entries, setEntries] = useState(null);
+  // Števec osvežitev: po objavi popravkov (urejanje spodaj) se mreža znova
+  // prebere iz baze. Namenoma tu in ne s ponovnim vklopom celotnega
+  // pogleda iz App - remount bi zaprl urejanje in odnesel sporočilo o
+  // objavi ravno v trenutku, ko ga uporabnik prebere.
+  const [osvezi, setOsvezi] = useState(0);
   // "datum" -> [ime, ...]: kdo je iz NZV tisti dan zadolžen za TA oddelek.
   // Ne pride iz oddelčnega razporeda, ampak iz razporeda NZV - vodje se ob
   // odsotnosti sodelavca premaknejo (Salkić C1 na dopustu -> C1 pokriva
@@ -2022,7 +2165,7 @@ function WardView({ deptCode, month, myId }){
           .then(({ data: vpisi }) => { if (!cancelled) setEntries(vpisi || []); });
       });
     return () => { cancelled = true; };
-  }, [deptCode, startISO, endISO]);
+  }, [deptCode, startISO, endISO, osvezi]);
 
   useEffect(() => {
     const vir = deptCode === window.OddelekA.KODA ? window.OddelekA.pokriva(month) : null;
@@ -2164,6 +2307,19 @@ function WardView({ deptCode, month, myId }){
     return [...poKratici.values()].sort((a, b) => vrstniRed.indexOf(a.kratica) - vrstniRed.indexOf(b.kratica));
   }, [entries]);
 
+  // Urejanje: klic je BREZ pogoja in pred vsakim zgodnjim izhodom (React
+  // zahteva enak vrstni red stanj v vsakem izrisu), zato tudi byEmpDate
+  // dobi varno privzeto vrednost, dokler se vpisi še nalagajo.
+  const ur = oddelekUrejanjeStanje({
+    deptCode, month, employees: employees || [], byEmpDate,
+    naObjavljeno: () => setOsvezi(k => k + 1),
+  });
+  const jeAdmin = !!(profile && profile.role === "admin");
+  const [urejam, setUrejam] = useState(false);
+  // Ob menjavi oddelka se urejanje zapre: odprt urejevalnik na drugem
+  // oddelku bi bil videti kot nadaljevanje istega dela.
+  useEffect(() => { setUrejam(false); }, [deptCode, month]);
+
   // Stolpec se pokaže samo, kadar za ta oddelek NZV nosilec sploh obstaja -
   // pri FLEXI in pri oddelkih brez nosilca bi bil prazen stolpec le šum.
   const imaNzvStolpec = Object.keys(nzvPoDnevih).length > 0;
@@ -2179,6 +2335,14 @@ function WardView({ deptCode, month, myId }){
   // glave (vloga SMS/TZN ali DMS/DZN) je po vzoru iste predloge.
   return (
     <div className="wardPrintArea">
+      {jeAdmin && <OddelekUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />}
+      {urejam && jeAdmin && (
+        <p className="sub" style={{margin:"0 0 10px"}}>
+          Popravljena celica se shrani šele s klikom na <b>Objavi razpored</b>. Vpisi, ki jih ne spremeniš,
+          ostanejo nedotaknjeni – objavijo se samo spremenjene celice. Oddelek vpisa (pri FLEXI kadru in pri
+          pokrivanju drugega oddelka) se ohrani.
+        </p>
+      )}
       <div className="wardScroller">
         <table className="wardTable wardTableT">
           <thead>
@@ -2248,6 +2412,16 @@ function WardView({ deptCode, month, myId }){
                       + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "")
                       + (oznakaA ? " · pokriva tudi oddelek A" : "");
                     const isMe = z.id === myId;
+                    if (urejam && jeAdmin) {
+                      return (
+                        <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
+                          {pokriva && <span className="pokriva" title={"Ta dan pokriva: " + pokriva}>{pokriva}</span>}
+                          <IzmenaIzbirnik vrednost={ur.vrednost(z.id, dn.datum)}
+                            oznaka={priimekZacetnica(z.full_name) + " " + datumSlo(dn.datum)}
+                            naSpremembo={v => ur.nastavi(z.id, dn.datum, v)} />
+                        </td>
+                      );
+                    }
                     return (
                       <td key={z.id} className={"cell" + (isMe ? " me" : "")}>
                         {/* Prej je bilo tu vedno kvečjemu 3 znake ("dop", "NOČ") in vsaka
@@ -4938,7 +5112,8 @@ function App(){
       {view==="ward" && wardCode && (
         wardCode === "NZV"
           ? <NzvView key={"nzv" + reloadKey} month={month} profile={profile} />
-          : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id} />
+          : <WardView key={"ward" + reloadKey} deptCode={wardCode} month={month} myId={session.user.id}
+              profile={profile} />
       )}
       {view==="ward" && !wardCode && <p className="sub" style={{marginTop:16}}>Izberi oddelek zgoraj.</p>}
       {/* Razpredelnica in Dežurstvo sta prišla sem iz Imenika oz. iz

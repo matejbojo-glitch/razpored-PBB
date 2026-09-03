@@ -79,6 +79,25 @@
     return I.kratica(sifra);
   }
 
+  // Ali je v celici DELOVNA izmena - torej nekaj, kar mora nekdo pokriti,
+  // če oseba tisti dan odpade. Prost dan, KPU in odsotnosti (LD, BS, STI,
+  // KRO, POR) to niso: tam ni česa nadomeščati.
+  //
+  // Vir je uradni šifrant (izmene.js), kadar je naložen; v Node.js
+  // preizkusih in skriptah ga ni, zato ostane rezerva z istimi kraticami.
+  // Rezerva namenoma NE vrže napake kot kraticaIzmene(): pravilo počitka
+  // brez šifranta res ni preverljivo, "ali je to izmena" pa je.
+  var NEDELOVNE_KRATICE = { KPU: true, LD: true, POR: true, STI: true, BS: true, KRO: true };
+  function jeDelovnaIzmena(sifra) {
+    if (!sifra) return false;
+    var I = root.Izmene;
+    if (I && typeof I.kratica === "function") {
+      var k = I.kratica(sifra);
+      return !!k && !NEDELOVNE_KRATICE[k];
+    }
+    return !/^(kpu|ld|por|sti|bs|kro|prost)/.test(String(sifra).toLowerCase().replace(/[\s.]+/g, ""));
+  }
+
   function krsiPocitek(prejsnjaIzmena, naslednjaIzmena) {
     if (!prejsnjaIzmena || !naslednjaIzmena) return false;
     return !!NOCNE[kraticaIzmene(prejsnjaIzmena)]
@@ -103,13 +122,21 @@
    * opts.startISO / opts.endISO – razpon dni, ki jih generiramo (vključno)
    * opts.staff – [{ ime, vloga, startLetter: 'A'..'E', hsuffix: bool,
    *                 dopustTedni: ["YYYY-MM-DD" (ponedeljek tistega tedna), ...],
-   *                 omejitve: ["YYYY-MM-DD", ...] }]
+   *                 omejitve: ["YYYY-MM-DD", ...],
+   *                 odsotnosti: { "YYYY-MM-DD": "BS" | "STI" | "KRO" | "LD" } }]
    *   omejitve – dnevi "rumene" omejitve (iz Razpredelnice Želje): če oseba ta dan po kalupu dela,
    *   generator poišče nadomestilo med preostalim osebjem istega oddelka, ki je ta dan naravno prosto
    *   (prazna izmena po LASTNEM vzorcu – NE nekdo na LD/pomoči, da se ne krati zaslužen prost teden) in
    *   nima svoje omejitve/dopusta/pomoči isti dan. Nadomeščanja se pravično porazdelijo (kdor je
    *   nadomeščal manjkrat, ima prednost). Če nadomestila ni, izmena ostane zasedena in generator doda
    *   opozorilo – koordinator ročno popravi celico (glej "Kalup: poveži ročne popravke z objavo").
+   *   odsotnosti – dnevi iz Razpredelnice Želje, kjer oseba SPLOH ni na voljo
+   *   (bolniška, strokovno izobraževanje, kroženje na drugem oddelku, posamezen
+   *   dan letnega dopusta). Razlika do omejitev: tu se v celico vpiše koda
+   *   odsotnosti (in tako ostane vidna v razporedu, izvozu in objavi), izmena
+   *   pa se ponudi v nadomeščanje po istem pravilu kot pri omejitvi. Kadar
+   *   nadomestila ni, izmena NI vrnjena osebi nazaj (odsoten je odsoten) -
+   *   generator doda opozorilo, da dan ostane nepokrit.
    */
   function generirajKalup(opts) {
     var anchorMonday = toDate(opts.anchorMondayISO);
@@ -138,14 +165,24 @@
       // osebe in prenos iz prejšnjega meseca (počitek po nočni). Zato je
       // tu ena sama funkcija - drugače bi se pravilo o tem, kdo je "na
       // voljo", pri enem od obeh prej ali slej razšlo.
-      function razbremeni(z, razlog) {
+      // "oznaka" (neobvezno) je koda, ki ostane v celici osebe namesto
+      // prazne: pri odsotnosti mora biti v razporedu vidno, ZAKAJ je
+      // oseba tisti dan brez izmene (BS/STI/KRO/LD), pri rumeni omejitvi
+      // pa je oseba na delu in celica ostane prazna kot doslej.
+      function razbremeni(z, razlog, oznaka) {
         var trenutna = izmene[z.ime];
-        if (!trenutna) return; // že prost ta dan (vzorec/LD)
+        if (!jeDelovnaIzmena(trenutna)) {
+          // Ta dan nima izmene (prost dan po vzorcu, KPU, dopustni teden) -
+          // nadomeščati ni česa, vpiše se le koda odsotnosti.
+          if (oznaka) izmene[z.ime] = oznaka;
+          return;
+        }
 
         var kandidati = opts.staff.filter(function (k) {
           if (k.ime === z.ime) return false;
           if (izmene[k.ime]) return false; // dela, na LD-tednu ali pomaga drugje – ni na voljo
           if ((k.omejitve || []).indexOf(iso) !== -1) return false;
+          if (k.odsotnosti && k.odsotnosti[iso]) return false; // bolniška, izobraževanje, kroženje
           // Nadomestilo ne sme samo kršiti počitka po nočni iz prejšnjega
           // meseca - sicer bi težavo samo prestavili na drugo osebo.
           if (prejsnjiDan && krsiPocitek(prejsnjiDan[k.ime], trenutna)) return false;
@@ -158,9 +195,14 @@
         if (kandidati.length) {
           var nadomesti = kandidati[0];
           izmene[nadomesti.ime] = trenutna;
-          izmene[z.ime] = "";
+          izmene[z.ime] = oznaka || "";
           substCount[nadomesti.ime] += 1;
         } else {
+          // Brez nadomestila: pri omejitvi izmena ostane osebi (koordinator
+          // se odloči ročno), pri odsotnosti pa NE - kdor je na bolniški,
+          // je ne more odslužiti, zato ostane v celici koda in dan gre med
+          // opozorila kot nepokrit.
+          if (oznaka) izmene[z.ime] = oznaka;
           opozorila.push({ datum: iso, sporocilo: z.ime + ": " + razlog(trenutna) });
         }
       }
@@ -181,6 +223,19 @@
         });
       }
 
+      // Odsotnosti iz Razpredelnice Želje (BS, STI, KRO, posamezen dan LD).
+      // Obdelane so PRED omejitvami, ker so trše: odsoten človek ni
+      // kandidat za nadomeščanje tujih izmen, kar bi bil, če bi se njegova
+      // celica izpraznila šele za omejitvami.
+      opts.staff.forEach(function (z) {
+        var koda = z.odsotnosti && z.odsotnosti[iso];
+        if (!koda) return;
+        razbremeni(z, function (trenutna) {
+          return "odsoten (" + koda + "), izmene (" + trenutna + ") pa ni prevzel nihče na oddelku"
+            + " – dan ostaja nepokrit, preveri ročno.";
+        }, koda);
+      });
+
       opts.staff.forEach(function (z) {
         if ((z.omejitve || []).indexOf(iso) === -1) return; // brez omejitve ta dan
         razbremeni(z, function (trenutna) {
@@ -192,6 +247,158 @@
       dnevi.push({ datum: iso, dan: DNI[weekdayMon0(d)], izmene: izmene });
     }
     return { dnevi: dnevi, opozorila: opozorila };
+  }
+
+  // ---------------------------------------------------------------------
+  // 1b) KALUPSKE ČRKE IZ PREJŠNJEGA MESECA
+  //
+  // Rotacija se sicer nadaljuje sama (vezana je na stalno sidro), a črka
+  // posamezne osebe je bila doslej ROČNA nastavitev v Imeniku
+  // (profili.rotation_slot) - z dvema posledicama, ki ju je uporabnik
+  // opazil v razporedu:
+  //
+  //   1. Nova oseba brez nastavitve je padla na "A". Če jih je bilo več,
+  //      so vse dobile ISTI kalup: hkrati proste, hkrati v nočnih.
+  //   2. Ročni popravki in menjave prejšnjega meseca se v nastavitev niso
+  //      vpisali, zato se je nov mesec začel po vzorcu, ki ga prejšnji ni
+  //      končal.
+  //
+  // Ta funkcija zato črko IZPELJE iz objavljenega prejšnjega meseca: za
+  // vsako osebo pogleda, kateri od petih vzorcev se z njenim dejanskim
+  // razporedom najbolj ujema, in poskrbi, da se črke po oddelku
+  // razporedijo enakomerno (dva človeka dobita isto šele, ko oseb
+  // presega število črk).
+  // ---------------------------------------------------------------------
+
+  // Za primerjavo dveh zapisov iste izmene ("NOČNA 12" proti "Nočna 12",
+  // "dopoldan" proti "Dopoldne") se ne primerja besedilo, ampak groba
+  // skupina iz uradnega šifranta - drugače bi se vsak star zapis v bazi
+  // štel kot neujemanje in ujemanje s kalupom bi bilo videti naključno.
+  function primerjalnaOznaka(sifra) {
+    var I = root.Izmene;
+    if (I && typeof I.skupinaGeneratorja === "function") return I.skupinaGeneratorja(sifra);
+    return String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
+  }
+
+  /**
+   * opts.anchorMondayISO – isto sidro kot generirajKalup
+   * opts.startISO / opts.endISO – obdobje, iz katerega se bere prejšnji razpored
+   * opts.staff – [{ ime, hsuffix: bool, crka: 'A'..'E'|null (trenutna nastavitev) }]
+   * opts.razpored – { ime: { "YYYY-MM-DD": "izmena" } } – OBJAVLJEN prejšnji mesec
+   * opts.crke – nabor črk (privzeto A–E)
+   *
+   * Vrne { crke: { ime: 'A'..'E' },
+   *        ujemanja: [{ ime, crka, crkaIzNastavitve, ujemanje, dni, vir }],
+   *        opozorila: [ "…" ] }
+   * kjer je "vir" eno od:
+   *   "prejsnji-mesec" – črka je izpeljana iz dejanskega razporeda
+   *   "nastavitev"     – prejšnjega razporeda ni bilo, obdržana je nastavitev iz Imenika
+   *   "razporeditev"   – nastavitev je bila že zasedena, dodeljena je prosta črka
+   */
+  function predlagajCrke(opts) {
+    var crke = (opts.crke && opts.crke.length ? opts.crke : CYCLE).slice();
+    var staff = opts.staff || [];
+    var razpored = opts.razpored || {};
+    var anchorMonday = toDate(opts.anchorMondayISO);
+    var opozorila = [];
+
+    // Točke ujemanja za vsak par (oseba, črka): koliko dni prejšnjega
+    // meseca bi vzorec te črke napovedal točno to, kar je oseba dejansko
+    // delala.
+    var tocke = {};   // ime -> { crka: stevilo }
+    var dniOsebe = {}; // ime -> stevilo dni z znanim razporedom
+    staff.forEach(function (z) {
+      var dnevi = razpored[z.ime] || {};
+      var datumi = Object.keys(dnevi).sort();
+      dniOsebe[z.ime] = datumi.length;
+      tocke[z.ime] = {};
+      crke.forEach(function (c) {
+        var zadetkov = 0;
+        datumi.forEach(function (iso) {
+          var d = toDate(iso);
+          var napoved = shiftFor(c, d, anchorMonday, !!z.hsuffix, null);
+          if (primerjalnaOznaka(napoved) === primerjalnaOznaka(dnevi[iso])) zadetkov += 1;
+        });
+        tocke[z.ime][c] = zadetkov;
+      });
+    });
+
+    // Enakomerna razporeditev: dokler je oseb manj ali enako kot črk, ima
+    // vsaka svojo. Nad tem se druga (tretja …) plast razdeli enako, da ne
+    // pade pet ljudi na isti vzorec.
+    var zgornjaMeja = Math.ceil(staff.length / crke.length) || 1;
+    var zasedenost = {};
+    crke.forEach(function (c) { zasedenost[c] = 0; });
+
+    // Požrešno po najboljšem ujemanju: najprej pari, ki se s prejšnjim
+    // mesecem ujemajo najbolj, da ročno popravljen razpored obvelja pred
+    // teoretičnim vzorcem.
+    var pari = [];
+    staff.forEach(function (z) {
+      crke.forEach(function (c) {
+        pari.push({ ime: z.ime, crka: c, tocke: tocke[z.ime][c],
+                    // Ob izenačenju obvelja črka iz Imenika: brez tega bi
+                    // se ob praznem prejšnjem mesecu (vse ničle) nastavitve
+                    // po nepotrebnem premešale.
+                    prednost: z.crka === c ? 1 : 0 });
+      });
+    });
+    pari.sort(function (a, b) {
+      return b.tocke - a.tocke || b.prednost - a.prednost
+        || (a.ime < b.ime ? -1 : a.ime > b.ime ? 1 : 0)
+        || crke.indexOf(a.crka) - crke.indexOf(b.crka);
+    });
+
+    var dodeljeno = {};
+    pari.forEach(function (par) {
+      if (dodeljeno[par.ime]) return;
+      if (zasedenost[par.crka] >= zgornjaMeja) return;
+      // Črka brez ene same ujemajoče se poti nima kaj povedati o
+      // nadaljevanju - taka oseba se razporedi šele v drugem krogu spodaj,
+      // da ne zasede črke, ki jo nekdo z dejanskim ujemanjem potrebuje.
+      if (par.tocke === 0 && dniOsebe[par.ime] > 0) return;
+      dodeljeno[par.ime] = par.crka;
+      zasedenost[par.crka] += 1;
+    });
+    staff.forEach(function (z) {
+      if (dodeljeno[z.ime]) return;
+      var proste = crke.filter(function (c) { return zasedenost[c] < zgornjaMeja; });
+      var izbrana = (z.crka && proste.indexOf(z.crka) !== -1) ? z.crka : proste[0];
+      if (!izbrana) izbrana = z.crka || crke[0];   // ne sme ostati brez črke
+      dodeljeno[z.ime] = izbrana;
+      zasedenost[izbrana] += 1;
+    });
+
+    var ujemanja = staff.map(function (z) {
+      var crka = dodeljeno[z.ime];
+      var dni = dniOsebe[z.ime];
+      var zadetkov = tocke[z.ime][crka] || 0;
+      var izNastavitve = !!z.crka && z.crka === crka;
+      var vir = zadetkov > 0 && dni > 0 ? "prejsnji-mesec" : (izNastavitve ? "nastavitev" : "razporeditev");
+      if (dni === 0) {
+        opozorila.push(z.ime + ": prejšnjega meseca ni v razporedu, zato kalupa ni bilo mogoče nadaljevati – "
+          + (izNastavitve ? "obdržana je črka " + crka + " iz Imenika." : "dodeljena je prosta črka " + crka + "."));
+      } else if (zadetkov === 0) {
+        opozorila.push(z.ime + ": prejšnji mesec se ne ujema z nobenim kalupom (verjetno ves mesec"
+          + " odsoten ali ročno sestavljen) – dodeljena je prosta črka " + crka + ".");
+      }
+      return { ime: z.ime, crka: crka, crkaIzNastavitve: z.crka || null,
+               ujemanje: zadetkov, dni: dni, vir: vir };
+    });
+
+    // Podvojene črke so pri več kot petih ljudeh neizogibne (kalupov je
+    // pet), a morajo biti vidne: dve osebi z istim kalupom sta hkrati
+    // prosti in hkrati v nočnih.
+    var poCrki = {};
+    ujemanja.forEach(function (u) { (poCrki[u.crka] = poCrki[u.crka] || []).push(u.ime); });
+    Object.keys(poCrki).sort().forEach(function (c) {
+      if (poCrki[c].length < 2) return;
+      opozorila.push("Kalup " + c + " ima " + poCrki[c].length + " oseb (" + poCrki[c].join(", ")
+        + ") – kalupov je pet, zato se pri večjem oddelku prekrivanju ni mogoče izogniti;"
+        + " preveri, ali je porazdelitev po izmenah še vzdržna.");
+    });
+
+    return { crke: dodeljeno, ujemanja: ujemanja, opozorila: opozorila };
   }
 
   // ---------------------------------------------------------------------
@@ -612,7 +819,9 @@
 
   var Generator = {
     generirajKalup: generirajKalup,
+    predlagajCrke: predlagajCrke,
     krsiPocitek: krsiPocitek,
+    jeDelovnaIzmena: jeDelovnaIzmena,
     predlagajZapolnitevOddelka: predlagajZapolnitevOddelka,
     generirajDezurstva: generirajDezurstva,
     preveriDezurstva: preveriDezurstva,
