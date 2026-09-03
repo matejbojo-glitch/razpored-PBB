@@ -193,7 +193,18 @@
   .saNastavitve .napaka{ color:var(--danger); flex-basis:100%; }
   @media print{ .saNastavitve{ display:none; } }
   table.wardTableNzv th.dez, table.wardTableNzv td.dez{ background: rgba(var(--danger-rgb),.07); font-weight:700; }
-  table.wardTableNzv tbody tr.weekend td{ background: rgba(201,113,63,.08); }
+  /* Dela prost dan: vrstica je prazna NAMERNO. Senčenje pri 8 % je bilo
+     komaj vidno in prazna vrstica je bila videti kot manjkajoč podatek,
+     zato je tu močnejše, datum je poudarjen v opozorilni barvi, levi rob pa
+     nosi navpično oznako - tako se prosti dan loči od dneva, ki ga nihče ni
+     izpolnil. */
+  table.wardTableNzv tbody tr.weekend td{ background: rgba(201,113,63,.16); }
+  table.wardTableNzv tbody tr.prostDan td.name{
+    color: var(--pop); font-weight:800;
+    box-shadow: inset 4px 0 0 rgba(201,113,63,.55);
+  }
+  table.wardTableNzv tbody tr.prostDan td{ border-bottom-color: rgba(201,113,63,.35); }
+  table.wardTableNzv tbody tr.prostDan:hover td{ background: rgba(201,113,63,.22); }
   @media (min-width:900px), (orientation: landscape){
     table.wardTableNzv{ width:100%; table-layout:fixed; }
     table.wardTableNzv td.name{ width:60px; }
@@ -3361,9 +3372,18 @@ function NzvView({ month, profile }){
           <tbody>
             {days.map(dn => {
               const isWeekend = dn.dan === "SO" || dn.dan === "NE";
+              // Dela prost dan (vikend ALI praznik): vrstica je prazna
+              // NAMERNO - NZV vodje takrat ne delajo, dežurstvo pa ima svoj
+              // stolpec. Senčenje je bilo komaj vidno in prazna vrstica je
+              // bila videti kot manjkajoč podatek (uporabnikova pripomba ob
+              // posnetku zaslona); praznikov sploh ni senčilo, čeprav so
+              // prav tako prosti.
+              const praznik = window.Prazniki.naziv(dn.datum);
+              const prostDan = isWeekend || !!praznik;
               return (
-                <tr key={dn.datum} className={isWeekend ? "weekend" : ""}>
-                  <td className="name">{datumSlo(dn.datum)} {dn.dan}</td>
+                <tr key={dn.datum} className={prostDan ? "weekend prostDan" : ""}
+                    title={praznik || (isWeekend ? "Vikend – NZV vodje ne delajo" : undefined)}>
+                  <td className="name">{datumSlo(dn.datum)} {dn.dan}{praznik ? " *" : ""}</td>
                   {NZV_STOLPCI.map(([koda]) => {
                     const o = odstopanjaPoCelici[kljucOdstopanja(koda) + "|" + dn.datum];
                     const kljuc = koda + "|" + dn.datum;

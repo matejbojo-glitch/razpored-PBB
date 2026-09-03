@@ -379,6 +379,32 @@ function Seznam({ osebe, oddelki, onOdpri }){
 // Edge Function "admin-uporabnik" (potrebuje service_role ključ, ki ga
 // brskalnik nikoli ne sme imeti neposredno, glej UPORABNIKI-SETUP.md).
 // ---------------------------------------------------------------------
+// Napaka klica robne funkcije v BERLJIVI obliki.
+//
+// Zakaj obstaja: ko funkcija "admin-uporabnik" ni bila nameščena, je
+// supabase-js javil samo "Failed to send a request to the Edge Function".
+// Administrator iz tega ni mogel vedeti, da manjka namestitev - videti je
+// bilo kot okvara aplikacije. Ta primer se od pravih napak loči po tem, da
+// odgovora sploh NI (mrežna napaka, ne HTTP status), zato ga tu prevedemo
+// v napotek, kaj storiti.
+async function napakaRobneFunkcije(error, ime){
+  let sporocilo = error.message || String(error);
+  // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) -
+  // brez tega bi uporabnik videl samo generično "non-2xx status code".
+  if (error.context && typeof error.context.json === "function") {
+    try { const telo = await error.context.json(); if (telo && telo.napaka) return new Error(telo.napaka); }
+    catch (e) { /* obdrži sporočilo spodaj */ }
+  }
+  if (/failed to send a request|failed to fetch|networkerror|load failed/i.test(sporocilo)) {
+    return new Error(
+      "Strežniške funkcije »" + ime + "« ni bilo mogoče doseči – najverjetneje še ni nameščena. " +
+      "V Supabase jo namesti z ukazom  supabase functions deploy " + ime +
+      "  (navodila: UPORABNIKI-SETUP.md). Podatki niso spremenjeni."
+    );
+  }
+  return new Error(sporocilo);
+}
+
 const PRAZEN_NOV_UPORABNIK = { full_name:"", email:"", role:"user", department_code:"", phone:"" };
 
 function DodajUporabnika({ oddelki, onSpremenjeno }){
@@ -401,15 +427,7 @@ function DodajUporabnika({ oddelki, onSpremenjeno }){
           phone: obrazec.phone.trim() || null,
         },
       });
-      if (error) {
-        let sporocilo = error.message || String(error);
-        // FunctionsHttpError nosi pravo (JSON) telo odgovora v .context (Response) –
-        // brez tega bi uporabnik videl samo generično "non-2xx status code".
-        if (error.context && typeof error.context.json === "function") {
-          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
-        }
-        throw new Error(sporocilo);
-      }
+      if (error) throw await napakaRobneFunkcije(error, "admin-uporabnik");
       setUstvarjen({ full_name, email, geslo: data.geslo });
       setObrazec(PRAZEN_NOV_UPORABNIK);
       onSpremenjeno();
@@ -773,13 +791,7 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     setIzbrisBusy(true); setIzbrisMsg(null);
     try {
       const { error } = await client.functions.invoke("admin-uporabnik", { body: { action:"izbrisi", profile_id: oseba.id } });
-      if (error) {
-        let sporocilo = error.message || String(error);
-        if (error.context && typeof error.context.json === "function") {
-          try { const telo = await error.context.json(); if (telo && telo.napaka) sporocilo = telo.napaka; } catch (e) { /* obdrži generično sporočilo */ }
-        }
-        throw new Error(sporocilo);
-      }
+      if (error) throw await napakaRobneFunkcije(error, "admin-uporabnik");
       onSpremenjeno();
       onNazaj();
     } catch (e) { setIzbrisMsg({ ok:false, text: e.message || String(e) }); }
