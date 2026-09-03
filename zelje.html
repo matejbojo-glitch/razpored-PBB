@@ -201,6 +201,12 @@ const RAZPOREDNICA_ODDELKI = [
   ["E1", "E1 – oddelek (SMS/TZN)"],
   ["E2", "E2 – oddelek (SMS/TZN)"],
   ["FLEXI", "FLEXI"],
+  // NZV mora ostati v tem seznamu, tudi ko ga navadni zaposleni ne vidi:
+  // nalozizRoster spodaj vsakega vodjo in administratorja uvrsti prav
+  // sem. Brez te vrstice so iz seznama osebja izpadli VSI vodje in
+  // administratorji - njihovega dopusta ni bilo mogoče niti videti niti
+  // vpisati. Kdo skupino vidi, se odloči v App (glej skupineZaVlogo).
+  ["NZV", "NZV vodje"],
 ];
 
 async function nalozizRoster(){
@@ -1276,14 +1282,27 @@ const VSE_SKUPINE = "__vse__";
 
 function App({ role, myId, myFullName, myDept, ogled, profil }){
   const [roster, setRoster] = useState(null); // { skupine, vsiLjudje } – glej nalozizRoster
-  // Privzeto svoja skupina - koordinator najprej gleda svoj oddelek.
-  const [skupina, setSkupina] = useState(() =>
-    RAZPOREDNICA_ODDELKI.some(([k]) => k === myDept) ? myDept : VSE_SKUPINE);
+  // Privzeto svoja skupina; vodja in administrator sta v skupini NZV, ne
+  // glede na oddelek v profilu (tako ju razvrsti tudi nalozizRoster).
+  const [skupina, setSkupina] = useState(() => {
+    if (role === "admin" || role === "vodja") return "NZV";
+    return RAZPOREDNICA_ODDELKI.some(([k]) => k === myDept) ? myDept : VSE_SKUPINE;
+  });
   useEffect(() => { nalozizRoster().then(setRoster).catch(() => setRoster({ skupine: [], vsiLjudje: [] })); }, []);
 
   const nazivSkupine = Object.fromEntries(RAZPOREDNICA_ODDELKI);
+  // NZV vidijo administratorji in vodje, navaden zaposleni pa ne - isto
+  // pravilo kot v Razporedu (uporabnikova zahteva, september 2026).
+  const jeVodstvo = role === "admin" || role === "vodja";
+  const skupineZaVlogo = jeVodstvo
+    ? RAZPOREDNICA_ODDELKI
+    : RAZPOREDNICA_ODDELKI.filter(([k]) => k !== "NZV");
   const ljudjeSkupine = roster
-    ? (skupina === VSE_SKUPINE ? roster.vsiLjudje : roster.vsiLjudje.filter(o => o.skupina === nazivSkupine[skupina]))
+    ? (skupina === VSE_SKUPINE
+        // "Vse" pomeni vse skupine, ki jih ta vloga sme videti - brez tega
+        // bi navaden zaposleni NZV vodje videl tu, čeprav skupine nima.
+        ? roster.vsiLjudje.filter(o => skupineZaVlogo.some(([, naziv]) => naziv === o.skupina))
+        : roster.vsiLjudje.filter(o => o.skupina === nazivSkupine[skupina]))
     : [];
 
   return (
@@ -1299,7 +1318,7 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
       <div className="skupinaRow no-print" role="tablist" aria-label="Skupina">
         <button role="tab" aria-selected={skupina===VSE_SKUPINE} className="skupinaBtn"
           onClick={() => setSkupina(VSE_SKUPINE)}>Vse</button>
-        {RAZPOREDNICA_ODDELKI.map(([k, naziv]) => (
+        {skupineZaVlogo.map(([k, naziv]) => (
           <button key={k} role="tab" aria-selected={skupina===k} className="skupinaBtn"
             title={naziv} onClick={() => setSkupina(k)}>{k}</button>
         ))}

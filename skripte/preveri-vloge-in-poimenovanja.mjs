@@ -114,7 +114,12 @@ console.log("4) Menjava (iz kode)");
 
 console.log("5) Želje (iz kode)");
 {
-  trdi(!/\["NZV",/.test(zelje), "skupine NZV ni več");
+  // NZV mora OSTATI v seznamu skupin: nalozizRoster vanjo uvrsti vsakega
+  // vodjo in administratorja. Brez tega iz seznama osebja izpadejo vsi -
+  // njihovega dopusta ni mogoče niti videti niti vpisati. Skrije se le
+  // navadnemu zaposlenemu (skupineZaVlogo).
+  trdi(/\["NZV", "NZV vodje"\]/.test(zelje), "skupina NZV obstaja (vanjo se uvrstijo vodje)");
+  trdi(/const skupineZaVlogo = jeVodstvo/.test(zelje), "vidnost skupine je odvisna od vloge");
   trdi(!/Zapisane želje/.test(zelje), "sekcije \"Zapisane želje\" ni več");
   trdi(!/function SeznamZeljTab/.test(zelje), "in tudi njene komponente ne");
   trdi(/const PEN_ROCNO = \["ld"\]/.test(zelje), "ročno se vpisuje samo letni dopust");
@@ -284,14 +289,33 @@ try {
     await stran.waitForSelector(".skupinaBtn", { timeout: 15000 });
     await stran.waitForTimeout(900);
     const skupine = await stran.$$eval(".skupinaBtn", e => e.map(x => x.textContent.trim()));
-    trdi(!skupine.some(t => /NZV/.test(t)), "med skupinami ni NZV: " + skupine.join(" | "));
+    trdi(!skupine.some(t => /NZV/.test(t)), "zaposleni med skupinami nima NZV: " + skupine.join(" | "));
     trdi(skupine.some(t => /^A\b/.test(t)), "oddelek A pa je");
     const barve = await stran.$$eval(".penBtn:not(.eraser)", e => e.map(x => x.textContent.trim()));
     eq(barve, ["LD (dopust)"], "ročno se vpisuje samo letni dopust");
     trdi((await stran.$$(".penBtn.eraser")).length === 1, "gumb za brisanje ostane");
     const t = (await stran.innerText("body")).replace(/\s+/g, " ");
     trdi(!/Zapisane želje/i.test(t), "sekcije \"Zapisane želje\" ni");
+    // Navaden zaposleni tudi pod "Vse" ne sme videti NZV vodij.
+    await stran.click('.skupinaBtn:has-text("Vse")');
+    await stran.waitForTimeout(600);
+    const vseZaposleni = (await stran.innerText("body")).replace(/\s+/g, " ");
+    trdi(!/Alukić|Bojić/.test(vseZaposleni), "in tudi pod \"Vse\" ne vidi NZV vodij");
     await stran.close();
+
+    // Vodja: skupina NZV je na voljo in se privzeto odpre - vanjo se
+    // uvrstijo vsi vodje in administratorji.
+    const vodja = await odpri("zelje.html", "n1");
+    await vodja.waitForSelector(".skupinaBtn", { timeout: 15000 });
+    await vodja.waitForTimeout(900);
+    const skupineVodja = await vodja.$$eval(".skupinaBtn", e => e.map(x => x.textContent.trim()));
+    trdi(skupineVodja.includes("NZV"), "vodja skupino NZV ima: " + skupineVodja.join(" | "));
+    eq(await vodja.$eval('.skupinaBtn[aria-selected="true"]', e => e.textContent.trim()), "NZV",
+      "in se nanjo privzeto odpre");
+    const vsebina = (await vodja.innerText("body")).replace(/\s+/g, " ");
+    trdi(/Alukić/.test(vsebina) && /Bojić/.test(vsebina),
+      "v skupini so vodje in administratorji: " + vsebina.slice(0, 160));
+    await vodja.close();
   }
 
   const prave = konzolaVse.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));
