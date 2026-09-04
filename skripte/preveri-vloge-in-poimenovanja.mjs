@@ -122,7 +122,13 @@ console.log("5) Želje (iz kode)");
   trdi(/const skupineZaVlogo = jeVodstvo/.test(zelje), "vidnost skupine je odvisna od vloge");
   trdi(!/Zapisane želje/.test(zelje), "sekcije \"Zapisane želje\" ni več");
   trdi(!/function SeznamZeljTab/.test(zelje), "in tudi njene komponente ne");
-  trdi(/const PEN_ROCNO = \["ld"\]/.test(zelje), "ročno se vpisuje samo letni dopust");
+  // Od septembra 2026 je nabor odvisen od VLOGE (uporabnikova zahteva):
+  // vodstvo vpisuje vse vrste, navaden zaposleni samo letni dopust.
+  // Podrobneje to pokriva preveri-zelje-peresa.mjs; tu se varuje samo, da
+  // omejitev za zaposlenega sploh obstaja.
+  trdi(/const PEN_ROCNO_ZAPOSLENI = \["ld"\]/.test(zelje),
+    "zaposleni ročno vpisuje samo letni dopust");
+  trdi(/function peresaZaVlogo/.test(zelje), "nabor peres je odvisen od vloge");
   trdi(/omejitev: \{ label: "Omejitev"/.test(zelje) && /bs: \{ label: "BS/.test(zelje),
     "stare vrste ostanejo v legendi, da se obstoječi vnosi še izrišejo");
   trdi(/\["A", "A – oddelek \(SMS\/TZN\)"\]/.test(zelje), "oddelek A je dodan tudi v Želje");

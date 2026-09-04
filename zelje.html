@@ -277,12 +277,21 @@ const PEN_META = {
   // omejitev odsotnosti.kind), sicer Supabase vnos zavrne.
   kro: { label: "KRO (kroženje)", barva: "#9FC5E8" },
 };
-// Kaj je mogoče vpisati ROČNO (uporabnikova zahteva, september 2026):
-// samo letni dopust. Omejitev, bolniška in študijski dopust se v Želje
-// ne vnašajo več - bolniška pride iz Kadrisa, omejitve pa se dogovorijo
-// drugje. Obstoječi vnosi teh vrst ostanejo vidni in jih generator še
-// naprej upošteva; le nov vnos ni več mogoč.
-const PEN_ROCNO = ["ld"];
+// Kaj sme kdo vpisati ROČNO (uporabnikova zahteva, september 2026).
+//
+// Navaden zaposleni vpisuje SAMO svoj letni dopust - omejitve, bolniška,
+// izobraževanje in kroženje niso njegova odločitev: bolniška pride iz
+// Kadrisa, izobraževanje odobri vodja, kroženje se dogovori med oddelki.
+// Administrator in vodja vpisujejo vse vrste, ker prav oni te dogovore
+// vodijo.
+//
+// Obstoječi vnosi vseh vrst so vidni vsem (mreža jih izriše iz PEN_META) -
+// omejena je samo možnost NOVEGA vnosa, ne pogled.
+const PEN_ROCNO_KOORDINATOR = ["omejitev", "bs", "sti", "kro", "ld"];
+const PEN_ROCNO_ZAPOSLENI = ["ld"];
+function peresaZaVlogo(role) {
+  return (role === "admin" || role === "vodja") ? PEN_ROCNO_KOORDINATOR : PEN_ROCNO_ZAPOSLENI;
+}
 
 const MESECI_SL = ["januar","februar","marec","april","maj","junij","julij","avgust","september","oktober","november","december"];
 
@@ -735,7 +744,14 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
   // imena med ročnim vnosom in uvozom iz CSV razlikuje; brez tega bi
   // popravek take celice ustvaril drugo vrstico namesto da bi prvo popravil.
   const [zapisanoIme, setZapisanoIme] = useState({});
-  const [pen, setPen] = useState(PEN_ROCNO[0]);
+  // Katera peresa sme ta vloga uporabiti. Privzeto je izbrano PRVO iz
+  // seznama; ob spremembi vloge (npr. po prijavi) se izbira preveri, da
+  // ne ostane pero, ki ga ta vloga ne sme uporabiti.
+  const peresa = useMemo(() => peresaZaVlogo(role), [role]);
+  const [pen, setPen] = useState(() => peresaZaVlogo(role)[0]);
+  useEffect(() => {
+    if (pen !== "erase" && peresa.indexOf(pen) === -1) setPen(peresa[0]);
+  }, [peresa]);
   const [nalagam, setNalagam] = useState(true);
   const [status, setStatus] = useState("");
   const [log, setLog] = useState([]);
@@ -804,6 +820,21 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   const nastaviCelico = async (ime, iso, vrednost) => {
     const key = ime+"|"+iso;
+    // STI čez LD: dan izobraževanja ni dan dopusta, zato se LD za ta dan
+    // ODSTRANI in vrne med neizkoriščene dneve. Vrstica v odsotnosti je za
+    // osebo in dan ENA sama (ključ full_name+work_date), zato zamenjava
+    // sama po sebi zbriše prejšnji vnos - števec "LD dni" v zadnjem stolpcu
+    // se zato takoj zmanjša. Tu je zato samo POTRDITEV in obvestilo: brez
+    // njiju je bil dopust tiho izgubljen in nihče ni vedel, da se je to
+    // zgodilo. Uporabnikova zahteva, september 2026.
+    const prejsnja = cells[key] || null;
+    const ldZamenjanZSti = vrednost === "sti" && prejsnja === "ld";
+    if (ldZamenjanZSti && !confirm(
+        ime + " ima " + window.Datum.slo(iso) + " vpisan LETNI DOPUST.\n\n" +
+        "Strokovno izobraževanje (STI) ga bo nadomestilo – dan dopusta se vrne med " +
+        "neizkoriščene (stolpec »LD dni« se zmanjša za 1).\n\nNadaljujem?")) {
+      return;
+    }
     setCells(c => {
       const novo = { ...c };
       if (vrednost) novo[key] = vrednost; else delete novo[key];
@@ -831,7 +862,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         ({ error } = await RazporedAuth.client.from("odsotnosti").delete().eq("full_name", ime).eq("work_date", iso));
       }
       if (error) throw error;
-      setStatus("Shranjeno " + window.Datum.cas(new Date()));
+      setStatus(ldZamenjanZSti
+        ? "Shranjeno " + window.Datum.cas(new Date())
+          + " · LD " + window.Datum.slo(iso) + " odstranjen in vrnjen med neizkoriščene dneve (nadomestil ga je STI)."
+        : "Shranjeno " + window.Datum.cas(new Date()));
     } catch (e) {
       setStatus("Napaka: " + (e.message || String(e)));
     }
@@ -1152,7 +1186,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           mreža celega meseca. */}
       <div className="penRow no-print">
           <span className="penHint">Barva:</span>
-          {PEN_ROCNO.map(k => (
+          {peresa.map(k => (
             <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
               <span className="penSwatch" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
             </button>

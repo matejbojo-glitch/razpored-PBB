@@ -69,7 +69,11 @@
   // isti zapis izmene se v datotekah pojavlja v več oblikah ("NOČNA 12",
   // "nočna12", "Nočna 12") in vzporeden seznam bi se prej ali slej razšel.
   var NOCNE = { N12: true, N11: true, N10: true };
-  var PREPOVEDANE_PO_NOCNI = { DF12: true, D12: true, DOP: true, DO7: true, DO6: true, DO4: true };
+  // STI (strokovno izobraževanje) je tu z ISTIM razlogom kot dnevne izmene,
+  // čeprav ni izmena: traja 8 ur in se začne dopoldne, zato ga oseba po
+  // nočni, ki se konča ob 06:00, ne more opraviti. Isti seznam kot v
+  // delovni-cas.js - obe mesti morata soditi enako.
+  var PREPOVEDANE_PO_NOCNI = { DF12: true, D12: true, DOP: true, DO7: true, DO6: true, DO4: true, STI: true };
 
   function kraticaIzmene(sifra) {
     var I = root.Izmene;
@@ -245,6 +249,34 @@
       });
 
       dnevi.push({ datum: iso, dan: DNI[weekdayMon0(d)], izmene: izmene });
+    }
+
+    // Počitek ZNOTRAJ meseca. Doslej se je preverjal samo prehod iz
+    // prejšnjega meseca (zgoraj) - znotraj meseca kalup dnevne izmene po
+    // nočni ne postavi sam, zato se ni imelo kaj zalomiti.
+    //
+    // S STI (strokovno izobraževanje) pa se ima: STI pride iz Želja in
+    // prepiše celico NASLEDNJEGA dne, izmena prejšnjega dne pa ostane taka,
+    // kot jo je določil kalup - lahko tudi nočna. Nočna se konča ob 06:00,
+    // izobraževanje se začne dopoldne, zato tega ni mogoče opraviti.
+    // Uporabnikova zahteva (september 2026): tak primer mora javiti
+    // opozorilo. Generator ga NE popravlja sam - kaj se premakne (nočna ali
+    // izobraževanje), odloči koordinator.
+    // Brez uradnega šifranta (izmene.js) pravila počitka ni mogoče
+    // preveriti - krsiPocitek v tem primeru namenoma vrže napako. Tu zato
+    // preverjanje preskočimo: generiranje razporeda ne sme pasti samo zato,
+    // ker teče v okolju brez šifranta (npr. preizkusi jedra v Node.js).
+    var imamoSifrant = !!(root.Izmene && typeof root.Izmene.kratica === "function");
+    for (var i = 1; imamoSifrant && i < dnevi.length; i++) {
+      var prej = dnevi[i - 1], zdaj = dnevi[i];
+      opts.staff.forEach(function (z) {
+        if (!krsiPocitek(prej.izmene[z.ime], zdaj.izmene[z.ime])) return;
+        opozorila.push({
+          datum: prej.datum,
+          sporocilo: z.ime + ": " + prej.izmene[z.ime] + " (" + prej.datum + "), naslednji dan pa "
+            + zdaj.izmene[z.ime] + " – med njima ni 11-urnega počitka, preveri ročno.",
+        });
+      });
     }
     return { dnevi: dnevi, opozorila: opozorila };
   }
