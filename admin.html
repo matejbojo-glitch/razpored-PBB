@@ -120,6 +120,47 @@
   .revSprememba{ font-size:13px; margin-top:3px; }
   .revNoga{ font-size:11.5px; color:var(--muted); margin-top:3px; }
 
+  /* ---------- statusni trak nad mrežo (Generator) ----------
+     Kompakten vodoravni pregled namesto kartice s petimi vrsticami:
+     značke so gumbi, podrobnosti se razprejo pod njimi. */
+  .statusTrak{ margin-top:12px; }
+  .statusTrak .znacke{ display:flex; gap:8px; flex-wrap:wrap; align-items:stretch; }
+  .statusTrak .znacka{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-family:inherit;
+    padding:7px 12px; border-radius:999px; font-size:12.5px; font-weight:700; line-height:1.3;
+    border:1px solid var(--line); background:var(--surface-2); color:var(--text);
+  }
+  .statusTrak .znacka .ikona{ font-weight:900; font-size:12px; }
+  .statusTrak .znacka .puscica{ color:var(--muted); font-size:10px; transition: transform var(--fast) var(--ease); }
+  .statusTrak .znacka[aria-expanded="true"] .puscica{ transform: rotate(180deg); }
+  .statusTrak .znacka.kriticno{ background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .statusTrak .znacka.opozorilo{ background: rgba(201,148,47,.14); border-color:#C9942F; color:#7A5A12; }
+  .statusTrak .znacka.ok{ background: rgba(var(--ok-rgb),.14); border-color: var(--ok); color: var(--ok); }
+  .statusTrak .znacka.nevtralno{ color: var(--muted); }
+  .statusTrak .podrobnosti{ margin-top:10px; }
+  .statusTrak .podrobnosti > .warnBox{ margin-top:0; }
+  @media (prefers-color-scheme: dark){
+    .statusTrak .znacka.opozorilo{ color:#E8C766; }
+  }
+
+  /* Akcijska vrstica tik pod mrežo (objava / zapis v Sheets). */
+  .orodjaDno{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:12px; }
+  .orodjaDno .field{ margin:0; min-width:0; }
+  .orodjaDno .field label{ font-size:11px; }
+
+  /* .genBtn/.dlBtn sta privzeto polne širine (samostojni gumb pod vsebino),
+     zato sta se v obeh vrsticah prelomila v svojo vrstico. V vrstici se
+     širina ravna po flexu, ne po width:100%. */
+  .orodjaVrh .genBtn, .orodjaVrh .dlBtn,
+  .orodjaDno .genBtn, .orodjaDno .dlBtn{
+    width:auto; margin-top:0; padding-left:16px; padding-right:16px; white-space:nowrap;
+  }
+  @media (max-width: 720px){
+    /* Na telefonu je ena vrstica preozka - gumba se raztegneta čez širino. */
+    .orodjaVrh .genBtn, .orodjaVrh .dlBtn,
+    .orodjaDno .genBtn, .orodjaDno .dlBtn{ flex:1 1 100% !important; }
+  }
+
   .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
   .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
@@ -958,7 +999,6 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexi
   // DEJANSKIM razporedom (vključno z ročnimi popravki celic), tako da jih
   // lahko ista izračunana lista pobarva tudi v mreži spodaj, ne samo tu.
   const pov = window.DelovniCas.povzetek(krsitve);
-  const [prikaziKrsitve, setPrikaziKrsitve] = useState(false);
 
   const pravila = [
     vrzeli.length === 0
@@ -975,7 +1015,7 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexi
 
     imaMinimume
       ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
-      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah zgoraj." },
+      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah v razdelku »Pokritost po dnevih« pod tabelo." },
 
     pov.kriticnih > 0
       ? { stanje: "kriticno", naslov: "Delovnopravne kršitve", opis:
@@ -1000,25 +1040,120 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexi
           </span>
         </div>
       ))}
+    </div>
+  );
+}
 
-      {krsitve.length > 0 && (
-        <div style={{marginTop:10}}>
-          <button type="button" className="btn btn-ghost btn-sm" aria-expanded={prikaziKrsitve}
-            onClick={() => setPrikaziKrsitve(o => !o)}>
-            {prikaziKrsitve ? "Skrij" : "Pokaži"} seznam kršitev ({krsitve.length})
+// Kompakten vodoravni statusni trak nad mrežo (zahteva uporabnika,
+// september 2026). Prej je isti podatek zasedal pol zaslona: naslov
+// "4 · Rezultat", kartica s petimi vrsticami pravil in še opozorilni okvir
+// nad njo - vse to je razpored samega odrinilo pod rob. Zdaj so v traku
+// samo števci; podrobnosti (ista kartica StatusPravil in isti seznam
+// opozoril) se odprejo šele ob kliku na značko.
+function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito }){
+  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
+  const opozorila = rezultat.opozorila || [];
+  const pov = window.DelovniCas.povzetek(krsitve);
+  // null = zaprto; sicer ključ odprtega razdelka ("napake" | "omejitve" | "obseg").
+  const [odprto, setOdprto] = useState(null);
+  const preklopi = k => setOdprto(o => (o === k ? null : k));
+
+  const napak = vrzeli.length + pov.kriticnih;
+  const znacke = [
+    {
+      kljuc: "napake",
+      stanje: napak > 0 ? "kriticno" : "ok",
+      ikona: napak > 0 ? "✗" : "✓",
+      besedilo: napak > 0
+        ? `${vrzeli.length} nepokritih izmen · ${pov.kriticnih} kršitev`
+        : "Pokritost in delovnopravna pravila v mejah",
+    },
+    {
+      kljuc: "omejitve",
+      stanje: (opozorila.length + pov.opozoril) > 0 ? "opozorilo" : "ok",
+      ikona: (opozorila.length + pov.opozoril) > 0 ? "!" : "✓",
+      besedilo: (opozorila.length + pov.opozoril) > 0
+        ? `${opozorila.length} omejitev brez nadomestila${pov.opozoril ? ` · ${pov.opozoril} opozoril` : ""}`
+        : "Vse omejitve pokrite z nadomestilom",
+    },
+    {
+      kljuc: "obseg",
+      stanje: imaMinimume ? "nevtralno" : "opozorilo",
+      ikona: imaMinimume ? "▦" : "!",
+      besedilo: imaMinimume
+        ? `${rezultat.staff.length} × ${rezultat.dnevi.length} dni`
+        : `${rezultat.staff.length} × ${rezultat.dnevi.length} dni · minimumi niso nastavljeni`,
+    },
+  ];
+
+  return (
+    <div className="statusTrak no-print">
+      <div className="znacke">
+        {znacke.map(z => (
+          <button type="button" key={z.kljuc} className={"znacka " + z.stanje}
+            aria-expanded={odprto === z.kljuc} onClick={() => preklopi(z.kljuc)}>
+            <span className="ikona">{z.ikona}</span>
+            <span className="txt">{z.besedilo}</span>
+            <span className="puscica">▾</span>
           </button>
-          {prikaziKrsitve && (
-            <ul className="hint" style={{marginTop:8, paddingLeft:18}}>
-              {krsitve.map((k, i) => (
-                <li key={i} style={{marginBottom:4, color: k.resnost === "kriticno" ? "var(--danger)" : "var(--text)"}}>
-                  <b>{k.oseba}</b> – {k.sporocilo}
-                </li>
-              ))}
-            </ul>
+        ))}
+      </div>
+
+      {/* Podrobnosti so isti obstoječi bloki, le da privzeto ne zasedajo
+          vertikalnega prostora. */}
+      {odprto === "napake" && (
+        <div className="podrobnosti">
+          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
+            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
+        </div>
+      )}
+      {odprto === "omejitve" && (
+        <div className="podrobnosti">
+          {opozorila.length > 0 ? (
+            <div className="warnBox">
+              <div className="t">⚠ {opozorila.length} omejitev brez samodejnega nadomestila</div>
+              <ul>{opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
+            </div>
+          ) : (
+            <p className="hint" style={{margin:0}}>Vse vnesene omejitve so samodejno pokrite z nadomestilom.</p>
+          )}
+          {pov.opozoril > 0 && (
+            <p className="hint" style={{marginBottom:0}}>
+              Delovnopravna opozorila ({pov.opozoril}) so našteta v razdelku »Podroben seznam delovnopravnih kršitev« pod tabelo.
+            </p>
           )}
         </div>
       )}
+      {odprto === "obseg" && (
+        <div className="podrobnosti">
+          <p className="hint" style={{margin:0}}>
+            {rezultat.naziv}, {rezultat.mesec} – {rezultat.staff.length} zaposlenih × {rezultat.dnevi.length} dni.
+            {imaMinimume
+              ? " Za ta oddelek so nastavljeni natančni minimumi po izmenah, zato je zaznava vrzeli natančna."
+              : " Minimumi po izmenah niso nastavljeni – uporablja se groba primerjava s kalupom. Nastavi jih v razdelku »Pokritost po dnevih« pod tabelo."}
+          </p>
+          <p className="hint" style={{marginBottom:0}}>
+            Vsako celico v mreži lahko ročno prepišeš – sprememba se upošteva povsod: v prikazu, izvozu (PDF/CSV)
+            IN ob objavi v Supabase.
+          </p>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Podroben seznam delovnopravnih kršitev - preseljen izpod povzetka v
+// samostojen zložljiv razdelek pod tabelo.
+function KrsitveSeznam({ krsitve }){
+  if (!krsitve.length) return null;
+  return (
+    <ul className="hint" style={{marginTop:0, paddingLeft:18}}>
+      {krsitve.map((k, i) => (
+        <li key={i} style={{marginBottom:4, color: k.resnost === "kriticno" ? "var(--danger)" : "var(--text)"}}>
+          <b>{k.oseba}</b> – {k.sporocilo}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1142,8 +1277,7 @@ function UvozRazporedaNapotek({ koda, month }){
   useEffect(() => { setSkupina(koda); }, [koda]);
   const naslov = `index.html?uvoz=1&oddelek=${encodeURIComponent(skupina)}&mesec=${encodeURIComponent(month)}`;
   return (
-    <div className="card no-print" style={{marginTop:12, marginBottom:12}}>
-      <h3 style={{margin:"0 0 6px", fontSize:15}}>📥 Uvozi že sestavljen razpored</h3>
+    <div className="card no-print" style={{marginTop:0, marginBottom:12}}>
       {/* Pojasnilo je zloženo: na telefonu je teh pet vrstic besedila
           odrinilo sam izbirnik in gumb (torej to, kar uporabnik pride
           naredit) pod rob zaslona. Kdor razlago potrebuje, jo odpre. */}
@@ -1528,60 +1662,17 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
     }
   };
 
-  return (
-    <div>
-      {/* Nadzorna plošča: oddelek + mesec + generiranje na enem mestu.
-          Vse ostalo (kvote, kalup po zaposlenih) je spodaj v zložljivih
-          razdelkih - generiranje samo po sebi ne potrebuje nobenega od njih,
-          ker želje/dopust/omejitve prebere naravnost iz baze. */}
-      <div className="orodjaVrh no-print">
-        <div className="field">
-          <label htmlFor="odd">Oddelek</label>
-          {/* En sam izbirnik za VSE, kar se generira (uporabnikova zahteva,
-              september 2026): oddelki, NZV vodstvena pokritost in NZV
-              dežurstva. NZV ima svoj generator (druga pravila, drug
-              rezultat), zato izbira nanj preklopi - ne podvajamo ga tu. */}
-          <select id="odd" value={koda} onChange={e => {
-            const v = e.target.value;
-            if (v.startsWith("NZV:")) {
-              if (naNzv) naNzv(v.slice(4), month);
-              return;                       // koda ostane, kot je bila
-            }
-            setKoda(v); setRezultat(null);
-          }}>
-            {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
-                je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
-            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
-            <option value="NZV:vodje">NZV – vodstvena pokritost</option>
-            <option value="NZV:dez">NZV – dežurstva</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="mm">Mesec in leto</label>
-          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); setCrkePredlog(null); }} />
-        </div>
-        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
-          {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
-        </button>
-        {/* Urejanje OBJAVLJENEGA razporeda je od septembra 2026 dosegljivo
-            samo od tu (uporabnikova zahteva: "V gumbu RAZPORED so samo
-            veljavne različice razporedov, kjer ni možnosti urejanja").
-            Mreža ostane v index.html - podvojena bi bila dve kopiji istega
-            zaslona, ki se sčasoma razideta - odpre pa se z "?uredi=1", ki
-            gumbe za urejanje sploh prižge. */}
-        <a className="dlBtn" style={{marginTop:0, flex:"0 0 auto", textDecoration:"none"}}
-           href={`index.html?uredi=1&pogled=ward&oddelek=${encodeURIComponent(koda)}&mesec=${month}`}>
-          ✎ Uredi objavljen razpored
-        </a>
-      </div>
-      <p className="hint no-print">
-        Ob kliku se iz baze naravnost preberejo vse želje za ta mesec – omejitve (OM), bolniška (BS),
-        strokovno izobraževanje (STI), kroženje (KRO) in letni dopust (LD) – ter objavljen razpored
-        prejšnjega meseca, iz katerega se kalup vsakega zaposlenega nadaljuje. Vmesnih potrditev ni.
-        Ročni popravki spodaj imajo vedno prednost pred samodejno prebranimi.
-      </p>
-
-      <UvozRazporedaNapotek koda={koda} month={month} />
+  // Sekundarna orodja (uvoz, predlog prostega tedna, kalup/dopust) so od
+  // septembra 2026 POD mrežo in privzeto zložena - generiranje samo po sebi
+  // ne potrebuje nobenega od njih, ker želje/dopust/omejitve prebere
+  // naravnost iz baze. Sestavljena so enkrat tu, da sta obe poti (pred
+  // generiranjem in po njem) res isti blok in se ne razideta.
+  const sekundarnaOrodja = (
+    <React.Fragment>
+      <Zlozljivo naslov="📥 Uvozi že sestavljen razpored"
+        opis="Excel / PDF / CSV / Google Sheets – namesto izračuna">
+        <UvozRazporedaNapotek koda={koda} month={month} />
+      </Zlozljivo>
 
       {!staffList ? <p className="hint">Nalagam osebje …</p> : (
       <React.Fragment>
@@ -1663,81 +1754,71 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
           </tbody>
         </table>
       </div>
-
       </Zlozljivo>
-
-      <button className="genBtn no-print" onClick={generiraj} disabled={genBusy}>{genBusy ? "Generiram …" : "⚡ Generiraj takoj"}</button>
       </React.Fragment>
       )}
+    </React.Fragment>
+  );
 
-      {rezultat && (
+  return (
+    <div>
+      {/* 1 · Nadzorna plošča: oddelek + mesec + generiranje v ENI vrstici.
+          Pojasnilo pod gumbi je preseljeno v zložljiv "Kaj se zgodi ob
+          kliku" - pet vrstic besedila je razpored odrinilo pod rob
+          zaslona, čeprav ga uporabnik prebere enkrat. */}
+      <div className="orodjaVrh no-print">
+        <div className="field">
+          <label htmlFor="odd">Oddelek</label>
+          {/* En sam izbirnik za VSE, kar se generira (uporabnikova zahteva,
+              september 2026): oddelki, NZV vodstvena pokritost in NZV
+              dežurstva. NZV ima svoj generator (druga pravila, drug
+              rezultat), zato izbira nanj preklopi - ne podvajamo ga tu. */}
+          <select id="odd" value={koda} onChange={e => {
+            const v = e.target.value;
+            if (v.startsWith("NZV:")) {
+              if (naNzv) naNzv(v.slice(4), month);
+              return;                       // koda ostane, kot je bila
+            }
+            setKoda(v); setRezultat(null);
+          }}>
+            {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
+                je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
+            {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
+            <option value="NZV:vodje">NZV – vodstvena pokritost</option>
+            <option value="NZV:dez">NZV – dežurstva</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="mm">Mesec in leto</label>
+          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); setCrkePredlog(null); }} />
+        </div>
+        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
+          {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
+        </button>
+        {/* Urejanje OBJAVLJENEGA razporeda je od septembra 2026 dosegljivo
+            samo od tu (uporabnikova zahteva: "V gumbu RAZPORED so samo
+            veljavne različice razporedov, kjer ni možnosti urejanja").
+            Mreža ostane v index.html - podvojena bi bila dve kopiji istega
+            zaslona, ki se sčasoma razideta - odpre pa se z "?uredi=1", ki
+            gumbe za urejanje sploh prižge. */}
+        <a className="dlBtn" style={{marginTop:0, flex:"0 0 auto", textDecoration:"none"}}
+           href={`index.html?uredi=1&pogled=ward&oddelek=${encodeURIComponent(koda)}&mesec=${month}`}>
+          ✎ Uredi objavljen razpored
+        </a>
+      </div>
+
+      {rezultat ? (
         <React.Fragment>
-          <h2 className="section">4 · Rezultat – {rezultat.naziv}, {rezultat.mesec}</h2>
-          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
-          {rezultat.opozorila && rezultat.opozorila.length > 0 && (
-            <div className="warnBox no-print">
-              <div className="t">⚠ {rezultat.opozorila.length} omejitev brez samodejnega nadomestila</div>
-              <ul>{rezultat.opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
-            </div>
-          )}
-          <p className="hint no-print">
-            Vsako celico lahko ročno prepišeš (npr. za nadomeščanje) – sprememba se upošteva povsod: v prikazu,
-            izvozu (PDF/CSV) IN ob objavi v Supabase (vsaka celica je ena oseba/en dan, zato se popravek zanesljivo
-            preslika nazaj na eno izmeno).
-          </p>
+          {/* 2 · Statusni trak: števci nepokritih izmen, kršitev in
+              omejitev; podrobnosti se odprejo šele ob kliku. */}
+          <StatusTrak rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
+            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
 
-          {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
-              vrzel najde in za vsako predlaga osebo, v razpored pa se
-              vpiše šele po potrditvi. */}
-          <div className="card no-print">
-            <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
-            <p className="hint" style={{margin:"8px 0 0"}}>
-              Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
-              Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
-              in če drugega ni, ga označi. Predlogi se vpišejo <b>šele, ko jih potrdiš</b>.
-            </p>
-            {predlogiVrzeli && predlogiVrzeli.napaka && (
-              <p className="hint" style={{marginBottom:0, color:"var(--danger)"}}>{predlogiVrzeli.napaka}</p>
-            )}
-            {predlogiVrzeli && predlogiVrzeli.prazno && (
-              <p className="hint" style={{marginBottom:0}}>Ni vrzeli – vsaka izmena dosega nastavljeni minimum.</p>
-            )}
-            {predlogiVrzeli && predlogiVrzeli.vneseno > 0 && (
-              <p className="hint" style={{marginBottom:0, color:"var(--ok)"}}>
-                Vnesenih v razpored: {predlogiVrzeli.vneseno}. Vidne so v mreži spodaj in jih lahko še popraviš.
-              </p>
-            )}
-            {predlogiVrzeli && predlogiVrzeli.seznam && predlogiVrzeli.seznam.length > 0 && (
-              <div style={{marginTop:10}}>
-                <div style={{display:"flex", gap:8, marginBottom:8, flexWrap:"wrap"}}>
-                  <button className="btn btn-sm" onClick={() => {
-                    const vsi = {};
-                    predlogiVrzeli.seznam.forEach(pr => { vsi[kljucPredloga(pr)] = true; });
-                    setPotrjeneVrzeli(vsi);
-                  }}>Potrdi vse</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setPotrjeneVrzeli({})}>Počisti</button>
-                  <button className="btn btn-sm" onClick={vnesiPotrjeneVrzeli}
-                    disabled={!Object.values(potrjeneVrzeli).some(Boolean)}>
-                    Vnesi potrjene v razpored
-                  </button>
-                </div>
-                <div style={{maxHeight:240, overflowY:"auto"}}>
-                  {predlogiVrzeli.seznam.map(pr => (
-                    <label key={kljucPredloga(pr)} style={{display:"flex", alignItems:"flex-start", gap:8, fontSize:12, padding:"3px 0"}}>
-                      <input type="checkbox" checked={!!potrjeneVrzeli[kljucPredloga(pr)]}
-                        onChange={e => setPotrjeneVrzeli(t => ({ ...t, [kljucPredloga(pr)]: e.target.checked }))} />
-                      <span>
-                        <b>{window.Datum.slo(pr.datum)}</b> · {IZMENA_LABEL[pr.bucket] || pr.bucket} · {pr.oseba} → <b>{pr.sifra}</b>
-                        {pr.opozorilo && <span className="hint" style={{display:"block", margin:0, color:"var(--danger)"}}>{pr.opozorilo}</span>}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="wardScroller" ref={wardRef}>
+          {/* 3 · Glavni delovni prostor: mreža takoj pod traku. Prvi
+              stolpec z imeni je lepljiv, dnevi drsijo vodoravno; na širokem
+              zaslonu ("vOkvirju") mreža drsi znotraj okvirja, tako da
+              ostaneta glava in stolpec z imeni vidna med popravljanjem. */}
+          <div className="wardScroller vOkvirju" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -1774,6 +1855,37 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
               </tbody>
             </table>
           </div>
+
+          {/* Akcijska vrstica za shranjevanje - TIK pod mrežo. Prej sta bila
+              objava in zapis v Sheets ločena razdelka z naslovoma in po
+              petimi vrsticami razlage, zaradi česar sta padla čez rob
+              zaslona. Vsa besedila so ohranjena, le zložena. */}
+          <div className="orodjaDno no-print">
+            <button className="genBtn" style={{marginTop:0, flex:"1 1 220px"}} onClick={objavi} disabled={publishBusy}>
+              {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
+            </button>
+            <div className="field" style={{marginBottom:0, flex:"1 1 260px"}}>
+              <label htmlFor="kalupSheetsUrl">Povezava do Google Sheets za oddelek {koda}</label>
+              <input id="kalupSheetsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..."
+                value={sheetsUrl} onChange={e => spremeniSheetsUrl(e.target.value)} />
+            </div>
+            <button className="dlBtn" type="button" style={{marginTop:0, flex:"0 1 220px"}}
+              onClick={zapisiPredogledVSheets} disabled={sheetsBusy}>
+              {sheetsBusy ? "Zapisujem …" : "📤 Zapiši predlog v Google Sheets"}
+            </button>
+          </div>
+          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+          {sheetsMsg && <p className="hint no-print" style={{color: sheetsMsg.ok ? "var(--ok)" : "var(--danger)"}}>{sheetsMsg.text}</p>}
+          <details className="navodilo no-print">
+            <summary>Kako deluje zapis v Google Sheets</summary>
+            <p className="hint">
+              Predogled zgoraj (z vsemi ročnimi popravki) lahko zapišeš nazaj v obstoječi, deljeni dokument (npr. "2026
+              SMS RAZPORED") - ŠE PRED objavo v Supabase, da ga lahko sproti pregledaš/popraviš v pravi obliki, ki jo
+              uporabljajo drugi. Odpri zavihek ZA TA ODDELEK v Google Sheets in šele nato kopiraj povezavo iz naslovne
+              vrstice (mora vsebovati "#gid=…") - piše samo v obstoječe celice, nikoli ne doda vrstice/stolpca.
+            </p>
+          </details>
+
           {/* Vsi izvozi so v meniju ikone ⬇ zgoraj desno. */}
           <RazporedIzvozVir
             naziv="Kalup"
@@ -1794,27 +1906,73 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
             }}
           />
 
-          <h2 className="section no-print">4c · Zapiši predogled v Google Sheets</h2>
-          <p className="hint no-print">
-            Predogled zgoraj (z vsemi ročnimi popravki) lahko zapišeš nazaj v obstoječi, deljeni dokument (npr. "2026
-            SMS RAZPORED") - ŠE PRED objavo v Supabase, da ga lahko sproti pregledaš/popraviš v pravi obliki, ki jo
-            uporabljajo drugi. Odpri zavihek ZA TA ODDELEK v Google Sheets in šele nato kopiraj povezavo iz naslovne
-            vrstice (mora vsebovati "#gid=…") - piše samo v obstoječe celice, nikoli ne doda vrstice/stolpca.
-          </p>
-          <div className="field no-print" style={{ marginTop: 8, marginBottom: 8 }}>
-            <label htmlFor="kalupSheetsUrl">Povezava do Google Sheets za oddelek {koda}</label>
-            <input id="kalupSheetsUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/..."
-              value={sheetsUrl} onChange={e => spremeniSheetsUrl(e.target.value)} />
-          </div>
-          <button className="dlBtn no-print" type="button" onClick={zapisiPredogledVSheets} disabled={sheetsBusy}>
-            {sheetsBusy ? "Zapisujem …" : "📤 Zapiši predogled v Sheets"}
-          </button>
-          {sheetsMsg && <p className="hint no-print" style={{color: sheetsMsg.ok ? "var(--ok)" : "var(--danger)"}}>{sheetsMsg.text}</p>}
+          {/* 4 · Sekundarne nastavitve in orodja – vse zloženo, pod mrežo. */}
+          {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
+              vrzel najde in za vsako predlaga osebo, v razpored pa se
+              vpiše šele po potrditvi. */}
+          <Zlozljivo naslov="🧩 Predlagaj mesec (zapolni vrzeli)"
+            opis="Za vsako nepokrito izmeno predlaga osebo – vpiše se šele po potrditvi">
+            <div className="card no-print">
+              <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+              <p className="hint" style={{margin:"8px 0 0"}}>
+                Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
+                Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
+                in če drugega ni, ga označi. Predlogi se vpišejo <b>šele, ko jih potrdiš</b>.
+              </p>
+              {predlogiVrzeli && predlogiVrzeli.napaka && (
+                <p className="hint" style={{marginBottom:0, color:"var(--danger)"}}>{predlogiVrzeli.napaka}</p>
+              )}
+              {predlogiVrzeli && predlogiVrzeli.prazno && (
+                <p className="hint" style={{marginBottom:0}}>Ni vrzeli – vsaka izmena dosega nastavljeni minimum.</p>
+              )}
+              {predlogiVrzeli && predlogiVrzeli.vneseno > 0 && (
+                <p className="hint" style={{marginBottom:0, color:"var(--ok)"}}>
+                  Vnesenih v razpored: {predlogiVrzeli.vneseno}. Vidne so v mreži zgoraj in jih lahko še popraviš.
+                </p>
+              )}
+              {predlogiVrzeli && predlogiVrzeli.seznam && predlogiVrzeli.seznam.length > 0 && (
+                <div style={{marginTop:10}}>
+                  <div style={{display:"flex", gap:8, marginBottom:8, flexWrap:"wrap"}}>
+                    <button className="btn btn-sm" onClick={() => {
+                      const vsi = {};
+                      predlogiVrzeli.seznam.forEach(pr => { vsi[kljucPredloga(pr)] = true; });
+                      setPotrjeneVrzeli(vsi);
+                    }}>Potrdi vse</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setPotrjeneVrzeli({})}>Počisti</button>
+                    <button className="btn btn-sm" onClick={vnesiPotrjeneVrzeli}
+                      disabled={!Object.values(potrjeneVrzeli).some(Boolean)}>
+                      Vnesi potrjene v razpored
+                    </button>
+                  </div>
+                  <div style={{maxHeight:240, overflowY:"auto"}}>
+                    {predlogiVrzeli.seznam.map(pr => (
+                      <label key={kljucPredloga(pr)} style={{display:"flex", alignItems:"flex-start", gap:8, fontSize:12, padding:"3px 0"}}>
+                        <input type="checkbox" checked={!!potrjeneVrzeli[kljucPredloga(pr)]}
+                          onChange={e => setPotrjeneVrzeli(t => ({ ...t, [kljucPredloga(pr)]: e.target.checked }))} />
+                        <span>
+                          <b>{window.Datum.slo(pr.datum)}</b> · {IZMENA_LABEL[pr.bucket] || pr.bucket} · {pr.oseba} → <b>{pr.sifra}</b>
+                          {pr.opozorilo && <span className="hint" style={{display:"block", margin:0, color:"var(--danger)"}}>{pr.opozorilo}</span>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Zlozljivo>
 
-          <button className="genBtn no-print" onClick={objavi} disabled={publishBusy} style={{marginTop:8}}>
-            {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
-          </button>
-          {publishMsg && <p className="hint no-print" style={{color: publishMsg.ok ? "var(--ok)" : "var(--danger)"}}>{publishMsg.text}</p>}
+          {sekundarnaOrodja}
+
+          {/* Podroben seznam delovnopravnih kršitev - prej skrit za gumbom
+              znotraj povzetka, zdaj samostojen razdelek na dnu. */}
+          <Zlozljivo naslov="Podroben seznam delovnopravnih kršitev"
+            opis={krsitve.length
+              ? `${krsitve.length} vnosov – počitek med izmenama, zaporedne nočne, prost dan v tednu`
+              : "Ni zaznanih kršitev"}>
+            {krsitve.length
+              ? <KrsitveSeznam krsitve={krsitve} />
+              : <p className="hint" style={{margin:0}}>Počitek med izmenama, zaporedne nočne in prost dan v tednu so v mejah.</p>}
+          </Zlozljivo>
 
           {/* Pokritost po dnevih je na uporabnikovo zahtevo (september 2026)
               PRESELJENA NA DNO in ZLOŽENA: stala je takoj pod razporedom in
@@ -1827,6 +1985,24 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
             <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
             <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} flexiPokrito={flexiPokrito} setFlexiPokrito={setFlexiPokrito} />
           </Zlozljivo>
+        </React.Fragment>
+      ) : (
+        /* Pred prvim generiranjem: prazno stanje namesto praznega prostora,
+           pod njim pa ista sekundarna orodja. */
+        <React.Fragment>
+          <div className="emptyState no-print" style={{marginTop:14}}>
+            Izberi oddelek in mesec ter klikni <b>⚡ Generiraj takoj</b> – razpored se izriše tukaj.
+            <details className="navodilo" style={{marginTop:10, textAlign:"left"}}>
+              <summary>Kaj se zgodi ob kliku</summary>
+              <p className="hint">
+                Iz baze se naravnost preberejo vse želje za ta mesec – omejitve (OM), bolniška (BS),
+                strokovno izobraževanje (STI), kroženje (KRO) in letni dopust (LD) – ter objavljen razpored
+                prejšnjega meseca, iz katerega se kalup vsakega zaposlenega nadaljuje. Vmesnih potrditev ni.
+                Ročni popravki v razdelkih spodaj imajo vedno prednost pred samodejno prebranimi.
+              </p>
+            </details>
+          </div>
+          {sekundarnaOrodja}
         </React.Fragment>
       )}
     </div>
