@@ -162,7 +162,10 @@ try {
     });
   }, { profili: PROFILI, nosilci: NOSILCI, vpisi: VPISI });
 
-  await stran.goto(`http://127.0.0.1:${VRATA}/index.html`, { waitUntil: "load" });
+  // "?uredi=1": urejanje razporeda je od septembra 2026 dosegljivo samo iz
+  // Generatorja (v Razporedu samih gumbov za urejanje ni), tu pa se meri
+  // prav postavitev mreže MED urejanjem - glej preveri-generator-vstop.mjs.
+  await stran.goto(`http://127.0.0.1:${VRATA}/index.html?uredi=1`, { waitUntil: "load" });
   await stran.waitForSelector(".segIkone button", { timeout: 20000 });
   await stran.waitForTimeout(900);
 

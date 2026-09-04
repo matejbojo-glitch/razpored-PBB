@@ -49,7 +49,12 @@ function jseq(a, b, opis) {
 
 const koda = [
   izvleciVrstico("const PO_ODDELKIH_KODE"),
+  // Oddelek in mesec bere skupni pomočnik: isti podatek iz naslova
+  // potrebujeta UVOZ ("?uvoz=1") in UREJANJE iz Generatorja ("?uredi=1"),
+  // zato je izluščen - brez njega bi bili dve različici istega branja.
+  izvleci("preberiOddelekInMesec"),
   izvleci("preberiUvozIzNaslova"),
+  izvleci("preberiUrejanjeIzNaslova"),
 ].join("\n\n");
 
 const sandbox = { console, URLSearchParams };

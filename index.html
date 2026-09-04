@@ -254,6 +254,7 @@
 <script src="oddelek-a.js"></script>
 <script src="nzv-zasedba.js"></script>
 <script src="datum.js"></script>
+<script src="nazaj.js"></script>
 <script src="print-fit.js"></script>
 <script src="import-utils.js"></script>
 <script src="razpored-oblike.js"></script>
@@ -2030,6 +2031,20 @@ function StanjeRazpredelnica({ oddelki }){
 // barve, ure in delovnopravna pravila ujemajo z ostalim razporedom.
 const IZMENA_MOZNOSTI = window.Izmene.moznosti();
 
+// Urejanje razporeda je od septembra 2026 na uporabnikovo zahtevo v celoti
+// pod gumbom GENERATOR: "V gumbu RAZPORED so samo veljavne različice
+// razporedov, kjer ni možnosti urejanja."
+//
+// Mreža (in z njo urejevalnik) ostane tu, kjer je - podvojena v admin.html
+// bi bila dve kopiji istega zaslona, ki se sčasoma razideta; to je v tem
+// projektu že večkrat povzročilo tihe napake. Namesto tega Generator odpre
+// TO stran z naslovom "?uredi=1": gumbi za urejanje se pokažejo samo takrat,
+// pri običajnem brskanju po Razporedu pa jih ni.
+function urejanjeDovoljeno(){
+  try { return new URL(window.location.href).searchParams.get("uredi") === "1"; }
+  catch (e) { return false; }
+}
+
 function OddelekUrejevalnik({ ur, urejam, setUrejam }){
   return (
     <div style={{display:"flex", flexWrap:"wrap", gap:8, alignItems:"center", margin:"8px 0 12px"}}>
@@ -2372,7 +2387,7 @@ function WardView({ deptCode, month, myId, profile }){
   // glave (vloga SMS/TZN ali DMS/DZN) je po vzoru iste predloge.
   return (
     <div className="wardPrintArea">
-      {jeAdmin && <OddelekUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />}
+      {jeAdmin && urejanjeDovoljeno() && <OddelekUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />}
       {urejam && jeAdmin && (
         <p className="sub" style={{margin:"0 0 10px"}}>
           Popravljena celica se shrani šele s klikom na <b>Objavi razpored</b>. Vpisi, ki jih ne spremeniš,
@@ -3337,7 +3352,7 @@ function NzvView({ month, profile }){
           Nastavitve SA so vidne SAMO med urejanjem - takrat so tudi edino
           uporabne. */}
       <div className="nzvKrmila no-print">
-        {jeAdmin && (
+        {jeAdmin && urejanjeDovoljeno() && (
           <NzvUrejevalnik ur={ur} urejam={urejam} setUrejam={setUrejam} />
         )}
         <OdstopanjaNzv odstopanja={odstopanja} brezNosilca={brezNosilca} />
@@ -3459,12 +3474,27 @@ const PO_ODDELKIH_KODE = ["A", "B", "C", "C1", "D", "E1", "E2", "FLEXI"];
 function preberiUvozIzNaslova(search){
   const p = new URLSearchParams(search || "");
   if (p.get("uvoz") !== "1") return null;
+  return preberiOddelekInMesec(p);
+}
+
+// Oddelek in mesec iz naslova - skupno za "?uvoz=1" (uvoz iz Google Sheets)
+// in "?uredi=1" (urejanje, na katero napoti Generator). Naslov je zunanji
+// vhod, zato se oddelek preveri proti znanim kodam, mesec pa proti obliki.
+function preberiOddelekInMesec(p){
   const oddelek = (p.get("oddelek") || "").trim().toUpperCase();
   const mesec = (p.get("mesec") || "").trim();
   return {
     oddelek: (PO_ODDELKIH_KODE.includes(oddelek) || oddelek === "NZV") ? oddelek : null,
     mesec: /^\d{4}-(0[1-9]|1[0-2])$/.test(mesec) ? mesec : null,
   };
+}
+
+// Napotilo iz Generatorja: "?uredi=1&oddelek=…&mesec=…". Odpre isti pogled
+// kot uvoz, le da namesto uvoznega okna prižge gumbe za urejanje.
+function preberiUrejanjeIzNaslova(search){
+  const p = new URLSearchParams(search || "");
+  if (p.get("uredi") !== "1") return null;
+  return preberiOddelekInMesec(p);
 }
 
 // ---------------------------------------------------------------------
@@ -4749,10 +4779,22 @@ function App(){
   const zacetniUvoz = useMemo(() => {
     try { return preberiUvozIzNaslova(window.location.search); } catch (e) { return null; }
   }, []);
+  // Napotilo iz Generatorja ("✎ Uredi objavljen razpored"): isti pogled kot
+  // pri uvozu, le da se odpre v načinu urejanja (glej urejanjeDovoljeno).
+  const zacetnoUrejanje = useMemo(() => {
+    try { return preberiUrejanjeIzNaslova(window.location.search); } catch (e) { return null; }
+  }, []);
+  const zacetniPogled = zacetniUvoz || zacetnoUrejanje;
 
-  const [view, setView] = useState(zacetniUvoz && zacetniUvoz.oddelek ? "ward" : "my");
-  const [month, setMonth] = useState((zacetniUvoz && zacetniUvoz.mesec) || currentMonthStr());
-  const [wardCode, setWardCode] = useState((zacetniUvoz && zacetniUvoz.oddelek) || null);
+  // Zavihek živi v NASLOVU (?pogled=…), da gumb "nazaj" v brskalniku vrne na
+  // prejšnji zavihek in ne s strani ven (uporabnikovo navodilo za celotno
+  // aplikacijo, september 2026).
+  const [view, setViewStanje] = useState(
+    zacetniPogled && zacetniPogled.oddelek ? "ward" : window.Nazaj.beri("pogled", "my"));
+  useEffect(() => window.Nazaj.uporabi("pogled", "my", setViewStanje), []);
+  const setView = window.Nazaj.krmar("pogled", "my", setViewStanje);
+  const [month, setMonth] = useState((zacetniPogled && zacetniPogled.mesec) || currentMonthStr());
+  const [wardCode, setWardCode] = useState((zacetniPogled && zacetniPogled.oddelek) || null);
   const [unread, setUnread] = useState(0);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0); // dvigne se po uvozu iz Google Sheets, da se pogled znova naloži
@@ -5195,11 +5237,12 @@ function App(){
           Razporedu, ne drugam. */}
       {view==="stanje" && jeVodstvo && <StanjeRazpredelnica key={"stanje" + reloadKey} oddelki={depts} />}
       {view==="dez" && <DezurstvoPregled key={"dez" + reloadKey} month={month} myId={session.user.id} />}
-      {/* Menjave se izpišejo POD mesečnim razporedom in samo adminu
-          (uporabnikova izrecna zahteva) - navadni zaposleni jih vidi na
-          strani "Menjava". Vezane so na IZBRANI oddelek: vsak oddelek
-          (B, C … NZV) vidi pod svojim razporedom samo svoje menjave. */}
-      {view==="ward" && wardCode && profile && profile.role === "admin" && (
+      {/* Menjave so se septembra 2026 preselile pod GENERATOR (uporabnikova
+          zahteva: "VSE menjave in popravljanja razporedov naj se nahajajo v
+          gumbu GENERATOR"). Tu se izpišejo samo, kadar je stran odprta iz
+          Generatorja v načinu urejanja - navadni zaposleni jih vidi na
+          strani "Menjava". Vezane so na IZBRANI oddelek. */}
+      {view==="ward" && wardCode && profile && profile.role === "admin" && urejanjeDovoljeno() && (
         <MenjaveVMesecu key={"menjave" + reloadKey + wardCode} month={month} deptCode={wardCode} />
       )}
 
