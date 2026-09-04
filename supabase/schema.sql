@@ -2903,6 +2903,75 @@ begin
 end;
 $$;
 
+-- STI (strokovno izobraževanje): dve pravili, ki ju mora spoštovati VSAKA
+-- pot do razporeda (generator, ročno urejanje, uvoz iz Google Sheets,
+-- izvedba potrjene menjave). Zapisani sta v bazi in ne v brskalniku, ker
+-- razpored piše več poti - pravilo v eni bi ostale tiho obšle.
+--   1) na dan STI oseba ne more imeti delovne izmene (STI traja 8 ur);
+--   2) dan PRED STI ne more imeti nočne izmene (nočna se konča ob 06:00,
+--      izobraževanje se začne dopoldne - isti razlog kot 11-urni počitek
+--      pred dnevno izmeno; STI je zato tudi v PREPOVEDANE_PO_NOCNI v
+--      delovni-cas.js).
+-- Za obstoječe baze je ista koda v supabase/sti-pravila.sql.
+-- Uporabnikova zahteva, september 2026.
+create or replace function public.ima_sti(p_profile_id uuid, p_datum date) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+  select exists (
+    select 1
+    from public.odsotnosti o
+    join public.profili p on p.id = p_profile_id
+    where o.kind = 'sti'
+      and o.work_date = p_datum
+      and public.imena_se_ujemata(p.full_name, o.full_name)
+  );
+$$;
+
+-- Nočna izmena (N10/N11/N12) gre čez polnoč in se konča ob 06:00.
+-- Dežurstvo gre prav tako čez polnoč, a se konča ob 07:00.
+create or replace function public.je_nocna_izmena(p_sifra text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+  select exists (
+    select 1 from public.izmena_cas(p_sifra) c
+    where c.cez_polnoc and c.konec = time '06:00'
+  );
+$$;
+
+create or replace function public.preveri_sti_pred_vnosom() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+declare
+  ime text;
+begin
+  -- Ni delovna izmena (prazno, LD, KPU, STI, BS ...) - ni česa preverjati.
+  if not exists (select 1 from public.izmena_cas(new.shift_code)) then
+    return new;
+  end if;
+
+  if public.ima_sti(new.employee_id, new.work_date) then
+    select p.full_name into ime from public.profili p where p.id = new.employee_id;
+    raise exception
+      'Na dan % ima % vpisano strokovno izobraževanje (STI), zato ta dan ne more imeti izmene "%". Če je vnos napačen, najprej odstrani STI v Željah.',
+      to_char(new.work_date, 'DD.MM.YYYY'), coalesce(ime, 'ta oseba'), new.shift_code
+      using errcode = 'check_violation';
+  end if;
+
+  if public.je_nocna_izmena(new.shift_code)
+     and public.ima_sti(new.employee_id, new.work_date + 1) then
+    select p.full_name into ime from public.profili p where p.id = new.employee_id;
+    raise exception
+      '% ima % strokovno izobraževanje (STI), zato dan prej (%) ne more delati nočne izmene "%" - nočna se konča ob 06:00, izobraževanje pa se začne dopoldne.',
+      coalesce(ime, 'Ta oseba'), to_char(new.work_date + 1, 'DD.MM.YYYY'),
+      to_char(new.work_date, 'DD.MM.YYYY'), new.shift_code
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
 create or replace function public.prejemniki_obvestil(p_ids uuid[]) RETURNS TABLE(profile_id uuid, email text, full_name text, email_enabled boolean, push_enabled boolean)
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'public', 'pg_temp'
@@ -3177,6 +3246,8 @@ CREATE TRIGGER schedule_entries_audit AFTER INSERT OR DELETE OR UPDATE ON public
 
 drop trigger if exists schedule_entries_touch on public.razpored;
 CREATE TRIGGER schedule_entries_touch BEFORE INSERT OR UPDATE ON public.razpored FOR EACH ROW EXECUTE FUNCTION public.schedule_entries_touch();
+
+CREATE TRIGGER trg_preveri_sti BEFORE INSERT OR UPDATE ON public.razpored FOR EACH ROW EXECUTE FUNCTION public.preveri_sti_pred_vnosom();
 
 drop trigger if exists trg_standardiziraj_polno_ime on public.profili;
 CREATE TRIGGER trg_standardiziraj_polno_ime BEFORE INSERT OR UPDATE OF full_name ON public.profili FOR EACH ROW EXECUTE FUNCTION public.standardiziraj_polno_ime();

@@ -202,7 +202,10 @@ try {
         },
       });
     }, { profili: PROFILI, vpisi: VPISI, obrazci: OBRAZCI });
-    await stran.goto(`http://127.0.0.1:${VRATA}/index.html`, { waitUntil: "load" });
+    // "?uredi=1": seznam menjav pod razporedom se je septembra 2026 preselil
+    // pod GENERATOR (v Razporedu samem ga ni več), zato ga preizkus odpre
+    // po isti poti, kot ga odpre Generator - glej preveri-generator-vstop.mjs.
+    await stran.goto(`http://127.0.0.1:${VRATA}/index.html?uredi=1`, { waitUntil: "load" });
     await stran.waitForSelector(".segIkone button", { timeout: 15000 });
     await stran.click('.segIkone button:has-text("Oddelki")');
     await stran.waitForSelector(".wardTable", { timeout: 15000 });

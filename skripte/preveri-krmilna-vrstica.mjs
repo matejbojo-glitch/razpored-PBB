@@ -162,7 +162,10 @@ try {
     });
   }, { profili: PROFILI, nosilci: NOSILCI, vpisi: VPISI });
 
-  await stran.goto(`http://127.0.0.1:${VRATA}/index.html`, { waitUntil: "load" });
+  // "?uredi=1": urejanje razporeda je od septembra 2026 dosegljivo samo iz
+  // Generatorja (v Razporedu samih gumbov za urejanje ni), tu pa se meri
+  // prav postavitev mreže MED urejanjem - glej preveri-generator-vstop.mjs.
+  await stran.goto(`http://127.0.0.1:${VRATA}/index.html?uredi=1`, { waitUntil: "load" });
   await stran.waitForSelector(".segIkone button", { timeout: 20000 });
   await stran.waitForTimeout(900);
 
@@ -224,6 +227,53 @@ try {
   // Glava strani se je prej pri NZV raztegnila na ~320 px (trije bloki
   // krmil pod sabo) in mreža je začela šele pod prvim zaslonom.
   trdi(m1.visinaGlave < 270, `glava strani je nizka (${m1.visinaGlave} px < 270)`);
+
+  console.log("4b) dela prosti dnevi so v mreži jasno zasenčeni, ne videti prazni");
+  {
+    // Uporabnik je ob posnetku zaslona opozoril, da so vrstice 5. in 6. 9.
+    // (SO, NE) prazne. So prazne NAMERNO - NZV vodje takrat ne delajo - a
+    // pri 8-odstotnem senčenju je bilo to videti kot manjkajoč podatek.
+    const v = await stran.$$eval(".wardTableNzv tbody tr", vrstice => vrstice.map(t => ({
+      datum: t.querySelector("td.name").textContent.trim(),
+      prost: t.classList.contains("prostDan"),
+      ozadje: getComputedStyle(t.querySelector("td.enotaCell")).backgroundColor,
+      robIme: getComputedStyle(t.querySelector("td.name")).boxShadow,
+      naslov: t.getAttribute("title") || "",
+    })));
+    const prosti = v.filter(x => x.prost);
+    const delovni = v.filter(x => !x.prost);
+    trdi(prosti.length >= 8, `vikendi so označeni kot prosti dnevi (${prosti.length} vrstic)`);
+    trdi(delovni.length > 0, "delovni dnevi obstajajo za primerjavo");
+    trdi(prosti.every(x => /SO|NE/.test(x.datum)),
+      "v tem mesecu so prosti dnevi samo sobote in nedelje (praznika ni)");
+    // Senčenje mora biti VIDNO drugačno od delovnega dne, ne le drugačna vrednost.
+    const alfa = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return 0;
+      const d = m[1].split(",").map(Number); return d.length > 3 ? d[3] : 1; };
+    trdi(alfa(prosti[0].ozadje) > alfa(delovni[0].ozadje) || prosti[0].ozadje !== delovni[0].ozadje,
+      `prosti dan je zasenčen drugače kot delovni (${prosti[0].ozadje} proti ${delovni[0].ozadje})`);
+    trdi(prosti[0].robIme !== "none", "datum prostega dne ima navpično oznako ob robu");
+    trdi(delovni.every(x => x.robIme === "none"), "delovni dnevi ostanejo brez nje");
+    trdi(/Vikend/i.test(prosti[0].naslov), "ob dotiku pove, zakaj je vrstica prazna: " + prosti[0].naslov);
+  }
+
+  console.log("4c) tudi PRAZNIK sredi tedna je zasenčen (ne le sobota in nedelja)");
+  {
+    // 25. 12. 2026 je božič in pade na PETEK - prej takega dne mreža ni
+    // zasenčila, čeprav NZV vodje ta dan prav tako ne delajo.
+    await stran.fill("#mmSel", "2026-12");
+    await stran.waitForTimeout(1200);
+    const bozic = await stran.$$eval(".wardTableNzv tbody tr", vrstice => {
+      const t = vrstice.find(x => x.querySelector("td.name").textContent.includes("25.12.2026"));
+      return t ? { datum: t.querySelector("td.name").textContent.trim(),
+        prost: t.classList.contains("prostDan"), naslov: t.getAttribute("title") || "" } : null;
+    });
+    trdi(!!bozic, "vrstica 25. 12. 2026 obstaja");
+    trdi(bozic && bozic.prost, "božič (petek) je označen kot dela prost dan: " + (bozic || {}).datum);
+    trdi(bozic && /božič/i.test(bozic.naslov), "ob dotiku pove ime praznika: " + (bozic || {}).naslov);
+    trdi(bozic && /\*/.test(bozic.datum), "in je označen z zvezdico kot drugod v aplikaciji");
+    await stran.fill("#mmSel", MESEC);
+    await stran.waitForTimeout(1200);
+  }
 
   console.log("5) NZV urejanje: mreža ostane na eni strani tudi z vnosnimi polji");
   await stran.click('button:has-text("Uredi razpored")');

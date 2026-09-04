@@ -380,8 +380,13 @@
 
   // Nočne izmene in kode, ki jim naslednji dan (11-urni počitek) NE smejo
   // slediti - dnevne/dopoldanske izmene.
+  //
+  // STI (strokovno izobraževanje) je tu z ISTIM razlogom kot dnevne izmene,
+  // čeprav ni izmena: traja 8 ur in se začne dopoldne, zato ga oseba po
+  // nočni, ki se konča ob 06:00, ne more opraviti. Uporabnikova zahteva
+  // (september 2026): nočna izmena na dan pred STI mora javiti napako.
   var NOCNE_IZMENE = ["N12", "N11", "N10"];
-  var PREPOVEDANE_PO_NOCNI = ["DF12", "D12", "DOP", "DO7", "DO6", "DO4"];
+  var PREPOVEDANE_PO_NOCNI = ["DF12", "D12", "DOP", "DO7", "DO6", "DO4", "STI"];
 
   // Ali je prehod iz prejsnjaIzmena v naslednjaIzmena skladen z 11-urnim
   // počitkom po nočni izmeni. false SAMO, če je prejšnja izmena nočna IN je

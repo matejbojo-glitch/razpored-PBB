@@ -94,6 +94,9 @@
 <script src="gsheets-client.js"></script>
 <script src="export-buttons.js"></script>
 <script src="datum.js"></script>
+<script src="nazaj.js"></script>
+<script src="prazniki.js"></script>
+<script src="dopust.js"></script>
 <script src="print-fit.js"></script>
 
 <script type="text/babel" data-presets="react">
@@ -448,6 +451,9 @@ function DopustTab(){
 
 function DopustPregled({ oddelki }){
   const [vrstice, setVrstice] = useState(null);
+  // "ključ imena" -> [ISO datumi z vpisanim LD]. Ključ je iz imena.js, ker
+  // se zapis imena med viri razlikuje (uvoz z velikimi črkami).
+  const [ldPoOsebi, setLdPoOsebi] = useState({});
   const [q, setQ] = useState("");
 
   useEffect(() => {
@@ -473,6 +479,22 @@ function DopustPregled({ oddelki }){
         }));
       })
       .catch(() => setVrstice([]));
+
+    // Dnevi letnega dopusta, vpisani v Željah. Iz njih se izpelje
+    // preostanek (dopust.js): stanje iz Kadrisa se NE prepisuje, ker bi ga
+    // naslednji uvoz povozil - odšteje se le, kar je bilo vpisano po
+    // njegovem dnevu. Berejo se VSI LD dnevi (ne le od enega dne naprej),
+    // ker ima vsaka oseba svoj "stanje na dan"; odreže jih dopust.js.
+    client.from("odsotnosti").select("full_name, work_date").eq("kind", "ld")
+      .then(({ data }) => {
+        const poKljucu = {};
+        (data || []).forEach(r => {
+          const k = window.Imena.kljuc(r.full_name);
+          if (!k) return;
+          (poKljucu[k] = poKljucu[k] || []).push(r.work_date);
+        });
+        setLdPoOsebi(poKljucu);
+      }, () => setLdPoOsebi({}));
   }, []);
 
   const imeOddelka = useMemo(() => {
@@ -492,6 +514,11 @@ function DopustPregled({ oddelki }){
   }, [vrstice, q, imeOddelka]);
 
   const manjkaPodatek = filtrirano.filter(v => v.leave_balance_days == null).length;
+  // Preostanek po ISTEM pravilu kot v Imeniku (dopust.js).
+  const stanjeZa = (v) => window.Dopust.stanje({
+    kvota: v.annual_leave_total, kadris: v.leave_balance_days, naDan: v.leave_balance_asof,
+    ldDatumi: ldPoOsebi[window.Imena.kljuc(v.full_name)] || [],
+  });
 
   if (!vrstice) return <p className="hint">Nalagam …</p>;
 
@@ -504,20 +531,29 @@ function DopustPregled({ oddelki }){
       <p className="hint no-print" style={{marginTop:0}}>
         {filtrirano.length} oseb{manjkaPodatek > 0 ? ` – ${manjkaPodatek} brez vnesenega stanja dopusta (dopolni ob uvozu HR podatkov ali ročno na profilu osebe)` : ""}.
       </p>
+      <p className="hint no-print" style={{marginTop:0}}>
+        <b>Preostanek</b> je izpeljan: stanje iz Kadrisa minus dnevi letnega dopusta, vpisani v
+        Željah PO dnevu tega stanja (štejejo samo delovni dnevi). Kadrisovo polje ostane
+        nespremenjeno – naslednji uvoz ga osveži in odštevanje se začne od novega dne. Zato se
+        dan, ki ga prekrije STI, sam vrne v kvoto.
+      </p>
       <div style={{overflowX:"auto"}}>
         <table className="fair">
           <thead>
-            <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
+            <tr><th>Zaposleni</th><th>Oddelek</th><th>Letni dopust</th><th>Kadris (dni)</th><th>Vpisano po tem</th><th>Preostanek (dni)</th><th>Stanje na dan</th></tr>
           </thead>
           <tbody>
             {filtrirano.map(v => {
               const datum = (window.Datum && typeof window.Datum.slo === "function") ? window.Datum.slo(v.leave_balance_asof) : (v.leave_balance_asof || "–");
+              const s = stanjeZa(v);
               return (
                 <tr key={v.id}>
                   <td>{v.full_name}</td>
                   <td>{imeOddelka[v.department_code] || normalizirajNazivOddelka(v.department_code) || "–"}</td>
                   <td>{v.annual_leave_total != null ? v.annual_leave_total : "–"}</td>
-                  <td>{v.leave_balance_days != null ? <b>{v.leave_balance_days}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
+                  <td>{v.leave_balance_days != null ? v.leave_balance_days : "–"}</td>
+                  <td>{s.porabljeno ? "− " + s.porabljeno : "–"}</td>
+                  <td>{s.preostanek != null ? <b>{s.preostanek}</b> : <span className="hint" style={{margin:0}}>ni podatka</span>}</td>
                   <td>{datum || "–"}</td>
                 </tr>
               );
