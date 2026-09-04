@@ -107,6 +107,7 @@
 <script src="datum.js"></script>
 <script src="parafa.js"></script>
 <script src="prazniki.js"></script>
+<script src="dopust.js"></script>
 <script src="nzv-zasedba.js"></script>
 <script src="import-utils.js"></script>
 <script src="export-utils.js"></script>
@@ -141,6 +142,45 @@ const jeClanstvo = (code) => CLANSTVO_ODDELKI.includes(code);
 // Napredkovna vrstica za dopust: preostanek glede na letno kvoto.
 // Barva je pomenska, ne okrasna - malo preostanka je rdeče (nevarnost
 // izgube/nakopičenja), veliko preostanka zeleno.
+// Stanje dopusta, kot ga vidi uporabnik: izhodišče iz Kadrisa, odštet
+// dopust, vpisan po njem, in preostanek. Sam izračun je v dopust.js, da
+// ga uporabljata Imenik in Nadzorna plošča po ISTEM pravilu.
+function DopustStanje({ hr, ldDatumi }){
+  const s = window.Dopust.stanje({
+    kvota: hr.annual_leave_total,
+    kadris: hr.leave_balance_days,
+    naDan: hr.leave_balance_asof,
+    ldDatumi: ldDatumi,
+  });
+  if (s.kadris === null && !s.porabljeno) return null;
+  return (
+    <React.Fragment>
+      {s.jeIzpeljano && (
+        <div className="rowline">
+          <div className="lbl">Vpisano po tem (Želje)</div>
+          <div className="val">− {s.porabljeno} {s.porabljeno === 1 ? "dan" : "dni"}</div>
+        </div>
+      )}
+      {s.preostanek !== null && (
+        <div className="rowline">
+          <div className="lbl"><b>Preostanek</b></div>
+          <div className="val"><b>{s.preostanek} dni</b></div>
+        </div>
+      )}
+      <DopustNapredek skupaj={s.kvota} preostanek={s.preostanek} naDan={hr.leave_balance_asof} />
+      {s.jeIzpeljano && (
+        <p className="hint" style={{marginTop:6, marginBottom:0}}>
+          Preostanek je izpeljan: stanje iz Kadrisa (na dan{" "}
+          {hr.leave_balance_asof ? window.Datum.slo(hr.leave_balance_asof) : "–"}) minus dnevi
+          letnega dopusta, vpisani v Željah po tem dnevu. Štejejo samo delovni dnevi.
+          Kadrisovo polje ostane nespremenjeno – naslednji uvoz ga osveži in odštevanje se
+          začne od novega dne.
+        </p>
+      )}
+    </React.Fragment>
+  );
+}
+
 function DopustNapredek({ skupaj, preostanek, naDan }){
   const kvota = Number(skupaj);
   const ostalo = Number(preostanek);
@@ -698,6 +738,29 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
     // eslint-disable-next-line
   }, [oseba.id, smemVidetiHr]);
 
+  // Dnevi letnega dopusta, vpisani v Željah OD dneva Kadrisovega stanja
+  // naprej. Iz njih se izpelje preostanek (glej dopust.js): stanje iz
+  // Kadrisa se NE prepisuje, ker bi ga naslednji uvoz povozil - odšteje se
+  // le, kar je bilo vpisano po njem. Zato se tudi dan, ki ga prekrije STI,
+  // sam vrne v kvoto: vrstica LD izgine in odštevek se zmanjša.
+  const [ldDatumi, setLdDatumi] = useState([]);
+  useEffect(() => {
+    if (!smemVidetiHr || !hr || !hr.leave_balance_asof) { setLdDatumi([]); return; }
+    let odpovedano = false;
+    client.from("odsotnosti").select("full_name, work_date")
+      .eq("kind", "ld").gte("work_date", hr.leave_balance_asof)
+      .then(({ data }) => {
+        if (odpovedano) return;
+        // Odsotnosti so zapisane po IMENU, profil pa ima svojega - zapisi
+        // se med viri razlikujejo (uvoz z velikimi črkami), zato ujemanje
+        // prek imena.js, ne dobesedno.
+        setLdDatumi((data || [])
+          .filter(r => window.Imena.seUjemata(r.full_name, oseba.full_name))
+          .map(r => r.work_date));
+      }, () => { if (!odpovedano) setLdDatumi([]); });
+    return () => { odpovedano = true; };
+  }, [oseba.id, oseba.full_name, smemVidetiHr, hr && hr.leave_balance_asof]);
+
   const shraniHr = async () => {
     setHrBusy(true); setHrMsg(null);
     try {
@@ -848,11 +911,11 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
           {hr.annual_leave_total != null && hr.annual_leave_total !== "" && <div className="rowline"><div className="lbl">Letni dopust</div><div className="val">{hr.annual_leave_total} dni</div></div>}
           {hr.leave_balance_days != null && hr.leave_balance_days !== "" && (
             <div className="rowline">
-              <div className="lbl">Stanje dopusta</div>
+              <div className="lbl">Stanje dopusta (Kadris)</div>
               <div className="val">{hr.leave_balance_days} dni{hr.leave_balance_asof ? " (na dan " + window.Datum.slo(hr.leave_balance_asof) + ")" : ""}</div>
             </div>
           )}
-          <DopustNapredek skupaj={hr.annual_leave_total} preostanek={hr.leave_balance_days} naDan={hr.leave_balance_asof} />
+          <DopustStanje hr={hr} ldDatumi={ldDatumi} />
           <p className="hint" style={{marginTop:8, marginBottom:0}}>{jeMoj ? "Ti podatki so vidni samo tebi in adminu." : "HR podatki – vidni samo tebi (admin) in tej osebi."}</p>
         </div>
       )}

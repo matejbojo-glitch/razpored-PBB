@@ -551,7 +551,7 @@
 // razpored je odslej mogoče urejati tudi v Razporedu ("✎ Uredi razpored",
 // enako kot pri NZV). Spremenjeni so izmene.js, generator-core.js in
 // delovni-cas.js - vsi cache-first, zato dvig.
-const CACHE = 'razpored-pbb-v153';
+const CACHE = 'razpored-pbb-v154';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
@@ -595,6 +595,7 @@ const ASSETS = [
   './imena.js',
   './izmene.js',
   './oddelek-a.js',
+  './dopust.js',
   './push-client.js',
   './delovni-cas.js',
   './import-utils.js',
