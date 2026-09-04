@@ -135,7 +135,7 @@ try {
   {
     const { stran } = await odpri("admin", "Bojić Matej");
     eq(await peresa(stran),
-      ["Omejitev", "BS (bolniška)", "STI (štud. dopust)", "KRO (kroženje)", "LD (dopust)", "Izbriši"],
+      ["OM (omejitev)", "BS (bolniška)", "STI (strokovno izobraževanje)", "KRO (kroženje)", "LD (letni dopust)", "Izbriši"],
       "OM, BS, STI, KRO, LD in Izbriši, v naročenem vrstnem redu");
     await stran.close();
   }
@@ -144,7 +144,7 @@ try {
   {
     const { stran } = await odpri("vodja", "Zupan Meta");
     eq(await peresa(stran),
-      ["Omejitev", "BS (bolniška)", "STI (štud. dopust)", "KRO (kroženje)", "LD (dopust)", "Izbriši"],
+      ["OM (omejitev)", "BS (bolniška)", "STI (strokovno izobraževanje)", "KRO (kroženje)", "LD (letni dopust)", "Izbriši"],
       "vodja ni omejen – prav on vodi te dogovore");
     await stran.close();
   }
@@ -152,12 +152,12 @@ try {
   console.log("3) navaden zaposleni vidi SAMO letni dopust in brisanje");
   {
     const { stran } = await odpri("user", "Novak Ana");
-    eq(await peresa(stran), ["LD (dopust)", "Izbriši"],
+    eq(await peresa(stran), ["LD (letni dopust)", "Izbriši"],
       "bolniška, izobraževanje, kroženje in omejitev niso njegova odločitev");
     // Ni dovolj, da gumba ni: privzeto izbrano pero mora biti veljavno,
     // sicer bi prvi klik v mrežo vpisal vrsto, ki je ta vloga ne sme.
     const izbrano = await stran.$eval(".penRow .penBtn.active", e => e.textContent.trim());
-    trdi(izbrano === "LD (dopust)", "privzeto izbrano pero je LD: " + izbrano);
+    trdi(izbrano === "LD (letni dopust)", "privzeto izbrano pero je LD: " + izbrano);
     await stran.close();
   }
 

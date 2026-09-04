@@ -129,8 +129,13 @@ console.log("5) Želje (iz kode)");
   trdi(/const PEN_ROCNO_ZAPOSLENI = \["ld"\]/.test(zelje),
     "zaposleni ročno vpisuje samo letni dopust");
   trdi(/function peresaZaVlogo/.test(zelje), "nabor peres je odvisen od vloge");
-  trdi(/omejitev: \{ label: "Omejitev"/.test(zelje) && /bs: \{ label: "BS/.test(zelje),
-    "stare vrste ostanejo v legendi, da se obstoječi vnosi še izrišejo");
+  // Preverjamo VRSTE, ne napisov: napis se sme spremeniti (nazadnje je STI
+  // dobil pravo ime iz uradnega šifranta), vrsta pa mora ostati - sicer se
+  // obstoječi vnosi v mreži nehajo izrisovati.
+  ["omejitev", "ld", "bs", "sti", "kro"].forEach(vrsta => {
+    trdi(new RegExp("\\n  " + vrsta + ": \\{ label:").test(zelje),
+      `vrsta "${vrsta}" ostane v legendi, da se obstoječi vnosi še izrišejo`);
+  });
   trdi(/\["A", "A – oddelek \(SMS\/TZN\)"\]/.test(zelje), "oddelek A je dodan tudi v Želje");
 }
 
@@ -298,7 +303,7 @@ try {
     trdi(!skupine.some(t => /NZV/.test(t)), "zaposleni med skupinami nima NZV: " + skupine.join(" | "));
     trdi(skupine.some(t => /^A\b/.test(t)), "oddelek A pa je");
     const barve = await stran.$$eval(".penBtn:not(.eraser)", e => e.map(x => x.textContent.trim()));
-    eq(barve, ["LD (dopust)"], "ročno se vpisuje samo letni dopust");
+    eq(barve, ["LD (letni dopust)"], "ročno se vpisuje samo letni dopust");
     trdi((await stran.$$(".penBtn.eraser")).length === 1, "gumb za brisanje ostane");
     const t = (await stran.innerText("body")).replace(/\s+/g, " ");
     trdi(!/Zapisane želje/i.test(t), "sekcije \"Zapisane želje\" ni");

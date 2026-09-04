@@ -265,11 +265,16 @@ function compressImage(file){
 // Vse vrste vnosa, ki jih mreža ZNA IZRISATI. Ostane cel seznam: v bazi
 // so stari vnosi in barvni uvoz iz Kadrisa jih še vedno ustvarja, zato
 // se morajo izrisati in izvoziti tudi naprej.
+// Napisi so po URADNEM ŠIFRANTU (izmene.js), ne po lastni presoji: STI je
+// tam "Strokovno izobraževanje", tu pa je pisalo "štud. dopust" - ista koda
+// z dvema različnima imenoma, in tisto v Željah je bilo napačno. Vsi napisi
+// so zdaj v isti obliki "KRATICA (polno ime)", da se v vrstici s peresi
+// berejo enako.
 const PEN_META = {
-  omejitev: { label: "Omejitev", barva: "#FFD966" },
-  ld: { label: "LD (dopust)", barva: "#E06666" },
+  omejitev: { label: "OM (omejitev)", barva: "#FFD966" },
+  ld: { label: "LD (letni dopust)", barva: "#E06666" },
   bs: { label: "BS (bolniška)", barva: "#93C47D" },
-  sti: { label: "STI (štud. dopust)", barva: "#B4A7D6" },
+  sti: { label: "STI (strokovno izobraževanje)", barva: "#B4A7D6" },
   // Kroženje: oseba tisti dan dela, a po razporedu DRUGEGA oddelka.
   // Generator jo zato na matičnem oddelku ne razporedi in za njeno izmeno
   // poišče nadomestilo - enako kot pri bolniški in izobraževanju.
