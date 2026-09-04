@@ -115,8 +115,19 @@ try {
     "mreža ima vrstico za vsakega zaposlenega");
 
   console.log("2) »Predlagaj mesec« najde vrzeli in jih ponudi v potrditev");
-  trdi((await stran.$$("text=Predlagaj mesec")).length === 1, "gumb je na strani");
-  await stran.click("text=Predlagaj mesec");
+  // Od preureditve Generatorja (september 2026) je "Predlagaj mesec" v
+  // ZLOŽLJIVEM razdelku pod mrežo: naslov razdelka nosi isto besedilo kot
+  // gumb v njem, zato je treba razdelek najprej odpreti - klik na naslov
+  // sicer samo razgrne vsebino in gumb ostane nepritisnjen.
+  const glava = await stran.$('.zlozljiv .glava:has-text("Predlagaj mesec")');
+  trdi(!!glava, "razdelek »Predlagaj mesec« je na strani");
+  if (glava && (await glava.getAttribute("aria-expanded")) !== "true") {
+    await glava.click();
+    await stran.waitForTimeout(400);
+  }
+  const gumbPredlagaj = await stran.$('.zlozljiv .vsebina button:has-text("Predlagaj mesec")');
+  trdi(!!gumbPredlagaj, "in v njem gumb za predlaganje");
+  await gumbPredlagaj.click();
   await stran.waitForTimeout(800);
   // Iz vsake postavke se preberejo trije podatki ločeno (datum, oseba,
   // šifra) - opozorilo pod njo je svoj element in ne sme zaiti v šifro.
