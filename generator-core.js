@@ -207,7 +207,10 @@
           // je ne more odslužiti, zato ostane v celici koda in dan gre med
           // opozorila kot nepokrit.
           if (oznaka) izmene[z.ime] = oznaka;
-          opozorila.push({ datum: iso, sporocilo: z.ime + ": " + razlog(trenutna) });
+          // "oseba" je tu zato, da zna prikaz opozorilo pripeti na TOČNO
+          // celico v mreži (oseba x dan) in ne samo na dan. Sporočilo se z
+          // istim imenom še vedno začne, ker ga uporabnik bere kot stavek.
+          opozorila.push({ datum: iso, oseba: z.ime, sporocilo: z.ime + ": " + razlog(trenutna) });
         }
       }
 
@@ -273,6 +276,7 @@
         if (!krsiPocitek(prej.izmene[z.ime], zdaj.izmene[z.ime])) return;
         opozorila.push({
           datum: prej.datum,
+          oseba: z.ime,
           sporocilo: z.ime + ": " + prej.izmene[z.ime] + " (" + prej.datum + "), naslednji dan pa "
             + zdaj.izmene[z.ime] + " – med njima ni 11-urnega počitka, preveri ročno.",
         });

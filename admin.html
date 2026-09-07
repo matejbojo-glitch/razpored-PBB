@@ -96,6 +96,33 @@
   table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
   .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
 
+  /* Opozorila, prilepljena na mrežo (uporabnikova zahteva, september 2026).
+     Doslej so nepokrite izmene in nepokrite omejitve živele SAMO v seznamu
+     nad tabelo: koordinator je prebral "16.10.: Rozman Anka: omejitev …" in
+     nato z očmi iskal, kateri stolpec je 16. in katera vrstica je Rozman.
+     Pri 31 stolpcih je to zamudno in se hitro zgreši. Zdaj isto opozorilo
+     obarva glavo stolpca in obrobo prizadete celice, klik na vrstico v
+     seznamu pa celico še osvetli in pripelje v vidno polje.
+     Barve so namenoma svetle podlage z močno obrobo, da ne prekrijejo
+     obstoječih barv izmen (dopoldne/popoldne/nočna) v celicah. */
+  table.wardTable thead th.napaka{ background: var(--danger-bg); color: var(--danger);
+    box-shadow: inset 0 -3px 0 var(--danger); }
+  table.wardTable thead th .pika{ display:inline-block; width:6px; height:6px; margin-left:4px;
+    border-radius:50%; background: var(--danger); vertical-align:middle; }
+  table.wardTable td.opozorjena{ position:relative; }
+  /* Značka v kotu celice: majhen "!" – celica je majhna, zato je vse
+     drugo nečitljivo. pointer-events:none, da ne prestreza klika v polje. */
+  table.wardTable td.opozorjena::after{ content:"!"; position:absolute; top:1px; right:3px;
+    font-size:9px; line-height:1; font-weight:900; color: var(--danger); pointer-events:none; }
+  table.wardTable td.poudarjena{ background: var(--danger-bg); box-shadow: inset 0 0 0 2px var(--danger); }
+
+  /* Vrstice v seznamu opozoril so gumbi (klik = osvetli celico), a morajo
+     še naprej izgledati kot besedilo seznama. */
+  .warnBox .opozoriloVrstica{ display:block; width:100%; text-align:left; background:none; border:none;
+    padding:0; margin:0; font: inherit; color: inherit; cursor:pointer; }
+  .warnBox .opozoriloVrstica:hover, .warnBox .opozoriloVrstica:focus-visible{ text-decoration: underline; }
+  .warnBox li.izbrana{ font-weight:800; }
+
   .dutyTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
   .dutyTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px;
     border-bottom:1px solid var(--line); }
@@ -920,6 +947,20 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
   );
 }
 
+// Ključ celice v mreži je povsod isti: "Priimek Ime|LLLL-MM-DD".
+const kljucCelice = (ime, datum) => ime + "|" + datum;
+
+// Na koga se opozorilo nanaša. Generator ga od septembra 2026 pove v polju
+// "oseba"; starejši shranjeni rezultati imajo ime samo kot predpono
+// sporočila ("Rozman Anka: omejitev na ta dan …"), zato je tu še rezerva -
+// brez nje bi po nadgradnji stara opozorila nehala označevati celice.
+function osebaIzOpozorila(o){
+  if (!o) return null;
+  if (o.oseba) return o.oseba;
+  const m = /^([^:]+):/.exec(o.sporocilo || "");
+  return m ? m[1].trim() : null;
+}
+
 // Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
 // tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
 // podvajanja logike).
@@ -1050,7 +1091,7 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexi
 // nad njo - vse to je razpored samega odrinilo pod rob. Zdaj so v traku
 // samo števci; podrobnosti (ista kartica StatusPravil in isti seznam
 // opozoril) se odprejo šele ob kliku na značko.
-function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito }){
+function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito, poudari, poudarek }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
   const opozorila = rezultat.opozorila || [];
   const pov = window.DelovniCas.povzetek(krsitve);
@@ -1112,7 +1153,25 @@ function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPo
           {opozorila.length > 0 ? (
             <div className="warnBox">
               <div className="t">⚠ {opozorila.length} omejitev brez samodejnega nadomestila</div>
-              <ul>{opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
+              {/* Klik na opozorilo osvetli pripadajočo celico v mreži in jo
+                  pripelje v vidno polje - povezava med seznamom in tabelo,
+                  ki jo je uporabnik zahteval (september 2026). Kadar osebe
+                  iz opozorila ni mogoče razbrati, vrstica ostane navadno
+                  besedilo, da gumb ne obljublja česa, česar ne stori. */}
+              <ul>{opozorila.map((o, i) => {
+                const ime = osebaIzOpozorila(o);
+                const kljuc = ime ? kljucCelice(ime, o.datum) : null;
+                const besedilo = <React.Fragment>{window.Datum.slo(o.datum)}: {o.sporocilo}</React.Fragment>;
+                return (
+                  <li key={i} className={kljuc && kljuc === poudarek ? "izbrana" : null}>
+                    {kljuc && poudari
+                      ? <button type="button" className="opozoriloVrstica"
+                          title="Pokaži celico v mreži"
+                          onClick={() => poudari(kljuc)}>{besedilo}</button>
+                      : besedilo}
+                  </li>
+                );
+              })}</ul>
             </div>
           ) : (
             <p className="hint" style={{margin:0}}>Vse vnesene omejitve so samodejno pokrite z nadomestilom.</p>
@@ -1466,7 +1525,13 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
       const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
       const pricakovanoPoDnevih = {};
       bazno.dnevi.forEach(dn => {
-        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v).length;
+        // "LD" se odšteje na OBEH straneh primerjave. Pettedenski kalup ima
+        // en teden dopusta vgrajen, zato je nekdo na LD tudi v baznem
+        // razporedu - dejanska zasedba (izracunajVrzeli) pa LD že od nekdaj
+        // ne šteje za pokritost. Brez tega je bil prag za ena previsok
+        // vsak delovni dan, ko je bil kdo na kalupskem LD, in razpored je
+        // kazal vrzel, ki je ni bilo.
+        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v && v !== "LD").length;
       });
       setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
       setPredlogiVrzeli(null);
@@ -1620,6 +1685,51 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
     });
     return m;
   }, [krsitve]);
+
+  // Osvetljena celica ("Priimek Ime|LLLL-MM-DD") - nastavi jo klik na
+  // opozorilo v statusnem traku; null = nič osvetljenega.
+  const [poudarek, setPoudarek] = useState(null);
+
+  // Vrzeli so doslej živele samo znotraj StatusTrak/StatusPravil. Za
+  // označevanje glav stolpcev jih potrebuje tudi mreža, zato so izračunane
+  // tu - iz istega vira, da se prikaza ne razideta.
+  const vrzeliMreze = useMemo(() => (
+    rezultat ? izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito }).vrzeli : []
+  ), [rezultat, celica, pragPopravki, minimumi, flexiPokrito]);
+
+  // Opozorila, pripravljena za risanje: po dnevu (glava stolpca) in po
+  // celici (oseba x dan). Vrednost je seznam besedil, ki gre naravnost v
+  // "title" - v mreži ni prostora za daljši izpis.
+  const napakeVMrezi = useMemo(() => {
+    const poDnevu = new Map(), poCelici = new Map();
+    const dodaj = (m, k, t) => { const a = m.get(k); if (a) a.push(t); else m.set(k, [t]); };
+    ((rezultat && rezultat.opozorila) || []).forEach(o => {
+      dodaj(poDnevu, o.datum, o.sporocilo);
+      const ime = osebaIzOpozorila(o);
+      if (ime) dodaj(poCelici, kljucCelice(ime, o.datum), o.sporocilo);
+    });
+    vrzeliMreze.forEach(v => dodaj(poDnevu, v.datum,
+      "Nepokrita izmena" + (v.bucket ? " (" + (IZMENA_LABEL[v.bucket] || v.bucket) + ")" : "")
+      + ": manjka " + v.primanjkljaj + "."));
+    // Delovnopravne kršitve tu NAMENOMA niso zajete. Kalup jih pri majhnem
+    // oddelku sproži skoraj vsak delovni dan (prost dan v tednu, zaporedne
+    // nočne); če bi barvale glavo, bi bil rdeč cel mesec in oznaka ne bi
+    // povedala ničesar. Kršitve so še naprej vidne tam, kjer nastanejo -
+    // na obrobi posamezne celice (krsitveMap spodaj) in v seznamu pod mrežo.
+    return { poDnevu, poCelici };
+  }, [rezultat, vrzeliMreze]);
+
+  // Osvetljeno celico je treba tudi PRIPELJATI pred oči - pri 31 stolpcih
+  // je pogosto zunaj vidnega dela drsnika.
+  useEffect(() => {
+    if (!poudarek || !wardRef.current) return;
+    const vse = wardRef.current.querySelectorAll("td[data-celica]");
+    for (let i = 0; i < vse.length; i++) {
+      if (vse[i].getAttribute("data-celica") !== poudarek) continue;
+      if (vse[i].scrollIntoView) vse[i].scrollIntoView({ block: "nearest", inline: "center" });
+      break;
+    }
+  }, [poudarek]);
 
   const izvoziCSV = () => {
     if (!rezultat) return;
@@ -1812,7 +1922,8 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
           {/* 2 · Statusni trak: števci nepokritih izmen, kršitev in
               omejitev; podrobnosti se odprejo šele ob kliku. */}
           <StatusTrak rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
-            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
+            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito}
+            poudari={setPoudarek} poudarek={poudarek} />
 
           {/* 3 · Glavni delovni prostor: mreža takoj pod traku. Prvi
               stolpec z imeni je lepljiv, dnevi drsijo vodoravno; na širokem
@@ -1823,11 +1934,22 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
               <thead>
                 <tr>
                   <th className="name">Zaposleni</th>
-                  {rezultat.dnevi.map(dn => (
-                    <th key={dn.datum} style={dn.dan==="SO"||dn.dan==="NE" ? {color:"var(--pop)"} : null}>
-                      {Number(dn.datum.slice(8, 10))}<br/>{dn.dan}
-                    </th>
-                  ))}
+                  {rezultat.dnevi.map(dn => {
+                    // Dan z napako dobi rdečo podlago in piko ob številki;
+                    // "title" nosi natančno besedilo, da ga ni treba iskati
+                    // v seznamu nad tabelo.
+                    const napakeDneva = napakeVMrezi.poDnevu.get(dn.datum) || [];
+                    const vikend = dn.dan === "SO" || dn.dan === "NE";
+                    return (
+                      <th key={dn.datum} className={napakeDneva.length ? "napaka" : null}
+                        title={napakeDneva.length ? napakeDneva.join("\n") : null}
+                        style={vikend && !napakeDneva.length ? {color:"var(--pop)"} : null}>
+                        {Number(dn.datum.slice(8, 10))}
+                        {napakeDneva.length > 0 && <span className="pika" role="img" aria-label="napaka na ta dan"></span>}
+                        <br/>{dn.dan}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -1836,13 +1958,21 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
                     <td className="name"><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
                     {rezultat.dnevi.map(dn => {
                       const sifra = celica(z, dn); const cls = classify(sifra);
-                      const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
-                      const obroba = krsitev
-                        ? (krsitev.resnost === "kriticno" ? "2px solid var(--danger)" : "2px solid #C9713F")
-                        : "1px solid var(--line)";
-                      const naslov = krsitev ? `${sifra} – ${krsitev.sporocilo}` : sifra;
+                      const kljuc = kljucCelice(z.ime, dn.datum);
+                      const krsitev = krsitveMap.get(kljuc);
+                      // Opozorilo generatorja (omejitev/odsotnost brez
+                      // nadomestila) je za koordinatorja enako nujno kot
+                      // kršitev, zato dobi enako močno rdečo obrobo.
+                      const napakeCelice = napakeVMrezi.poCelici.get(kljuc) || [];
+                      const obroba = (napakeCelice.length || (krsitev && krsitev.resnost === "kriticno"))
+                        ? "2px solid var(--danger)"
+                        : krsitev ? "2px solid #C9713F" : "1px solid var(--line)";
+                      const naslov = [sifra].concat(napakeCelice)
+                        .concat(krsitev ? [krsitev.sporocilo] : []).join("\n");
+                      const razred = [napakeCelice.length ? "opozorjena" : null,
+                        poudarek === kljuc ? "poudarjena" : null].filter(Boolean).join(" ");
                       return (
-                        <td key={dn.datum}>
+                        <td key={dn.datum} data-celica={kljuc} className={razred || null}>
                           <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
                             title={naslov}
                             style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
