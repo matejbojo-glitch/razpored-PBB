@@ -283,6 +283,126 @@
     .orodjaDno .genBtn, .orodjaDno .dlBtn{ flex:1 1 100% !important; }
   }
 
+  /* ---------- statistika: lebdeči gumb in stranski predal (Generator) ----------
+     Statistika je doslej živela SAMO na svoji strani (dashboard.html): klik
+     nanjo je koordinatorja odnesel stran od generatorja in s tem iz
+     konteksta - mreže, ki jo je ravno popravljal, ni bilo več videti, ob
+     vrnitvi pa je bil predlog izgubljen. Zato je tu ista vsebina kot
+     predal ČEZ mrežo: števila se preračunajo ob vsaki spremembi celice,
+     mreža pa ostane na zaslonu (na širokem zaslonu tudi klikljiva). */
+  .statFab{
+    position:fixed; right:16px; z-index:45;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-family:inherit;
+    padding:12px 18px; border-radius:999px; border:1px solid var(--accent);
+    background: var(--accent); color: var(--accent-ink); font-size:14px; font-weight:800;
+    box-shadow: var(--shadow-accent), var(--shadow-md);
+    transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  }
+  .statFab:hover{ transform: translateY(-2px); }
+  .statFab:active{ transform: translateY(0); }
+  .statFab .ikona{ font-size:17px; line-height:1; }
+  /* Značka: koliko stvari je še nerešenih (nepokrite izmene + kritične
+     kršitve). Pri nič je ni - pika brez pomena bi jo naredila nevidno
+     takrat, ko šteje. */
+  .statFab .znak{
+    position:absolute; top:-5px; right:-5px; min-width:20px; height:20px; padding:0 5px;
+    border-radius:999px; background: var(--danger); color:#fff; border:2px solid var(--bg);
+    font-size:11px; font-weight:800; line-height:16px; text-align:center;
+    font-variant-numeric: tabular-nums;
+  }
+  .statFab .znak.utripa{ animation: statZnakUtrip 1.6s var(--ease) infinite; }
+  @keyframes statZnakUtrip{
+    0%,100%{ box-shadow: 0 0 0 0 rgba(var(--danger-rgb),.55); }
+    70%{ box-shadow: 0 0 0 7px rgba(var(--danger-rgb),0); }
+  }
+  /* Na namizju je navigacija na vrhu, zato je spodaj desno prosto. */
+  @media (min-width:900px){ .statFab{ bottom:24px; } }
+  @media print{ .statFab{ display:none !important; } }
+
+  /* Zatemnitev za predalom. Na širokem zaslonu je NAMENOMA prosojna in ne
+     prestreza klikov: predal stoji ob mreži, ne čez njo, in klik na
+     opozorilo v predalu mora osvetliti celico v mreži, ki ostane vidna.
+     Na ozkem zaslonu predal pokrije zaslon, zato tam zatemnitev je in
+     klic nanjo zapre predal. */
+  .statOzadje{
+    position:fixed; inset:0; z-index:70; background: rgba(var(--senca-rgb),.45);
+    opacity:0; visibility:hidden; transition: opacity var(--slow) var(--ease), visibility var(--slow);
+  }
+  .statOzadje.odprto{ opacity:1; visibility:visible; }
+  @media (min-width:900px){ .statOzadje{ background:none; pointer-events:none; } }
+
+  .statPredal{
+    /* 92 % in ne 100 %: na telefonu ostane ob levem robu vidna zatemnjena
+       proga - edino mesto, kamor se da tapniti "ven" iz predala. Poln
+       zaslon bi tak dotik pojedel in edini izhod bi bil gumb ×. */
+    position:fixed; top:0; right:0; bottom:0; z-index:71; width:min(430px, 92%);
+    display:flex; flex-direction:column;
+    background: var(--surface); border-left:1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(100%); transition: transform var(--slow) var(--ease), visibility var(--slow);
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    /* Zaprt predal mora izpasti iz zaporedja tabulatorja - drugače bi
+       tipkovnica hodila po gumbih, ki jih ni videti. "visibility" to stori
+       in hkrati ne prekine drsne animacije (preklopi se šele na koncu). */
+    visibility:hidden;
+  }
+  .statPredal.odprto{ transform: translateX(0); visibility:visible; }
+  .statPredal .glava{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 16px; border-bottom:1px solid var(--line); flex:0 0 auto;
+  }
+  .statPredal .glava h3{ margin:0; font-size:15px; font-weight:800; }
+  .statPredal .glava .vir{ display:block; font-size:11.5px; font-weight:600; color:var(--muted); margin-top:2px; }
+  .statPredal .telo{ overflow-y:auto; overscroll-behavior:contain; padding:14px 16px 20px; flex:1 1 auto; }
+  .statPredal .telo > * + *{ margin-top:12px; }
+
+  /* Kartice s števili: dve v vrsti, na zelo ozkem zaslonu ena. */
+  .statMreza{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:360px){ .statMreza{ grid-template-columns:1fr; } }
+  .statKartica{
+    background: var(--surface-2); border:1px solid var(--line); border-radius: var(--radius-sm);
+    padding:11px 12px; transition: background var(--slow) var(--ease), border-color var(--slow) var(--ease);
+  }
+  .statKartica .lbl{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; }
+  .statKartica .val{
+    font-size:26px; font-weight:800; line-height:1.1; margin-top:3px;
+    font-variant-numeric: tabular-nums; font-feature-settings: var(--tabular);
+  }
+  .statKartica .pod{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .statKartica.kriticno{ background: var(--danger-bg); border-color: var(--danger); }
+  .statKartica.kriticno .val{ color: var(--danger); }
+  .statKartica.dobro{ background: rgba(var(--ok-rgb),.14); border-color: var(--ok); }
+  .statKartica.dobro .val{ color: var(--ok); }
+  /* Utrip ob spremembi: edini znak, da je nova datoteka/popravek res
+     upoštevan. Zelena tudi takrat, ko je številka slaba - pove "to se je
+     pravkar preračunalo", ne "to je v redu". */
+  .statKartica.osvezena{ animation: statUtrip 900ms var(--ease); }
+  @keyframes statUtrip{
+    0%{ box-shadow: 0 0 0 0 rgba(var(--ok-rgb),.55); }
+    35%{ box-shadow: 0 0 0 5px rgba(var(--ok-rgb),.22); }
+    100%{ box-shadow: 0 0 0 0 rgba(var(--ok-rgb),0); }
+  }
+
+  .statNaslov{ font-size:12px; font-weight:800; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.02em; margin:0 0 6px; }
+  /* Delež dela po delu dneva – ena vrstica namesto grafa. */
+  .statDelez{ display:flex; height:10px; border-radius:5px; overflow:hidden; background: var(--surface-2); }
+  .statDelez i{ display:block; height:100%; transition: width var(--slow) var(--ease); }
+  .statLegenda{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; font-size:11.5px; color:var(--muted); }
+  .statLegenda span{ display:inline-flex; align-items:center; gap:5px; }
+  .statLegenda i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* Obremenjenost po zaposlenih: stolpec je delež ur glede na najbolj
+     obremenjeno osebo - razlike med ljudmi so tako vidne na prvi pogled. */
+  .statOsebe{ display:flex; flex-direction:column; gap:7px; }
+  .statOseba{ display:block; width:100%; }
+  .statOseba .vrh{ display:flex; justify-content:space-between; gap:8px; font-size:12.5px; }
+  .statOseba .ime{ font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .statOseba .st{ color:var(--muted); font-variant-numeric: tabular-nums; flex:0 0 auto; }
+  .statOseba .tir{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:3px; }
+  .statOseba .tir i{ display:block; height:100%; background: var(--accent); transition: width var(--slow) var(--ease); }
+
   .fairTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:12px; font-size:13px; }
   .fairTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   .fairTable td{ padding:7px 8px; border-bottom:1px solid var(--line); }
@@ -322,6 +442,7 @@
 <script src="vendor-app.min.js"></script>
 <script src="generator-core.js"></script>
 <script src="delovni-cas.js"></script>
+<script src="statistika-core.js"></script>
 <script src="supabase-client.js"></script>
 <script src="nav.js"></script>
 <script src="imena.js"></script>
@@ -1175,15 +1296,23 @@ function izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrit
 // [✓] izpolnjeno · [!] manjše opozorilo · [✗] kritična kršitev.
 // Zložljiv razdelek - dolga pojasnila in napredne nastavitve so privzeto
 // skrita, da je na vrhu vidno samo bistvo (izberi → generiraj → rezultat).
-// Slovenska sklanjatev: 1 teden, 2 tedna, 3-4 tedni, 5+ tednov.
-function tedniBesedilo(n){
+// Slovenska sklanjatev po številu: ednina / dvojina / 3-4 / 5+ (števila
+// 11-14 gredo vedno v zadnjo obliko: "11 tednov", ne "11 teden").
+// Pravilo je eno samo, ker so ga sicer tri mesta v tej datoteki pisala
+// vsako po svoje ("3 izmen", "1 dneh").
+function sklanjaj(n, oblike){
   const d = n % 10, s = n % 100;
-  if (s >= 11 && s <= 14) return n + " tednov";
-  if (d === 1) return n + " teden";
-  if (d === 2) return n + " tedna";
-  if (d === 3 || d === 4) return n + " tedni";
-  return n + " tednov";
+  if (s >= 11 && s <= 14) return n + " " + oblike[3];
+  if (d === 1) return n + " " + oblike[0];
+  if (d === 2) return n + " " + oblike[1];
+  if (d === 3 || d === 4) return n + " " + oblike[2];
+  return n + " " + oblike[3];
 }
+function tedniBesedilo(n){ return sklanjaj(n, ["teden", "tedna", "tedni", "tednov"]); }
+const OBLIKE_IZMEN = ["izmena", "izmeni", "izmene", "izmen"];
+const OBLIKE_DNI = ["dan", "dneva", "dnevi", "dni"];
+const OBLIKE_ZAPOSLENIH = ["zaposleni", "zaposlena", "zaposleni", "zaposlenih"];
+const OBLIKE_OPOZORIL = ["opozorilo", "opozorili", "opozorila", "opozoril"];
 
 function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
   const [odprto, setOdprto] = useState(!!privzetoOdprto);
@@ -1567,6 +1696,214 @@ function UvozRazporedaNapotek({ koda, month }){
   );
 }
 
+// Števec, ki do nove vrednosti PRIŠTEJE namesto da bi jo zamenjal.
+// Skok številke iz 118 na 126 je na zaslonu neopazen; kratko štetje pove,
+// da se je nekaj preračunalo - prav to je bila zahteva ob nalaganju
+// datoteke in ob ročnem popravku celice. Kdor ima v sistemu izklopljene
+// animacije, dobi vrednost takoj (isto pravilo kot velja za CSS zgoraj).
+function StatStevec({ vrednost, decimalke }){
+  const [prikaz, setPrikaz] = useState(vrednost);
+  const prejsnja = useRef(vrednost);
+  useEffect(() => {
+    const od = prejsnja.current, cilj = vrednost;
+    prejsnja.current = vrednost;
+    if (od === cilj) return;
+    const mirno = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (mirno) { setPrikaz(cilj); return; }
+    const TRAJANJE = 420;
+    const zacetek = (window.performance || Date).now();
+    let id = 0;
+    const korak = (t) => {
+      const p = Math.min(1, (t - zacetek) / TRAJANJE);
+      const e = 1 - Math.pow(1 - p, 3); // mehko ustavljanje
+      setPrikaz(od + (cilj - od) * e);
+      if (p < 1) id = requestAnimationFrame(korak); else setPrikaz(cilj);
+    };
+    id = requestAnimationFrame(korak);
+    return () => cancelAnimationFrame(id);
+  }, [vrednost]);
+  return <React.Fragment>{Number(prikaz).toFixed(decimalke || 0)}</React.Fragment>;
+}
+
+// Ena kartica s številko. Ob spremembi vrednosti kratko utripne - to je
+// edini znak, da je aplikacija naloženo datoteko oz. popravek celice res
+// upoštevala (števila se sicer spremenijo tiho in sprememba se spregleda).
+function StatKartica({ lbl, vrednost, decimalke, enota, pod, ton }){
+  const [osvezena, setOsvezena] = useState(false);
+  const prvic = useRef(true);
+  useEffect(() => {
+    // Ob prvem izrisu ne utripne: takrat se ni nič spremenilo, samo
+    // odprl se je predal.
+    if (prvic.current) { prvic.current = false; return; }
+    setOsvezena(true);
+    const t = setTimeout(() => setOsvezena(false), 900);
+    return () => clearTimeout(t);
+  }, [vrednost]);
+  const razred = ["statKartica", ton || null, osvezena ? "osvezena" : null].filter(Boolean).join(" ");
+  return (
+    <div className={razred}>
+      <div className="lbl">{lbl}</div>
+      <div className="val"><StatStevec vrednost={vrednost} decimalke={decimalke} />{enota ? <span style={{fontSize:14, fontWeight:700}}> {enota}</span> : null}</div>
+      {pod && <div className="pod">{pod}</div>}
+    </div>
+  );
+}
+
+// Stranski predal s statistiko. Odpre se ČEZ generator in ne namesto
+// njega: na širokem zaslonu ostane mreža vidna in klikljiva ob njem, zato
+// klik na nepokrit dan v seznamu spodaj osvetli stolpec v mreži.
+function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, poudari, poudarek }){
+  const predalRef = useRef();
+  // "zapri" je ob vsakem izrisu nova funkcija, zato NE sme biti med
+  // odvisnostmi učinka: sicer bi se ta ob vsakem popravku celice pognal
+  // znova in fokus bi skočil z izbirnika v mreži na predal - torej ravno
+  // med tipkanjem koordinatorja. Skozi referenco ostane vedno svež.
+  const zapriRef = useRef(zapri);
+  zapriRef.current = zapri;
+  useEffect(() => {
+    if (!odprto) return;
+    // Ob zaprtju se fokus vrne tja, od koder je prišel (lebdeči gumb) -
+    // drugače pade na <body> in tipkovnica začne spet od vrha strani.
+    const prejsnjiFokus = document.activeElement;
+    const naTipko = (e) => { if (e.key === "Escape") zapriRef.current(); };
+    document.addEventListener("keydown", naTipko);
+    if (predalRef.current) predalRef.current.focus();
+    return () => {
+      document.removeEventListener("keydown", naTipko);
+      if (prejsnjiFokus && prejsnjiFokus.focus && document.contains(prejsnjiFokus)) prejsnjiFokus.focus();
+    };
+  }, [odprto]);
+
+  const skupine = stat ? [
+    { k:"dop", naziv:"Dopoldne" }, { k:"pop", naziv:"Popoldne" },
+    { k:"noc", naziv:"Nočna" }, { k:"h12", naziv:"12-urne" }, { k:"dez", naziv:"Dežurstvo" },
+  ].map(s => ({ ...s, st: stat.poSkupinah[s.k] || 0, barva: window.Izmene.SKUPINA_BARVA[s.k] }))
+   .filter(s => s.st > 0) : [];
+  const skupajSkupin = skupine.reduce((v, s) => v + s.st, 0) || 1;
+
+  return (
+    <React.Fragment>
+      <div className={"statOzadje no-print" + (odprto ? " odprto" : "")} onClick={zapri} />
+      <aside className={"statPredal no-print" + (odprto ? " odprto" : "")}
+        ref={predalRef} tabIndex={-1} role="dialog" aria-modal="false"
+        aria-hidden={odprto ? null : "true"} aria-label="Statistika razporeda">
+        <div className="glava">
+          <div>
+            <h3>📊 Statistika</h3>
+            {rezultat && (
+              <span className="vir">
+                {rezultat.naziv} · {rezultat.mesec}
+                {rezultat.uvozeno ? ` · naloženo iz "${rezultat.uvozeno.datoteka}"` : " · izračunan predlog"}
+              </span>
+            )}
+          </div>
+          <button type="button" className="modalZapri" onClick={zapri} aria-label="Zapri statistiko">×</button>
+        </div>
+
+        <div className="telo">
+          {!stat ? (
+            <p className="hint" style={{margin:0}}>
+              Statistika se izriše, ko je v mreži razpored – <b>⚡ Generiraj takoj</b> ali <b>📂 Naloži razpored iz datoteke</b> zgoraj.
+              Od tam naprej se preračuna sama ob vsaki spremembi celice.
+            </p>
+          ) : (
+            <React.Fragment>
+              <div className="statMreza">
+                <StatKartica lbl="Izmen skupaj" vrednost={stat.skupno.izmen}
+                  pod={`${sklanjaj(stat.oseb, OBLIKE_ZAPOSLENIH)} × ${sklanjaj(stat.dni, OBLIKE_DNI)}`} />
+                <StatKartica lbl="Nepokrite izmene" vrednost={stat.vrzeli.skupaj}
+                  ton={stat.vrzeli.skupaj > 0 ? "kriticno" : "dobro"}
+                  pod={stat.vrzeli.skupaj > 0
+                    ? (stat.vrzeli.dni === 1 ? "na 1 dnevu" : `na ${stat.vrzeli.dni} dneh`)
+                    : (imaMinimume ? "vse izmene dosegajo minimum" : "minimumi niso nastavljeni")} />
+                <StatKartica lbl="Delovne ure" vrednost={stat.skupno.ur} decimalke={1} enota="h"
+                  pod={`povprečno ${stat.povprecneUr} h na osebo`} />
+                <StatKartica lbl="Kritične kršitve" vrednost={stat.krsitve.kriticnih}
+                  ton={stat.krsitve.kriticnih > 0 ? "kriticno" : "dobro"}
+                  pod={`${sklanjaj(stat.krsitve.opozoril, OBLIKE_OPOZORIL)}`} />
+                <StatKartica lbl="Nočne izmene" vrednost={stat.skupno.nocnih}
+                  pod={`dežurstev skupaj: ${stat.skupno.dezurstev}`} />
+                <StatKartica lbl="Dela ob vikendih" vrednost={stat.skupno.vikendnih}
+                  pod={`odsotnosti (LD/BS/STI/KRO): ${stat.skupno.odsotnosti}`} />
+              </div>
+
+              {skupine.length > 0 && (
+                <div>
+                  <p className="statNaslov">Razporeditev dela po delu dneva</p>
+                  <div className="statDelez">
+                    {skupine.map(s => (
+                      <i key={s.k} style={{width: (s.st / skupajSkupin * 100) + "%", background: s.barva}}
+                        title={s.naziv + ": " + s.st} />
+                    ))}
+                  </div>
+                  <div className="statLegenda">
+                    {skupine.map(s => (
+                      <span key={s.k}><i style={{background: s.barva}} />{s.naziv} · {s.st}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="statNaslov">Nepokrite izmene {vrzeli.length > 0 ? `(${vrzeli.length})` : ""}</p>
+                {vrzeli.length === 0 ? (
+                  <p className="hint" style={{margin:0}}>
+                    {imaMinimume
+                      ? "Vsaka izmena dosega nastavljeni minimum."
+                      : "Minimumi po izmenah za ta oddelek niso nastavljeni, zato se vrzeli po izmenah ne morejo zaznati – nastavi jih v razdelku »Pokritost po dnevih« pod mrežo."}
+                  </p>
+                ) : (
+                  <div className="warnBox" style={{marginTop:0}}>
+                    <ul style={{maxHeight:180, overflowY:"auto", marginBottom:0}}>
+                      {vrzeli.map((v, i) => (
+                        <li key={i} className={poudarek === v.datum ? "izbrana" : null}>
+                          <button type="button" className="opozoriloVrstica" title="Pokaži dan v mreži"
+                            onClick={() => {
+                              poudari(v.datum);
+                              // Na telefonu predal pokriva mrežo, zato bi
+                              // osvetljeni stolpec ostal za njim - tam se
+                              // ob kliku umakne. Na širokem zaslonu ostane
+                              // odprt, ker mreža stoji ob njem.
+                              if (window.innerWidth < 900) zapri();
+                            }}>
+                            {window.Datum.slo(v.datum)}
+                            {v.bucket ? " · " + (IZMENA_LABEL[v.bucket] || v.bucket) : ""} – manjka {v.primanjkljaj}.
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="statNaslov">Obremenjenost po zaposlenih</p>
+                <div className="statOsebe">
+                  {stat.poOsebi.map(o => (
+                    <div className="statOseba" key={o.ime}>
+                      <div className="vrh">
+                        <span className="ime" title={o.ime}>{o.ime}</span>
+                        <span className="st">{sklanjaj(o.izmen, OBLIKE_IZMEN)} · {o.ur} h{o.nocnih ? ` · ${o.nocnih}× nočna` : ""}</span>
+                      </div>
+                      <div className="tir">
+                        <i style={{width: (stat.najvecUr ? (o.ur / stat.najvecUr * 100) : 0) + "%"}} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="hint" style={{marginTop:10, marginBottom:0}}>
+                  Ure so seštete po uradnem šifrantu (delovni-cas.js); odsotnosti (LD, BS, STI, KRO) med delovne ure
+                  ne štejejo. Razpon: {stat.najmanjUr} – {stat.najvecUr} h.
+                </p>
+              </div>
+            </React.Fragment>
+          )}
+        </div>
+      </aside>
+    </React.Fragment>
+  );
+}
+
 function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [koda, setKoda] = useState(zacetniOddelek || "B");
   const [month, setMonth] = useState(zacetniMesec || "2026-11");
@@ -1588,6 +1925,15 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
+  // Nalaganje ŽE SESTAVLJENEGA razporeda (JSON/CSV/Excel) naravnost v
+  // mrežo. Doslej je bila edina pot uvoza v index.html, kar pomeni odhod z
+  // generatorja; tu naložena datoteka takoj napolni mrežo IN statistiko,
+  // brez osveževanja strani.
+  const razporedFileRef = useRef();
+  const [uvozBusy, setUvozBusy] = useState(false);
+  const [uvozMsg, setUvozMsg] = useState(null);
+  // Stranski predal s statistiko (odpre ga lebdeči gumb spodaj desno).
+  const [statOdprt, setStatOdprt] = useState(false);
   const wardRef = useRef();
   const meriloRef = useRef(1);
   // Zapis PREDOGLEDA (še ne objavljenega) nazaj v Google Sheets – ista
@@ -1631,6 +1977,12 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
     (staffList || []).forEach(([ime, , , id]) => { if (id) m[ime] = id; });
     return m;
   }, [staffList]);
+  // Dan po datumu - za statistiko, ki hodi po vseh celicah naenkrat.
+  const dneviPoDatumu = useMemo(() => {
+    const m = new Map();
+    ((rezultat && rezultat.dnevi) || []).forEach(dn => m.set(dn.datum, dn));
+    return m;
+  }, [rezultat]);
   useEffect(() => { setStaffList(null); setCrkePredlog(null); nalozizOddelek(koda).then(setStaffList); }, [koda]);
   // Ročno izbrane črke veljajo za TISTI oddelek in mesec. Brez tega bi
   // ročni popravek za oktober tiho prevladal nad kalupom, izpeljanim za
@@ -1659,6 +2011,37 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // "Predlagaj teden" iz spodnjega panela vedno predlaga LD, ne kroži.
   const predlagajLD = (ime, monday) => {
     setTedenskoStanje(t => ({ ...t, [ime + "|" + monday]: "LD" }));
+  };
+
+  // Naloži razpored iz datoteke in ga postavi v mrežo. Vse, kar se je
+  // nanašalo na prejšnji izračun (ročni popravki, predlogi vrzeli, ročno
+  // potrjeni pragovi), se počisti - sicer bi se popravek z enega razporeda
+  // tiho prilepil na drugega.
+  const naloziRazporedIzDatoteke = async (file) => {
+    if (!file) return;
+    setUvozBusy(true); setUvozMsg(null);
+    try {
+      const rez = await window.Statistika.razporedIzDatoteke(file, koda, meta && meta.naziv);
+      setRezultat(rez);
+      setPopravki({}); setPragPopravki({}); setFlexiPokrito({});
+      setPredlogiVrzeli(null); setPotrjeneVrzeli({});
+      setPoudarek(null);
+      // Mesec v izbirniku sledi datoteki - drugače bi zgoraj pisal en
+      // mesec, v mreži pa bi bil drug.
+      if (/^\d{4}-\d{2}$/.test(rez.mesec || "")) setMonth(rez.mesec);
+      // Oddelek je v besedilu namenoma izpisan: CSV/Excel mreža ne pove,
+      // za kateri oddelek gre, zato se vzame izbrani - in po njegovih
+      // minimumih se štejejo vrzeli. Če se admin zmoti pri izbiri, mora
+      // to videti tu in ne šele po napačni statistiki.
+      setUvozMsg({ ok: true, text: `Naloženo iz "${file.name}": ${sklanjaj(rez.staff.length, OBLIKE_ZAPOSLENIH)} × ${sklanjaj(rez.dnevi.length, OBLIKE_DNI)} (${rez.mesec}), prikazano kot ${rez.naziv}. Statistika je preračunana.` });
+      // Predal se odpre sam: preračunana števila so razlog, zaradi katerega
+      // se datoteka naloži, in ne smejo ostati skrita za gumbom.
+      setStatOdprt(true);
+    } catch (e) {
+      setUvozMsg({ ok: false, text: "Napaka: " + (e.message || String(e)) });
+    } finally {
+      setUvozBusy(false);
+    }
   };
 
   const uvoziKvote = async (file) => {
@@ -1901,9 +2284,32 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // Vrzeli so doslej živele samo znotraj StatusTrak/StatusPravil. Za
   // označevanje glav stolpcev jih potrebuje tudi mreža, zato so izračunane
   // tu - iz istega vira, da se prikaza ne razideta.
-  const vrzeliMreze = useMemo(() => (
-    rezultat ? izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito }).vrzeli : []
+  const pokritost = useMemo(() => (
+    rezultat ? izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito })
+             : { vrzeli: [], imaMinimume: false }
   ), [rezultat, celica, pragPopravki, minimumi, flexiPokrito]);
+  const vrzeliMreze = pokritost.vrzeli;
+
+  // Statistika predala. Vezana je na ISTE odvisnosti kot mreža (rezultat,
+  // ročni popravki, minimumi), zato se preračuna sama - ob generiranju, ob
+  // naloženi datoteki IN ob vsakem ročnem popravku celice. Prav zato je
+  // izračun v statistika-core.js čista funkcija: React ga sme pognati ob
+  // vsakem izrisu, brez lastnega stanja, ki bi se lahko razšlo z mrežo.
+  const statistika = useMemo(() => (
+    rezultat ? window.Statistika.izracunaj({
+      dnevi: rezultat.dnevi, staff: rezultat.staff,
+      // Celico bere ista pot kot izris (rezultat + ročni popravek), le da
+      // dneve poišče prek slovarja - linearno iskanje po 31 dneh za vsako
+      // od ~600 celic bi bilo ob vsakem pritisku na tipko odveč.
+      vrednost: (ime, datum) => {
+        const kljuc = ime + "|" + datum;
+        if (popravki[kljuc] != null) return popravki[kljuc];
+        const dn = dneviPoDatumu.get(datum);
+        return (dn && dn.izmene[ime]) || "";
+      },
+      vrzeli: vrzeliMreze, krsitve,
+    }) : null
+  ), [rezultat, popravki, dneviPoDatumu, vrzeliMreze, krsitve]);
 
   // Opozorila, pripravljena za risanje: po dnevu (glava stolpca) in po
   // celici (oseba x dan). Vrednost je seznam besedil, ki gre naravnost v
@@ -2187,7 +2593,30 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
            href={`index.html?uredi=1&pogled=ward&oddelek=${encodeURIComponent(koda)}&mesec=${month}`}>
           ✎ Uredi objavljen razpored
         </a>
+        {/* Nalaganje že sestavljenega razporeda v TO mrežo. Ločeno od
+            "Odpri uvoz" pod mrežo, ki pelje v index.html in zapiše razpored
+            v bazo: to tu je delovni pripomoček - razpored se samo prikaže,
+            preveri (statistika, kršitve, vrzeli) in po potrebi popravi,
+            objava pa ostane ločena odločitev. */}
+        <button className="dlBtn" type="button" style={{marginTop:0, flex:"0 0 auto"}}
+          disabled={uvozBusy} onClick={() => razporedFileRef.current && razporedFileRef.current.click()}>
+          {uvozBusy ? "Berem …" : "📂 Naloži razpored iz datoteke"}
+        </button>
+        <input ref={razporedFileRef} type="file" accept=".json,.csv,.txt,.xlsx,.xls,.xlsb"
+          style={{display:"none"}}
+          onChange={e => {
+            // Vrednost se počisti takoj, da izbira ISTE datoteke drugič
+            // spet sproži "change" (brskalnik ga sicer ne pošlje).
+            const file = e.target.files[0];
+            e.target.value = "";
+            naloziRazporedIzDatoteke(file);
+          }} />
       </div>
+      {uvozMsg && (
+        <p className="hint no-print" style={{marginTop:6, color: uvozMsg.ok ? "var(--ok)" : "var(--danger)"}}>
+          {uvozMsg.text}
+        </p>
+      )}
 
       {rezultat ? (
         <React.Fragment>
@@ -2473,6 +2902,26 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           {sekundarnaOrodja}
         </React.Fragment>
       )}
+
+      {/* Lebdeči gumb za statistiko: viden na vsakem zavihku mreže, ne
+          glede na to, kako daleč je stran zdrsnjena. Značka pove, koliko
+          stvari čaka na rešitev (nepokrite izmene + kritične kršitve) -
+          brez nje je treba predal odpreti, da se to sploh izve. */}
+      <button type="button" className="statFab no-print" onClick={() => setStatOdprt(o => !o)}
+        aria-haspopup="dialog" aria-expanded={statOdprt}
+        title={statistika ? "Statistika razporeda" : "Statistika (najprej generiraj ali naloži razpored)"}>
+        <span className="ikona" aria-hidden="true">📊</span>
+        <span>Statistika</span>
+        {statistika && statistika.nerazresenih > 0 && (
+          <span className="znak utripa"
+            aria-label={statistika.nerazresenih + " nerešenih opozoril o pokritosti"}>
+            {statistika.nerazresenih > 99 ? "99+" : statistika.nerazresenih}
+          </span>
+        )}
+      </button>
+      <StatistikaPredal odprto={statOdprt} zapri={() => setStatOdprt(false)}
+        stat={statistika} rezultat={rezultat} vrzeli={vrzeliMreze}
+        imaMinimume={pokritost.imaMinimume} poudari={poudari} poudarek={poudarek} />
     </div>
   );
 }
