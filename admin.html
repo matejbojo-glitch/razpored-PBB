@@ -96,6 +96,50 @@
   table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
   .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
 
+  /* ---------- kompaktna mreža: cel mesec v širino enega zaslona ----------
+     Doslej je imela mreža "width:max-content" (theme.css) in je pri 31 dneh
+     zrasla čez okvir, koordinator pa je moral vodoravno drsati in je pri
+     popravljanju izgubil pregled nad začetkom meseca. Kompaktni način meri
+     stolpce po OKVIRJU (table-layout:fixed), stisne obrobe, pisavo in
+     ploščice izmen ter odreže dolga imena s tremi pikami.
+     Velja samo od 900 px navzgor - na telefonu 31 stolpcev ne more biti
+     berljivih, zato tam ostane vodoravno drsenje. */
+  @media (min-width: 900px){
+    .wardScroller.kompakt{ overflow-x:hidden; }
+    /* zoom je zasilni izhod, ne prva izbira: --wardMerilo nastavi šele
+       izračun v KalupTab (učinek "kompaktna mreža"), in to samo takrat, kadar
+       so stolpci tudi po stiskanju ožji od 26 px - npr. 31 dni na ozkem
+       prenosniku. Privzeta vrednost 1 pomeni brez pomanjšave. */
+    .wardScroller.kompakt table.wardTable{
+      width:100%; min-width:0; table-layout:fixed;
+      /* Odstotna širina se pri zoomu razreši v POMANJŠANIH koordinatah
+         (100 % = širina okvirja, deljena z merilom), zato tabela tudi
+         pomanjšana zapolni okvir in stolpci dobijo več prostora za kratico.
+         Dodatno deljenje s "calc" bi jo pognalo čez desni rob. */
+      zoom: var(--wardMerilo, 1);
+    }
+    .wardScroller.kompakt table.wardTable th,
+    .wardScroller.kompakt table.wardTable td{ padding:1px 0; font-size:10.5px; letter-spacing:-.01em; }
+    .wardScroller.kompakt table.wardTable thead th{ font-size:9.5px; letter-spacing:0; }
+    /* Ime je edini stolpec s fiksno širino - preostanek si enakomerno
+       razdelijo dnevi. Predolgo ime se odreže, celo pa ostane v namigu. */
+    .wardScroller.kompakt table.wardTable td.name,
+    .wardScroller.kompakt table.wardTable th.name{
+      width:112px; min-width:112px; max-width:112px; padding:1px 5px; font-size:11px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .wardScroller.kompakt table.wardTable td.name > *{
+      display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    /* Ploščica izmene se ravna po stolpcu (min-width:0), ne obratno -
+       sicer bi 54 px iz privzetega sloga spet raztegnilo tabelo. */
+    .wardScroller.kompakt table.wardTable td .celicaOvoj{
+      min-width:0; min-height:26px; border-radius:4px; font-size:9.5px; letter-spacing:0;
+    }
+    .wardScroller.kompakt table.wardTable td.opozorjena::after{ top:0; right:1px; font-size:8px; }
+    .wardScroller.kompakt table.wardTable td.spremenjena::before{ top:0; left:1px; font-size:8px; }
+  }
+
   /* Opozorila, prilepljena na mrežo (uporabnikova zahteva, september 2026).
      Doslej so nepokrite izmene in nepokrite omejitve živele SAMO v seznamu
      nad tabelo: koordinator je prebral "16.10.: Rozman Anka: omejitev …" in
@@ -264,6 +308,10 @@
     table.wardTable thead th, table.wardTable td.name, table.wardTable th.name{ position:static !important; }
     table.wardTable tr, table.dutyTable tr{ break-inside:avoid; page-break-inside:avoid; }
     .printBlok{ zoom: var(--print-scale, 1); }
+    /* Zaslonsko merilo kompaktne mreže odpade - za tisk velikost izračuna
+       PrintFit (--print-scale na .wardScroller); zmnožek obeh bi mrežo
+       pomanjšal dvakrat. */
+    .wardScroller.kompakt table.wardTable{ zoom:1 !important; width:100% !important; }
     table.wardTable input[type="text"]{ border:none !important; color:#000 !important; }
   }
 </style>
@@ -1541,6 +1589,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
   const wardRef = useRef();
+  const meriloRef = useRef(1);
   // Zapis PREDOGLEDA (še ne objavljenega) nazaj v Google Sheets – ista
   // povezava/dokument, ki ga admin že uporablja za ta oddelek, zato se
   // shrani ločeno po oddelku (localStorage), enako kot v index.html.
@@ -1878,6 +1927,42 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
     return { poDnevu, poCelici };
   }, [rezultat, vrzeliMreze]);
 
+  // Kompaktna mreža (razred "kompakt" na okvirju): cel mesec mora iti v
+  // širino zaslona, brez vodoravnega vlečenja. Stolpce razdeli CSS sam
+  // (table-layout:fixed), ta izračun pa doda zadnjo stopnjo šele takrat,
+  // kadar stolpec pade pod ~26 px in kratica ("DF12") ne gre več v
+  // ploščico: mreža dobi pomanjšavo (zoom), s čimer ima v postavitvi širše
+  // stolpce, narisana pa je manjša. Pri običajnih širinah ostane merilo 1
+  // in mreža je enako velika kot doslej.
+  useEffect(() => {
+    const okvir = wardRef.current;
+    if (!okvir || !rezultat) return;
+    const MIN_STOLPEC = 26;   // najožji še berljiv dnevni stolpec (px)
+    const SIRINA_IMENA = 112; // enako kot .kompakt td.name v slogu zgoraj
+    const izracunaj = () => {
+      const dni = (rezultat.dnevi || []).length;
+      const naVoljo = okvir.clientWidth - SIRINA_IMENA;
+      // Pod 900 px kompaktni način v CSS ne velja (mreža tam vodoravno
+      // drsi), zato tudi merila ne sme biti.
+      const merilo = (!dni || naVoljo <= 0 || window.innerWidth < 900)
+        ? 1 : Math.min(1, Math.max(0.7, naVoljo / (dni * MIN_STOLPEC)));
+      // Prag proti nihanju: pomanjšana mreža je nižja, zaradi česar lahko
+      // izgine navpični drsnik, okvir se razširi in izračun bi se vrtel
+      // med dvema skoraj enakima vrednostma.
+      if (Math.abs(merilo - meriloRef.current) < 0.02) return;
+      meriloRef.current = merilo;
+      okvir.style.setProperty("--wardMerilo", String(Math.round(merilo * 1000) / 1000));
+    };
+    izracunaj();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", izracunaj);
+      return () => window.removeEventListener("resize", izracunaj);
+    }
+    const opazovalec = new ResizeObserver(izracunaj);
+    opazovalec.observe(okvir);
+    return () => opazovalec.disconnect();
+  }, [rezultat]);
+
   // Osvetljeno celico je treba tudi PRIPELJATI pred oči - pri 31 stolpcih
   // je pogosto zunaj vidnega dela drsnika. "poudarek" je dvojne vrste:
   // "ime|datum" pomeni eno celico (omejitev brez nadomestila se nanaša na
@@ -2113,10 +2198,12 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
             poudari={poudari} poudarek={poudarek} />
 
           {/* 3 · Glavni delovni prostor: mreža takoj pod traku. Prvi
-              stolpec z imeni je lepljiv, dnevi drsijo vodoravno; na širokem
-              zaslonu ("vOkvirju") mreža drsi znotraj okvirja, tako da
-              ostaneta glava in stolpec z imeni vidna med popravljanjem. */}
-          <div className="wardScroller vOkvirju" ref={wardRef}>
+              stolpec z imeni je lepljiv; na širokem zaslonu ("vOkvirju")
+              mreža drsi navpično znotraj okvirja, tako da ostaneta glava in
+              stolpec z imeni vidna med popravljanjem. "kompakt" pomeni, da
+              gre cel mesec v širino okvirja - vodoravnega drsenja od 900 px
+              navzgor ni več, pod tem pa ostane kot doslej. */}
+          <div className="wardScroller vOkvirju kompakt" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -2145,7 +2232,9 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
               <tbody>
                 {rezultat.staff.map(z => (
                   <tr key={z.ime}>
-                    <td className="name"><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
+                    {/* Naslov na celici: v kompaktni mreži se dolgo ime
+                        odreže na tri pike, celo pa se izpiše ob kazalcu. */}
+                    <td className="name" title={z.ime}><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
                     {rezultat.dnevi.map(dn => {
                       const sifra = celica(z, dn);
                       const kljuc = kljucCelice(z.ime, dn.datum);
@@ -3819,7 +3908,11 @@ function App({ ogled, profil }){
   useEffect(() => window.Nazaj.uporabi("tab", "kalup", setTabStanje), []);
   const setTab = window.Nazaj.krmar("tab", "kalup", setTabStanje);
   return (
-    <div className="wrap wide">
+    /* Zavihek "Oddelki" nosi mesečno mrežo (31 stolpcev): tam stran ne sme
+       biti omejena na bralnih 1040 px, ampak uporabi ves zaslon - isti
+       "cezZaslon" kot mesečni pogledi v index.html. Ostali zavihki so
+       obrazci in seznami, zato ostanejo v ožjem, berljivem okvirju. */
+    <div className={"wrap wide" + (tab === "kalup" ? " polna cezZaslon" : "")}>
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout pred={<RazporedOrodja/>}/>
       <header className="top">
