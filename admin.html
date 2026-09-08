@@ -96,6 +96,79 @@
   table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
   .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
 
+  /* Opozorila, prilepljena na mrežo (uporabnikova zahteva, september 2026).
+     Doslej so nepokrite izmene in nepokrite omejitve živele SAMO v seznamu
+     nad tabelo: koordinator je prebral "16.10.: Rozman Anka: omejitev …" in
+     nato z očmi iskal, kateri stolpec je 16. in katera vrstica je Rozman.
+     Pri 31 stolpcih je to zamudno in se hitro zgreši. Zdaj isto opozorilo
+     obarva glavo stolpca in obrobo prizadete celice, klik na vrstico v
+     seznamu pa celico še osvetli in pripelje v vidno polje.
+     Barve so namenoma svetle podlage z močno obrobo, da ne prekrijejo
+     obstoječih barv izmen (dopoldne/popoldne/nočna) v celicah. */
+  table.wardTable thead th.napaka{ background: var(--danger-bg); color: var(--danger);
+    box-shadow: inset 0 -3px 0 var(--danger); }
+  table.wardTable thead th .pika{ display:inline-block; width:6px; height:6px; margin-left:4px;
+    border-radius:50%; background: var(--danger); vertical-align:middle; }
+  table.wardTable td.opozorjena{ position:relative; }
+  /* Značka v kotu celice: majhen "!" – celica je majhna, zato je vse
+     drugo nečitljivo. pointer-events:none, da ne prestreza klika v polje. */
+  table.wardTable td.opozorjena::after{ content:"!"; position:absolute; top:1px; right:3px;
+    font-size:9px; line-height:1; font-weight:900; color: var(--danger); pointer-events:none; }
+  table.wardTable td.poudarjena{ background: var(--danger-bg); box-shadow: inset 0 0 0 2px var(--danger); }
+  /* Klik na opozorilo v seznamu nad mrežo osvetli tudi GLAVO dneva - vrzel
+     ("nepokrita izmena") ni vezana na eno osebo, ampak na cel stolpec. */
+  table.wardTable thead th.poudarjena{ background: var(--danger-bg);
+    box-shadow: inset 0 0 0 2px var(--danger), inset 0 -3px 0 var(--danger); }
+  /* Utrip ob kliku: pri 31 stolpcih sama obroba ni dovolj, da oko najde
+     celico, do katere se je pravkar zavrtelo. Dve ponovitvi, nato mir -
+     trajno utripanje bi motilo popravljanje. Globalno pravilo
+     prefers-reduced-motion na dnu te datoteke animacijo izklopi. */
+  @keyframes utripCelice{
+    0%,100%{ box-shadow: inset 0 0 0 2px var(--danger); }
+    50%{ box-shadow: inset 0 0 0 4px var(--danger); }
+  }
+  table.wardTable td.poudarjena, table.wardTable thead th.poudarjena{
+    animation: utripCelice .55s var(--ease) 2;
+  }
+
+  /* Celica mreže je IZBIRNIK iz uradne legende (izmene.js), ne prosto
+     besedilno polje: prosto besedilo je dovoljevalo zapise, ki jih
+     Razpredelnica ne prebere nazaj ("dop.", "N-12"), in taka celica je bila
+     po objavi v index.html siva "neznana koda".
+     Zgradba: barvna ploščica s KRATICO (kar vidi oko) in čeznjo razpotegnjen
+     prozoren <select> (kar odpre miška ali tipkovnica). Sam <select> ne more
+     biti oboje - zaprto polje izpiše besedilo izbrane možnosti, seznam
+     možnosti pa mora biti razumljiv ("DOP · Dopoldne"), kar bi celico
+     raztegnilo čez pol zaslona. */
+  table.wardTable td .celicaOvoj{ position:relative; display:flex; align-items:center; justify-content:center;
+    min-width:54px; min-height:40px; border-radius:6px; font-size:11.5px; font-weight:800; letter-spacing:.2px; }
+  table.wardTable td .celicaOvoj select.celicaIzmena{ position:absolute; top:0; left:0; width:100%; height:100%;
+    opacity:0; cursor:pointer; font:inherit; border:0; padding:0; }
+  table.wardTable td .celicaOvoj select.celicaIzmena option{ font-weight:600; }
+  /* Prozoren <select> sam ne more pokazati, da je na vrsti - obroba fokusa
+     zato pripada ploščici pod njim. */
+  table.wardTable td .celicaOvoj:focus-within{ outline:2px solid var(--accent); outline-offset:2px; }
+  /* Ročno spremenjena celica: diskretna oznaka v LEVEM kotu (desni je
+     zaseden z "!" pri opozorjeni celici, da se ne prekrivata). */
+  table.wardTable td.spremenjena{ position:relative; }
+  table.wardTable td.spremenjena::before{ content:"✎"; position:absolute; top:1px; left:3px;
+    font-size:9px; line-height:1; color: var(--text); opacity:.75; pointer-events:none; z-index:1; }
+
+  /* Namig ob kazalcu nad rdečo glavo/celico. Naslovni atribut (title) se v
+     brskalniku prikaže šele po ~1 s in ga na dotik ni; ta namig je takojšen
+     in večvrstičen. Je position:fixed, ker bi ga .wardScroller (overflow)
+     sicer odrezal na robu mreže. */
+  .mrezaNamig{ position:fixed; z-index:60; max-width:320px; padding:7px 10px; border-radius:8px;
+    background: var(--text); color: var(--surface); font-size:12px; line-height:1.4; font-weight:600;
+    box-shadow: 0 6px 20px rgba(0,0,0,.28); pointer-events:none; white-space:pre-line; }
+
+  /* Vrstice v seznamu opozoril so gumbi (klik = osvetli celico), a morajo
+     še naprej izgledati kot besedilo seznama. */
+  .warnBox .opozoriloVrstica{ display:block; width:100%; text-align:left; background:none; border:none;
+    padding:0; margin:0; font: inherit; color: inherit; cursor:pointer; }
+  .warnBox .opozoriloVrstica:hover, .warnBox .opozoriloVrstica:focus-visible{ text-decoration: underline; }
+  .warnBox li.izbrana{ font-weight:800; }
+
   .dutyTable{ width:100%; border-collapse:separate; border-spacing:0; margin-top:14px; font-size:13px; }
   .dutyTable th{ text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px;
     border-bottom:1px solid var(--line); }
@@ -138,6 +211,11 @@
   .statusTrak .znacka.ok{ background: rgba(var(--ok-rgb),.14); border-color: var(--ok); color: var(--ok); }
   .statusTrak .znacka.nevtralno{ color: var(--muted); }
   .statusTrak .podrobnosti{ margin-top:10px; }
+  /* Seznam napak je namenjen KLIKANJU v mrežo pod njim - na oddelku z
+     nenastavljenimi minimumi jih je lahko čez sto in mreža bi padla pod
+     rob zaslona, torej ravno tja, kamor klik pelje. Zato seznam drsi
+     znotraj svoje višine namesto da razrine stran. */
+  .statusTrak .podrobnosti .warnBox ul{ max-height:210px; overflow-y:auto; margin-bottom:0; }
   .statusTrak .podrobnosti > .warnBox{ margin-top:0; }
   @media (prefers-color-scheme: dark){
     .statusTrak .znacka.opozorilo{ color:#E8C766; }
@@ -369,6 +447,13 @@ const WARDS_META = {
   D:  { naziv:"D – oddelek",  hsuffix:false },
   E1: { naziv:"E1 – oddelek", hsuffix:true },
   E2: { naziv:"E2 – oddelek", hsuffix:false },
+  // FLEXI je prišel v ta izbirnik septembra 2026 skupaj z umikom obeh
+  // vnosov "NZV – …" (glej izbirnik "Oddelek" spodaj). Ni oddelek v smislu
+  // stavbe, ampak razpored ljudi, ki pokrivajo več oddelkov hkrati (glej
+  // min_flexi v minimalna_zasedba) - kalup pa zanje teče po istem
+  // 5-tedenskem vzorcu kot za oddelke, zato tu ne potrebuje ničesar
+  // posebnega. Članstvo pride, kot povsod, iz profili.department_code.
+  FLEXI: { naziv:"FLEXI – razpored", hsuffix:false },
 };
 
 // ---------------------------------------------------------------------
@@ -627,13 +712,74 @@ async function nalozizDezurniKader(startISO){
   });
 }
 
-// Razvrstitev izmen in barve živijo v izmene.js - en sam vir za vse
-// zaslone. Generator uporablja SVOJO različico razvrstitve: tu se šteje
-// DEJANSKA zasedba izmene na oddelku, zato letni dopust in dežurstvo
-// padeta v "off" (kdor je na dopustu, ni na izmeni). Prav ta razlika je
-// razlog, da funkciji nista zliti v eno - glej opombo v izmene.js.
-const classify = window.Izmene.skupinaGeneratorja;
-const BARVE = window.Izmene.SKUPINA_BARVA;
+// Kratice, barve in razvrstitev izmen živijo v izmene.js - en sam vir za
+// vse zaslone. Groba razvrstitev v skupine (classify/BARVE) je iz te
+// datoteke izginila septembra 2026: mreža generatorja odslej riše
+// natančno kratico in natančno barvo iz legende, tako kot Razpredelnica,
+// dejansko zasedbo izmen pa šteje shiftBucket() spodaj.
+
+// Izbire za celico v mreži generatorja - cela uradna legenda, v njenem
+// vrstnem redu. Prosto besedilno polje je bilo do septembra 2026
+// edini način ročnega popravljanja in je dopuščalo zapise, ki jih
+// Razpredelnica ne prebere nazaj ("dop.", "N-12", "nocna11"): taka celica
+// je bila po objavi v index.html siva "neznana koda", torej razpored, ki v
+// generatorju izgleda drugače kot v pogledu, iz katerega ljudje berejo
+// svoje izmene. Odslej se izbira iz istega vira, ki ga bere Razpredelnica.
+const IZMENA_MOZNOSTI = window.Izmene.moznosti();
+// Barva dežurstva (bordo rdeča) - za zavihek NZV, kjer se razporeja samo
+// ta ena izmena in kratice v celici ni.
+const DEZ_BARVA = window.Izmene.barva("Dežurstvo");
+// Kratica -> zapis, ki gre v bazo. moznosti() vsak zapis sproti preveri,
+// da se prebere nazaj v svojo kratico, zato je round-trip zajamčen.
+const ZAPIS_PO_KRATICI = {};
+IZMENA_MOZNOSTI.forEach(m => { ZAPIS_PO_KRATICI[m.kratica] = m.zapis; });
+
+// Namig ob kazalcu nad rdečo glavo dneva ali celico z napako. Naslovni
+// atribut (title) sam ne zadošča: prikaže se šele po približno sekundi,
+// dolgo besedilo prelomi po svoje in ga na zaslonu na dotik sploh ni.
+// Ena sama plavajoča škatla na dokumentu in ne po ena skrita na celico -
+// mreža ima do 30 x 31 celic in 900 odvečnih vozlišč bi upočasnilo izris.
+const Namig = (function(){
+  let el = null;
+  function skrij(){ if (el && el.parentNode) el.parentNode.removeChild(el); el = null; }
+  function pokazi(cilj, besedilo){
+    if (!besedilo || !cilj) return;
+    if (!el){ el = document.createElement("div"); el.className = "mrezaNamig"; document.body.appendChild(el); }
+    el.textContent = besedilo;
+    const r = cilj.getBoundingClientRect();
+    // Postavi se šele po izrisu, da je znana prava velikost škatle, in
+    // nikoli čez rob okna - zadnji dnevi v mesecu so skrajno desno.
+    el.style.left = "0px"; el.style.top = "0px";
+    const n = el.getBoundingClientRect();
+    const x = Math.max(8, Math.min(r.left + r.width / 2 - n.width / 2, window.innerWidth - n.width - 8));
+    const nad = r.top - n.height - 8;
+    el.style.left = x + "px";
+    el.style.top = (nad < 8 ? r.bottom + 8 : nad) + "px";   // ob vrhu zaslona pod ciljem
+  }
+  // Škatla je position:fixed, mreža pa drsi pod njo - brez tega bi ob
+  // drsenju obvisela nad napačno celico. Poslušalca sta na dokumentu v
+  // fazi zajemanja, ker drsi notranji .wardScroller in ne okno.
+  if (typeof window !== "undefined"){
+    window.addEventListener("scroll", skrij, true);
+    window.addEventListener("resize", skrij);
+  }
+  return { pokazi, skrij };
+})();
+
+// Lastnosti, ki jih element v mreži potrebuje za namig. Za celico gredo na
+// <td>: znotraj je <select>, ki se lahko dobi fokus, in React-ova onFocus
+// in onBlur se prek njega dvigneta sem. Brez besedila ne vrne ničesar, da
+// element ne dobi praznih poslušalcev.
+function namigLastnosti(besedilo){
+  if (!besedilo) return null;
+  return {
+    title: besedilo,
+    onMouseEnter: e => Namig.pokazi(e.currentTarget, besedilo),
+    onMouseLeave: Namig.skrij,
+    onFocus: e => Namig.pokazi(e.currentTarget, besedilo),
+    onBlur: Namig.skrij,
+  };
+}
 
 // Izmenski "vedri" za primerjavo z minimalna_zasedba (natančnejše
 // od classify() zgoraj, ki dnevna12/nočna12 obe strpa v "h12" – tu ju
@@ -920,6 +1066,20 @@ function MinimumiUrejevalnik({ koda, minimumi, setMinimumi }){
   );
 }
 
+// Ključ celice v mreži je povsod isti: "Priimek Ime|LLLL-MM-DD".
+const kljucCelice = (ime, datum) => ime + "|" + datum;
+
+// Na koga se opozorilo nanaša. Generator ga od septembra 2026 pove v polju
+// "oseba"; starejši shranjeni rezultati imajo ime samo kot predpono
+// sporočila ("Rozman Anka: omejitev na ta dan …"), zato je tu še rezerva -
+// brez nje bi po nadgradnji stara opozorila nehala označevati celice.
+function osebaIzOpozorila(o){
+  if (!o) return null;
+  if (o.oseba) return o.oseba;
+  const m = /^([^:]+):/.exec(o.sporocilo || "");
+  return m ? m[1].trim() : null;
+}
+
 // Vrne seznam vrzeli v pokritosti (isti izračun kot PokritostPoDnevih -
 // tu izluščen, da ga lahko uporabi tudi vizualni povzetek pravil, brez
 // podvajanja logike).
@@ -1050,7 +1210,7 @@ function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexi
 // nad njo - vse to je razpored samega odrinilo pod rob. Zdaj so v traku
 // samo števci; podrobnosti (ista kartica StatusPravil in isti seznam
 // opozoril) se odprejo šele ob kliku na značko.
-function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito }){
+function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito, poudari, poudarek }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
   const opozorila = rezultat.opozorila || [];
   const pov = window.DelovniCas.povzetek(krsitve);
@@ -1059,6 +1219,10 @@ function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPo
   const preklopi = k => setOdprto(o => (o === k ? null : k));
 
   const napak = vrzeli.length + pov.kriticnih;
+  // Samo kritične kršitve gredo v klikljiv seznam napak - opozorila
+  // (npr. presežene tedenske ure) so našteta v razdelku pod mrežo in bi
+  // seznam napak na majhnem oddelku zalila do neuporabnosti.
+  const kriticne = krsitve.filter(k => k.resnost === "kriticno" && k.datum && k.oseba);
   const znacke = [
     {
       kljuc: "napake",
@@ -1105,6 +1269,39 @@ function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPo
         <div className="podrobnosti">
           <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
             minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
+          {/* Vsaka napaka je klikljiva in pokaže SVOJE mesto v mreži.
+              Nepokrita izmena je napaka DNEVA (za ta dan primanjkuje
+              ljudi, ne gre za enega človeka), zato osvetli glavo stolpca;
+              delovnopravna kršitev pa se zgodi eni osebi na en dan, zato
+              osvetli celico. Prej sta bila oba seznama samo besedilo in
+              koordinator je z očmi iskal, kateri od 31 stolpcev je 16. */}
+          {(vrzeli.length > 0 || kriticne.length > 0) && (
+            <div className="warnBox">
+              <div className="t">✗ {vrzeli.length + kriticne.length} napak – klikni vrstico, da se mesto označi v mreži</div>
+              <ul>
+                {vrzeli.map((v, i) => (
+                  <li key={"v" + i} className={poudarek === v.datum ? "izbrana" : null}>
+                    <button type="button" className="opozoriloVrstica" title="Pokaži dan v mreži"
+                      onClick={() => poudari(v.datum)}>
+                      {window.Datum.slo(v.datum)}: nepokrita izmena
+                      {v.bucket ? " (" + (IZMENA_LABEL[v.bucket] || v.bucket) + ")" : ""} – manjka {v.primanjkljaj}.
+                    </button>
+                  </li>
+                ))}
+                {kriticne.map((k, i) => {
+                  const kljuc = kljucCelice(k.oseba, k.datum);
+                  return (
+                    <li key={"k" + i} className={poudarek === kljuc ? "izbrana" : null}>
+                      <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
+                        onClick={() => poudari(kljuc)}>
+                        {window.Datum.slo(k.datum)}: {k.oseba}: {k.sporocilo}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       )}
       {odprto === "omejitve" && (
@@ -1112,7 +1309,25 @@ function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPo
           {opozorila.length > 0 ? (
             <div className="warnBox">
               <div className="t">⚠ {opozorila.length} omejitev brez samodejnega nadomestila</div>
-              <ul>{opozorila.map((o, i) => <li key={i}>{window.Datum.slo(o.datum)}: {o.sporocilo}</li>)}</ul>
+              {/* Klik na opozorilo osvetli pripadajočo celico v mreži in jo
+                  pripelje v vidno polje - povezava med seznamom in tabelo,
+                  ki jo je uporabnik zahteval (september 2026). Kadar osebe
+                  iz opozorila ni mogoče razbrati, vrstica ostane navadno
+                  besedilo, da gumb ne obljublja česa, česar ne stori. */}
+              <ul>{opozorila.map((o, i) => {
+                const ime = osebaIzOpozorila(o);
+                const kljuc = ime ? kljucCelice(ime, o.datum) : null;
+                const besedilo = <React.Fragment>{window.Datum.slo(o.datum)}: {o.sporocilo}</React.Fragment>;
+                return (
+                  <li key={i} className={kljuc && kljuc === poudarek ? "izbrana" : null}>
+                    {kljuc && poudari
+                      ? <button type="button" className="opozoriloVrstica"
+                          title="Pokaži celico v mreži"
+                          onClick={() => poudari(kljuc)}>{besedilo}</button>
+                      : besedilo}
+                  </li>
+                );
+              })}</ul>
             </div>
           ) : (
             <p className="hint" style={{margin:0}}>Vse vnesene omejitve so samodejno pokrite z nadomestilom.</p>
@@ -1304,7 +1519,7 @@ function UvozRazporedaNapotek({ koda, month }){
   );
 }
 
-function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
+function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [koda, setKoda] = useState(zacetniOddelek || "B");
   const [month, setMonth] = useState(zacetniMesec || "2026-11");
   const [letters, setLetters] = useState({}); // override startLetter po imenu
@@ -1466,7 +1681,13 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
       const bazno = Generator.generirajKalup({ anchorMondayISO: ANCHOR_MONDAY, startISO, endISO, staff: staffBazni });
       const pricakovanoPoDnevih = {};
       bazno.dnevi.forEach(dn => {
-        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v).length;
+        // "LD" se odšteje na OBEH straneh primerjave. Pettedenski kalup ima
+        // en teden dopusta vgrajen, zato je nekdo na LD tudi v baznem
+        // razporedu - dejanska zasedba (izracunajVrzeli) pa LD že od nekdaj
+        // ne šteje za pokritost. Brez tega je bil prag za ena previsok
+        // vsak delovni dan, ko je bil kdo na kalupskem LD, in razpored je
+        // kazal vrzel, ki je ni bilo.
+        pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v && v !== "LD").length;
       });
       setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
       setPredlogiVrzeli(null);
@@ -1621,6 +1842,74 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
     return m;
   }, [krsitve]);
 
+  // Osvetljena celica ("Priimek Ime|LLLL-MM-DD") - nastavi jo klik na
+  // opozorilo v statusnem traku; null = nič osvetljenega.
+  const [poudarek, setPoudarek] = useState(null);
+  // Števec klikov na isto opozorilo - glej razlago pri utripu spodaj.
+  const [utrip, setUtrip] = useState(0);
+  const poudari = (kljuc) => { setPoudarek(kljuc); setUtrip(n => n + 1); };
+
+  // Vrzeli so doslej živele samo znotraj StatusTrak/StatusPravil. Za
+  // označevanje glav stolpcev jih potrebuje tudi mreža, zato so izračunane
+  // tu - iz istega vira, da se prikaza ne razideta.
+  const vrzeliMreze = useMemo(() => (
+    rezultat ? izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito }).vrzeli : []
+  ), [rezultat, celica, pragPopravki, minimumi, flexiPokrito]);
+
+  // Opozorila, pripravljena za risanje: po dnevu (glava stolpca) in po
+  // celici (oseba x dan). Vrednost je seznam besedil, ki gre naravnost v
+  // "title" - v mreži ni prostora za daljši izpis.
+  const napakeVMrezi = useMemo(() => {
+    const poDnevu = new Map(), poCelici = new Map();
+    const dodaj = (m, k, t) => { const a = m.get(k); if (a) a.push(t); else m.set(k, [t]); };
+    ((rezultat && rezultat.opozorila) || []).forEach(o => {
+      dodaj(poDnevu, o.datum, o.sporocilo);
+      const ime = osebaIzOpozorila(o);
+      if (ime) dodaj(poCelici, kljucCelice(ime, o.datum), o.sporocilo);
+    });
+    vrzeliMreze.forEach(v => dodaj(poDnevu, v.datum,
+      "Nepokrita izmena" + (v.bucket ? " (" + (IZMENA_LABEL[v.bucket] || v.bucket) + ")" : "")
+      + ": manjka " + v.primanjkljaj + "."));
+    // Delovnopravne kršitve tu NAMENOMA niso zajete. Kalup jih pri majhnem
+    // oddelku sproži skoraj vsak delovni dan (prost dan v tednu, zaporedne
+    // nočne); če bi barvale glavo, bi bil rdeč cel mesec in oznaka ne bi
+    // povedala ničesar. Kršitve so še naprej vidne tam, kjer nastanejo -
+    // na obrobi posamezne celice (krsitveMap spodaj) in v seznamu pod mrežo.
+    return { poDnevu, poCelici };
+  }, [rezultat, vrzeliMreze]);
+
+  // Osvetljeno celico je treba tudi PRIPELJATI pred oči - pri 31 stolpcih
+  // je pogosto zunaj vidnega dela drsnika. "poudarek" je dvojne vrste:
+  // "ime|datum" pomeni eno celico (omejitev brez nadomestila se nanaša na
+  // enega človeka), sam "datum" pa cel dan - nepokrita izmena ni napaka
+  // ene osebe, ampak dneva, zato se osvetli glava stolpca.
+  useEffect(() => {
+    if (!poudarek || !wardRef.current) return;
+    // Iskanje z zanko in ne s selektorjem: ključ celice vsebuje ime osebe
+    // ("Rozman Anka|2026-11-16"), torej presledke in lahko tudi narekovaje
+    // ali strešice - sestavljanje selektorja iz njega bi terjalo pravilno
+    // ubežno zaporedje in bi ob eni sami posebni črki tiho vrglo napako.
+    const lastnost = poudarek.indexOf("|") === -1 ? "data-dan" : "data-celica";
+    const vse = wardRef.current.querySelectorAll("[" + lastnost + "]");
+    let cilj = null;
+    for (let i = 0; i < vse.length; i++) {
+      if (vse[i].getAttribute(lastnost) === poudarek) { cilj = vse[i]; break; }
+    }
+    if (!cilj) return;
+    if (cilj.scrollIntoView) cilj.scrollIntoView({ block: "nearest", inline: "center" });
+    // Ponoven klik na ISTO vrstico v seznamu ne spremeni razreda, zato se
+    // utrip sam od sebe ne bi ponovil in klik bi izgledal, kot da ne dela.
+    // "utrip" se ob vsakem kliku poveča, animacija pa se tu na silo zažene
+    // znova (odstranitev, vsiljen preračun postavitve, vrnitev).
+    cilj.style.animation = "none";
+    void cilj.offsetWidth;
+    cilj.style.animation = "";
+  }, [poudarek, utrip]);
+
+  // Mreža lahko izgine izpod kazalca (novo generiranje, menjava oddelka) in
+  // takrat onMouseLeave ne pride nikoli - namig bi obvisel čez zaslon.
+  useEffect(() => Namig.skrij, []);
+
   const izvoziCSV = () => {
     if (!rezultat) return;
     const glava = ["Zaposleni", ...rezultat.dnevi.map(dn => dn.datum)];
@@ -1635,9 +1924,31 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
     document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  // Vse tri poti ven iz generatorja (CSV, JSON, objava v Supabase) morajo
+  // videti NATANKO isto, kar je na zaslonu - torej rezultat generatorja Z
+  // ročnimi popravki, in za vse zaposlene iz mreže, ne le za tiste, ki jim
+  // je kalup dal vnos. Zato vsaka od njih bere prek iste celica() kot izris:
+  // JSON prenos je do septembra 2026 zapisoval surovi rezultat.dnevi in je
+  // ročne popravke tiho izgubil, objava pa je hodila po Object.keys(dn.izmene)
+  // in bi preskočila osebo, ki je bila v celico vpisana ročno.
+  const mrezaVrstice = () => {
+    const vrstice = [];
+    rezultat.dnevi.forEach(dn => rezultat.staff.forEach(z => {
+      vrstice.push({ ime: z.ime, datum: dn.datum, sifra: celica(z, dn) });
+    }));
+    return vrstice;
+  };
+  // Dnevi z uveljavljenimi popravki - ista oblika kot rezultat.dnevi
+  // ({ datum, dan, izmene }), da je JSON tak, kot ga bere Razpredelnica.
+  const mrezaDnevi = () => rezultat.dnevi.map(dn => {
+    const izmene = {};
+    rezultat.staff.forEach(z => { izmene[z.ime] = celica(z, dn); });
+    return { ...dn, izmene };
+  });
+
   const prenesi = () => {
     if (!rezultat) return;
-    const data = { mesec: rezultat.mesec, oddelki: [{ koda: rezultat.koda, naziv: rezultat.naziv, zaposleni: rezultat.staff, dnevi: rezultat.dnevi }] };
+    const data = { mesec: rezultat.mesec, oddelki: [{ koda: rezultat.koda, naziv: rezultat.naziv, zaposleni: rezultat.staff, dnevi: mrezaDnevi() }] };
     download(`data-${rezultat.koda}-${rezultat.mesec}.json`, JSON.stringify(data, null, 1));
   };
 
@@ -1645,15 +1956,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
     if (!rezultat) return;
     setPublishBusy(true); setPublishMsg(null);
     try {
-      const rows = [];
-      rezultat.dnevi.forEach(dn => {
-        Object.keys(dn.izmene).forEach(ime => {
-          const key = ime + "|" + dn.datum;
-          const sifra = popravki[key] != null ? popravki[key] : dn.izmene[ime];
-          rows.push({ ime, datum: dn.datum, sifra });
-        });
-      });
-      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, rows);
+      const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, mrezaVrstice());
       setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
@@ -1769,23 +2072,17 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
       <div className="orodjaVrh no-print">
         <div className="field">
           <label htmlFor="odd">Oddelek</label>
-          {/* En sam izbirnik za VSE, kar se generira (uporabnikova zahteva,
-              september 2026): oddelki, NZV vodstvena pokritost in NZV
-              dežurstva. NZV ima svoj generator (druga pravila, drug
-              rezultat), zato izbira nanj preklopi - ne podvajamo ga tu. */}
-          <select id="odd" value={koda} onChange={e => {
-            const v = e.target.value;
-            if (v.startsWith("NZV:")) {
-              if (naNzv) naNzv(v.slice(4), month);
-              return;                       // koda ostane, kot je bila
-            }
-            setKoda(v); setRezultat(null);
-          }}>
+          {/* SAMO redni oddelki (A, B, C, C1, D, E1, E2) in FLEXI.
+              "NZV – vodstvena pokritost" in "NZV – dežurstva" sta bila tu do
+              septembra 2026 kot navidezna oddelka, ki sta ob izbiri samo
+              preklopila na drug zavihek - izbirnik je torej obljubljal dvoje,
+              česar ta zavihek ne zna narediti (druga pravila, drug rezultat,
+              druga mreža). Oboje ima zdaj svoje mesto na zavihku NZV in tu
+              ne nastopa več. */}
+          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
             {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
                 je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
             {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
-            <option value="NZV:vodje">NZV – vodstvena pokritost</option>
-            <option value="NZV:dez">NZV – dežurstva</option>
           </select>
         </div>
         <div className="field">
@@ -1812,7 +2109,8 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
           {/* 2 · Statusni trak: števci nepokritih izmen, kršitev in
               omejitev; podrobnosti se odprejo šele ob kliku. */}
           <StatusTrak rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
-            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
+            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito}
+            poudari={poudari} poudarek={poudarek} />
 
           {/* 3 · Glavni delovni prostor: mreža takoj pod traku. Prvi
               stolpec z imeni je lepljiv, dnevi drsijo vodoravno; na širokem
@@ -1823,11 +2121,25 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
               <thead>
                 <tr>
                   <th className="name">Zaposleni</th>
-                  {rezultat.dnevi.map(dn => (
-                    <th key={dn.datum} style={dn.dan==="SO"||dn.dan==="NE" ? {color:"var(--pop)"} : null}>
-                      {Number(dn.datum.slice(8, 10))}<br/>{dn.dan}
-                    </th>
-                  ))}
+                  {rezultat.dnevi.map(dn => {
+                    // Dan z napako dobi rdečo podlago in piko ob številki;
+                    // namig ob kazalcu nosi natančno besedilo, da ga ni
+                    // treba iskati v seznamu nad tabelo.
+                    const napakeDneva = napakeVMrezi.poDnevu.get(dn.datum) || [];
+                    const vikend = dn.dan === "SO" || dn.dan === "NE";
+                    const razred = [napakeDneva.length ? "napaka" : null,
+                      poudarek === dn.datum ? "poudarjena" : null].filter(Boolean).join(" ");
+                    return (
+                      <th key={dn.datum} data-dan={dn.datum} className={razred || null}
+                        {...namigLastnosti(napakeDneva.length
+                          ? window.Datum.slo(dn.datum) + "\n" + napakeDneva.join("\n") : null)}
+                        style={vikend && !napakeDneva.length ? {color:"var(--pop)"} : null}>
+                        {Number(dn.datum.slice(8, 10))}
+                        {napakeDneva.length > 0 && <span className="pika" role="img" aria-label="napaka na ta dan"></span>}
+                        <br/>{dn.dan}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -1835,18 +2147,61 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
                   <tr key={z.ime}>
                     <td className="name"><ImeOsebe id={idPoImenu[z.ime]}>{z.ime}</ImeOsebe></td>
                     {rezultat.dnevi.map(dn => {
-                      const sifra = celica(z, dn); const cls = classify(sifra);
-                      const krsitev = krsitveMap.get(z.ime + "|" + dn.datum);
-                      const obroba = krsitev
-                        ? (krsitev.resnost === "kriticno" ? "2px solid var(--danger)" : "2px solid #C9713F")
-                        : "1px solid var(--line)";
-                      const naslov = krsitev ? `${sifra} – ${krsitev.sporocilo}` : sifra;
+                      const sifra = celica(z, dn);
+                      const kljuc = kljucCelice(z.ime, dn.datum);
+                      const krsitev = krsitveMap.get(kljuc);
+                      // Opozorilo generatorja (omejitev/odsotnost brez
+                      // nadomestila) je za koordinatorja enako nujno kot
+                      // kršitev, zato dobi enako močno rdečo obrobo.
+                      const napakeCelice = napakeVMrezi.poCelici.get(kljuc) || [];
+                      const obroba = (napakeCelice.length || (krsitev && krsitev.resnost === "kriticno"))
+                        ? "2px solid var(--danger)"
+                        : krsitev ? "2px solid #C9713F" : "1px solid var(--line)";
+                      // Barva IN kratica sta iz uradne legende (izmene.js) -
+                      // natanko tisti, ki ju riše Razpredelnica. Prej je bila
+                      // tu ena od sedmih grobih skupin, razredčena na 20 %
+                      // (BARVE[cls]+"33"): DOP in DO4 sta bila ista bleda
+                      // zelena, N10 in N11 ista bleda modra, DEŽ in LD pa
+                      // sta se ločila le po besedilu v polju.
+                      const prazna = !String(sifra || "").trim() || window.Izmene.jeProst(sifra);
+                      const barva = prazna ? window.Izmene.STANJE_BARVA.prosto.barva : window.Izmene.barva(sifra);
+                      const kratica = prazna ? "" : window.Izmene.kratica(sifra);
+                      // Koda, ki je v legendi ni (star uvožen razpored,
+                      // tipkarska napaka): ostane v izbirniku kot svoja
+                      // možnost, sicer bi jo izris tiho spremenil v prosto.
+                      const znana = prazna || Object.prototype.hasOwnProperty.call(ZAPIS_PO_KRATICI, kratica);
+                      const spremenjena = popravki[kljuc] != null && popravki[kljuc] !== (dn.izmene[z.ime] || "");
+                      const opis = [prazna ? "Prosto"
+                        : window.Izmene.naziv(sifra) + (window.Izmene.cas(sifra) ? " · " + window.Izmene.cas(sifra) : "")]
+                        .concat(spremenjena ? ["✎ ročno spremenjeno (izračunano: " + (dn.izmene[z.ime] || "prosto") + ")"] : [])
+                        .concat(napakeCelice)
+                        .concat(krsitev ? [krsitev.sporocilo] : []).join("\n");
+                      const razred = [napakeCelice.length ? "opozorjena" : null,
+                        spremenjena ? "spremenjena" : null,
+                        poudarek === kljuc ? "poudarjena" : null].filter(Boolean).join(" ");
                       return (
-                        <td key={dn.datum}>
-                          <input type="text" value={sifra} onChange={e => nastaviPopravek(z, dn, e.target.value)}
-                            title={naslov}
-                            style={{width:48, minHeight:40, textAlign:"center", background:BARVE[cls]+"33", color:"var(--text)",
-                              border:obroba, borderRadius:6, fontSize:13, padding:"3px 2px"}} />
+                        <td key={dn.datum} data-celica={kljuc} className={razred || null}
+                          {...namigLastnosti(z.ime + " · " + window.Datum.slo(dn.datum) + "\n" + opis)}>
+                          <div className="celicaOvoj"
+                            style={{background: barva, color: window.Izmene.barvaBesedila(barva), border: obroba}}>
+                            <span aria-hidden="true">{kratica}</span>
+                            <select className="celicaIzmena" value={kratica}
+                              aria-label={z.ime + ", " + window.Datum.slo(dn.datum) + " – izmena"}
+                              onChange={e => {
+                                const k = e.target.value;
+                                // Neznana koda se ob ponovni izbiri vrne v
+                                // izvirnem zapisu, ne skrajšana na kratico.
+                                nastaviPopravek(z, dn, k === "" ? "" : (ZAPIS_PO_KRATICI[k] || (k === kratica ? sifra : k)));
+                              }}>
+                              <option value="">— prosto —</option>
+                              {IZMENA_MOZNOSTI.map(m => (
+                                <option key={m.kratica} value={m.kratica}>
+                                  {m.kratica} · {m.naziv}{m.cas ? " (" + m.cas + ")" : ""}
+                                </option>
+                              ))}
+                              {!znana && <option value={kratica}>{kratica} · neznana koda ({sifra})</option>}
+                            </select>
+                          </div>
                         </td>
                       );
                     })}
@@ -1855,6 +2210,30 @@ function KalupTab({ zacetniOddelek, zacetniMesec, naNzv }){
               </tbody>
             </table>
           </div>
+
+          {/* Legenda pod mrežo: v celici je od septembra 2026 samo kratica
+              (DOP, N11, DF12 …), zato mora nekje pisati, kaj katera pomeni.
+              Riše se iz istega vira kot celice - nova kratica v izmene.js
+              se tu pojavi sama in se ne more razhajati z barvo v mreži. */}
+          <details className="navodilo no-print">
+            <summary>Legenda kratic in barv (ista kot v pogledu Razpored / Razpredelnica)</summary>
+            <div style={{display:"flex", flexWrap:"wrap", gap:6, marginTop:8}}>
+              {IZMENA_MOZNOSTI.map(m => (
+                <span key={m.kratica} className="swatch"
+                  style={{background:m.barva, color:window.Izmene.barvaBesedila(m.barva)}}
+                  title={m.naziv + (m.cas ? " · " + m.cas : "")}>
+                  {m.kratica} · {m.naziv}
+                </span>
+              ))}
+              <span className="swatch" style={{background:window.Izmene.STANJE_BARVA.prosto.barva,
+                color:window.Izmene.barvaBesedila(window.Izmene.STANJE_BARVA.prosto.barva)}}>prazno · prost dan</span>
+            </div>
+            <p className="hint" style={{marginBottom:0}}>
+              Rdeča obroba celice pomeni napako na njej (nepokrita izmena, omejitev brez nadomestila ali kritična
+              delovnopravna kršitev), rjava opozorilo. Rdeča glava stolpca pomeni, da ima ta dan napako – natančno
+              besedilo se izpiše ob kazalcu. Znak ✎ v levem kotu pomeni, da je celico ročno spremenil človek in ne generator.
+            </p>
+          </details>
 
           {/* Akcijska vrstica za shranjevanje - TIK pod mrežo. Prej sta bila
               objava in zapis v Sheets ločena razdelka z naslovoma in po
@@ -2209,7 +2588,7 @@ function DezurstvaTab({ zacetniMesec }){
   const [dezurnoBesedilo, setDezurnoBesedilo] = useState("");
   const [dezurnoUvozMsg, setDezurnoUvozMsg] = useState(null);
   const uvoziKoncniRazpored = () => {
-    if (!rezultat) { setDezurnoUvozMsg("Najprej klikni »Generiraj razpored dežurstev« za ta mesec (spodaj se nato prepiše)."); return; }
+    if (!rezultat) { setDezurnoUvozMsg("Najprej klikni »⚡ Generiraj takoj« za ta mesec (spodaj se nato prepiše)."); return; }
     const vrstice = dezurnoBesedilo.split(/\r?\n/).map(v => v.trim()).filter(v => v && !v.startsWith("#"));
     const posodobitve = {}; // datum -> ime (kot je zapisano v roster)
     const neujemajocaImena = [];
@@ -2396,7 +2775,7 @@ function DezurstvaTab({ zacetniMesec }){
       <h2 className="section no-print">2 · Mesec in pravila</h2>
       <div className="card no-print">
         <div className="row">
-          <div className="field"><label htmlFor="dmonth">Mesec</label>
+          <div className="field"><label htmlFor="dmonth">Mesec in leto</label>
             <input id="dmonth" type="month" value={month} onChange={async e => {
               const noviMesec = e.target.value;
               setMonth(noviMesec); setRezultat(null); setRoster(null);
@@ -2445,7 +2824,7 @@ function DezurstvaTab({ zacetniMesec }){
         </p>
       </div>
 
-      <button className="genBtn no-print" onClick={generiraj}>Generiraj razpored dežurstev</button>
+      <button className="genBtn no-print" onClick={generiraj}>⚡ Generiraj takoj</button>
       </React.Fragment>
       )}
 
@@ -2484,6 +2863,14 @@ function DezurstvaTab({ zacetniMesec }){
                   <tr key={r.datum} className={(r.dan==="SO"||r.dan==="NE" ? "we " : "") + (!r.zaposleni || krsi ? "warn" : "")}>
                     <td>{window.Datum.slo(r.datum)}</td><td>{r.dan}</td>
                     <td>
+                      {/* Kratica in barva iz uradne legende (izmene.js) -
+                          ista bordo rdeča kot v Razpredelnici, da je na prvi
+                          pogled jasno, katera izmena se tu razporeja. */}
+                      {r.zaposleni && (
+                        <span className="swatch" style={{marginRight:6, background: DEZ_BARVA,
+                          color: window.Izmene.barvaBesedila(DEZ_BARVA)}}
+                          title={window.Izmene.naziv("Dežurstvo") + " · " + window.Izmene.cas("Dežurstvo")}>DEŽ</span>
+                      )}
                       {r.zaklenjeno ? (
                         <span title="Že objavljeno – generator tega dne ne premeša">🔒 {r.zaposleni}</span>
                       ) : (
@@ -2902,11 +3289,11 @@ function VodjeTab({ zacetniMesec }){
       </p>
       <div className="card no-print">
         <div className="row">
-          <div className="field"><label htmlFor="vmonth">Mesec</label>
+          <div className="field"><label htmlFor="vmonth">Mesec in leto</label>
             <input id="vmonth" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); }} />
           </div>
         </div>
-        <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "Izračunaj zasedenost"}</button>
+        <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "⚡ Generiraj takoj"}</button>
       </div>
 
       {rezultat && (
@@ -3220,6 +3607,15 @@ function NzvTab({ zacetniPod, zacetniMesec }){
         <button role="tab" aria-selected={pod==="vodje"} onClick={() => setPod("vodje")}>Vodstvena pokritost</button>
         <button role="tab" aria-selected={pod==="dez"} onClick={() => setPod("dez")}>Dežurstva</button>
       </div>
+      {/* Do septembra 2026 sta bili obe NZV pripravi dosegljivi tudi iz
+          izbirnika "Oddelek" na zavihku Oddelki - a le kot bližnjica, ki je
+          pripeljala sem. Izbirnik tam zdaj ponuja samo prave oddelke, ta
+          zavihek pa je edino mesto za NZV. */}
+      <p className="hint no-print" style={{marginTop:0}}>
+        NZV se ne generira na zavihku »Oddelki« – oboje, {pod==="vodje" ? <b>vodstvena pokritost</b> : "vodstvena pokritost"} in {pod==="dez" ? <b>dežurstva</b> : "dežurstva"},
+        ima svoja pravila in svoj rezultat, zato živi tu. Izberi mesec, klikni <b>⚡ Generiraj takoj</b>, popravi, kar je treba, in objavi –
+        objavljeno gre v isto tabelo <code>razpored</code> kot oddelčni razpored, zato se dežurstva (DEŽ) prikažejo tudi v pogledu Razpored / Razpredelnica.
+      </p>
       {pod==="vodje" && <VodjeTab zacetniMesec={zacetniMesec}/>}
       {pod==="dez" && <DezurstvaTab zacetniMesec={zacetniMesec}/>}
     </div>
@@ -3422,9 +3818,6 @@ function App({ ogled, profil }){
     (napotilo && napotilo.tab) || window.Nazaj.beri("tab", "kalup"));
   useEffect(() => window.Nazaj.uporabi("tab", "kalup", setTabStanje), []);
   const setTab = window.Nazaj.krmar("tab", "kalup", setTabStanje);
-  // Izbira "NZV – …" v izbirniku oddelkov preklopi na zavihek NZV in tam
-  // odpre pravi podzavihek in mesec.
-  const [nzvNapotek, setNzvNapotek] = useState(null);
   return (
     <div className="wrap wide">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
@@ -3444,11 +3837,9 @@ function App({ ogled, profil }){
         </div>
       </header>
 
-      {tab==="kalup" && <KalupTab zacetniOddelek={napotilo && napotilo.oddelek} zacetniMesec={napotilo && napotilo.mesec}
-        naNzv={(pod, mesec) => { setNzvNapotek({ pod, mesec }); setTab("nzv"); }}/>}
-      {tab==="nzv" && <NzvTab key={nzvNapotek ? nzvNapotek.pod + nzvNapotek.mesec : "nzv"}
-        zacetniPod={(nzvNapotek && nzvNapotek.pod) || (napotilo && napotilo.pod)}
-        zacetniMesec={(nzvNapotek && nzvNapotek.mesec) || (napotilo && napotilo.mesec)}/>}
+      {tab==="kalup" && <KalupTab zacetniOddelek={napotilo && napotilo.oddelek} zacetniMesec={napotilo && napotilo.mesec}/>}
+      {tab==="nzv" && <NzvTab zacetniPod={napotilo && napotilo.pod}
+        zacetniMesec={napotilo && napotilo.mesec}/>}
       {tab==="uporabniki" && <UporabnikiTab/>}
       {tab==="revizija" && <AuditLogTab/>}
 

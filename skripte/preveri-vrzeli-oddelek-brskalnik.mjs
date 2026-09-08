@@ -154,18 +154,23 @@ try {
   const { oseba, sifra, datum } = postavke[0];
   // Stanje PRED vnosom - da se vidi, da je vnos res spremenil celico, ne da
   // je bila ta šifra tam že prej (sicer bi preizkus uspel po naključju).
+  // V celici je od septembra 2026 izbirnik iz uradne legende, ne prosto
+  // besedilo: vrednost je KRATICA ("N11"), predlog pa nosi šifro iz kalupa
+  // ("Nočna"). Primerja se torej kratica obeh - prek istega šifranta, ki ga
+  // uporablja stran.
+  const pricakovanaKratica = await stran.evaluate(s => window.Izmene.kratica(s), sifra);
   const vrsticaPred = await stran.$(`.wardTable tbody tr:has-text("${oseba}")`);
   const dan = Number(datum.split(".")[0]) - 1;
-  const predVnosom = (await vrsticaPred.$$eval("input", e => e.map(x => x.value)))[dan];
-  trdi(predVnosom !== sifra, `celica je bila prej prazna oz. druga ("${predVnosom}")`);
+  const predVnosom = (await vrsticaPred.$$eval("select.celicaIzmena", e => e.map(x => x.value)))[dan];
+  trdi(predVnosom !== pricakovanaKratica, `celica je bila prej prazna oz. druga ("${predVnosom}")`);
 
   await stran.click(".card input[type=checkbox]");     // potrdi prvega
   await stran.click('button:has-text("Vnesi potrjene")');
   await stran.waitForTimeout(600);
   const vrstica = await stran.$(`.wardTable tbody tr:has-text("${oseba}")`);
-  const vrednosti = await vrstica.$$eval("input", e => e.map(x => x.value));
-  trdi(vrednosti[dan] === sifra,
-    `${oseba} ima zdaj ${datum} v mreži izmeno "${sifra}" (dobil: "${vrednosti[dan]}")`);
+  const vrednosti = await vrstica.$$eval("select.celicaIzmena", e => e.map(x => x.value));
+  trdi(vrednosti[dan] === pricakovanaKratica,
+    `${oseba} ima zdaj ${datum} v mreži izmeno "${pricakovanaKratica}" (dobil: "${vrednosti[dan]}")`);
   const poVnosu = await stran.$$eval(".card label",
     e => e.map(x => x.textContent).filter(t => /→/.test(t)));
   trdi(poVnosu.length === postavke.length - 1,

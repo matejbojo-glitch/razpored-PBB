@@ -109,7 +109,9 @@ try {
   await stran.goto(`http://127.0.0.1:${VRATA}/admin.html?tab=nzv&pod=vodje&mesec=2026-10`, { waitUntil: "load" });
   await stran.waitForSelector("#vmonth", { timeout: 15000 });
   trdi(await stran.$eval("#vmonth", e => e.value) === "2026-10", "mesec je oktober 2026");
-  await stran.click("text=Izračunaj zasedenost");
+  // Gumb se je septembra 2026 poenotil z oddelčnim generatorjem: oba se
+  // odslej imenujeta "⚡ Generiraj takoj".
+  await stran.click('button.genBtn:has-text("Generiraj takoj")');
   await stran.waitForSelector(".wardTable tbody tr", { timeout: 15000 });
   trdi((await stran.$$(".wardTable tbody tr")).length === 31, "mreža ima vseh 31 dni oktobra");
 
