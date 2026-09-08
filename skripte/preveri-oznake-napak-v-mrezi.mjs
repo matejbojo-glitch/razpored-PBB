@@ -135,11 +135,16 @@ try {
     "lebdenje pove natančno besedilo napake");
 
   console.log("3) celica prizadetega zaposlenega je označena");
-  const celice = await stran.$$eval(".wardTable td.opozorjena", e => e.map(x => ({
-    kljuc: x.getAttribute("data-celica") || "",
-    obroba: (x.querySelector("input") || {}).style ? x.querySelector("input").style.border : "",
-    naslov: (x.querySelector("input") || {}).title || "",
-  })));
+  // Obroba je na ovoju celice, namig pa na sami celici (<td>) - v celici
+  // je od septembra 2026 izbirnik iz uradne legende, ne prosto besedilo.
+  const celice = await stran.$$eval(".wardTable td.opozorjena", e => e.map(x => {
+    const ovoj = x.querySelector(".celicaOvoj") || x.firstElementChild;
+    return {
+      kljuc: x.getAttribute("data-celica") || "",
+      obroba: ovoj && ovoj.style ? ovoj.style.border : "",
+      naslov: x.getAttribute("title") || "",
+    };
+  }));
   trdi(celice.length > 0, "vsaj ena celica je označena (" + celice.length + ")");
   trdi(celice.every(c => c.kljuc.endsWith("|" + DAN)),
     "vse označene celice so na " + DAN + " (" + celice.map(c => c.kljuc).join(", ") + ")");

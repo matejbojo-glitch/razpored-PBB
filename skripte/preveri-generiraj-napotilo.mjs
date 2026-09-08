@@ -84,10 +84,12 @@ console.log("3) neveljavne vrednosti pomenijo 'privzeto', ne napake");
 eq(beri("?tab=izmisljen&oddelek=C1"),
   { tab: null, oddelek: "C1", pod: null, mesec: null },
   "neznan zavihek se zavrže, oddelek ostane");
-// Ključno: FLEXI in NZV NISTA oddelka rotacijskega generatorja (WARDS_META
-// jih ne pozna). Če bi se prepustila naprej, bi Kalup zavihek generiral
-// prazen ali napačen mesec namesto da ostane pri privzetem oddelku.
-eq(beri("?tab=kalup&oddelek=FLEXI").oddelek, null, "FLEXI ni oddelek generatorja rotacije");
+// FLEXI je september 2026 vstopil v izbirnik oddelkov (WARDS_META), zato
+// je od tedaj veljavno napotilo. NZV pa ostaja zunaj: to ni oddelek
+// rotacijskega generatorja, ampak svoj zavihek. Če bi se prepustil naprej,
+// bi Kalup zavihek generiral prazen ali napačen mesec namesto da ostane
+// pri privzetem oddelku.
+eq(beri("?tab=kalup&oddelek=FLEXI").oddelek, "FLEXI", "FLEXI je oddelek generatorja");
 eq(beri("?tab=kalup&oddelek=NZV").oddelek, null, "NZV ni oddelek generatorja rotacije");
 eq(beri("?tab=kalup&oddelek=XYZ").oddelek, null, "izmišljena koda oddelka se zavrže");
 eq(beri("?tab=nzv&pod=nekaj").pod, null, "neznan podzavihek se zavrže");

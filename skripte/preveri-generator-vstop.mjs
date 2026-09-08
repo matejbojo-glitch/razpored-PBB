@@ -144,20 +144,26 @@ try {
   const vrhGumba = await stran.$eval('.orodjaVrh button', e => Math.round(e.getBoundingClientRect().bottom));
   trdi(vrhGumba < 700, `nadzorna vrstica je na prvem zaslonu (${vrhGumba} px < 700)`);
 
-  console.log("3) izbirnik ponuja tudi NZV in dežurstva");
+  console.log("3) izbirnik ponuja samo prave oddelke – NZV ima svoj zavihek");
+  // Do septembra 2026 sta bili "NZV – vodstvena pokritost" in "NZV –
+  // dežurstva" v tem izbirniku kot navidezna oddelka, ki sta ob izbiri samo
+  // preklopila drugam. Izbirnik je s tem obljubljal dvoje, česar ta zavihek
+  // ne zna narediti (druga pravila, druga mreža, drug rezultat); oboje je
+  // zdaj izključno na zavihku NZV.
   const moznosti = await stran.$$eval("#odd option", e => e.map(x => x.value));
-  trdi(moznosti.includes("NZV:vodje"), "NZV – vodstvena pokritost je med možnostmi");
-  trdi(moznosti.includes("NZV:dez"), "NZV – dežurstva prav tako");
-  trdi(moznosti.includes("B") && moznosti.includes("C1"), "oddelki ostanejo: " + moznosti.join(", "));
-  // Izbira NZV mora RES preklopiti na NZV generator, ne le spremeniti napis.
-  await stran.selectOption("#odd", "NZV:dez");
+  trdi(!moznosti.some(v => v.indexOf("NZV") === 0),
+    "NZV ni več navidezni oddelek v izbirniku: " + moznosti.join(", "));
+  trdi(moznosti.includes("B") && moznosti.includes("C1") && moznosti.includes("FLEXI"),
+    "oddelki in FLEXI ostanejo: " + moznosti.join(", "));
+  // Dežurstva morajo biti dosegljiva – le na svojem mestu.
+  await stran.click('.tabs [role="tab"]:text-is("NZV")');
   await stran.waitForTimeout(1200);
   const poIzbiri = await stran.$eval('.tabs [role="tab"][aria-selected="true"]', e => e.textContent.trim());
-  eq(poIzbiri, "NZV", "izbira NZV preklopi na zavihek NZV");
-  const podzavihek = await stran.$eval('.tabs [role="tab"][aria-selected="true"] ~ *, div.tabs:nth-of-type(2) [role="tab"][aria-selected="true"]',
-    e => e.textContent.trim()).catch(() => null);
+  eq(poIzbiri, "NZV", "zavihek NZV se odpre");
+  await stran.click('[role="tab"]:text-is("Dežurstva")');
+  await stran.waitForTimeout(600);
   const podzavihki = await stran.$$eval('[role="tab"]', e => e.filter(x => x.getAttribute("aria-selected") === "true").map(x => x.textContent.trim()));
-  trdi(podzavihki.includes("Dežurstva"), "in odpre podzavihek Dežurstva: " + podzavihki.join(" | "));
+  trdi(podzavihki.includes("Dežurstva"), "in v njem podzavihek Dežurstva: " + podzavihki.join(" | "));
 
   console.log("4) gumb »nazaj« vrne na prejšnji zavihek, ne s strani ven");
   trdi(/[?&]tab=nzv/.test(stran.url()), "zavihek je zapisan v naslovu: " + stran.url());

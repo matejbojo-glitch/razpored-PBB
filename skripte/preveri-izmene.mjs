@@ -205,9 +205,20 @@ console.log("6) pravilo uporabljajo VSI zasloni, ne le eden");
   trdi(/const legendaIzmen = useMemo/.test(index),
     "Po oddelkih: legenda pod tabelo je izpeljana iz izmen tega meseca");
 
-  // Generator mora ostati na SVOJI razvrstitvi.
-  trdi(/const classify = window\.Izmene\.skupinaGeneratorja;/.test(admin),
-    "admin.html uporablja generatorsko razvrstitev, ne splošne");
+  // Mreža generatorja riše barvo in kratico iz iste uradne legende kot
+  // Razpredelnica (september 2026). Prej je barvala po grobi skupini
+  // razredčeni na 20 %, zato sta bila DOP in DO4 ista bleda zelena, DEŽ in
+  // LD pa sta se ločila samo po besedilu.
+  trdi(/window\.Izmene\.barva\(sifra\)/.test(admin),
+    "Generator: barva celice je iz uradne legende");
+  trdi(/window\.Izmene\.kratica\(sifra\)/.test(admin),
+    "Generator: v celici je kratica iz uradne legende");
+  // Generatorska razvrstitev (drugačna od splošne: DEŽ in vodstvena
+  // prisotnost ne štejeta k oddelčni zasedbi) mora ostati v jedru, ki po
+  // njej razporeja - drugače bi se je ne dalo uveljaviti nikjer.
+  const jedro = readFileSync(join(koren, "generator-core.js"), "utf8");
+  trdi(/I\.skupinaGeneratorja\(sifra\)/.test(jedro),
+    "generator-core.js uporablja generatorsko razvrstitev");
   trdi(/const classify = window\.Izmene\.skupina;/.test(index),
     "index.html uporablja splošno razvrstitev");
 }
