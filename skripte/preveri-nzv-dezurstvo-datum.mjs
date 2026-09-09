@@ -24,6 +24,13 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
+// najdiZamikStolpcev je vzet iz PRAVEGA import-utils.js in ne podtaknjen:
+// zaznava zamika stolpcev (zavihki se ne začnejo v stolpcu A) je bistvo tega,
+// kar obdelajNzvVrstice počne z vrsticami.
+const _oknoIU = {};
+new Function("window", readFileSync(join(koren, "import-utils.js"), "utf8"))(_oknoIU);
+const praviIU = _oknoIU.ImportUtils;
+
 
 // EN sam vm kontekst za VSE (XLSX + izvlečene funkcije iz obeh datotek) -
 // ločeni konteksti bi imeli vsak svoj "Date" konstruktor, kar bi
@@ -123,6 +130,7 @@ sandbox.window = {
       if (m) { const [, d, mo, y] = m; return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`; }
       return t;
     },
+    najdiZamikStolpcev: praviIU.najdiZamikStolpcev,
   },
 };
 vm.runInContext(indexKoda, sandbox);

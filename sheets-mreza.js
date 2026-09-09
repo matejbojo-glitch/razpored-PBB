@@ -26,9 +26,10 @@ window.SheetsMreza = (function () {
     return !vrstica || vrstica.length === 0 || vrstica.every(c => (c == null ? "" : String(c)).trim() === "");
   }
 
-  function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obdelajVrstico, stanje){
+  function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obdelajVrstico, stanje, zamik){
+    zamik = zamik || 0;
     const glavaIdx = poisciGlavo(vrsteVrstic, i);
-    const glava = glavaIdx != null ? vrsteVrstic[glavaIdx].slice(offset) : [];
+    const glava = glavaIdx != null ? vrsteVrstic[glavaIdx].slice(zamik + offset) : [];
     let j = i, praznihZapored = 0;
     while (j < vrsteVrstic.length) {
       if (vrsticaJePrazna(vrsteVrstic[j])) {
@@ -36,7 +37,7 @@ window.SheetsMreza = (function () {
         j++; continue;
       }
       praznihZapored = 0;
-      const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[j][0]);
+      const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[j][zamik]);
       if (!ISO_DATUM_RX.test(datum)) break;
       if (datum >= startISO && datum <= endISO) {
         stanje.najdenDatum = true;
@@ -47,11 +48,12 @@ window.SheetsMreza = (function () {
     return j;
   }
 
-  function najdiVrsticoImen(vrsteVrstic, zacetekBloka){
+  function najdiVrsticoImen(vrsteVrstic, zacetekBloka, zamik){
+    zamik = zamik || 0;
     for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
       const vrstica = vrsteVrstic[i] || [];
-      if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null;
-      const celica = (vrstica[2] || "").trim();
+      if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[zamik]))) return null;
+      const celica = (vrstica[zamik + 2] || "").trim();
       if (!celica) continue;
       if (VLOGA_RX.test(celica)) continue;
       return i;
@@ -81,17 +83,22 @@ window.SheetsMreza = (function () {
     const neujemanja = new Set();
     podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
     const stanje = { najdenDatum: false, najdenaGlava: false };
+    // Zavihek se ne začne nujno v stolpcu A - glej ImportUtils.najdiZamikStolpcev.
+    // Brez tega ta funkcija na pravem dokumentu ni našla nobenega datuma in
+    // je "Zapiši nazaj v Sheets" vedno končal z napako.
+    const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
     let i = 0;
     while (i < vrsteVrstic.length) {
-      const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]);
+      const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[zamik]);
       if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
       i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum, j) => {
         imena.forEach((ime, idx) => {
           const z = poKratkem[window.Parafa.kratkoKljuc(ime)];
           if (!z) { if (ime) neujemanja.add(ime); return; }
-          posodobitve.push({ vrstica: j, stolpec: 2 + idx, vrednost: vrednostZa(z.ime, datum) });
+          // "stolpec" je prava številka stolpca v LISTU (od A), zato zamik.
+          posodobitve.push({ vrstica: j, stolpec: zamik + 2 + idx, vrednost: vrednostZa(z.ime, datum) });
         });
-      }, stanje);
+      }, stanje, zamik);
     }
     return { posodobitve, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava, neujemanja };
   }

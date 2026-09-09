@@ -34,6 +34,14 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
+// najdiZamikStolpcev je vzet iz PRAVEGA import-utils.js in ne podtaknjen:
+// zaznava zamika stolpcev (zavihki se ne začnejo v stolpcu A) je bistvo tega,
+// kar te funkcije počnejo z vrsticami, ponaredek pa bi lahko potrdil nekaj,
+// česar aplikacija ne zna.
+const _oknoIU = {};
+new Function("window", readFileSync(join(koren, "import-utils.js"), "utf8"))(_oknoIU);
+const praviIU = _oknoIU.ImportUtils;
+
 const html = readFileSync(join(koren, "index.html"), "utf8");
 
 function izvleci(ime) {
@@ -119,7 +127,7 @@ const koda = [
 // nadomestka (ImportUtils) se zato prestavi naravnost v sandbox.
 const sandbox = { console };
 sandbox.window = sandbox;
-sandbox.ImportUtils = { normalizirajDatum };
+sandbox.ImportUtils = { normalizirajDatum, najdiZamikStolpcev: praviIU.najdiZamikStolpcev };
 vm.createContext(sandbox);
 vm.runInContext(koda, sandbox);
 const { obdelajNzvVrstice } = sandbox;

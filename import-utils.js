@@ -537,5 +537,37 @@ window.ImportUtils = (function () {
   // isto in da se ne razide s tem, kar preberiDatoteko dejansko zna.
   const PODPRTE_PRIPONE = ".csv,.txt,.xlsx,.xls,.xlsb,.json,.jsonl,.gsheet,.pdf";
 
-  return { preberiDatoteko, preberiVseListe, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, pdfKoscjiVTabelo, PODPRTE_PRIPONE };
+  // Zavihki uradnih predlog se NE začnejo v stolpcu A: "B" ima datum v
+  // stolpcu C, "E1" prav tako, ostali v B. Ali se to vidi, je odvisno od
+  // tega, KDO je list prebral:
+  //   - nalaganje .xlsx (SheetJS) reže na !ref, zato datum pride na indeks 0
+  //     in trdno zapisana ničla je delovala;
+  //   - Google Sheets API (values.get z obsegom od A1) vrne prazne vodilne
+  //     celice, zato je datum na indeksu 1 ali 2.
+  // Posledica je bila, da "Zapiši nazaj v Sheets" na pravem dokumentu ni
+  // našel NOBENEGA datuma in je vedno končal z napako "ni najdenih vrstic".
+  //
+  // Zamika ne ugibamo iz imena zavihka (ta se lahko preimenuje in vrstni red
+  // stolpcev se lahko spremeni), ampak ga IZMERIMO: poiščemo stolpec, v
+  // katerem je največ celic videti kot datum. Kadar datuma ni nikjer, vrnemo
+  // 0 - klicatelj se takrat obnaša natanko tako kot doslej.
+  function najdiZamikStolpcev(vrsteVrstic, najvecStolpcev){
+    var meja = najvecStolpcev || 8;
+    var poStolpcu = [];
+    (vrsteVrstic || []).forEach(function (vrstica) {
+      if (!vrstica) return;
+      for (var k = 0; k < meja && k < vrstica.length; k++) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(normalizirajDatum(vrstica[k]))) {
+          poStolpcu[k] = (poStolpcu[k] || 0) + 1;
+        }
+      }
+    });
+    var najboljsi = 0, najvec = 0;
+    for (var k = 0; k < meja; k++) {
+      if ((poStolpcu[k] || 0) > najvec) { najvec = poStolpcu[k]; najboljsi = k; }
+    }
+    return najvec > 0 ? najboljsi : 0;
+  }
+
+  return { preberiDatoteko, preberiVseListe, preberiGoogleSheet, vVrsticeObjekte, vVrsticeObjekteGlave, csvBesedilaVVrstice, normalizirajDatum, jsonVVrstice, pdfKoscjiVTabelo, PODPRTE_PRIPONE, najdiZamikStolpcev };
 })();

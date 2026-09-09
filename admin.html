@@ -4176,6 +4176,102 @@ const STALNI_ADMINI = ["ALUKIĆ DINO", "BOJIĆ MATEJ", "DŽAMASTAGIĆ DENIS"];
 // vidno, kdo ima povišane pravice.
 const VLOGA_NAZIV = { user: "Zaposleni", vodja: "Vodja", admin: "Administrator" };
 
+// Povezani Google listi. Doslej je povezava do dokumenta živela v
+// brskalniku posamezne osebe (localStorage "kalup-sheets-url-<oddelek>"):
+// druga oseba na drugem računalniku je ni videla, ob čiščenju brskalnika je
+// izginila, in nikjer ni bilo zapisano, KATERI zavihek pripada kateremu
+// oddelku. Zdaj je to v bazi (supabase/sheets-povezave.sql), tu pa se
+// vklaplja in izklaplja.
+//
+// Zakaj tudi tu in ne samo v SQL: vklop in izklop se med uvajanjem delata
+// pogosto, odpiranje SQL urejevalnika za vsak preklop pa je nesorazmerno.
+// Dodajanje NOVE povezave ostane v SQL - tam se vpiše enkrat.
+function PovezaniListi(){
+  const [vrstice, setVrstice] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [delam, setDelam] = useState(null);
+
+  const nalozi = () => {
+    client.from("sheet_connections").select("*").order("skupina")
+      .then(({ data, error }) => {
+        if (error) { setNapaka(error.message || String(error)); setVrstice([]); return; }
+        setNapaka(null); setVrstice(data || []);
+      });
+  };
+  useEffect(nalozi, []);
+
+  const preklopi = async (v, polje) => {
+    setDelam(v.id + polje); setNapaka(null);
+    try {
+      const { error } = await client.from("sheet_connections")
+        .update({ [polje]: !v[polje] }).eq("id", v.id);
+      if (error) throw error;
+      // Preberi znova iz baze in ne ugibaj: če je pisanje zavrnila politika
+      // RLS, mora ostati prikazano staro stanje in ne želeno.
+      nalozi();
+    } catch (e) { setNapaka(e.message || String(e)); }
+    finally { setDelam(null); }
+  };
+
+  const Stikalo = ({ v, polje, naslov }) => (
+    <label className="sStikalom" title={naslov} style={{gap:6, minHeight:0}}>
+      <input type="checkbox" className="stikalo" role="switch"
+        aria-checked={!!v[polje]} checked={!!v[polje]}
+        disabled={delam === v.id + polje}
+        onChange={() => preklopi(v, polje)} />
+    </label>
+  );
+
+  return (
+    <div>
+      <h2 className="section">Povezani Google listi</h2>
+      <p className="hint">
+        Kateri zavihek katerega dokumenta pripada kateremu oddelku. <b>Privzeto je vse ugasnjeno</b> –
+        nova povezava ne začne pisati v uradni dokument, dokler je izrecno ne vklopiš.
+        Nove povezave se dodajo s <code>supabase/sheets-povezave.sql</code>.
+      </p>
+      {napaka && (
+        <p className="err">
+          Napaka: {napaka}
+          {/relation .*sheet_connections.* does not exist|schema cache/i.test(napaka)
+            ? " – najprej poženi supabase/sheets-povezave.sql." : ""}
+        </p>
+      )}
+      {vrstice === null ? <p className="hint">Nalagam …</p> : vrstice.length === 0 ? (
+        <p className="hint">Ni še nobene povezave. Dodaj jo s <code>supabase/sheets-povezave.sql</code>.</p>
+      ) : (
+        <div className="tableScroller">
+          <table className="fairTable">
+            <thead>
+              <tr>
+                <th>Oznaka</th><th>Skupina</th><th>Zavihek</th><th>Oblika</th>
+                <th title="Ali se povezava sploh upošteva">Aktivno</th>
+                <th title="Aplikacija piše v Sheets">Apl. → Sheets</th>
+                <th title="Sheets piše v aplikacijo">Sheets → apl.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vrstice.map(v => (
+                <tr key={v.id}>
+                  <td style={{textAlign:"left"}}>{v.oznaka}
+                    {v.opomba && <span className="hint" style={{display:"block", margin:0}}>{v.opomba}</span>}
+                  </td>
+                  <td>{v.skupina}</td>
+                  <td>{v.zavihek}</td>
+                  <td>{v.oblika}</td>
+                  <td><Stikalo v={v} polje="aktivno" naslov="Ali se povezava sploh upošteva" /></td>
+                  <td><Stikalo v={v} polje="app_v_sheets" naslov="Aplikacija piše v Sheets" /></td>
+                  <td><Stikalo v={v} polje="sheets_v_app" naslov="Sheets piše v aplikacijo" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
@@ -4348,6 +4444,8 @@ function UporabnikiTab(){
           </div>
         </div>
       ))}
+
+      <PovezaniListi />
     </div>
   );
 }

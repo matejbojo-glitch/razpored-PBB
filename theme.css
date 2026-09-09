@@ -663,6 +663,28 @@ footer.foot b{ color: var(--text); }
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
 
+/* ---------- preklopno stikalo (Menjave, Povezani listi) ---------- */
+/* Preklopno stikalo namesto potrditvenega polja. Ostaja pravi
+   <input type="checkbox"> - le narisan drugače: tipkovnica, bralnik
+   zaslona in oddaja obrazca delujejo naprej sami od sebe, česar
+   nadomestek iz <div>-ov ne bi zmogel. Stikalo pove trenutno STANJE
+   ("vklopljeno/izklopljeno"), kvadratek pa izbiro z seznama - tu gre za
+   prvo. */
+input.stikalo{ appearance:none; -webkit-appearance:none; margin:0; flex:0 0 auto;
+  width:46px; height:28px; border-radius:999px; background: var(--surface-2);
+  border:1px solid var(--line); position:relative; cursor:pointer;
+  transition: background var(--fast, .15s) ease, border-color var(--fast, .15s) ease; }
+input.stikalo::after{ content:""; position:absolute; top:2px; left:2px; width:22px; height:22px;
+  border-radius:50%; background: var(--muted);
+  transition: transform var(--fast, .15s) ease, background var(--fast, .15s) ease; }
+input.stikalo:checked{ background: rgba(var(--accent-rgb), .30); border-color: var(--accent); }
+input.stikalo:checked::after{ transform: translateX(18px); background: var(--accent); }
+input.stikalo:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+input.stikalo:disabled{ opacity:.5; cursor:not-allowed; }
+/* Vrstica s stikalom je v celoti tarča za prst, ne samo stikalo samo. */
+label.sStikalom{ display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
+
+
 /* Glava tabele se mora na tisku PONOVITI na vsaki novi strani - brez tega
    ima druga stran same številke brez naslovov stolpcev in razporeda ni
    mogoče brati. Velja za vse tabele, ne le za eno. */

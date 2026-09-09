@@ -24,6 +24,14 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
+// najdiZamikStolpcev je vzet iz PRAVEGA import-utils.js in ne podtaknjen:
+// zaznava zamika stolpcev (zavihki se ne začnejo v stolpcu A) je bistvo tega,
+// kar te funkcije počnejo z vrsticami, ponaredek pa bi lahko potrdil nekaj,
+// česar aplikacija ne zna.
+const _oknoIU = {};
+new Function("window", readFileSync(join(koren, "import-utils.js"), "utf8"))(_oknoIU);
+const praviIU = _oknoIU.ImportUtils;
+
 const koda = readFileSync(join(koren, "sheets-mreza.js"), "utf8");
 
 const napake = [];
@@ -44,7 +52,7 @@ function normalizirajDatum(s) {
   if (m) { const [, d, mo, y] = m; return `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`; }
   return t;
 }
-const sandbox = { window: { ImportUtils: { normalizirajDatum } }, console };
+const sandbox = { window: { ImportUtils: { normalizirajDatum, najdiZamikStolpcev: praviIU.najdiZamikStolpcev } }, console };
 vm.createContext(sandbox);
 // Kratka imena iz predlog gredo skozi skupno parafa.js (window.Parafa.
 // kratkoKljuc) - tam so uporabnikom potrjeni popravki zapisov, npr.
