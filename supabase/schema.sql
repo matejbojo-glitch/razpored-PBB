@@ -4467,3 +4467,34 @@ on conflict (employee_id, work_date) do update set
 -- Zaposlene oddelka A (npr. Vrevc Maja) in nosilca NZV zanj
 -- (Tomaževič Simona, enota "A") administrator nastavi v Imeniku oz. v
 -- Nadomeščanjih - to so podatki, ne shema.
+
+-- Povezani Google listi (glej supabase/sheets-povezave.sql). Stoji na KONCU
+-- datoteke, ker se primarni ključ tabele "profili" doda šele nekaj sto
+-- vrstic nižje - tuji ključ created_by prej ne more veljati ("there is no
+-- unique constraint matching given keys for referenced table profili").
+-- Tu zato, da
+-- baza, postavljena po tej datoteki, tabele ne pogreša - aplikacija jo bere
+-- v Generatorju (razdelek "Povezani Google listi").
+create table if not exists public.sheet_connections (
+  id              uuid primary key default gen_random_uuid(),
+  oznaka          text not null,
+  skupina         text not null,
+  spreadsheet_id  text not null,
+  zavihek         text not null,
+  gid             text,
+  oblika          text not null default 'oddelek',
+  app_v_sheets    boolean not null default false,
+  sheets_v_app    boolean not null default false,
+  aktivno         boolean not null default false,
+  opomba          text,
+  created_at      timestamptz not null default now(),
+  created_by      uuid references public.profili(id),
+  constraint sheet_connections_oblika_check check (oblika in ('oddelek','flexi','nzv')),
+  unique (spreadsheet_id, zavihek)
+);
+alter table public.sheet_connections enable row level security;
+drop policy if exists sheet_connections_admin on public.sheet_connections;
+create policy sheet_connections_admin on public.sheet_connections
+  for all to authenticated
+  using (public.current_role_is('admin'))
+  with check (public.current_role_is('admin'));

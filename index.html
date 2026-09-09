@@ -3648,11 +3648,12 @@ const VLOGA_RX = /SMS|DMS|TZN|DZN/i;
 // dni, ki spadajo v [startISO, endISO] - to deluje ENAKO za realno
 // večmesečno predlogo IN za enostavno enomesečno obliko, ki jo izvozi ta
 // aplikacija (glej pripraviIzvoz).
-function najdiVrsticoImen(vrsteVrstic, zacetekBloka){
+function najdiVrsticoImen(vrsteVrstic, zacetekBloka, zamik){
+  zamik = zamik || 0;
   for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
     const vrstica = vrsteVrstic[i] || [];
-    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null; // prejšnji blok - obupaj
-    const celica = (vrstica[2] || "").trim();
+    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[zamik]))) return null; // prejšnji blok - obupaj
+    const celica = (vrstica[zamik + 2] || "").trim();
     if (!celica) continue; // prazna vrstica (naslov meseca ima vsebino samo v stolpcu A, ne C) - išči višje
     if (VLOGA_RX.test(celica)) continue; // vrstica vloge (SMS/TZN …) - imena so še eno vrstico višje
     return i; // prva "navadna" vrstica z vsebino = imena
@@ -3685,9 +3686,10 @@ function vrsticaJePrazna(vrstica){
   return !vrstica || vrstica.length === 0 || vrstica.every(c => (c == null ? "" : String(c)).trim() === "");
 }
 
-function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obdelajVrstico, stanje){
-  const glavaIdx = poisciGlavo(vrsteVrstic, i);
-  const glava = glavaIdx != null ? vrsteVrstic[glavaIdx].slice(offset) : [];
+function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obdelajVrstico, stanje, zamik){
+  zamik = zamik || 0;
+  const glavaIdx = poisciGlavo(vrsteVrstic, i, zamik);
+  const glava = glavaIdx != null ? vrsteVrstic[glavaIdx].slice(zamik + offset) : [];
   let j = i, praznihZapored = 0;
   while (j < vrsteVrstic.length) {
     // Prazno vrstico preskoči (blok se še ne konča) - a ne v nedogled, da
@@ -3697,7 +3699,7 @@ function obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciGlavo, offset, obde
       j++; continue;
     }
     praznihZapored = 0;
-    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[j][0]);
+    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[j][zamik]);
     if (!ISO_DATUM_RX.test(datum)) break;
     if (datum >= startISO && datum <= endISO) {
       stanje.najdenDatum = true;
@@ -3752,15 +3754,20 @@ function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
   const zapisi = [];
   const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  // Zavihek se ne začne nujno v stolpcu A: pri branju prek Google Sheets API
+  // (in prek javnega CSV izvoza) pridejo vodilne prazne celice zraven, pri
+  // nalaganju .xlsx pa ne. Zamik se zato IZMERI - glej
+  // ImportUtils.najdiZamikStolpcev.
+  const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
-    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][0]);
+    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][zamik]);
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum) => {
       imena.forEach((ime, idx) => {
         const id = poKratkem[window.Parafa.kratkoKljuc(ime)];
         if (!id) { if (ime) neujemanja.add(ime); return; }
-        const sifra = (vrstica[2 + idx] || "").trim();
+        const sifra = (vrstica[zamik + 2 + idx] || "").trim();
         zapisi.push({ employee_id: id, department_code: wardCode, work_date: datum, shift_code: sifra === "Prosto" ? "" : sifra });
       });
     }, stanje);
@@ -3783,11 +3790,12 @@ function obdelajOddelekVrstice(vrsteVrstic, wardCode, ciljniMesec, poKratkem){
 // dveh je pravi, se uporabi PRVA (skrajno leva) pojavitev vsakega imena,
 // druga pa se tiho prezre - varnejše kot uganjevanje, kateri je pravi.
 const IME_S_PIKO_RX = /^\S.*\s[A-ZČŠŽĐĆ]\.\s*$/;
-function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka){
+function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka, zamik){
+  zamik = zamik || 0;
   for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
     const vrstica = vrsteVrstic[i] || [];
-    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null;
-    const imaIme = vrstica.some((c, idx) => idx >= 2 && IME_S_PIKO_RX.test((c || "").trim().toUpperCase()));
+    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[zamik]))) return null;
+    const imaIme = vrstica.some((c, idx) => idx >= zamik + 2 && IME_S_PIKO_RX.test((c || "").trim().toUpperCase()));
     if (!imaIme) continue;
     return i;
   }
@@ -3811,9 +3819,11 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
   const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
   let steviloDodatnih = 0;
+  // Zamik stolpcev - glej ImportUtils.najdiZamikStolpcev.
+  const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
-    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][0]);
+    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][zamik]);
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImenFlexi, 0, (vrstica, glavaVrstica, datum) => {
       const videneOsebe = new Set();
@@ -3848,7 +3858,7 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
           pokriva_oddelek: oddelek,
         });
       }
-    }, stanje);
+    }, stanje, zamik);
   }
   if (steviloDodatnih) {
     neujemanja.add(`stolpec "DODATNO C/E2 7-19" ni uvožen (${steviloDodatnih} celic) - je povzetek, ` +
@@ -3918,18 +3928,20 @@ function pripraviPosodobitveOddelka(vrsteVrstic, ciljniMesec, employees, byEmpDa
   const neujemanja = new Set();
   podvojena.forEach(k => neujemanja.add(k + " (ujema se z več osebami - uredi ročno)"));
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  // Zamik stolpcev - glej ImportUtils.najdiZamikStolpcev.
+  const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
-    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]);
+    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[zamik]);
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImen, 2, (vrstica, imena, datum, j) => {
       imena.forEach((ime, idx) => {
         const z = poKratkem[window.Parafa.kratkoKljuc(ime)];
         if (!z) { if (ime) neujemanja.add(ime); return; }
         const trenutna = byEmpDate[z.id + "|" + datum] || "";
-        posodobitve.push({ vrstica: j, stolpec: 2 + idx, vrednost: trenutna });
+        posodobitve.push({ vrstica: j, stolpec: zamik + 2 + idx, vrednost: trenutna });
       });
-    }, stanje);
+    }, stanje, zamik);
   }
   return { posodobitve, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava, neujemanja };
 }
@@ -3998,13 +4010,14 @@ function nzvNazivVKodoNorm(){
 // vrstica ali podatkovna vrstica tega pogoja ne izpolni.
 const NZV_GLAVA_NAJVEC_NAZAJ = 8;
 const NZV_GLAVA_NAJMANJ_ZADETKOV = 2;
-function poisciEnoteNzv(vrsteVrstic, zacetekBloka){
+function poisciEnoteNzv(vrsteVrstic, zacetekBloka, zamik){
+  zamik = zamik || 0;
   const nazivVKodo = nzvNazivVKodoNorm();
   for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < NZV_GLAVA_NAJVEC_NAZAJ; i--, korakov++) {
     const vrstica = vrsteVrstic[i] || [];
     // Nad nami je že prejšnji mesečni blok - glave tega bloka ni.
-    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[0]))) return null;
-    const zadetki = vrstica.slice(1).filter(c => nazivVKodo[nzvKljucGlave(c)]).length;
+    if (ISO_DATUM_RX.test(window.ImportUtils.normalizirajDatum(vrstica[zamik]))) return null;
+    const zadetki = vrstica.slice(zamik + 1).filter(c => nazivVKodo[nzvKljucGlave(c)]).length;
     if (zadetki >= NZV_GLAVA_NAJMANJ_ZADETKOV) return i;
   }
   return null;
@@ -4161,15 +4174,17 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
   const dopusti = [];
   const neujemanja = new Set();
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  // Zamik stolpcev - glej ImportUtils.najdiZamikStolpcev.
+  const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
-    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][0]);
+    const datum = window.ImportUtils.normalizirajDatum(vrsteVrstic[i][zamik]);
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum) => {
       stolpci.forEach((naziv, idx) => {
         const virKoda = nazivVKodo[nzvKljucGlave(naziv)];
         if (!virKoda) return;
-        const vsebina = (vrstica[1 + idx] || "").trim();
+        const vsebina = (vrstica[zamik + 1 + idx] || "").trim();
         if (!vsebina) return;
         if (virKoda in NZV_ODSOTNOST_KIND) {
           vsebina.split(",").map(s => s.trim()).filter(Boolean).forEach(parafa => {
@@ -4196,7 +4211,7 @@ function obdelajNzvVrstice(vrsteVrstic, ciljniMesec, poParafi, myId, profili){
                         shift_code: sifra, stolpec: virKoda });
         });
       });
-    }, stanje);
+    }, stanje, zamik);
   }
   return { zapisi: zdruziNzvZapise(zapisi), dopusti, neujemanja,
            najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
@@ -4432,9 +4447,11 @@ function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
   const nazivVKodo = nzvNazivVKodoNorm();
   const posodobitve = [];
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  // Zamik stolpcev - glej ImportUtils.najdiZamikStolpcev.
+  const zamik = window.ImportUtils.najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
-    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[0]);
+    const datum = window.ImportUtils.normalizirajDatum((vrsteVrstic[i] || [])[zamik]);
     if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
     i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum, j) => {
       stolpci.forEach((naziv, idx) => {
@@ -4442,7 +4459,7 @@ function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
         if (!koda) return;
         posodobitve.push({ vrstica: j, stolpec: 1 + idx, vrednost: podatki[koda + "|" + datum] || "" });
       });
-    }, stanje);
+    }, stanje, zamik);
   }
   return { posodobitve, najdenDatum: stanje.najdenDatum, najdenaGlava: stanje.najdenaGlava };
 }

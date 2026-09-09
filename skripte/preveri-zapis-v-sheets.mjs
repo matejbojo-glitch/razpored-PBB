@@ -23,6 +23,9 @@ import { dirname, join } from "node:path";
 import vm from "node:vm";
 
 const koren = join(dirname(fileURLToPath(import.meta.url)), "..");
+const oknoIU = {};
+new Function("window", readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "import-utils.js"), "utf8"))(oknoIU);
+const praviImportUtils = oknoIU.ImportUtils;
 const html = readFileSync(join(koren, "index.html"), "utf8");
 
 function izvleci(ime) {
@@ -68,7 +71,11 @@ const koda = [
 ].join("\n\n");
 
 const sandbox = {
-  window: { ImportUtils: { normalizirajDatum: normalizirajDatum } },
+  // najdiZamikStolpcev ni podtaknjen, ampak vzet iz PRAVEGA import-utils.js:
+  // zaznava zamika stolpcev je bistvo tega, kar preizkus meri, in ponaredek
+  // bi lahko potrdil nekaj, česar aplikacija ne zna.
+  window: { ImportUtils: { normalizirajDatum: normalizirajDatum,
+                           najdiZamikStolpcev: praviImportUtils.najdiZamikStolpcev } },
   console,
 };
 // Ista normalizacija kot v pravi import-utils.js (glej tam), tu ročno
@@ -163,6 +170,30 @@ console.log("3) oseba, ki v listu nima svojega stolpca");
   const { posodobitve, neujemanja } = pripraviPosodobitveOddelka(vrsteVrstic, "2026-06", brezEnega, byEmpDate);
   trdi(!posodobitve.some(p => p.stolpec === 5 /* ZEKAN A. stolpec */), "za osebo brez ustreznega imena v aplikaciji se ne piše nič");
   trdi(neujemanja.has("ZEKAN A."), "ZEKAN A. (v listu, a ne v seznamu zaposlenih klica) je javljen kot neujemanje, ne napaka");
+}
+
+console.log("4) zavihek, ki se ne začne v stolpcu A (Google Sheets API vrne vodilne prazne celice)");
+{
+  // NAJPOMEMBNEJŠI primer: zavihek "B" v pravi predlogi ima datum v stolpcu
+  // C, "E1" prav tako. Nalaganje .xlsx tega ne pokaže (SheetJS reže na
+  // !ref), Google Sheets API pa vrne vrstice OD STOLPCA A, s praznimi
+  // vodilnimi celicami. Dokler je bil stolpec z datumom trdno zapisan kot
+  // prvi, "Zapiši nazaj v Sheets" na takem dokumentu ni našel nobenega
+  // datuma in je vedno končal z napako - torej ni deloval NIKOLI.
+  const zamaknjeno = vrsteVrstic.map(v => (v.length ? ["", "", ...v] : v));
+  const { posodobitve, najdenDatum, najdenaGlava } =
+    pripraviPosodobitveOddelka(zamaknjeno, "2026-06", zaposleni, byEmpDate);
+  trdi(najdenDatum, "datum se najde tudi, kadar sta pred njim dva prazna stolpca");
+  trdi(najdenaGlava, "in glava z imeni prav tako");
+  trdi(posodobitve.length > 0, "pripravi se vsaj ena posodobitev (" + posodobitve.length + ")");
+
+  // Ključno: stolpec mora biti PRAVI stolpec v listu, ne relativni odmik -
+  // sicer bi se pisalo dva stolpca preveč levo, torej čez tuje celice.
+  const brezZamika = pripraviPosodobitveOddelka(vrsteVrstic, "2026-06", zaposleni, byEmpDate).posodobitve;
+  const paribrez = brezZamika.map(p => p.vrstica + ":" + p.stolpec + ":" + p.vrednost).sort();
+  const pari = posodobitve.map(p => p.vrstica + ":" + (p.stolpec - 2) + ":" + p.vrednost).sort();
+  trdi(JSON.stringify(pari) === JSON.stringify(paribrez),
+    "vsebina je enaka kot brez zamika, stolpci pa so premaknjeni za 2 v desno");
 }
 
 console.log("");
