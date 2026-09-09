@@ -57,8 +57,9 @@ create policy sheet_connections_admin on public.sheet_connections
   with check (public.current_role_is('admin'));
 
 -- 3) Zavihki dokumenta "2026 SMS RAZPORED" -------------------------------
--- Zamenjaj <SPREADSHEET_ID> z ID-jem iz naslova dokumenta:
---   docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit#gid=...
+-- ID dokumenta "2026 SMS RAZPORED" je že vpisan. Za DRUG dokument ga vzemi
+-- iz njegovega naslova - to je niz med "/d/" in "/edit":
+--   docs.google.com/spreadsheets/d/<TU_JE_ID>/edit#gid=...
 --
 -- Odkomentiran je SAMO oddelek B - pilotni oddelek (razdelek 8 načrta).
 -- Ostale odkomentiraj šele, ko bo pilot tekel brez pripomb.
@@ -67,17 +68,17 @@ create policy sheet_connections_admin on public.sheet_connections
 -- ne povozi nastavitev, ki jih je nekdo medtem vklopil v aplikaciji.
 
 insert into public.sheet_connections (oznaka, skupina, spreadsheet_id, zavihek, oblika, opomba)
-values ('2026 SMS RAZPORED – B', 'B', '<SPREADSHEET_ID>', 'B', 'oddelek',
+values ('2026 SMS RAZPORED – B', 'B', '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'B', 'oddelek',
         'Pilotni oddelek. Datum je v stolpcu C, podatki se začnejo v vrstici 2.')
 on conflict (spreadsheet_id, zavihek) do nothing;
 
 -- insert into public.sheet_connections (oznaka, skupina, spreadsheet_id, zavihek, oblika, opomba)
--- values ('2026 SMS RAZPORED – C',    'C',    '<SPREADSHEET_ID>', 'C',    'oddelek', 'Dva bloka drug ob drugem.'),
---        ('2026 SMS RAZPORED – C1',   'C1',   '<SPREADSHEET_ID>', 'C1',   'oddelek', 'En blok, datum v stolpcu B.'),
---        ('2026 SMS RAZPORED – D',    'D',    '<SPREADSHEET_ID>', 'D',    'oddelek', 'En blok, brez FLEXI parov.'),
---        ('2026 SMS RAZPORED – E1',   'E1',   '<SPREADSHEET_ID>', 'E1',   'oddelek', 'Dva bloka, datum v stolpcu C.'),
---        ('2026 SMS RAZPORED – E2',   'E2',   '<SPREADSHEET_ID>', 'E2',   'oddelek', 'Dva bloka.'),
---        ('2026 SMS RAZPORED – FLEXI','FLEXI','<SPREADSHEET_ID>', 'FLEXI','flexi',   'Pari stolpcev (oddelek + izmena) na osebo.')
+-- values ('2026 SMS RAZPORED – C',    'C',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C',    'oddelek', 'Dva bloka drug ob drugem.'),
+--        ('2026 SMS RAZPORED – C1',   'C1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C1',   'oddelek', 'En blok, datum v stolpcu B.'),
+--        ('2026 SMS RAZPORED – D',    'D',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'D',    'oddelek', 'En blok, brez FLEXI parov.'),
+--        ('2026 SMS RAZPORED – E1',   'E1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E1',   'oddelek', 'Dva bloka, datum v stolpcu C.'),
+--        ('2026 SMS RAZPORED – E2',   'E2',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E2',   'oddelek', 'Dva bloka.'),
+--        ('2026 SMS RAZPORED – FLEXI','FLEXI','1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'FLEXI','flexi',   'Pari stolpcev (oddelek + izmena) na osebo.')
 -- on conflict (spreadsheet_id, zavihek) do nothing;
 
 -- 4) Preverjanje ---------------------------------------------------------
