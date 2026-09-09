@@ -150,6 +150,18 @@
     }
     .wardScroller.kompakt.nzv table.wardTable th,
     .wardScroller.kompakt.nzv table.wardTable td{ padding:1px; }
+    /* Enote imajo SPODNJO mejo širine, tabela pa se ravna po vsebini.
+       Z "width:100%" se tabela ne bi mogla razširiti čez okvir, zato se
+       pomanjšava ne bi nikoli vklopila - stolpci bi se le ožili in dvojna
+       parafa ("BIZ MAVRI") bi se odrezala sredi besede. Tako pa mreža po
+       potrebi preraste okvir, pomanjšava jo stisne kot celoto in besedilo
+       ostane celo, le manjše. 46 px je najožje, kar dvojna parafa pri 10 px
+       še potrebuje. */
+    .wardScroller.kompakt.nzv table.wardTable{ width:max-content; min-width:100%; }
+    .wardScroller.kompakt.nzv table.wardTable th:not(.name):not(:last-child),
+    .wardScroller.kompakt.nzv table.wardTable td:not(.name):not(:last-child){
+      width:46px; min-width:46px;
+    }
     .wardScroller.kompakt.nzv table.wardTable thead th{ font-size:9px; letter-spacing:-.02em; }
     /* Zadnji stolpec (opombe) je edini, ki se sme raztegniti; brez zgornje
        meje bi si vzel vso rezervo in stisnil parafe. */
@@ -4092,7 +4104,12 @@ function VodjeTab({ zacetniMesec }){
                           style={{width:"100%", minWidth:26, textAlign:"center",
                             background: predlog ? "rgba(var(--predlog-rgb),.22)"
                               : (celica(dn,k) ? "rgba(var(--accent-rgb),.18)" : "transparent"),
-                            border: predlog ? "2px solid var(--predlog-tekst)" : "1px solid var(--line)",
+                            // 1,5 px namesto 2: v stisnjeni celici (pri 22
+                            // enotah je široka okrog 55 px) 2px obroba pojé
+                            // toliko prostora, da se dvojna parafa ("BIZ
+                            // MAVRI") ne izpiše do konca. Rumena še vedno
+                            // izstopa - nosi jo tudi pisava.
+                            border: predlog ? "1.5px solid var(--predlog-tekst)" : "1px solid var(--line)",
                             color: predlog ? "var(--predlog-tekst)" : undefined,
                             fontWeight: predlog ? 800 : undefined,
                             cursor: predlog ? "pointer" : undefined,
