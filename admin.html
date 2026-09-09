@@ -96,6 +96,14 @@
   table.wardTable thead th.name{ z-index:3; background:var(--surface-2); }
   .swatch{ display:inline-block; padding:3px 6px; border-radius:6px; font-size:10.5px; font-weight:700; }
 
+  /* Pas nad zaklenjeno mrežo. Rumen in ne rdeč: objava ni napaka, je
+     mejnik - rdeča je v tej mreži rezervirana za nepokrite izmene. */
+  .zaklenjenPas{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px;
+    padding:10px 12px; font-size:12.5px; border-radius: var(--radius-sm);
+    background: rgba(201,148,47,.14); border:1px solid #C9942F; color: var(--text); }
+  .zaklenjenPas .ikona{ font-size:15px; }
+  .zaklenjenPas > span:nth-child(2){ flex:1 1 260px; }
+
   /* ---------- kompaktna mreža: cel mesec v širino enega zaslona ----------
      Doslej je imela mreža "width:max-content" (theme.css) in je pri 31 dneh
      zrasla čez okvir, koordinator pa je moral vodoravno drsati in je pri
@@ -495,6 +503,29 @@ async function obvestiOObjavi(rows, deptCode){
   }
 }
 
+// Objava gre v Supabase po KOSIH in ne v enem samem zahtevku. Mesec za
+// oddelek z dvajsetimi zaposlenimi je okrog 620 vrstic, NZV z več enotami
+// na osebo pa še bistveno več; en tako velik upsert zna pri slabši povezavi
+// preseči časovno omejitev in takrat ne uspe NIČ - koordinator vidi napako
+// in ne ve, kaj je objavljeno. Po kosih se v najslabšem primeru ponovi en
+// kos, ne cela objava.
+//
+// "naNapako" je izhod v sili za primer, ko baza celega kosa ne sprejme
+// zaradi manjkajočega stolpca: vrne popravljene vrstice za en sam ponovni
+// poskus, ali null, če pomoči ni.
+const KOS_OBJAVE = 100;
+async function upsertRazporedVKosih(vrstice, naNapako){
+  for (let i = 0; i < vrstice.length; i += KOS_OBJAVE) {
+    const kos = vrstice.slice(i, i + KOS_OBJAVE);
+    let { error } = await client.from("razpored").upsert(kos, { onConflict: "employee_id,work_date" });
+    if (error && naNapako) {
+      const ponovi = naNapako(error, kos);
+      if (ponovi) ({ error } = await client.from("razpored").upsert(ponovi, { onConflict: "employee_id,work_date" }));
+    }
+    if (error) throw error;
+  }
+}
+
 async function publishScheduleRows(deptCode, rows){
   const imena = [...new Set(rows.map(r => r.ime))];
   // Osebo poišči prek skupnega kazala (matična številka, ime kot rezerva
@@ -510,10 +541,7 @@ async function publishScheduleRows(deptCode, rows){
   const vrstice = rows.filter(r => byIme[r.ime]).map(r => ({
     employee_id: byIme[r.ime].id, department_code: deptCode, work_date: r.datum, shift_code: r.sifra || "",
   }));
-  if (vrstice.length > 0){
-    const { error } = await client.from("razpored").upsert(vrstice, { onConflict: "employee_id,work_date" });
-    if (error) throw error;
-  }
+  if (vrstice.length > 0) await upsertRazporedVKosih(vrstice);
   // POZOR: samo med ljudmi IZ TEGA RAZPOREDA. Poizvedba zgoraj zdaj vrne
   // vse profile (iskanje po imenu je preseljeno v kazalo), zato bi
   // filtriranje čez "profili" oddelek nastavilo vsem v bolnišnici.
@@ -578,18 +606,14 @@ async function publishLeadScheduleRows(rows){
       // in ne zasede mesta enote.
       stolpec: r.jeEnota ? r.stolpec : undefined,
     })));
-  if (vrstice.length > 0){
-    let { error } = await client.from("razpored").upsert(vrstice, { onConflict: "employee_id,work_date" });
-    // Če stolpec pokriva_oddelek v bazi še ne obstaja (supabase/
-    // dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne CEL
-    // upsert. To ne sme pomeniti, da objava sploh ne dela: shrani brez
-    // tega polja (ena enota na osebo/dan, kot je bilo doslej).
-    if (error && /pokriva_oddelek/i.test((error.message || "") + (error.details || ""))) {
-      const brez = vrstice.map(({ pokriva_oddelek, ...ostalo }) => ostalo);
-      ({ error } = await client.from("razpored").upsert(brez, { onConflict: "employee_id,work_date" }));
-    }
-    if (error) throw error;
-  }
+  // Če stolpec pokriva_oddelek v bazi še ne obstaja (supabase/
+  // dodaj-pokriva-oddelek.sql še ni bil pognan), Postgres zavrne cel kos.
+  // To ne sme pomeniti, da objava sploh ne dela: shrani brez tega polja
+  // (ena enota na osebo/dan, kot je bilo doslej).
+  if (vrstice.length > 0) await upsertRazporedVKosih(vrstice, (error, kos) =>
+    /pokriva_oddelek/i.test((error.message || "") + (error.details || ""))
+      ? kos.map(({ pokriva_oddelek, ...ostalo }) => ostalo)
+      : null);
   const obvestilaNapaka = vrstice.length > 0 ? await obvestiOObjavi(rows, null) : null;
   return { objavljeno: vrstice.length, manjkajo, obvestilaNapaka };
 }
@@ -1964,6 +1988,15 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [rezultat, setRezultat] = useState(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  // Objavljen razpored je zaklenjen: mreža postane samo za branje in
+  // generiranje se izklopi. Objava je trenutek, ko razpored začne veljati
+  // za ljudi - nadaljnje tipkanje v isto mrežo bi tiho ustvarilo drugo
+  // resnico od tiste, ki so jo zaposleni že videli.
+  //
+  // Ključavnica ima namenoma tudi odklep. Modul za menjave, prek katerega
+  // naj bi šle poznejše spremembe, še ne obstaja; brez odklepa bi bil
+  // koordinator ob prvi napaki po objavi brez izhoda.
+  const [zaklenjeno, setZaklenjeno] = useState(false);
   const [kvoteUvozMsg, setKvoteUvozMsg] = useState(null);
   const [kvoteUvozBusy, setKvoteUvozBusy] = useState(false);
   const kvoteFileRef = useRef();
@@ -2164,6 +2197,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         pricakovanoPoDnevih[dn.datum] = Object.values(dn.izmene).filter(v => v && v !== "LD").length;
       });
       setRezultat({ koda, naziv: meta.naziv, mesec: month, dnevi: res.dnevi, opozorila: res.opozorila, staff: staffList.map(([ime]) => ({ime, vloga:"SMS / TZN"})), pricakovanoPoDnevih });
+      setZaklenjeno(false);   // sveže generirano še ni objavljeno
       setPredlogiVrzeli(null);
       setPotrjeneVrzeli({});
       setPopravki({});
@@ -2487,9 +2521,21 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
 
   const objavi = async () => {
     if (!rezultat) return;
+    // Kritične napake pred objavo: nepokrite izmene in kritične
+    // delovnopravne kršitve. Objava se ne prepove - koordinator jih včasih
+    // zavestno objavi in reši ročno - a se ne sme zgoditi tiho.
+    const kriticnih = krsitve.filter(k => k.resnost === "kriticno").length;
+    if (vrzeliMreze.length || kriticnih) {
+      const opis = [
+        vrzeliMreze.length ? vrzeliMreze.length + " nepokritih izmen" : null,
+        kriticnih ? kriticnih + " kritičnih delovnopravnih kršitev" : null,
+      ].filter(Boolean).join(" in ");
+      if (!window.confirm("Razpored ima " + opis + ".\n\nV mreži so označene rdeče. Vseeno objavim?")) return;
+    }
     setPublishBusy(true); setPublishMsg(null);
     try {
       const { objavljeno, manjkajo, oddelekNapaka, obvestilaNapaka } = await publishScheduleRows(rezultat.koda, mrezaVrstice());
+      setZaklenjeno(true);
       setPublishMsg({ ok:true, text: `Objavljeno ${objavljeno} vnosov v Supabase.` + (manjkajo.length ? ` Brez računa (preskočeno): ${manjkajo.join(", ")}.` : "") + (oddelekNapaka ? ` Opozorilo: samodejna nastavitev oddelka ni uspela (${oddelekNapaka}).` : "") + (obvestilaNapaka ? ` Opozorilo: obvestila zaposlenim niso bila poslana (${obvestilaNapaka}).` : "") });
     } catch (e) {
       setPublishMsg({ ok:false, text: e.message || String(e) });
@@ -2612,7 +2658,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
               česar ta zavihek ne zna narediti (druga pravila, drug rezultat,
               druga mreža). Oboje ima zdaj svoje mesto na zavihku NZV in tu
               ne nastopa več. */}
-          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); }}>
+          <select id="odd" value={koda} onChange={e => { setKoda(e.target.value); setRezultat(null); setZaklenjeno(false); }}>
             {/* Naziv v WARDS_META se že začne s kodo ("B – oddelek"), zato
                 je bila koda tu izpisana dvakrat: "B – B – oddelek". */}
             {Object.keys(WARDS_META).map(k => <option key={k} value={k}>{WARDS_META[k].naziv}</option>)}
@@ -2620,9 +2666,11 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         </div>
         <div className="field">
           <label htmlFor="mm">Mesec in leto</label>
-          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); setCrkePredlog(null); }} />
+          <input id="mm" type="month" value={month} onChange={e => { setMonth(e.target.value); setRezultat(null); setCrkePredlog(null); setZaklenjeno(false); }} />
         </div>
-        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj} disabled={genBusy || !staffList}>
+        <button className="genBtn" style={{marginTop:0, flex:"0 0 auto"}} onClick={generiraj}
+          disabled={genBusy || !staffList || zaklenjeno}
+          title={zaklenjeno ? "Razpored je objavljen in zaklenjen – najprej ga odkleni." : undefined}>
           {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
         </button>
         {/* Urejanje OBJAVLJENEGA razporeda je od septembra 2026 dosegljivo
@@ -2641,7 +2689,9 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
             preveri (statistika, kršitve, vrzeli) in po potrebi popravi,
             objava pa ostane ločena odločitev. */}
         <button className="dlBtn" type="button" style={{marginTop:0, flex:"0 0 auto"}}
-          disabled={uvozBusy} onClick={() => razporedFileRef.current && razporedFileRef.current.click()}>
+          disabled={uvozBusy || zaklenjeno}
+          title={zaklenjeno ? "Razpored je objavljen in zaklenjen – najprej ga odkleni." : undefined}
+          onClick={() => razporedFileRef.current && razporedFileRef.current.click()}>
           {uvozBusy ? "Berem …" : "📂 Naloži razpored iz datoteke"}
         </button>
         <input ref={razporedFileRef} type="file" accept=".json,.csv,.txt,.xlsx,.xls,.xlsb"
@@ -2662,6 +2712,22 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
 
       {rezultat ? (
         <React.Fragment>
+          {/* Objavljen razpored je zaklenjen. Pas to pove z besedami in
+              ponudi odklep - brez njega bi bil koordinator ob napaki,
+              opaženi po objavi, brez izhoda (modula za menjave še ni). */}
+          {zaklenjeno && (
+            <div className="zaklenjenPas no-print">
+              <span className="ikona" aria-hidden="true">🔒</span>
+              <span>
+                <b>Objavljeno in zaklenjeno.</b> Mreža je samo za branje, generiranje je izklopljeno –
+                razpored že velja za zaposlene. Poznejše spremembe naj gredo prek menjav.
+              </span>
+              <button type="button" className="btn btn-sm" onClick={() => setZaklenjeno(false)}>
+                Odkleni za popravek
+              </button>
+            </div>
+          )}
+
           {/* 2 · Statusni trak: števci nepokritih izmen, kršitev in
               omejitev; podrobnosti se odprejo šele ob kliku. */}
           <StatusTrak rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
@@ -2745,7 +2811,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
                           <div className="celicaOvoj"
                             style={{background: barva, color: window.Izmene.barvaBesedila(barva), border: obroba}}>
                             <span aria-hidden="true">{kratica}</span>
-                            <select className="celicaIzmena" value={kratica}
+                            <select className="celicaIzmena" value={kratica} disabled={zaklenjeno}
                               aria-label={z.ime + ", " + window.Datum.slo(dn.datum) + " – izmena"}
                               onChange={e => {
                                 const k = e.target.value;
@@ -2852,7 +2918,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           <Zlozljivo naslov="🧩 Predlagaj mesec (zapolni vrzeli)"
             opis="Za vsako nepokrito izmeno predlaga osebo – vpiše se šele po potrditvi">
             <div className="card no-print">
-              <button className="btn" onClick={predlagajVrzeli}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
+              <button className="btn" onClick={predlagajVrzeli} disabled={zaklenjeno}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
               <p className="hint" style={{margin:"8px 0 0"}}>
                 Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
                 Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
@@ -3933,12 +3999,19 @@ function VodjeTab({ zacetniMesec }){
                     <td className="name">{window.Datum.slo(dn.datum)} {dn.dan}</td>
                     {stolpciPrikaz.map(k => (
                       <td key={k}>
+                        {/* Predlog (npr. "BOJ?") ni razpored, ampak vprašanje
+                            koordinatorju - dokler ga ne potrdi, se ne objavi.
+                            Zato izstopa močneje od vpisane celice: 2px rumena
+                            obroba, rumena krepka pisava in vprašaj, ki ostane
+                            v besedilu. Vpisana celica ima svojo mirno modro. */}
                         <input type="text" value={celica(dn, k)} onChange={e => nastaviPopravek(dn, k, e.target.value)}
                           title={dn.predlogCelice[k] ? "Predlog nadomeščanja – objavi se šele po potrditvi zgoraj" : undefined}
                           style={{width:44, textAlign:"center",
-                            background: dn.predlogCelice[k] ? "rgba(var(--predlog-rgb),.55)"
+                            background: dn.predlogCelice[k] ? "rgba(var(--predlog-rgb),.22)"
                               : (celica(dn,k) ? "rgba(var(--accent-rgb),.18)" : "transparent"),
-                            border: dn.predlogCelice[k] ? "1px solid var(--accent)" : "1px solid var(--line)",
+                            border: dn.predlogCelice[k] ? "2px solid var(--predlog-tekst)" : "1px solid var(--line)",
+                            color: dn.predlogCelice[k] ? "var(--predlog-tekst)" : undefined,
+                            fontWeight: dn.predlogCelice[k] ? 800 : undefined,
                             borderRadius:6, fontSize:11, padding:"3px 2px"}} />
                       </td>
                     ))}

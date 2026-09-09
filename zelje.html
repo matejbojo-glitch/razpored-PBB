@@ -91,10 +91,17 @@
 
   .penRow{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
   .penHint{ font-size:12px; color:var(--muted); margin-right:2px; }
-  .penBtn{ display:flex; align-items:center; gap:6px; border:1.5px solid var(--line); background:var(--surface);
-    border-radius:999px; padding:6px 12px 6px 8px; cursor:pointer; font-size:12.5px; font-weight:700; color:var(--text); }
-  .penBtn.active{ border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(167,148,72,.22); }
-  .penSwatch{ width:14px; height:14px; border-radius:5px; display:inline-block; border:1px solid rgba(0,0,0,.12); }
+  /* Peresa se uporabljajo s prstom: razpredelnica se barva na telefonu, ne
+     z miško. 44px je najmanjša tarča, ki jo je s prstom še mogoče
+     zanesljivo zadeti - prej je gumb meril 30px in se je ob hitrem barvanju
+     zgrešil, kar je vpisalo napačno barvo v napačen dan. */
+  .penBtn{ display:flex; align-items:center; gap:7px; border:1.5px solid var(--line); background:var(--surface);
+    border-radius:999px; padding:8px 14px 8px 10px; min-height:44px; cursor:pointer;
+    font-size:13px; font-weight:700; color:var(--text); touch-action:manipulation; }
+  /* Izbrano pero mora biti razpoznavno z enim pogledom - obroč je zato
+     debelejši od obrobe sosednjih gumbov, ne le druge barve. */
+  .penBtn.active{ border-color:var(--accent-2); box-shadow:0 0 0 4px rgba(167,148,72,.30); }
+  .penSwatch{ width:18px; height:18px; border-radius:6px; display:inline-block; border:1px solid rgba(0,0,0,.12); }
   .penBtn.eraser .penSwatch{ background:repeating-linear-gradient(45deg,#fff,#fff 3px,#eee 3px,#eee 6px); }
 
   .monthRow{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
@@ -123,7 +130,15 @@
   table.grid tbody tr:nth-child(even) th.nm{ background:var(--surface-2); }
   table.grid tbody tr:nth-child(even) td.tot{ background:var(--surface-2); }
   table.grid td.cell{ width:24px; height:22px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); cursor:pointer; }
-  table.grid td.cell:hover{ outline:2px solid var(--accent-2); outline-offset:-2px; }
+  /* Obris ob prehodu miške je pripomoček za miško. Na dotik ga brskalnik
+     obdrži tudi po dvigu prsta ("lepljivi hover") in razpredelnica ostane
+     posejana z obrisi po celicah, ki jih uporabnik sploh ne ureja več.
+     Zato samo tam, kjer kazalec res obstaja; na dotik odzivnost prevzame
+     :active, ki se pokaže ob pritisku in takoj ugasne. */
+  @media (hover: hover){
+    table.grid td.cell:hover{ outline:2px solid var(--accent-2); outline-offset:-2px; }
+  }
+  table.grid td.cell:active{ outline:3px solid var(--accent-2); outline-offset:-3px; }
   table.grid td.tot{ text-align:center; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line); }
 
   table.grid tr.oddGroup th.oddGroupLbl{ position:sticky; left:0; top:44px; z-index:4; background:var(--surface-2);

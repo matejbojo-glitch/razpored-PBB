@@ -1742,7 +1742,7 @@ const KIND_KRATICA = { ld: "LD", bs: "BS", sti: "STI", kro: "KRO", omejitev: nul
 //   2. IZPELJANA parafa - oseba nima izrecno nastavljene, zato se vzame
 //      prve tri črke priimka. Prav to je najpogostejši vir trkov (dva
 //      Pogačnika -> oba "POG").
-function ParafePregled({ osebe }){
+function ParafePregled({ osebe, myRole, onSpremenjeno }){
   // Parafa je vezana na DATUM razporeda (prenova z veljavnostjo od
   // 1.10.2026), ne na današnji dan - zato izbirnik meseca: pri uvozu
   // starejšega meseca velja stara parafa.
@@ -1756,6 +1756,33 @@ function ParafePregled({ osebe }){
   }, [osebe, mesec]);
   const trki = useMemo(() => window.Parafa.trki(osebe || [], mesec), [osebe, mesec]);
   const trkKljuci = Object.keys(trki);
+
+  // Trk se razreši tako, da eni od oseb spremeniš parafo. Doslej je bilo
+  // treba za to odpreti profil vsake osebe posebej - pregled je torej
+  // pokazal težavo, popraviti pa je ni bilo mogoče tam, kjer se vidi.
+  // Zdaj se vrednost ureja kar v vrstici; vidi in ureja jo samo admin,
+  // ker profile ureja samo on.
+  const smemUrejati = myRole === "admin";
+  const [urejam, setUrejam] = useState(null);   // id osebe v urejanju
+  const [osnutek, setOsnutek] = useState("");
+  const [shranjujem, setShranjujem] = useState(false);
+  const [napaka, setNapaka] = useState(null);
+
+  const zacniUrejanje = (oseba, trenutna) => {
+    setNapaka(null); setUrejam(oseba.id); setOsnutek(trenutna || "");
+  };
+  const shrani = async (oseba) => {
+    const vrednost = osnutek.trim().toUpperCase() || null;
+    setShranjujem(true); setNapaka(null);
+    try {
+      const { error } = await client.from("profili").update({ parafa: vrednost }).eq("id", oseba.id);
+      if (error) throw error;
+      setUrejam(null);
+      if (onSpremenjeno) onSpremenjeno();   // seznam se prebere znova, trki se preračunajo
+    } catch (e) {
+      setNapaka((e && e.message) || String(e));
+    } finally { setShranjujem(false); }
+  };
 
   return (
     <React.Fragment>
@@ -1788,20 +1815,58 @@ function ParafePregled({ osebe }){
       )}
 
       <div className="card" style={{padding:0}}>
-        {vrstice.map(({ oseba, parafa, izpeljana }) => (
-          <div key={oseba.id} style={{display:"flex", alignItems:"center", gap:12, padding:"9px 14px",
-            borderBottom:"1px solid var(--line)"}}>
-            <span style={{
-              fontWeight:800, fontVariantNumeric:"tabular-nums", minWidth:52,
-              color: trki[parafa.toUpperCase()] ? "var(--danger)" : "var(--text)",
-            }}>{parafa}</span>
-            <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-              {oseba.full_name}
-            </span>
-            {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena – izpeljana iz priimka">izpeljana</span>}
-            {trki[parafa.toUpperCase()] && <span className="pill danger">trk</span>}
-          </div>
-        ))}
+        {vrstice.map(({ oseba, parafa, izpeljana }) => {
+          const jeTrk = !!trki[parafa.toUpperCase()];
+          const vUrejanju = urejam === oseba.id;
+          return (
+            <div key={oseba.id} style={{display:"flex", alignItems:"center", gap:12, padding:"9px 14px",
+              borderBottom:"1px solid var(--line)",
+              // Vrstica s trkom je obarvana v celoti, ne le besedilo parafe:
+              // pri dolgem seznamu se posamezna rdeča beseda spregleda.
+              background: jeTrk ? "var(--danger-bg)" : "transparent"}}>
+              {vUrejanju ? (
+                <React.Fragment>
+                  <input type="text" value={osnutek} maxLength={4} autoFocus
+                    aria-label={"Parafa – " + oseba.full_name}
+                    onChange={e => setOsnutek(e.target.value.toUpperCase())}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") shrani(oseba);
+                      if (e.key === "Escape") setUrejam(null);
+                    }}
+                    style={{width:64, minHeight:40, textAlign:"center", fontWeight:800,
+                      textTransform:"uppercase", borderRadius:8, border:"1px solid var(--line)",
+                      background:"var(--surface)", color:"var(--text)"}} />
+                  <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                    {oseba.full_name}
+                  </span>
+                  <button className="btn btn-sm" disabled={shranjujem} onClick={() => shrani(oseba)}>
+                    {shranjujem ? "Shranjujem …" : "Shrani"}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={shranjujem} onClick={() => setUrejam(null)}>
+                    Prekliči
+                  </button>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <span style={{
+                    fontWeight:800, fontVariantNumeric:"tabular-nums", minWidth:52,
+                    color: jeTrk ? "var(--danger)" : "var(--text)",
+                  }}>{parafa}</span>
+                  <span style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                    {oseba.full_name}
+                  </span>
+                  {izpeljana && <span className="pill muted" title="Ni izrecno nastavljena – izpeljana iz priimka">izpeljana</span>}
+                  {jeTrk && <span className="pill danger">trk</span>}
+                  {smemUrejati && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => zacniUrejanje(oseba, parafa)}
+                      title="Spremeni parafo tukaj, brez odpiranja profila">✎</button>
+                  )}
+                </React.Fragment>
+              )}
+            </div>
+          );
+        })}
+        {napaka && <p className="err" style={{margin:"10px 14px"}}>{napaka}</p>}
       </div>
     </React.Fragment>
   );
@@ -1968,7 +2033,8 @@ function App(){
         </React.Fragment>
       )}
 
-      {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} />}
+      {!odprtId && pogled === "parafe" && <ParafePregled osebe={osebe} myRole={myRole}
+        onSpremenjeno={() => setReloadKey(k => k+1)} />}
 
       <footer className="foot no-print">
         <p><b>Imenik.</b> Klik na osebo kjerkoli v aplikaciji te pripelje sem, na njen profil. E-pošto lahko kopiraš z gumbom, na telefonsko številko pa klikneš za klic.</p>

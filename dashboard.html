@@ -58,7 +58,25 @@
   table.fair td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
   table.fair tr.top td{ background: rgba(var(--danger-rgb),0.08); }
   table.fair tr.bottom td{ background: rgba(var(--ok-rgb),0.08); }
-  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px; min-width:60px; }
+  /* max-width:100% je nujen, ker vrstica napredka stoji v celici, ki se ob
+     dolgem imenu razširi - brez tega je grafikon silil tabelo v širino in
+     s tem v vodoravno drsenje. */
+  .bar{ height:6px; border-radius:3px; background: var(--surface-2); overflow:hidden; margin-top:4px;
+    min-width:60px; max-width:100%; }
+
+  /* Preglednica stanja dopusta (table.roster) je bila v tej datoteki brez
+     sloga - slog zanjo je živel samo v admin.html, kjer je enaka tabela.
+     Tu je zato dobila privzeti videz brez obrob in brez lepljive glave.
+     Na telefonu se je pri drsenju v desno izgubilo, čigava vrstica je
+     katera, zato sta prvi stolpec in glava lepljiva. */
+  table.roster{ width:100%; border-collapse:separate; border-spacing:0; margin-top:10px; font-size:13px; }
+  table.roster th{ text-align:left; color:var(--muted); font-weight:700; font-size:11px; text-transform:uppercase;
+    padding:6px 8px; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:2;
+    background: var(--surface-2); white-space:nowrap; }
+  table.roster td{ padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.roster th:first-child, table.roster td:first-child{ position:sticky; left:0; z-index:1;
+    background: var(--surface); max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  table.roster th:first-child{ z-index:3; background: var(--surface-2); }
   .bar i{ display:block; height:100%; background: var(--accent); }
   .bar.cool i{ background: var(--cool); }
   .num{ font-variant-numeric: tabular-nums; font-weight:700; }

@@ -560,7 +560,12 @@
 // v160: Prost dan se preverja po KOLEDARSKEM TEDNU (PON-NED) in ne več
 // po dolžini niza. Spremenjen je delovni-cas.js (vse tri kopije), ki je
 // cache-first, zato dvig.
-const CACHE = 'razpored-pbb-v160';
+// v161: objava v kosih po 100 vrstic in zaklep objavljene mreže; močnejša
+// rumena za predloge NZV; večje tarče peres v Željah; lepljiv prvi
+// stolpec v preglednici dopusta; urejanje paraf na mestu v Imeniku.
+// Spremenjeni so admin.html, zelje.html, imenik.html, dashboard.html in
+// theme.css - vsi cache-first, zato dvig.
+const CACHE = 'razpored-pbb-v161';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
