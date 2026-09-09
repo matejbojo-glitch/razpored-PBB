@@ -166,3 +166,144 @@ narobe, a to je ročno dejanje, ne gumb v tej aplikaciji). Priporočam:
 naredi kopijo dokumenta (File → Make a copy), preizkusi "Zapiši nazaj" na
 kopiji in preveri, da so se spremenile TOČNO prave celice, šele nato uporabi
 na pravem dokumentu.
+
+---
+
+# Samodejna sinhronizacija v obe smeri
+
+Vse zgoraj ostane, kot je: nalaganje datoteke in gumba »Uvozi« / »Zapiši
+nazaj v Sheets« so še naprej na voljo in so rezerva, kadar sinhronizacija
+ne teče ali kadar dokument ni povezan.
+
+Ta razdelek opisuje **samodejno** pot: kar se spremeni v aplikaciji, se
+samo od sebe zapiše v Google list, in obratno. Koda je pripravljena; spodaj
+so koraki, ki jih **lahko narediš samo ti**, ker gre za tvoj Google račun in
+tvoje dokumente.
+
+Kaj je že narejeno in kaj ostane tebi:
+
+| | Kdo |
+|---|---|
+| tabele, vrsta, sprožilec, obe robni funkciji, skripta za dokument | narejeno |
+| storitveni račun v Google Cloud in ključ | **ti (A)** |
+| skrivnosti v Supabase | **ti (B)** |
+| zagon dveh SQL datotek | **ti (C)** |
+| deljenje dokumenta in skripta na njem | **ti (D), za vsak dokument posebej** |
+
+## A – enkrat: storitveni račun (Google Cloud Console)
+
+Storitveni račun je »robotski uporabnik«, s katerim aplikacija piše v
+dokument. Uporabnikov Google račun za to ni primeren, ker robna funkcija
+teče na strežniku, kjer se nihče ne more prijaviti.
+
+1. Odpri [console.cloud.google.com](https://console.cloud.google.com/) in
+   izberi **isti projekt** kot za OAuth Client ID iz koraka 1 zgoraj.
+2. **APIs & Services → Library → Google Sheets API → Enable**
+   (najbrž je že vklopljen – iz koraka 2 zgoraj).
+3. **IAM & Admin → Service Accounts → Create service account**
+   - ime: `razpored-sheets-sync`
+   - **vlog v projektu NE potrebuje** – korak »Grant this service account
+     access« preskoči s **Continue → Done**.
+4. Klikni novo ustvarjeni račun → zavihek **Keys → Add key → Create new key
+   → JSON → Create**. Prenese se datoteka `*.json`. **Hrani jo kot geslo** –
+   kdor jo ima, lahko piše v deljene dokumente.
+5. Zapiši si e-poštni naslov računa, oblike
+   `razpored-sheets-sync@<projekt>.iam.gserviceaccount.com` – potrebuješ ga
+   v koraku D.
+
+## B – enkrat: skrivnosti v Supabase
+
+Supabase → **Project Settings → Edge Functions → Secrets → Add new secret**:
+
+| Ime | Vrednost |
+|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | **cela vsebina** JSON datoteke iz A.4 (odpri jo z Beležnico, označi vse, kopiraj) |
+| `SHEETS_WEBHOOK_SECRET` | poljubno dolgo naključno geslo (npr. 40 znakov) |
+| `SHEETS_CRON_SECRET` | **drugo** naključno geslo |
+
+Ključ nikoli ne gre v repozitorij in nikoli v brskalnik – isti vzorec kot
+`VAPID_PRIVATE_KEY` pri potisnih obvestilih.
+
+Nato naloži obe funkciji (v terminalu, iz korena projekta):
+
+```
+supabase functions deploy sheets-izhod --no-verify-jwt
+supabase functions deploy sheets-vhod  --no-verify-jwt
+```
+
+`--no-verify-jwt` je obvezen: klicalca sta `pg_cron` in Google Apps Script,
+ki nimata prijavljenega uporabnika. Namesto tega vsak nosi svojo skrivnost
+(`x-cron-secret` oz. `x-sheets-secret`), brez katere funkcija vrne 401.
+
+## C – enkrat: SQL v Supabase
+
+Supabase → **SQL Editor → New query**, prilepi in poženi, po vrsti:
+
+1. `supabase/sheets-povezave.sql` – seznam povezanih listov (če si ga
+   pognal že prej, ga ni treba znova).
+2. `supabase/sheets-sinhronizacija.sql` – vrsta, napake, sprožilec.
+3. `supabase/sheets-urnik.sql` – **pred zagonom** v njem zamenjaj
+   `TU_VPISI_SHEETS_CRON_SECRET` z vrednostjo iz B.
+
+Vse tri so varne za večkraten zagon.
+
+## D – za VSAK dokument posebej (tudi vsak prihodnji)
+
+Googlov sprožilec je vezan na **en dokument**. Sprožilca, ki bi pokrival več
+dokumentov, ni mogoče sprogramirati – to je omejitev Googlove platforme, ne
+te aplikacije. Zato je ta korak treba ponoviti pri vsakem novem dokumentu.
+
+1. Odpri dokument → **Deli (Share)** → prilepi e-poštni naslov storitvenega
+   računa iz A.5 → izberi **Urejevalec (Editor)** → **odkljukaj
+   »Obvesti uporabnike«** → **Pošlji**.
+2. **Razširitve → Apps Script.**
+3. Vsebino `supabase/apps-script/sinhronizacija.gs` prilepi čez ves
+   `Code.gs` (staro vsebino izbriši).
+4. Na vrhu zamenjaj **dve vrstici**:
+   - `EDGE_URL` → `https://jlvorlzvbaugjfjaodwz.supabase.co/functions/v1/sheets-vhod`
+   - `SKRIVNOST` → vrednost `SHEETS_WEBHOOK_SECRET` iz B.
+5. Shrani (ikona diskete), nato v spustnem seznamu funkcij izberi
+   **`namestiSprozilce`** in klikni **Zaženi**.
+   - Ob prvem zagonu Google zahteva potrditev dovoljenj: **Advanced → Go to
+     … (unsafe) → Allow**. To je pričakovano, ker skript kliče zunanji
+     naslov. »Unsafe« pomeni samo, da skript ni prišel iz Googlove trgovine.
+6. Za preizkus izberi funkcijo **`preizkusiPovezavo`** in jo zaženi. Spodaj
+   se izpiše odgovor; `"vrsta":"brez_datuma"` ali `"nepovezan_zavihek"`
+   pomeni, da naslov in skrivnost delujeta (celica A1 pač ni celica
+   razporeda). `HTTP 401` pomeni napačno skrivnost.
+7. V aplikaciji: **Generator → Povezani Google listi** → dodaj zavihke tega
+   dokumenta in vklopi, kar želiš – ločeno za vsako smer.
+
+## Kaj vklopiti najprej
+
+Privzeto je **vse ugasnjeno**. Priporočen vrstni red:
+
+1. Naredi kopijo dokumenta (**Datoteka → Naredi kopijo**) in vse skupaj
+   preizkusi na kopiji.
+2. Na pravem dokumentu najprej **Datoteka → Zgodovina različic → Poimenuj
+   trenutno različico** (npr. »pred sinhronizacijo«) – to je povrnitvena
+   točka, neodvisna od aplikacije.
+3. Vklopi **en sam zavihek** (predlagano: `B`) in **eno smer**
+   (aplikacija → Sheets). Teden dni opazuj.
+4. Šele nato vklopi drugo smer in ostale zavihke.
+
+## Kje vidiš, da deluje
+
+- **Generator → Povezani Google listi** – kaj je vklopljeno.
+- **Nerešene napake sinhronizacije** – kar ni bilo mogoče enolično razbrati
+  (neznano ime, neznana koda izmene, celica zunaj bloka). Nič se ne popravi
+  samodejno in nič se ne zavrže tiho.
+- **Revizija** – spremembe, ki jih je prinesel Google list, imajo razlog
+  `sheets`; vidi se torej, da jih ni vpisal človek v aplikaciji.
+
+## Česa koda ne more narediti
+
+Piše se **samo v celice, ki jih uvoz tudi bere**. Vrstice, stolpca ali
+zavihka ne more dodati, preimenovati ali izbrisati, oblikovanja ne more
+spremeniti – uporabljata se izključno klica »preberi vrednosti« in »zapiši
+vrednosti«. To preverja preizkus `skripte/preveri-sheets-brez-postavitve.mjs`,
+ki pade, če bi kdo tak klic kasneje dodal.
+
+Oseba, ki v listu (še) nima svojega stolpca, in dan, ki ni v nobenem
+mesečnem bloku, se **ne zapišeta nikamor** – pojavita se med nerešenimi
+napakami.

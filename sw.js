@@ -595,7 +595,10 @@
 // sheets-mreza.js, index.html, admin.html, theme.css.
 // v173: polje "Razlog spremembe" ima svojo vrstico z vidno oznako - med
 // gumbi je bilo premalo opazno in je ob prvi uporabi ostalo prazno.
-const CACHE = 'razpored-pbb-v173';
+// v174: samodejna sinhronizacija z Google Sheets - razdelek "Nerešene
+// napake sinhronizacije" v Generatorju. Spremenjen je admin.html
+// (cache-first), zato dvig.
+const CACHE = 'razpored-pbb-v174';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

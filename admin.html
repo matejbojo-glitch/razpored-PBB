@@ -4272,6 +4272,102 @@ function PovezaniListi(){
   );
 }
 
+// Nerešene napake sinhronizacije z Google Sheets.
+//
+// Sinhronizacija nikoli ne ugiba: kar iz lista ni bilo mogoče enolično
+// razbrati (neznano ime v glavi stolpca, neznana koda izmene, urejena
+// celica zunaj mesečnega bloka), se NE zapiše in NE zavrže - pristane v
+// sync_errors in ostane tu vidno, dokler tega nekdo ne uredi. Isto načelo
+// kot poročilo "Brez ujemanja imena" po uvozu.
+const NAPAKA_OPIS = {
+  neznano_ime: "Ime v glavi stolpca se ne ujema z nobenim zaposlenim",
+  dvoumno_ime: "Kratko ime se ujema z več osebami",
+  neznana_koda: "Zapis v celici ni znana koda izmene",
+  brez_datuma: "Urejena vrstica ni znotraj mesečnega bloka",
+  nepovezan_zavihek: "Dokument ali zavihek ni med povezanimi listi",
+  brez_stolpca: "Oseba nima svojega stolpca v listu",
+  brez_vrstice: "Dneva ni v nobenem bloku zavihka",
+  zavihek_ni_najden: "Zavihek je preimenovan ali izbrisan",
+  nepodprta_oblika: "Ta oblika lista še ni podprta",
+  api: "Napaka pri klicu Google Sheets",
+};
+const SMER_OPIS = { app_v_sheets: "aplikacija → Sheets", sheets_v_app: "Sheets → aplikacija" };
+
+function NapakeSinhronizacije(){
+  const [vrstice, setVrstice] = useState(null);
+  const [napaka, setNapaka] = useState(null);
+  const [delam, setDelam] = useState(null);
+
+  const nalozi = () => {
+    client.from("sync_errors").select("*").eq("resen", false)
+      .order("ustvarjeno", { ascending: false }).limit(200)
+      .then(({ data, error }) => {
+        if (error) { setNapaka(error.message || String(error)); setVrstice([]); return; }
+        setNapaka(null); setVrstice(data || []);
+      });
+  };
+  useEffect(nalozi, []);
+
+  const resi = async (v) => {
+    setDelam(v.id); setNapaka(null);
+    try {
+      const { error } = await client.from("sync_errors").update({ resen: true }).eq("id", v.id);
+      if (error) throw error;
+      nalozi();
+    } catch (e) { setNapaka(e.message || String(e)); }
+    finally { setDelam(null); }
+  };
+
+  return (
+    <div style={{marginTop:24}}>
+      <h2 className="section">Nerešene napake sinhronizacije</h2>
+      <p className="hint">
+        Kar sinhronizacije ni bilo mogoče enolično razbrati. <b>Nič se ne popravi samodejno</b> in
+        nič se ne zavrže tiho – vsaka vrstica pove, katera celica in zakaj.
+        Ko zadevo urediš (v listu ali v Imeniku), jo tu označi za rešeno.
+      </p>
+      {napaka && (
+        <p className="err">
+          Napaka: {napaka}
+          {/relation .*sync_errors.* does not exist|schema cache/i.test(napaka)
+            ? " – najprej poženi supabase/sheets-sinhronizacija.sql." : ""}
+        </p>
+      )}
+      {vrstice === null ? <p className="hint">Nalagam …</p> : vrstice.length === 0 ? (
+        <p className="hint">Nerešenih napak ni.</p>
+      ) : (
+        <div className="tableScroller">
+          <table className="fairTable">
+            <thead>
+              <tr>
+                <th>Kdaj</th><th>Smer</th><th>Kaj</th><th>Zavihek</th><th>Dan</th>
+                <th style={{textAlign:"left"}}>Podrobnosti</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {vrstice.map(v => (
+                <tr key={v.id}>
+                  <td style={{whiteSpace:"nowrap"}}>{window.Datum.sloSCasom(v.ustvarjeno)}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{SMER_OPIS[v.smer] || v.smer}</td>
+                  <td>{NAPAKA_OPIS[v.vrsta] || v.vrsta}</td>
+                  <td>{v.zavihek || "–"}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{v.work_date ? window.Datum.slo(v.work_date) : "–"}</td>
+                  <td style={{textAlign:"left"}}>{v.podrobnosti}</td>
+                  <td>
+                    <button className="btn" disabled={delam === v.id} onClick={() => resi(v)}>
+                      {delam === v.id ? "…" : "Rešeno"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UporabnikiTab(){
   const [profili, setProfili] = useState(null);
   const [oddelki, setOddelki] = useState([]);
@@ -4446,6 +4542,7 @@ function UporabnikiTab(){
       ))}
 
       <PovezaniListi />
+      <NapakeSinhronizacije />
     </div>
   );
 }
