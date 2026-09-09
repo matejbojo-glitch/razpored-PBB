@@ -76,7 +76,7 @@ function prekopirajStaticnoOb() {
     "supabase-client.js", "push-client.js", "nav.js", "imena.js", "izmene.js", "oddelek-a.js", "dopust.js", "nazaj.js",
     "parafa.js", "prazniki.js", "nzv-zasedba.js", "datum.js", "print-fit.js",
     "import-utils.js", "delovni-cas.js", "export-utils.js", "gsheets-client.js",
-    "export-buttons.js", "dashboard-core.js", "generator-core.js",
+    "export-buttons.js", "dashboard-core.js", "generator-core.js", "statistika-core.js",
     "sheets-mreza.js", "oseba-vrstica.js", "razpored-oblike.js",
     "sw.js", "manifest.json", "icon-192.png", "icon-512.png", "logo-pbb.png",
     "dashboard-baseline.json", "data-november-2026.json", "data-oktober-2026.json",

@@ -551,7 +551,13 @@
 // razpored je odslej mogoče urejati tudi v Razporedu ("✎ Uredi razpored",
 // enako kot pri NZV). Spremenjeni so izmene.js, generator-core.js in
 // delovni-cas.js - vsi cache-first, zato dvig.
-const CACHE = 'razpored-pbb-v158';
+// v159: Statistika Generatorja je odslej stranski predal ČEZ mrežo
+// (lebdeči gumb spodaj desno z značko nerešenih opozoril) in ne več samo
+// svoja stran - koordinator med popravljanjem razporeda ne izgubi
+// konteksta. Števila se preračunajo ob vsaki spremembi celice in ob
+// razporedu, naloženem iz datoteke (JSON/CSV/Excel) naravnost v mrežo.
+// Nova datoteka statistika-core.js (cache-first), spremenjen admin.html.
+const CACHE = 'razpored-pbb-v159';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
@@ -571,6 +577,7 @@ const ASSETS = [
   './uvoz.html',
   './manifest.json',
   './generator-core.js',
+  './statistika-core.js',
   './dashboard-core.js',
   './dashboard-baseline.json',
   './icon-192.png',
