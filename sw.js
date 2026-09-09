@@ -580,7 +580,10 @@
 // da gre cel mesec na en zaslon brez drsenja. Spremenjen theme.css.
 // v167: mreža NZV v Generatorju - kompaktna in na en zaslon, predlog se
 // potrdi s klikom na celico. Spremenjen admin.html.
-const CACHE = 'razpored-pbb-v167';
+// v168: mreža NZV - enote imajo spodnjo mejo širine, da se pomanjšava
+// sploh lahko vklopi (sicer bi se stolpci le ožili in dvojna parafa bi
+// se odrezala); tanjša obroba predloga.
+const CACHE = 'razpored-pbb-v168';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
