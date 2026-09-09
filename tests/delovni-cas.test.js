@@ -209,6 +209,71 @@ describe("zaporedne nočne izmene", () => {
   });
 });
 
+describe("zaporedni delovni dnevi (prost dan)", () => {
+  // Meja je 7 dni (uporabnikova zahteva, september 2026): razpored, ki
+  // teče npr. od srede do naslednjega torka, je 7 delovnih dni zapored in
+  // NI napaka - kršitev je šele 8. zaporedni delovni dan. Prej je pravilo
+  // gledalo drseče okno 7 dni in je vsak tak niz javilo kot kritično
+  // kršitev, in to enkrat za vsako okno, ki ga je zajel; seznam napak je
+  // bil zato poln podvojenih vrstic ob povsem običajnem razporedu.
+  const prostDan = (vnosi) =>
+    preveriPravila(vnosi).filter((k) => k.vrsta === "prostDan");
+
+  // Niz n delovnih dni od 1. 11. 2026 naprej (nedelja) - namenoma tak, da
+  // gre čez konec tedna.
+  const niz = (n, od = 1, sifra = "Dopoldne") =>
+    Array.from({ length: n }, (_, i) => ({
+      oseba: "X",
+      datum: `2026-11-${String(od + i).padStart(2, "0")}`,
+      sifra,
+    }));
+
+  it("meja je nastavljena na 7 dni", () => {
+    expect(PRIVZETA_PRAVILA.maxZaporednihDelovnihDni).toBe(7);
+  });
+
+  it("7 zaporednih delovnih dni NI kršitev", () => {
+    expect(prostDan(niz(6))).toHaveLength(0);
+    expect(prostDan(niz(7))).toHaveLength(0);
+  });
+
+  it("8. zaporedni delovni dan je kritična kršitev", () => {
+    const k = prostDan(niz(8));
+    expect(k).toHaveLength(1);
+    expect(k[0].resnost).toBe("kriticno");
+    // Kršitev sedi na 8. dnevu - tam mora koordinator vstaviti prost dan.
+    expect(k[0].datum).toBe("2026-11-08");
+    expect(k[0].sporocilo).toContain("8 zaporednih delovnih dni");
+  });
+
+  it("daljši niz javi eno samo kršitev, ne ene na vsako okno", () => {
+    const k = prostDan(niz(14));
+    expect(k).toHaveLength(1);
+    expect(k[0].sporocilo).toContain("14 zaporednih delovnih dni");
+  });
+
+  it("niz se šteje čez konec tedna, ne po tednu PON-NE", () => {
+    // Sreda 4. 11. do srede 11. 11. = 8 dni čez nedeljo. Prav taki nizi se
+    // pri štetju po koledarskem tednu izmuznejo.
+    const k = prostDan(niz(8, 4));
+    expect(k).toHaveLength(1);
+    expect(k[0].datum).toBe("2026-11-11");
+  });
+
+  it("prost dan ali dopust vmes niz prekineta", () => {
+    expect(prostDan([...niz(7), ...niz(7, 9)])).toHaveLength(0);
+    const zDopustom = niz(10).map((v, i) => (i === 5 ? { ...v, sifra: "LD" } : v));
+    expect(prostDan(zDopustom)).toHaveLength(0);
+  });
+
+  it("izmena in dežurstvo istega dne sta en dan niza", () => {
+    // Dva vnosa za isti datum ne smeta niza prelomiti na dva krajša -
+    // sicer bi 8-dnevni niz z enim dežurstvom ostal neopažen.
+    const zDezurstvom = [...niz(8), { oseba: "X", datum: "2026-11-03", sifra: "DEŽURSTVO" }];
+    expect(prostDan(zDezurstvom)).toHaveLength(1);
+  });
+});
+
 describe("kanonični modul in njegovi kopiji ostajajo usklajeni", () => {
   // Robna funkcija "koledar" ne more uvoziti datoteke iz korena (deploy
   // naloži samo supabase/functions/), zato kopija mora obstajati. Če se

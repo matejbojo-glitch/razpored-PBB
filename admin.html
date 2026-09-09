@@ -1752,7 +1752,7 @@ function StatKartica({ lbl, vrednost, decimalke, enota, pod, ton }){
 // Stranski predal s statistiko. Odpre se ČEZ generator in ne namesto
 // njega: na širokem zaslonu ostane mreža vidna in klikljiva ob njem, zato
 // klik na nepokrit dan v seznamu spodaj osvetli stolpec v mreži.
-function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, poudari, poudarek }){
+function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaMinimume, poudari, poudarek }){
   const predalRef = useRef();
   // "zapri" je ob vsakem izrisu nova funkcija, zato NE sme biti med
   // odvisnostmi učinka: sicer bi se ta ob vsakem popravku celice pognal
@@ -1774,6 +1774,11 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, 
     };
   }, [odprto]);
 
+  // Značka na gumbu šteje nepokrite izmene IN kritične kršitve, zato
+  // morata biti v predalu vidna oba seznama - sicer številka na gumbu
+  // obljublja več, kot predal pokaže, in razliko je treba iskati v traku
+  // nad mrežo.
+  const kriticne = (krsitve || []).filter(k => k.resnost === "kriticno");
   const skupine = stat ? [
     { k:"dop", naziv:"Dopoldne" }, { k:"pop", naziv:"Popoldne" },
     { k:"noc", naziv:"Nočna" }, { k:"h12", naziv:"12-urne" }, { k:"dez", naziv:"Dežurstvo" },
@@ -1817,7 +1822,9 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, 
                     ? (stat.vrzeli.dni === 1 ? "na 1 dnevu" : `na ${stat.vrzeli.dni} dneh`)
                     : (imaMinimume ? "vse izmene dosegajo minimum" : "minimumi niso nastavljeni")} />
                 <StatKartica lbl="Delovne ure" vrednost={stat.skupno.ur} decimalke={1} enota="h"
-                  pod={`povprečno ${stat.povprecneUr} h na osebo`} />
+                  pod={stat.skupno.ldUr > 0
+                    ? `povprečno ${stat.povprecneUr} h na osebo · z LD (${stat.skupno.ldUr} h)`
+                    : `povprečno ${stat.povprecneUr} h na osebo`} />
                 <StatKartica lbl="Kritične kršitve" vrednost={stat.krsitve.kriticnih}
                   ton={stat.krsitve.kriticnih > 0 ? "kriticno" : "dobro"}
                   pod={`${sklanjaj(stat.krsitve.opozoril, OBLIKE_OPOZORIL)}`} />
@@ -1825,6 +1832,11 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, 
                   pod={`dežurstev skupaj: ${stat.skupno.dezurstev}`} />
                 <StatKartica lbl="Dela ob vikendih" vrednost={stat.skupno.vikendnih}
                   pod={`odsotnosti (LD/BS/STI/KRO): ${stat.skupno.odsotnosti}`} />
+                {/* Letni dopust je edina odsotnost, ki šteje med ure (8 h
+                    na dan), zato ima svojo kartico - sicer bi bilo videti,
+                    kot da se skupne ure ne ujemajo s številom izmen. */}
+                <StatKartica lbl="Letni dopust (LD)" vrednost={stat.skupno.ldUr} decimalke={1} enota="h"
+                  pod={`${sklanjaj(stat.skupno.ldDni, OBLIKE_DNI)} × 8 h · všteto v delovne ure`} />
               </div>
 
               {skupine.length > 0 && (
@@ -1877,13 +1889,42 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, 
               </div>
 
               <div>
+                <p className="statNaslov">Kritične kršitve {kriticne.length > 0 ? `(${kriticne.length})` : ""}</p>
+                {kriticne.length === 0 ? (
+                  <p className="hint" style={{margin:0}}>
+                    Počitek med izmenami, zaporedne nočne in prosti dan (največ 7 zaporednih delovnih dni)
+                    so v mejah.
+                  </p>
+                ) : (
+                  <div className="warnBox" style={{marginTop:0}}>
+                    <ul style={{maxHeight:180, overflowY:"auto", marginBottom:0}}>
+                      {kriticne.map((k, i) => {
+                        const kljuc = kljucCelice(k.oseba, k.datum);
+                        return (
+                          <li key={i} className={poudarek === kljuc ? "izbrana" : null}>
+                            <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
+                              onClick={() => {
+                                poudari(kljuc);
+                                if (window.innerWidth < 900) zapri();
+                              }}>
+                              {window.Datum.slo(k.datum)} · {k.oseba}: {k.sporocilo}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <p className="statNaslov">Obremenjenost po zaposlenih</p>
                 <div className="statOsebe">
                   {stat.poOsebi.map(o => (
                     <div className="statOseba" key={o.ime}>
                       <div className="vrh">
                         <span className="ime" title={o.ime}>{o.ime}</span>
-                        <span className="st">{sklanjaj(o.izmen, OBLIKE_IZMEN)} · {o.ur} h{o.nocnih ? ` · ${o.nocnih}× nočna` : ""}</span>
+                        <span className="st">{sklanjaj(o.izmen, OBLIKE_IZMEN)} · {o.ur} h{o.ldUr ? ` (LD ${o.ldUr} h)` : ""}{o.nocnih ? ` · ${o.nocnih}× nočna` : ""}</span>
                       </div>
                       <div className="tir">
                         <i style={{width: (stat.najvecUr ? (o.ur / stat.najvecUr * 100) : 0) + "%"}} />
@@ -1892,8 +1933,9 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, imaMinimume, 
                   ))}
                 </div>
                 <p className="hint" style={{marginTop:10, marginBottom:0}}>
-                  Ure so seštete po uradnem šifrantu (delovni-cas.js); odsotnosti (LD, BS, STI, KRO) med delovne ure
-                  ne štejejo. Razpon: {stat.najmanjUr} – {stat.najvecUr} h.
+                  Ure so seštete po uradnem šifrantu (delovni-cas.js). <b>Letni dopust (LD) šteje 8 h na dan</b> in je
+                  v vsoti vštet; ostale odsotnosti (BS, STI, KRO) med delovne ure ne štejejo.
+                  Razpon: {stat.najmanjUr} – {stat.najvecUr} h.
                 </p>
               </div>
             </React.Fragment>
@@ -2920,7 +2962,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
         )}
       </button>
       <StatistikaPredal odprto={statOdprt} zapri={() => setStatOdprt(false)}
-        stat={statistika} rezultat={rezultat} vrzeli={vrzeliMreze}
+        stat={statistika} rezultat={rezultat} vrzeli={vrzeliMreze} krsitve={krsitve}
         imaMinimume={pokritost.imaMinimume} poudari={poudari} poudarek={poudarek} />
     </div>
   );

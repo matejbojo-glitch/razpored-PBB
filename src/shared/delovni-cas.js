@@ -77,7 +77,12 @@ export const PRIVZETA_PRAVILA = {
   maxZaporednihNocnih: 3,        // do sem brez pripombe
   absolutnoMaxZaporednihNocnih: 5, // nad tem kritično, ne glede na dogovor
   maxTedenskihUr: 56,            // zgornja meja ur v 7 zaporednih dneh (opozorilo)
-  zahtevajProstDanNaTeden: true, // vsaj en dan brez izmene v vsakem oknu 7 dni
+  zahtevajProstDanNaTeden: true, // ali se niz zaporednih delovnih dni sploh preverja
+  // Koliko zaporednih delovnih dni je še dopustnih (uporabnikova zahteva,
+  // september 2026). 7 dni zapored - npr. od srede do naslednjega torka -
+  // je normalen razpored in NI kršitev; kršitev je šele 8. zaporedni
+  // delovni dan brez prostega dne.
+  maxZaporednihDelovnihDni: 7,
 };
 
 // Zakonski razlogi za izjemo (prekoračitev), po katerih se izjema lahko
@@ -372,19 +377,18 @@ export function preveriPravila(vnosi, pravila) {
       prejsnjiDatum = v.datum;
     });
 
-    // --- 3) tedenske ure in prost dan v vsakem oknu 7 dni ---
+    // --- 3) tedenske ure v vsakem oknu 7 dni ---
     if (delovni.length) {
       const poDatumu = {};
       delovni.forEach((v) => { poDatumu[v.datum] = v; });
       const prvi = delovni[0].datum, zadnji = delovni[delovni.length - 1].datum;
       for (let d = prvi; d <= zadnji; d = dodajDni(d, 1)) {
-        let ure = 0, delovnihDni = 0;
+        let ure = 0;
         for (let k = 0; k < 7; k++) {
           const dan = dodajDni(d, k);
           if (dan > zadnji) break;
           const v2 = poDatumu[dan];
           if (v2) {
-            delovnihDni++;
             const izm2 = podatkiIzmene(v2.sifra);
             if (izm2 && izm2.ure) ure += izm2.ure;
           }
@@ -396,13 +400,45 @@ export function preveriPravila(vnosi, pravila) {
             sporocilo: Math.round(ure) + " ur v 7 dneh od " + d + " (meja " + p.maxTedenskihUr + " h).",
           });
         }
-        if (p.zahtevajProstDanNaTeden && delovnihDni === 7) {
-          krsitve.push({
-            oseba, datum: d, vrsta: "prostDan", resnost: "kriticno",
-            sporocilo: "7 zaporednih delovnih dni od " + d + " – brez prostega dne.",
-          });
-        }
       }
+    }
+
+    // --- 4) prost dan: dolžina niza zaporednih delovnih dni ---
+    //
+    // Šteje se DEJANSKI niz in ne drseče okno 7 dni, kot doslej. Stari
+    // izračun je vsak niz sedmih delovnih dni razglasil za kritično
+    // kršitev - in to enkrat za vsako okno, ki ga je zajel, zato je isti
+    // niz dal več enakih vrstic v seznamu napak. Po uporabnikovi zahtevi
+    // (september 2026) je 7 delovnih dni zapored (npr. od srede do
+    // naslednjega torka) normalen razpored; kršitev je šele 8. zaporedni
+    // delovni dan.
+    //
+    // Niz teče po koledarju in ne po tednu PON-NE: prav nizi, ki gredo
+    // čez nedeljo, so tisti, ki se tedenskemu štetju izmuznejo. Prekine
+    // ga vsak dan brez izmene - prost dan, dopust (LD), bolniška ali dan
+    // zunaj razporeda.
+    if (p.zahtevajProstDanNaTeden && delovni.length) {
+      const meja = p.maxZaporednihDelovnihDni;
+      let zacetekNiza = null, zadnjiVNizu = null, dolzina = 0;
+      const zakljuciNiz = () => {
+        if (!(dolzina > meja)) return;
+        krsitve.push({
+          // Kršitev sedi na PRVEM dnevu čez mejo (8. zaporednem): tam se
+          // v mreži pokaže in tam mora koordinator vstaviti prost dan.
+          oseba, datum: dodajDni(zacetekNiza, meja), vrsta: "prostDan", resnost: "kriticno",
+          sporocilo: dolzina + " zaporednih delovnih dni (" + zacetekNiza + " – " + zadnjiVNizu
+            + ") – brez prostega dne; dopustnih je največ " + meja + ".",
+        });
+      };
+      delovni.forEach((v) => {
+        // Dva vnosa za isti dan (npr. izmena in dežurstvo) sta en dan
+        // niza - sicer bi niz pri njiju po nepotrebnem počil.
+        if (v.datum === zadnjiVNizu) return;
+        if (zadnjiVNizu && dodajDni(zadnjiVNizu, 1) === v.datum) dolzina++;
+        else { if (zadnjiVNizu) zakljuciNiz(); zacetekNiza = v.datum; dolzina = 1; }
+        zadnjiVNizu = v.datum;
+      });
+      if (zadnjiVNizu) zakljuciNiz();
     }
   });
 
