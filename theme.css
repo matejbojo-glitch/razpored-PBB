@@ -463,34 +463,43 @@ button{ cursor:pointer; }
    Višina celice je enaka za vse dneve, da vrstice tednov tečejo naravnost. */
 .mesecKoledar{
   display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px; margin-top: 16px;
+  gap: 4px; margin-top: 10px;
 }
 .mesecKoledar .kglava{
-  font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--muted); text-align: center; padding: 2px 0 4px;
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); text-align: center; padding: 0 0 2px;
 }
 .mesecKoledar .kglava.vikend{ color: var(--pop); }
+/* Cel mesec mora iti na EN zaslon - tudi šesttedenski (mesec, ki se začne v
+   nedeljo). Pri 92 px na celico je zadnji teden padel pod rob in zaposleni
+   je moral drseti, da je videl konec meseca; 62 px zadošča za dan, izmeno
+   in dežurnega zdravnika pod njo. */
 .mesecKoledar .kcelica{
-  min-height: 92px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--surface); padding: 6px; display: flex; flex-direction: column; gap: 5px;
+  min-height: 62px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); padding: 4px; display: flex; flex-direction: column; gap: 3px;
 }
 .mesecKoledar .kcelica.prazna{ background: transparent; border-color: transparent; }
 .mesecKoledar .kcelica.weekend{ background: var(--surface-2); }
 .mesecKoledar .kcelica.today{ border-color: var(--accent); box-shadow: 0 0 0 2px rgba(var(--accent-rgb),.35); }
 .mesecKoledar .kdan{
-  font-size: 15px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 .mesecKoledar .kcelica.today .kdan{ color: var(--accent-2); }
-/* Izmena zapolni preostanek celice: dolg naziv se prelomi v več vrstic,
-   namesto da bi ga odrezali - v razporedu je razlika med "Dopoldne" in
-   "Dopoldne (MO)" pomembna. */
+/* Izmena zapolni preostanek celice. Naziv se sme preliti v NAJVEČ dve
+   vrstici, potem se odreže s tremi pikami: dolg zapis ("Dopoldne (MO) +
+   Dežurstvo") bi sicer celico raztegnil in podrl enakomerne vrstice tednov.
+   Odrezati ga na eno samo vrstico pa ne gre - razlika med "Dopoldne" in
+   "Dopoldne (MO)" je v razporedu pomembna in prav ta pripona bi odpadla.
+   Cel zapis je vedno v namigu (title na celici). */
 .mesecKoledar .kizmena{
-  flex: 1; border-radius: 8px; padding: 5px 7px; font-size: 12px; font-weight: 700;
-  line-height: 1.25; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 2px;
+  flex: 1; border-radius: 6px; padding: 3px 5px; font-size: 10.5px; font-weight: 700;
+  line-height: 1.2; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 1px;
+  overflow: hidden;
 }
 .mesecKoledar .kizmena.off{ color: var(--off-text); font-weight: 600; }
-.mesecKoledar .kzdravnik{ font-size: 10.5px; font-weight: 400; opacity: .92; }
+.mesecKoledar .kzdravnik{ font-size: 9.5px; font-weight: 400; opacity: .92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* "Moj razpored" na namizju: cel mesec naenkrat, v stolpcih po tednih.
    Na telefonu (privzeto) ostane en teden pod drugim - tam je navpično

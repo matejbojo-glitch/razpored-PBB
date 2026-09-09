@@ -576,7 +576,9 @@
 // v165: Želje po vzoru preglednice - razpredelnica je strnjen blok
 // (26x22 px celice, 150 px imena), okvir se ji prilega, peresa so z
 // miško manjša.
-const CACHE = 'razpored-pbb-v165';
+// v166: Moj razpored - stisnjen mesecni koledar (celica 62 px namesto 92),
+// da gre cel mesec na en zaslon brez drsenja. Spremenjen theme.css.
+const CACHE = 'razpored-pbb-v166';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
