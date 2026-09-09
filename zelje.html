@@ -120,7 +120,12 @@
   table.grid thead th{ position:sticky; top:0; background:var(--surface); z-index:3; border-bottom:1px solid var(--line);
     padding:4px 2px; font-weight:700; color:var(--muted); text-align:center; min-width:24px; }
   table.grid thead tr.dnr th{ top:0; font-size:11px; padding-top:7px; }
-  table.grid thead tr.dwr th{ top:22px; font-size:9px; text-transform:uppercase; padding-bottom:7px; color:var(--muted); }
+  /* Odmiki lepljivih vrstic se ne smejo zapisati v piksle na pamet: ko se
+     glava stisne (kompaktni način), se višini vrstic spremenita in trdno
+     vpisan "top" postavi naslov skupine ČEZ prvo vrstico podatkov - ta
+     potem požre klike in barvanje s potegom. Izmeri ju učinek v JS in
+     zapiše v --zeljeVrsta1 / --zeljeGlava. */
+  table.grid thead tr.dwr th{ top: var(--zeljeVrsta1, 22px); font-size:9px; text-transform:uppercase; padding-bottom:7px; color:var(--muted); }
   table.grid th.corner{ position:sticky; left:0; top:0; z-index:5; background:var(--surface); text-align:left; padding:6px 10px; min-width:140px; font-weight:800; color:var(--text); }
   table.grid th.we, table.grid td.we{ background: rgba(167,148,72,.10); }
   table.grid th.hol, table.grid td.hol{ background: rgba(var(--danger-rgb),.08); }
@@ -139,9 +144,61 @@
     table.grid td.cell:hover{ outline:2px solid var(--accent-2); outline-offset:-2px; }
   }
   table.grid td.cell:active{ outline:3px solid var(--accent-2); outline-offset:-3px; }
+
+  /* Barvanje s potegom ne sme sprožiti izbiranja besedila in vlečenja
+     elementov: brskalnik bi sicer sredi poteza označil imena in dneve, kar
+     je videti kot okvara in prekine risanje. */
+  table.grid{ user-select:none; -webkit-user-select:none; }
+  table.grid td.cell{ -webkit-touch-callout:none; }
+
+  /* KOMPAKTNA RAZPREDELNICA (uporabnikova zahteva, september 2026: enako
+     gosto kot v Google Preglednici).
+     Celice so majhni kvadratki, oblazinjenje je skoraj nič, ime pa je
+     odrezano s tremi pikami, da ne razteguje stolpca. Velja od 900 px
+     navzgor - na telefonu 31 stolpcev ne more biti berljivih, zato tam
+     ostane vodoravno drsenje.
+     Isti pristop kot mreža Generatorja (admin.html, .wardScroller.kompakt);
+     namenoma enak, da se zaslona ne razideta. */
+  @media (min-width: 900px){
+    .gridScroll{ overflow-x:hidden; }
+    /* zoom je zasilni izhod, ne prva izbira: --zeljeMerilo nastavi šele
+       izračun spodaj, in to samo takrat, kadar je tudi po stiskanju
+       stolpec ožji od 18 px (31 dni na ozkem prenosniku). 1 = brez
+       pomanjšave. */
+    .gridScroll table.grid{
+      width:100%; min-width:0; table-layout:fixed;
+      zoom: var(--zeljeMerilo, 1);
+    }
+    /* Kvadratki: dan je ozek stolpec stalne širine, brez oblazinjenja in
+       brez zaobljenih vogalov - barva mora zapolniti celico od roba do
+       roba, tako kot v preglednici.
+       Dnevi imajo STALNO širino, ime pa ne: pri table-layout:fixed brskalnik
+       preostanek razdeli stolpcem brez navedene širine, torej imenom. Tako
+       so celice pri vsakem številu dni enako gosto, širši zaslon pa gre v
+       daljša imena in ne v redke, raztegnjene kvadratke. */
+    .gridScroll table.grid td.cell,
+    .gridScroll table.grid thead th:not(.corner):not(.tot){ width:26px; }
+    .gridScroll table.grid td.cell{ height:20px; padding:0; border-radius:0; }
+    .gridScroll table.grid thead th{ padding:2px 0; letter-spacing:-.02em; min-width:0; }
+    .gridScroll table.grid thead tr.dnr th{ font-size:9.5px; padding-top:3px; }
+    .gridScroll table.grid thead tr.dwr th{ font-size:8.5px; padding-bottom:3px; }
+    .gridScroll table.grid td.tot{ font-size:10px; padding:0; }
+    /* Ime se odreže s tremi pikami - brez tega bi en dolg priimek stolpec
+       raztegnil in stisnil vse dneve. */
+    .gridScroll table.grid th.corner,
+    .gridScroll table.grid tbody th.nm{
+      /* Brez zgornje meje: preostanek širine mora iti IMENOM in ne v
+         raztegovanje dnevnih kvadratkov. Pri table-layout:fixed brskalnik
+         presežek razdeli stolpcem brez navedene širine - tu je to edini
+         tak stolpec, zato ostanejo dnevi pri svojih 26 px. */
+      min-width:130px;
+      padding:2px 6px; font-size:11px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .gridScroll table.grid th.tot{ width:34px; min-width:34px; font-size:9.5px; }
+  }
   table.grid td.tot{ text-align:center; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line); }
 
-  table.grid tr.oddGroup th.oddGroupLbl{ position:sticky; left:0; top:44px; z-index:4; background:var(--surface-2);
+  table.grid tr.oddGroup th.oddGroupLbl{ position:sticky; left:0; top: var(--zeljeGlava, 44px); z-index:4; background:var(--surface-2);
     text-align:left; padding:6px 10px; font-weight:800; font-size:11.5px; color:var(--accent-2);
     border-top:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap; }
 
@@ -1103,6 +1160,82 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
     return () => { document.removeEventListener("pointermove", onMove); document.removeEventListener("pointerup", onUp); };
   }, [pen]);
 
+  // Zasilna pomanjšava razpredelnice. Stiskanje v CSS (kompaktne celice,
+  // odrezano ime) na širokem zaslonu zadošča, na ozkem prenosniku pa 31
+  // stolpcev tudi stisnjenih ne gre v širino - takrat se cela razpredelnica
+  // pomanjša z "zoom", da ostane na enem zaslonu brez vodoravnega drsenja.
+  // Isti postopek kot v mreži Generatorja (admin.html); namenoma enak, da se
+  // zaslona ne razideta.
+  const meriloRef = useRef(1);
+  useEffect(() => {
+    const okvir = gridRef.current;
+    if (!okvir) return;
+    // Merilo se ne ugiba iz predpostavljene najmanjše širine stolpca -
+    // IZMERI se, koliko je razpredelnica v resnici široka. Ugibanje je bilo
+    // narobe: stolpci imajo v slogu spodnjo mejo 26 px in stolpec z imeni
+    // se razširi po najdaljšem imenu, zato je bila ocena preozka in
+    // pomanjšava se ni vklopila, ko bi se morala.
+    const izracunaj = () => {
+      const tabela = okvir.querySelector("table.grid");
+      // Pod 900 px kompaktni način v CSS ne velja (razpredelnica tam
+      // vodoravno drsi), zato tudi merila ne sme biti.
+      if (!tabela || !dnevi.length || window.innerWidth < 900) {
+        if (meriloRef.current !== 1) { meriloRef.current = 1; okvir.style.setProperty("--zeljeMerilo", "1"); }
+        return;
+      }
+      // Izmerjena širina je že pomanjšana s trenutnim merilom; naravno
+      // dobimo nazaj z deljenjem.
+      const naravna = tabela.getBoundingClientRect().width / (meriloRef.current || 1);
+      const naVoljo = okvir.clientWidth;
+      if (!naravna || naVoljo <= 0) return;
+      // 0.7 je spodnja meja: pod tem je razpredelnica premajhna za delo in
+      // je pošteneje pustiti drsenje kot ponuditi nekaj neuporabnega.
+      // Odbitek 2 px je varnostna rezerva: brez nje razpredelnica ob
+      // zaokroževanju širin ostane za piksel ali dva preširoka in drsnik se
+      // pojavi kljub pomanjšavi.
+      const merilo = Math.min(1, Math.max(0.7, (naVoljo - 2) / naravna));
+      // Prag proti nihanju: pomanjšana razpredelnica je nižja, zaradi česar
+      // lahko izgine navpični drsnik, okvir se razširi in izračun bi se
+      // vrtel med dvema skoraj enakima vrednostma.
+      // Prag mora biti dovolj majhen, da ujame tudi popravek za nekaj
+      // odstotkov - prav ti so najpogostejši (razpredelnica je čez rob za
+      // dvajset pikslov, ne za tretjino zaslona). 0.02 je bilo preveč in
+      // je tak primer tiho preskočilo.
+      if (Math.abs(merilo - meriloRef.current) < 0.004) return;
+      meriloRef.current = merilo;
+      okvir.style.setProperty("--zeljeMerilo", String(Math.round(merilo * 1000) / 1000));
+    };
+    // Lepljive vrstice: naslov skupine se mora ustaviti TOČNO pod glavo.
+    // Če se ustavi nižje, prekrije prvo vrstico podatkov in ta preneha
+    // odzivati se na klik in poteg - napaka, ki je videti kot okvara
+    // barvanja, čeprav je v resnici napačen odmik.
+    const izmeriGlavo = () => {
+      const v1 = okvir.querySelector("thead tr.dnr");
+      const v2 = okvir.querySelector("thead tr.dwr");
+      if (!v1 || !v2) return;
+      const h1 = Math.round(v1.getBoundingClientRect().height);
+      const h2 = Math.round(v2.getBoundingClientRect().height);
+      okvir.style.setProperty("--zeljeVrsta1", h1 + "px");
+      okvir.style.setProperty("--zeljeGlava", (h1 + h2) + "px");
+    };
+    const osvezi = () => { izracunaj(); izmeriGlavo(); };
+    osvezi();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", osvezi);
+      return () => window.removeEventListener("resize", osvezi);
+    }
+    const opazovalec = new ResizeObserver(osvezi);
+    opazovalec.observe(okvir);
+    // Opazuje se tudi SAMA razpredelnica, ne le okvir. Ob nalaganju pisav
+    // in ob spremembi najdaljšega imena se njena širina spremeni, okvir pa
+    // ostane enak - brez tega bi ostalo merilo, izračunano na še
+    // nedokončani postavitvi, in razpredelnica bi drsela, čeprav se je
+    // lahko pomanjšala.
+    const tabela = okvir.querySelector("table.grid");
+    if (tabela) opazovalec.observe(tabela);
+    return () => opazovalec.disconnect();
+  }, [dnevi.length, vsiLjudje.length]);
+
   const ldStevilo = (ime) => dnevi.filter(d => trenutnaVrednost(ime, isoZa(view.year, view.month, d)) === "ld").length;
 
   const pojdiNaMesec = (y, m) => setView({ year: y, month: m });
@@ -1265,7 +1398,7 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
               <th className="tot">LD dni</th>
             </tr>
             <tr className="dwr">
-              <th className="corner" style={{top:22}}></th>
+              <th className="corner" style={{top:"var(--zeljeVrsta1, 22px)"}}></th>
               {dnevi.map(d => {
                 const cls = jeDanPraznik(view.year, view.month, d) ? "hol" : (jeVikend(view.year, view.month, d) ? "we" : "");
                 return <th key={d} className={cls}>{dowZa(view.year, view.month, d)}</th>;
