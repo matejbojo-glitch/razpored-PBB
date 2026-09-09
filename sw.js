@@ -593,7 +593,9 @@
 // "Zapiši nazaj v Sheets" ni deloval nikoli) in razdelek Povezani
 // Google listi v Generatorju. Spremenjeni so import-utils.js,
 // sheets-mreza.js, index.html, admin.html, theme.css.
-const CACHE = 'razpored-pbb-v172';
+// v173: polje "Razlog spremembe" ima svojo vrstico z vidno oznako - med
+// gumbi je bilo premalo opazno in je ob prvi uporabi ostalo prazno.
+const CACHE = 'razpored-pbb-v173';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

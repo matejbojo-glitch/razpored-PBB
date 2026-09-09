@@ -2054,21 +2054,28 @@ function OddelekUrejevalnik({ ur, urejam, setUrejam }){
       </button>
       {urejam && (
         <React.Fragment>
+          {/* Razlog gre v revizijsko sled in ima SVOJO vrstico z vidno
+              oznako. Prej je stal med gumbi v isti vrstici: ob prvi
+              resnični uporabi je ostal prazen, popravek pa se je zapisal
+              brez pojasnila - kar je natanko tisto, čemur se je hotel
+              izogniti. Ni obvezen (popravek se ne sme ustaviti zato, ker
+              koordinator med delom nima besede), a mora biti opazen. */}
+          <label style={{flexBasis:"100%", display:"flex", alignItems:"center", gap:8,
+            flexWrap:"wrap", margin:0, fontSize:13}}>
+            <span style={{fontWeight:700}}>Razlog spremembe:</span>
+            <input type="text" value={ur.razlog} onChange={e => ur.setRazlog(e.target.value)}
+              placeholder="npr. bolniška, menjava s Kovač Ano"
+              style={{flex:"1 1 280px", minWidth:200, minHeight:38, padding:"6px 10px",
+                borderRadius:8, border:"1px solid var(--line)", background:"var(--surface)",
+                color:"var(--text)", fontSize:13}} />
+            <span className="sub" style={{margin:0}}>zapiše se v Revizijo</span>
+          </label>
           <button className="btn btn-primary btn-sm" disabled={ur.busy || !ur.spremenjenih} onClick={ur.objavi}>
             {ur.busy ? "Objavljam …" : "Objavi razpored"}
           </button>
           <button className="btn btn-ghost btn-sm" disabled={ur.busy || !ur.spremenjenih} onClick={ur.razveljavi}>
             Razveljavi spremembe
           </button>
-          {/* Razlog gre v revizijsko sled. Ni obvezen - popravek se ne sme
-              ustaviti zato, ker koordinator med delom nima besede - a je
-              zato takoj ob gumbu in ne skrit pod dodatnimi kliki. */}
-          <input type="text" value={ur.razlog} onChange={e => ur.setRazlog(e.target.value)}
-            placeholder="Razlog (npr. bolniška, menjava s Kovač Ano)"
-            aria-label="Razlog spremembe – zapiše se v revizijsko sled"
-            style={{flex:"1 1 240px", minWidth:180, minHeight:36, padding:"6px 10px",
-              borderRadius:8, border:"1px solid var(--line)", background:"var(--surface)",
-              color:"var(--text)", fontSize:13}} />
           <span className="sub">
             {ur.spremenjenih ? `${ur.spremenjenih} spremenjenih celic` : "ni sprememb"}
           </span>
