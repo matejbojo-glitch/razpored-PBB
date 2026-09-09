@@ -663,6 +663,15 @@ footer.foot b{ color: var(--text); }
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
 
+/* Glava tabele se mora na tisku PONOVITI na vsaki novi strani - brez tega
+   ima druga stran same številke brez naslovov stolpcev in razporeda ni
+   mogoče brati. Velja za vse tabele, ne le za eno. */
+@media print{
+  thead{ display: table-header-group; }
+  tfoot{ display: table-footer-group; }
+  tr{ break-inside: avoid; page-break-inside: avoid; }
+}
+
 @media print{
   .no-print{ display:none !important; }
   body{ background: #fff !important; }

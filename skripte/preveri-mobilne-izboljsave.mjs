@@ -252,6 +252,38 @@ try {
     await c2.close();
   }
 
+  console.log("8b) iskalna vrstica v Imeniku ostane pri roki, glava tabele se na tisku ponovi");
+  {
+    const { ctx, pg } = await odpri("imenik.html", 1440, "admin");
+    const r = await pg.evaluate(() => {
+      const i = document.querySelector(".searchWrap");
+      const st = i ? getComputedStyle(i) : null;
+      return { lepljiva: st ? st.position : null, odmik: st ? st.top : null,
+               podlaga: st ? st.backgroundColor : null };
+    });
+    trdi(r.lepljiva === "sticky", "iskalna vrstica je lepljiva (" + r.lepljiva + ")");
+    trdi(r.odmik !== "auto" && parseFloat(r.odmik) >= 0, "in ima določen odmik od vrha (" + r.odmik + ")");
+    // Prosojna podlaga bi pustila, da se skoznjo berejo vrstice, ki drsijo
+    // pod njo - lepljiv element brez polne podlage je videti kot okvara.
+    trdi(!/rgba\(0, 0, 0, 0\)|transparent/.test(r.podlaga || ""),
+      "podlaga je polna, da se vsebina pod njo ne bere skoznjo (" + r.podlaga + ")");
+
+    const tisk = await pg.evaluate(() => {
+      // Preverimo pravilo v slogu, ne izrisa: @media print se v brskalniku
+      // ne uveljavi, dokler se stran ne tiska.
+      const najdi = (iskano) => [...document.styleSheets].some(l => {
+        try {
+          return [...l.cssRules].some(r => r.type === CSSRule.MEDIA_RULE
+            && r.conditionText.includes("print")
+            && [...r.cssRules].some(x => x.cssText.includes(iskano)));
+        } catch (e) { return false; }
+      });
+      return { glava: najdi("table-header-group") };
+    });
+    trdi(tisk.glava, "glava tabele se na tisku ponovi na novi strani (thead: table-header-group)");
+    await ctx.close();
+  }
+
   console.log("9) namizje: polja niso raztegnjena čez vso širino (točka 8 pregleda)");
   {
     for (const stran of ["index.html", "imenik.html", "admin.html"]) {
