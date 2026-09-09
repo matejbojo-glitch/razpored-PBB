@@ -585,7 +585,9 @@
 // se odrezala); tanjša obroba predloga.
 // v169: lepljiva iskalna vrstica v Imeniku in ponovitev glave tabele na
 // novi strani pri tisku. Spremenjena sta imenik.html in theme.css.
-const CACHE = 'razpored-pbb-v169';
+// v170: Želje - ena sama krmilna vrstica (skupina, mesec, izvoz), brez
+// naslova in podnaslova, naslov skupine nad tabelo namesto v njej.
+const CACHE = 'razpored-pbb-v170';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

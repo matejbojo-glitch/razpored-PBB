@@ -184,7 +184,10 @@ try {
     trdi(barvaPrej !== barvaPotem, `celica je dobila barvo STI (${barvaPrej} → ${barvaPotem})`);
     trdi(zapisi.some(z => z.op === "upsert" && z.v && z.v.kind === "sti"),
       "v bazo gre ena sama vrstica, vrste 'sti' (ključ ime+dan, zato LD odpade)");
-    const status = (await stran.innerText(".monthRow")).replace(/\s+/g, " ");
+    // Sporočilo o stanju stoji od septembra 2026 pod krmilno vrstico in ne
+    // v njej - različno dolgo besedilo je sicer gumb za izvoz potisnilo v
+    // novo vrstico.
+    const status = (await stran.innerText("body")).replace(/\s+/g, " ");
     trdi(/vrnjen med neizkoriščene/i.test(status),
       "po shranjevanju to piše tudi v vrstici stanja: " + status);
     await stran.close();

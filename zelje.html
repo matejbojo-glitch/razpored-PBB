@@ -117,6 +117,14 @@
   .penBtn.eraser .penSwatch{ background:repeating-linear-gradient(45deg,#fff,#fff 3px,#eee 3px,#eee 6px); }
 
   .monthRow{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+  /* Ena sama krmilna vrstica: izbira skupine, mesec in izvoz. Prej so bili
+     razmetani po treh vrsticah in po dveh komponentah, zaradi česar je bilo
+     do prve vrstice podatkov skoraj pol zaslona. */
+  .krmilnaVrstica{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
+  .krmilnaVrstica .skupinaRow{ margin:0; flex:0 1 auto; }
+  .krmilnaVrstica .monthNav{ margin-left:auto; }
+  /* Stalna višina, da izpis sporočila ne premakne razpredelnice pod njim. */
+  .zeljeStatus{ margin:0 0 8px; min-height:16px; }
   .monthNav{ display:flex; align-items:center; gap:8px; }
   .navBtn{ border:1px solid var(--line); background:var(--surface); border-radius:8px; width:40px; height:40px;
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--text); }
@@ -832,7 +840,7 @@ function VGenerator({ skupina, leto, mesec }){
   );
 }
 
-function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupina }){
+function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupina, izbirnikSkupine }){
   const jeKoordinator = role === "admin" || role === "vodja"; // dostop do zavihkov/strani
   const jeAdmin = role === "admin"; // edini, ki ureja katero koli vrstico, kadar koli
   const [view, setView] = useState(() => {
@@ -1264,11 +1272,18 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   const pojdiNaMesec = (y, m) => setView({ year: y, month: m });
 
+  // Ali je v prikazu več kot ena skupina - od tega je odvisno, ali se
+  // vrstice z imeni skupin v razpredelnici sploh izpišejo.
+  const vecSkupin = useMemo(
+    () => new Set((vsiLjudje || []).map(o => o.skupina)).size > 1,
+    [vsiLjudje]);
+
   return (
     <div>
       {/* Navodilo je zloženo: na telefonu je zavzelo pol zaslona, preden
-          se je pokazala prva vrstica podatkov. */}
-      {naslovSkupine && <h2 className="section skupinaNaslov">{naslovSkupine}</h2>}
+          se je pokazala prva vrstica podatkov. Naslov skupine je odslej
+          TIK NAD razpredelnico (spodaj) in ne na vrhu strani - tam je
+          stal predaleč od tabele, na katero se nanaša. */}
       <details className="navodilo no-print">
         <summary>Kako to deluje</summary>
         <p className="hint" style={{marginTop:8}}>
@@ -1359,22 +1374,8 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
           )}
         </div>
       )}
-      {/* Preklopa pogledov ni več: "Po dnevih" in "Moj koledar" sta
-          odstranjena (uporabnikova zahteva, september 2026), ostane sama
-          mreža celega meseca. */}
-      <div className="penRow no-print">
-          <span className="penHint">Barva:</span>
-          {peresa.map(k => (
-            <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
-              <span className="penSwatch" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
-            </button>
-          ))}
-          <button className={"penBtn eraser" + (pen==="erase" ? " active" : "")} onClick={() => setPen("erase")}>
-            <span className="penSwatch"></span>Izbriši
-          </button>
-      </div>
-
-      <div className="monthRow no-print">
+      <div className="krmilnaVrstica no-print">
+        {izbirnikSkupine}
         <div className="monthNav">
           <button className="navBtn" onClick={() => { let m=view.month-1,y=view.year; if(m<0){m=11;y--;} pojdiNaMesec(y,m); }}>‹</button>
           <div className="monthLbl">{MESECI_SL[view.month][0].toUpperCase()+MESECI_SL[view.month].slice(1)} {view.year}</div>
@@ -1392,9 +1393,36 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
               pojdiNaMesec(y, m - 1);
             }} />
         </div>
-        <button className="toolBtn" style={{width:"auto"}} onClick={() => PrintFit.natisni(gridRef.current, { orientacija:"landscape" })}>📄 Izvozi v PDF (A4 ležeče, 1 stran)</button>
-        <span className="hint" style={{margin:0}}>{nalagam ? "Nalagam …" : status}</span>
+
+      {/* Preklopa pogledov ni več: "Po dnevih" in "Moj koledar" sta
+          odstranjena (uporabnikova zahteva, september 2026), ostane sama
+          mreža celega meseca. */}
+      <div className="penRow no-print">
+          <span className="penHint">Barva:</span>
+          {peresa.map(k => (
+            <button key={k} className={"penBtn" + (pen===k ? " active" : "")} onClick={() => setPen(k)}>
+              <span className="penSwatch" style={{background: PEN_META[k].barva}}></span>{PEN_META[k].label}
+            </button>
+          ))}
+          <button className={"penBtn eraser" + (pen==="erase" ? " active" : "")} onClick={() => setPen("erase")}>
+            <span className="penSwatch"></span>Izbriši
+          </button>
       </div>
+
+        <button className="toolBtn" style={{width:"auto"}}
+          title="Izvozi v PDF (A4 ležeče, 1 stran)"
+          onClick={() => PrintFit.natisni(gridRef.current, { orientacija:"landscape" })}>📄 PDF</button>
+      </div>
+
+      {/* Sporočilo o stanju je izpisano LOČENO in ne v krmilni vrstici:
+          tam je bilo različno dolgo ("Shranjujem …", "LD vrnjen med
+          neizkoriščene …") in je ob daljšem besedilu potisnilo gumb za
+          izvoz v novo vrstico - krmilna vrstica torej ni bila ena sama.
+          Vrstica je VEDNO izrisana in ima stalno višino, tudi ko je prazna:
+          če se pojavi šele ob prvem vpisu ("Shranjujem …"), razpredelnica
+          pod njo poskoči za vrstico - sredi barvanja s potegom se s tem
+          celice premaknejo izpod kazalca in poteg pobarva le prvo. */}
+      <p className="hint no-print zeljeStatus">{nalagam ? "Nalagam …" : status}</p>
 
       <RazporedIzvozVir
           naziv="Želje"
@@ -1409,6 +1437,11 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
             ]),
         }]}
       />
+
+      {/* Naslov skupine stoji ZUNAJ mreže, tik nad njo. Znotraj mreže je
+          bil kot vrstica, ki je pri eni sami skupini samo ponavljala isto
+          besedilo in jemala višino. */}
+      {naslovSkupine && <h2 className="section skupinaNaslov">{naslovSkupine}</h2>}
 
       <div className="gridScroll" ref={gridRef}>
         <table className="grid">
@@ -1434,7 +1467,11 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
             {vsiLjudje.map(({ ime, skupina }, i) => {
               const jeMoja = imenaSeUjemata(ime, myFullName);
               const prejsnjaSkupina = i > 0 ? vsiLjudje[i - 1].skupina : null;
-              const zacetekSkupine = skupina !== prejsnjaSkupina;
+              // Vrstica z imenom skupine se izpiše samo, kadar je skupin
+              // VEČ (izbrano "Vse"). Pri eni sami je bila odveč: isto
+              // besedilo stoji kot naslov tik nad razpredelnico, tu pa je
+              // le jemala višino in prekrivala prvo vrstico podatkov.
+              const zacetekSkupine = vecSkupin && skupina !== prejsnjaSkupina;
               return (
                 <React.Fragment key={ime}>
                   {zacetekSkupine && (
@@ -1543,20 +1580,11 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
     <div className="wrap wide polna">
       <RazporedOgledTrak aktivno={ogled} profil={profil}/>
       <RazporedLogout pred={<RazporedOrodja/>}/>
-      <header className="top">
-        <div className="wordmark"><img className="logoSmall" src="logo-pbb.png" alt="" /><span className="mark">Želje zaposlenih</span><span className="tag">za koordinatorje</span></div>
-        <p className="sub">Psihiatrična bolnišnica Begunje · vnos po zaposlenem, besedilo ali fotografija</p>
-      </header>
-
-      {/* En sam izbirnik skupine za OBOJE - razpredelnico in želje. */}
-      <div className="skupinaRow no-print" role="tablist" aria-label="Skupina">
-        <button role="tab" aria-selected={skupina===VSE_SKUPINE} className="skupinaBtn"
-          onClick={() => setSkupina(VSE_SKUPINE)}>Vse</button>
-        {skupineZaVlogo.map(([k, naziv]) => (
-          <button key={k} role="tab" aria-selected={skupina===k} className="skupinaBtn"
-            title={naziv} onClick={() => setSkupina(k)}>{k}</button>
-        ))}
-      </div>
+      {/* Naslov "Želje zaposlenih" in podnaslov sta odstranjena
+          (uporabnikova zahteva, september 2026): stran je označena že v
+          navigaciji, ta dva pa sta zavzela vrh zaslona, preden se je
+          pokazala prva vrstica podatkov. Izbirnik skupine se je preselil v
+          skupno krmilno vrstico v Razpredelnici. */}
 
       {!roster && <p className="hint">Nalagam seznam osebja …</p>}
 
@@ -1565,7 +1593,17 @@ function App({ role, myId, myFullName, myDept, ogled, profil }){
           <Razpredelnica role={role} myId={myId} myFullName={myFullName}
             vsiLjudje={ljudjeSkupine}
             skupina={skupina === VSE_SKUPINE ? null : skupina}
-            naslovSkupine={skupina === VSE_SKUPINE ? "Vse skupine" : nazivSkupine[skupina]} />
+            naslovSkupine={skupina === VSE_SKUPINE ? "Vse skupine" : nazivSkupine[skupina]}
+            izbirnikSkupine={
+              <div className="skupinaRow" role="tablist" aria-label="Skupina">
+                <button role="tab" aria-selected={skupina===VSE_SKUPINE} className="skupinaBtn"
+                  onClick={() => setSkupina(VSE_SKUPINE)}>Vse</button>
+                {skupineZaVlogo.map(([k, naziv]) => (
+                  <button key={k} role="tab" aria-selected={skupina===k} className="skupinaBtn"
+                    title={naziv} onClick={() => setSkupina(k)}>{k}</button>
+                ))}
+              </div>
+            } />
 
         </React.Fragment>
       )}
