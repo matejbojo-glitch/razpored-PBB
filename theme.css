@@ -951,8 +951,12 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   margin-bottom:12px;
 }
 .modalGlava h3{ margin:0; font-size:16px; font-weight:800; }
+/* 40x40 je najmanjša tarča, ki jo je na dotik še mogoče zanesljivo zadeti
+   (isto merilo preverja preveri-mobilne-izboljsave.mjs). Gumb je bil 30px
+   in je meril premalo - opazilo se je šele, ko je statistiko v Generatorju
+   dobil predal, torej ko se je tak modal prvič pojavil na tej strani. */
 .modalZapri{
-  border:0; background: var(--surface-2); color: var(--text); width:30px; height:30px;
+  border:0; background: var(--surface-2); color: var(--text); width:40px; height:40px;
   border-radius:50%; font-size:16px; cursor:pointer; line-height:1; flex:0 0 auto;
 }
 .modalZapri:hover{ background: var(--line); }
