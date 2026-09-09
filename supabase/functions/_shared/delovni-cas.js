@@ -77,12 +77,7 @@ export const PRIVZETA_PRAVILA = {
   maxZaporednihNocnih: 3,        // do sem brez pripombe
   absolutnoMaxZaporednihNocnih: 5, // nad tem kritično, ne glede na dogovor
   maxTedenskihUr: 56,            // zgornja meja ur v 7 zaporednih dneh (opozorilo)
-  zahtevajProstDanNaTeden: true, // ali se niz zaporednih delovnih dni sploh preverja
-  // Koliko zaporednih delovnih dni je še dopustnih (uporabnikova zahteva,
-  // september 2026). 7 dni zapored - npr. od srede do naslednjega torka -
-  // je normalen razpored in NI kršitev; kršitev je šele 8. zaporedni
-  // delovni dan brez prostega dne.
-  maxZaporednihDelovnihDni: 7,
+  zahtevajProstDanNaTeden: true, // ali se prost dan v tednu sploh preverja
 };
 
 // Zakonski razlogi za izjemo (prekoračitev), po katerih se izjema lahko
@@ -162,6 +157,14 @@ export function dodajDni(isoDan, n) {
   const d = new Date(isoDan + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// Ponedeljek tedna, v katerem leži dani dan. Teden se povsod v aplikaciji
+// šteje od ponedeljka do nedelje (getUTCDay vrne 0 za nedeljo, zato je ta
+// primer poseben).
+export function ponedeljekTedna(isoDan) {
+  const dan = new Date(isoDan + "T00:00:00Z").getUTCDay();
+  return dodajDni(isoDan, -(dan === 0 ? 6 : dan - 1));
 }
 
 // Koliko ur izmene pade v nočni okvir 22:00-06:00. Ločeno od IZMENE[...].ure
@@ -403,42 +406,41 @@ export function preveriPravila(vnosi, pravila) {
       }
     }
 
-    // --- 4) prost dan: dolžina niza zaporednih delovnih dni ---
+    // --- 4) prost dan v koledarskem tednu (PON-NED) ---
     //
-    // Šteje se DEJANSKI niz in ne drseče okno 7 dni, kot doslej. Stari
-    // izračun je vsak niz sedmih delovnih dni razglasil za kritično
-    // kršitev - in to enkrat za vsako okno, ki ga je zajel, zato je isti
-    // niz dal več enakih vrstic v seznamu napak. Po uporabnikovi zahtevi
-    // (september 2026) je 7 delovnih dni zapored (npr. od srede do
-    // naslednjega torka) normalen razpored; kršitev je šele 8. zaporedni
-    // delovni dan.
+    // Pravilo je vezano na KOLEDARSKI TEDEN in ne na dolžino niza: v vsakem
+    // tednu od ponedeljka do nedelje mora biti vsaj en prost dan. Kršitev je
+    // torej teden, v katerem je delovnih vseh sedem dni.
     //
-    // Niz teče po koledarju in ne po tednu PON-NE: prav nizi, ki gredo
-    // čez nedeljo, so tisti, ki se tedenskemu štetju izmuznejo. Prekine
-    // ga vsak dan brez izmene - prost dan, dopust (LD), bolniška ali dan
-    // zunaj razporeda.
+    // Uporabnikova zahteva (september 2026): niz, ki gre čez nedeljo, sam po
+    // sebi NI kršitev. Kdor dela od srede do naslednje sobote, ima v prvem
+    // tednu prosta ponedeljek in torek, v drugem pa nedeljo - oba tedna sta v
+    // redu, čeprav je vezanih enajst dni zapored. Prav zato je bilo prejšnje
+    // štetje niza (meja 7 dni) napačno: tak razpored je javljalo kot kritično
+    // kršitev.
+    //
+    // Delovni dan je dan z izmeno; prost dan, dopust (LD), bolniška in dan
+    // zunaj razporeda niso delovni. Teden, ki ni v celoti pokrit s podatki
+    // (npr. prvi teden meseca), zato sam po sebi ne more imeti vseh sedmih
+    // dni delovnih in se ne javi - kar je prav, saj o dneh pred začetkom
+    // razporeda ne vemo nič.
     if (p.zahtevajProstDanNaTeden && delovni.length) {
-      const meja = p.maxZaporednihDelovnihDni;
-      let zacetekNiza = null, zadnjiVNizu = null, dolzina = 0;
-      const zakljuciNiz = () => {
-        if (!(dolzina > meja)) return;
+      const jeDelovni = {};
+      delovni.forEach((v) => { jeDelovni[v.datum] = true; });
+      const ponedeljki = {};
+      delovni.forEach((v) => { ponedeljki[ponedeljekTedna(v.datum)] = true; });
+      Object.keys(ponedeljki).sort().forEach((pon) => {
+        for (let k = 0; k < 7; k++) {
+          if (!jeDelovni[dodajDni(pon, k)]) return; // ta teden ima prost dan
+        }
         krsitve.push({
-          // Kršitev sedi na PRVEM dnevu čez mejo (8. zaporednem): tam se
-          // v mreži pokaže in tam mora koordinator vstaviti prost dan.
-          oseba, datum: dodajDni(zacetekNiza, meja), vrsta: "prostDan", resnost: "kriticno",
-          sporocilo: dolzina + " zaporednih delovnih dni (" + zacetekNiza + " – " + zadnjiVNizu
-            + ") – brez prostega dne; dopustnih je največ " + meja + ".",
+          // Kršitev sedi na ponedeljku tedna - tam se v mreži pokaže in tam
+          // koordinator začne iskati, kateri dan sprostiti.
+          oseba, datum: pon, vrsta: "prostDan", resnost: "kriticno",
+          sporocilo: "Teden " + pon + " – " + dodajDni(pon, 6)
+            + ": delovnih je vseh sedem dni (PON–NED), brez enega prostega dne.",
         });
-      };
-      delovni.forEach((v) => {
-        // Dva vnosa za isti dan (npr. izmena in dežurstvo) sta en dan
-        // niza - sicer bi niz pri njiju po nepotrebnem počil.
-        if (v.datum === zadnjiVNizu) return;
-        if (zadnjiVNizu && dodajDni(zadnjiVNizu, 1) === v.datum) dolzina++;
-        else { if (zadnjiVNizu) zakljuciNiz(); zacetekNiza = v.datum; dolzina = 1; }
-        zadnjiVNizu = v.datum;
       });
-      if (zadnjiVNizu) zakljuciNiz();
     }
   });
 

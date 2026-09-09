@@ -557,7 +557,10 @@
 // konteksta. Števila se preračunajo ob vsaki spremembi celice in ob
 // razporedu, naloženem iz datoteke (JSON/CSV/Excel) naravnost v mrežo.
 // Nova datoteka statistika-core.js (cache-first), spremenjen admin.html.
-const CACHE = 'razpored-pbb-v159';
+// v160: Prost dan se preverja po KOLEDARSKEM TEDNU (PON-NED) in ne več
+// po dolžini niza. Spremenjen je delovni-cas.js (vse tri kopije), ki je
+// cache-first, zato dvig.
+const CACHE = 'razpored-pbb-v160';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
