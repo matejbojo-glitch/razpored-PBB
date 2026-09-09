@@ -568,7 +568,9 @@
 // v162: popravek objavljenega razporeda zahteva razlog (gre v revizijsko
 // sled) in pred shranjevanjem preveri delovnopravna pravila.
 // Spremenjena sta index.html in admin.html.
-const CACHE = 'razpored-pbb-v162';
+// v163: Menjave (obrazec.html) - preklopno stikalo namesto kvadratka in
+// izrazitejši znak menjave med imenoma.
+const CACHE = 'razpored-pbb-v163';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

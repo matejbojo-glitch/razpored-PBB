@@ -242,7 +242,7 @@ try {
     await stran.click("button[role=tab]:has-text('Moji obrazci')");
     await stran.waitForTimeout(500);
     const t = (await stran.innerText("body")).replace(/\s+/g, " ");
-    trdi(/Novak Beti ↔ Kovač Ana/.test(t), "izpisana sta oba udeleženca: " + (t.match(/2026-001[^]{0,120}/) || [""])[0]);
+    trdi(/Novak Beti ⇄ Kovač Ana/.test(t), "izpisana sta oba udeleženca: " + (t.match(/2026-001[^]{0,120}/) || [""])[0]);
     trdi(/Dopoldne/.test(t) && /Popoldne/.test(t), "in obe izmeni");
   }
 
@@ -251,8 +251,8 @@ try {
     await stran.click("button[role=tab]:has-text('V tem mesecu')");
     await stran.waitForTimeout(500);
     const t = (await stran.innerText("body")).replace(/\s+/g, " ");
-    trdi(/Novak Beti ↔ Kovač Ana/.test(t), "svoja menjava je izpisana");
-    trdi(!/Bevc Cilka/.test(t) && !/Turk Dora/.test(t), "tuja menjava (Bevc ↔ Turk) se ne pokaže: " + t.slice(0, 200));
+    trdi(/Novak Beti ⇄ Kovač Ana/.test(t), "svoja menjava je izpisana");
+    trdi(!/Bevc Cilka/.test(t) && !/Turk Dora/.test(t), "tuja menjava (Bevc ⇄ Turk) se ne pokaže: " + t.slice(0, 200));
   }
 
   const prave = konzolaVse.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));
