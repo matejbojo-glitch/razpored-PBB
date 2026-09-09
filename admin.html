@@ -139,6 +139,25 @@
     .wardScroller.kompakt table.wardTable td.name > *{
       display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
+
+    /* NZV ima svoje mere: v celicah niso kratice izmen, ampak PARAFE
+       zaposlenih (DŽA, VEL, MAG), prvi stolpec je datum z dnevom
+       ("1.10.2026 ČET") in za dnevi stoji še stolpec z opombami. Zato ne
+       podeduje širine 112 px in ploščice izmen, ki ju NZV nima. */
+    .wardScroller.kompakt.nzv table.wardTable td.name,
+    .wardScroller.kompakt.nzv table.wardTable th.name{
+      width:104px; min-width:104px; max-width:104px; font-size:10px;
+    }
+    .wardScroller.kompakt.nzv table.wardTable th,
+    .wardScroller.kompakt.nzv table.wardTable td{ padding:1px; }
+    .wardScroller.kompakt.nzv table.wardTable thead th{ font-size:9px; letter-spacing:-.02em; }
+    /* Zadnji stolpec (opombe) je edini, ki se sme raztegniti; brez zgornje
+       meje bi si vzel vso rezervo in stisnil parafe. */
+    .wardScroller.kompakt.nzv table.wardTable th:last-child,
+    .wardScroller.kompakt.nzv table.wardTable td:last-child{ width:120px; max-width:120px; }
+    .wardScroller.kompakt.nzv table.wardTable td:last-child input{
+      width:100%; min-width:0; font-size:10px; padding:2px 4px;
+    }
     /* Ploščica izmene se ravna po stolpcu (min-width:0), ne obratno -
        sicer bi 54 px iz privzetega sloga spet raztegnilo tabelo. */
     .wardScroller.kompakt table.wardTable td .celicaOvoj{
@@ -3813,6 +3832,61 @@ function VodjeTab({ zacetniMesec }){
     setPopravki(p => ({ ...p, [dn.datum + "|" + k]: vrednost }));
   };
 
+  // Celica je PREDLOG, dokler nosi vprašaj - ne glede na to, ali ga je
+  // vpisal generator ali koordinator sam. Prej je bila oznaka vezana na
+  // zastavico iz generiranja, ki se ob potrditvi ni spremenila: celica bi
+  // ostala rumena, čeprav vprašaja v njej ne bi bilo več.
+  const jePredlog = (dn, k) => /\?\s*$/.test(celica(dn, k));
+
+  // Kompaktna mreža NZV mora iti na en zaslon brez vodoravnega drsenja.
+  // Sedemnajst enot in stolpec z datumom pri ozkem prenosniku tudi stisnjeni
+  // ne gredo v širino, zato se cela mreža po potrebi pomanjša.
+  // Merilo se IZMERI iz dejanske širine in ne ugiba iz predpostavljene
+  // najmanjše širine stolpca - ugibanje je pri NZV posebej zgrešeno, ker je
+  // število enot odvisno od tega, koliko jih ta mesec sploh nastopa.
+  const nzvMerilo = useRef(1);
+  useEffect(() => {
+    const okvir = wardRef.current;
+    if (!okvir || !rezultat) return;
+    const izracunaj = () => {
+      const tabela = okvir.querySelector("table.wardTable");
+      if (!tabela) return;
+      if (window.innerWidth < 900) {
+        if (nzvMerilo.current !== 1) { nzvMerilo.current = 1; okvir.style.setProperty("--wardMerilo", "1"); }
+        return;
+      }
+      const naravna = tabela.getBoundingClientRect().width / (nzvMerilo.current || 1);
+      const naVoljo = okvir.clientWidth;
+      if (!naravna || naVoljo <= 0) return;
+      const merilo = Math.min(1, Math.max(0.65, (naVoljo - 2) / naravna));
+      if (Math.abs(merilo - nzvMerilo.current) < 0.004) return;
+      nzvMerilo.current = merilo;
+      okvir.style.setProperty("--wardMerilo", String(Math.round(merilo * 1000) / 1000));
+    };
+    izracunaj();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", izracunaj);
+      return () => window.removeEventListener("resize", izracunaj);
+    }
+    const opazovalec = new ResizeObserver(izracunaj);
+    opazovalec.observe(okvir);
+    const tabela = okvir.querySelector("table.wardTable");
+    if (tabela) opazovalec.observe(tabela);
+    return () => opazovalec.disconnect();
+  }, [rezultat]);
+
+  // Potrditev z enim klikom. Vprašaj se umakne IN predlog se odkljuka v
+  // seznamu zgoraj - brez drugega bi bila celica videti potrjena, ob objavi
+  // pa bi tiho odpadla, ker se predlogi objavijo samo, če so potrjeni.
+  const potrdiPredlog = (dn, k) => {
+    const vrednost = celica(dn, k);
+    if (!/\?\s*$/.test(vrednost)) return;
+    nastaviPopravek(dn, k, vrednost.replace(/\?\s*$/, ""));
+    const pr = ((rezultat && rezultat.predlogi) || [])
+      .find(x => x.datum === dn.datum && x.stolpec === k);
+    if (pr) setPotrjeni(t => ({ ...t, [pr.kljuc]: true }));
+  };
+
   // Ročni popravki: preračun je v rocniPopravkiVMrezi (nad komponento),
   // da se ga da preizkusiti brez brskalnika.
   const spremenjeneCelice = () => rezultat
@@ -3984,7 +4058,7 @@ function VodjeTab({ zacetniMesec }){
 
       {rezultat && (
         <React.Fragment>
-          <div className="wardScroller" ref={wardRef}>
+          <div className="wardScroller kompakt nzv" ref={wardRef}>
             <table className="wardTable">
               <thead>
                 <tr>
@@ -3997,27 +4071,42 @@ function VodjeTab({ zacetniMesec }){
                 {rezultat.dnevi.map(dn => (
                   <tr key={dn.datum}>
                     <td className="name">{window.Datum.slo(dn.datum)} {dn.dan}</td>
-                    {stolpciPrikaz.map(k => (
+                    {stolpciPrikaz.map(k => {
+                      // Predlog (npr. "BOJ?") ni razpored, ampak vprašanje
+                      // koordinatorju - dokler ga ne potrdi, se ne objavi.
+                      // Zato izstopa: rumena obroba, rumena krepka pisava in
+                      // vprašaj, ki ostane v besedilu. Vpisana celica ima
+                      // svojo mirno modro.
+                      const predlog = jePredlog(dn, k);
+                      return (
                       <td key={k}>
-                        {/* Predlog (npr. "BOJ?") ni razpored, ampak vprašanje
-                            koordinatorju - dokler ga ne potrdi, se ne objavi.
-                            Zato izstopa močneje od vpisane celice: 2px rumena
-                            obroba, rumena krepka pisava in vprašaj, ki ostane
-                            v besedilu. Vpisana celica ima svojo mirno modro. */}
                         <input type="text" value={celica(dn, k)} onChange={e => nastaviPopravek(dn, k, e.target.value)}
-                          title={dn.predlogCelice[k] ? "Predlog nadomeščanja – objavi se šele po potrditvi zgoraj" : undefined}
-                          style={{width:44, textAlign:"center",
-                            background: dn.predlogCelice[k] ? "rgba(var(--predlog-rgb),.22)"
+                          // Klik na predlog ga POTRDI: vprašaj se umakne in
+                          // predlog se odkljuka v seznamu zgoraj. Vpisovanje
+                          // ostane mogoče - polje se ob kliku tudi običajno
+                          // postavi v urejanje.
+                          onClick={() => { if (predlog) potrdiPredlog(dn, k); }}
+                          title={predlog
+                            ? "Predlog nadomeščanja – klikni, da ga potrdiš (vprašaj se umakne)"
+                            : undefined}
+                          style={{width:"100%", minWidth:26, textAlign:"center",
+                            background: predlog ? "rgba(var(--predlog-rgb),.22)"
                               : (celica(dn,k) ? "rgba(var(--accent-rgb),.18)" : "transparent"),
-                            border: dn.predlogCelice[k] ? "2px solid var(--predlog-tekst)" : "1px solid var(--line)",
-                            color: dn.predlogCelice[k] ? "var(--predlog-tekst)" : undefined,
-                            fontWeight: dn.predlogCelice[k] ? 800 : undefined,
-                            borderRadius:6, fontSize:11, padding:"3px 2px"}} />
+                            border: predlog ? "2px solid var(--predlog-tekst)" : "1px solid var(--line)",
+                            color: predlog ? "var(--predlog-tekst)" : undefined,
+                            fontWeight: predlog ? 800 : undefined,
+                            cursor: predlog ? "pointer" : undefined,
+                            borderRadius:4, fontSize:10, letterSpacing:"-.02em", lineHeight:1,
+                            padding:"3px 1px"}} />
                       </td>
-                    ))}
+                      );
+                    })}
                     <td>
+                      {/* Širina v odstotkih in ne v pikslih: trdnih 150 px
+                          stolpec ni mogel stisniti in mreža je zaradi njega
+                          drsela, tudi ko je bilo vse ostalo že stisnjeno. */}
                       <input type="text" value={izjeme[dn.datum] || ""} onChange={e => setIzjeme(iz => ({...iz, [dn.datum]: e.target.value}))}
-                        placeholder="–" style={{width:150, background:"transparent", border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 6px"}} />
+                        placeholder="–" style={{width:"100%", minWidth:0, background:"transparent", border:"1px solid var(--line)", borderRadius:6, fontSize:11, padding:"3px 6px"}} />
                     </td>
                   </tr>
                 ))}

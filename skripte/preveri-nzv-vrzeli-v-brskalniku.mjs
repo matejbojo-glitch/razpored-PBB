@@ -134,6 +134,57 @@ try {
   const naslov = await stran.$eval(".card h3", e => e.textContent);
   trdi(/0\//.test(naslov), "števec potrjenih stoji na 0: " + naslov.trim());
 
+  console.log("4) klik na predlog ga potrdi – vprašaj se umakne IN predlog se odkljuka");
+  {
+    // Predlog je v mreži rumen in nosi vprašaj. Klik nanj mora oboje
+    // odpraviti: vprašaj iz besedila in nepotrjenost v seznamu zgoraj.
+    // Če bi se umaknil samo vprašaj, bi bila celica videti potrjena, ob
+    // objavi pa bi tiho odpadla - predlogi se objavijo le, če so potrjeni.
+    const predlogi = await stran.$$eval(".wardTable input",
+      e => e.map((x, i) => ({ i, v: x.value })).filter(x => /\?\s*$/.test(x.v)));
+    trdi(predlogi.length > 0, "v mreži je vsaj en predlog z vprašajem (" + predlogi.length + ")");
+
+    const polja = await stran.$$(".wardTable input");
+    const cilj = polja[predlogi[0].i];
+    const predKlikom = await cilj.evaluate(x => ({
+      v: x.value, obroba: x.style.borderWidth || x.style.border, barva: x.style.color }));
+    trdi(/\?\s*$/.test(predKlikom.v), "pred klikom nosi vprašaj: " + predKlikom.v);
+
+    await cilj.click();
+    await stran.waitForTimeout(400);
+
+    const poKliku = await cilj.evaluate(x => ({ v: x.value, border: x.style.border, barva: x.style.color }));
+    trdi(!/\?/.test(poKliku.v), `po kliku je brez vprašaja ("${predKlikom.v}" → "${poKliku.v}")`);
+    trdi(poKliku.v === predKlikom.v.replace(/\?\s*$/, ""),
+      "in se drugače ni spremenil (parafa ostane ista)");
+    trdi(!/2px/.test(poKliku.border || ""), "rumena opozorilna obroba je izginila (" + poKliku.border + ")");
+
+    const naslovPo = await stran.$eval(".card h3", e => e.textContent);
+    trdi(/1\//.test(naslovPo), "števec potrjenih se je premaknil na 1: " + naslovPo.trim());
+    const oznaceniPo = await stran.$$eval(".card input[type=checkbox]", e => e.filter(x => x.checked).length);
+    trdi(oznaceniPo === 1, "in ustrezno polje v seznamu je odkljukano (" + oznaceniPo + ")");
+  }
+
+  console.log("5) mreža NZV gre na en zaslon, brez vodoravnega drsenja");
+  {
+    const m = await stran.evaluate(() => {
+      const okvir = document.querySelector(".wardScroller");
+      const t = okvir && okvir.querySelector("table.wardTable");
+      const celica = okvir && okvir.querySelector("tbody td:not(.name) input");
+      return {
+        kompakt: !!(okvir && okvir.classList.contains("kompakt") && okvir.classList.contains("nzv")),
+        drsi: okvir ? okvir.scrollWidth > okvir.clientWidth + 1 : null,
+        postavitev: t ? getComputedStyle(t).tableLayout : null,
+        pisava: celica ? parseFloat(getComputedStyle(celica).fontSize) : null,
+        sirinaCelice: celica ? Math.round(celica.getBoundingClientRect().width) : null,
+      };
+    });
+    trdi(m.kompakt, "mreža je v kompaktnem načinu");
+    trdi(m.drsi === false, "in ne drsi vodoravno");
+    trdi(m.postavitev === "fixed", "postavitev je fixed (" + m.postavitev + ")");
+    trdi(m.pisava !== null && m.pisava <= 10, `parafa je drobna (${m.pisava} px)`);
+  }
+
   const prave = konzola.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));
   trdi(prave.length === 0, "brez napak v konzoli" + (prave.length ? ": " + prave.join(" | ") : ""));
   await stran.close();

@@ -222,6 +222,12 @@ try {
         stolpcev: k ? getComputedStyle(k).gridTemplateColumns.split(" ").length : 0,
         dni: k ? k.querySelectorAll(".kcelica:not(.prazna)").length : 0,
         visina: k ? Math.round(k.getBoundingClientRect().height) : 0, okno: window.innerHeight,
+        // Ni dovolj, da je koledar nižji od okna - stati mora tudi NAD
+        // robom. V zaslonski sliki uporabnika (september 2026) je bil
+        // dovolj nizek, a je zaradi vsega nad njim vseeno segel čez rob in
+        // zadnjega tedna ni bilo videti brez drsenja.
+        dno: k ? Math.round(k.getBoundingClientRect().bottom) : 0,
+        celica: k ? Math.round((k.querySelector(".kcelica:not(.prazna)") || {getBoundingClientRect:()=>({height:0})}).getBoundingClientRect().height) : 0,
         seznam: !!document.querySelector(".weeksGrid"),
         sirina: Math.round(document.querySelector(".wrap").getBoundingClientRect().width) };
     });
@@ -231,6 +237,8 @@ try {
     trdi(r.dni >= 28 && r.dni <= 31, `izrisani so vsi dnevi meseca (${r.dni})`);
     trdi(!r.seznam, "seznam po tednih se ob koledarju NE izriše hkrati (sicer bi bila vsebina podvojena)");
     trdi(r.visina < r.okno, `cel mesec gre na en zaslon (koledar ${r.visina}px, okno ${r.okno}px)`);
+    trdi(r.dno <= r.okno, `zadnji teden je viden brez drsenja (dno koledarja ${r.dno}px, okno ${r.okno}px)`);
+    trdi(r.celica > 0 && r.celica <= 80, `celica je stisnjena (${r.celica}px, prej 92+)`);
     trdi(r.sirina > 1000, `vsebina uporabi širino zaslona (${r.sirina}px, prej 608px)`);
     await ctx.close();
 
