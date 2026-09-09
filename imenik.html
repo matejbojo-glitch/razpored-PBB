@@ -44,7 +44,13 @@
     background: var(--surface-2); border:1px solid var(--line); color:var(--text);
     padding:9px 11px; border-radius: var(--radius-sm); font-size:14px; width:100%; font-family:inherit;
   }
-  .searchWrap{ position:relative; margin-bottom:14px; }
+  /* Iskalna vrstica ostane pri roki tudi med drsenjem po dolgem imeniku -
+     sicer je bilo treba za vsako novo iskanje zdrsniti na vrh. Odmik od
+     vrha je pod glavo strani (header.top je lepljiv na 0). Podlaga je
+     polna, ne prosojna: pod njo drsijo vrstice z imeni in skoznjo bi se
+     brala. */
+  .searchWrap{ position:sticky; top:56px; z-index:15; margin-bottom:14px;
+    padding:8px 0 6px; background: var(--bg); }
   .searchWrap input{ padding-left:34px; }
   /* Na namizju je bilo iskalno polje široko 1208px - toliko prostora za
      iskalni niz ni potrebnega, kazalec pa mora prepotovati pol zaslona.
