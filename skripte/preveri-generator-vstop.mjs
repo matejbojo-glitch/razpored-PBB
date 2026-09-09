@@ -203,6 +203,21 @@ try {
     trdi(/uredi=1&pogled=ward&oddelek=/.test(gen),
       "Generator ima vstop »Uredi objavljen razpored«");
 
+    // Polje "Razlog spremembe" mora imeti SVOJO vrstico z vidno oznako in ne
+    // stati med gumbi: ob prvi resnični uporabi je tam ostalo prazno in se je
+    // popravek zapisal brez pojasnila - natanko tisto, čemur se je hotel
+    // izogniti. Preverja se v izvorni kodi urejevalnika oddelka, ker
+    // peskovnik tega preizkusa odpre NZV pogled in ne oddelčnega.
+    const idx = readFileSync(join(koren, "index.html"), "utf8");
+    const urejevalnik = idx.slice(idx.indexOf("function OddelekUrejevalnik("),
+                                  idx.indexOf("function oddelekUrejanjeStanje("));
+    trdi(/Razlog spremembe:/.test(urejevalnik),
+      "urejevalnik oddelka ima vidno oznako »Razlog spremembe«");
+    trdi(/flexBasis:\s*"100%"/.test(urejevalnik),
+      "in polje stoji v svoji vrstici, ne stisnjeno med gumbi");
+    trdi(/ur\.setRazlog/.test(urejevalnik),
+      "vpisani razlog se res prenese v stanje urejanja");
+
     const { stran: brez } = await odpri("/index.html?pogled=ward&oddelek=B");
     await brez.waitForSelector(".segIkone button", { timeout: 15000 });
     await brez.waitForTimeout(1200);
@@ -217,6 +232,7 @@ try {
     await z.waitForTimeout(1400);
     trdi((await z.$$('button:has-text("Uredi razpored")')).length === 1,
       "odprto iz Generatorja (?uredi=1) pa gumb JE");
+
     await z.close();
   }
 
