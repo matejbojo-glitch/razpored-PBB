@@ -33,6 +33,11 @@
 
 ## Pravila počitka
 - Po nočnih izmenah (N12, N11, N10) naslednji dan ni dovoljena dnevna/dopoldanska izmena (DF12, D12, DOP, DO7, DO6, DO4).
+- Prost dan: v vsakem **koledarskem tednu (PON–NED)** mora biti vsaj en prost dan. Kršitev je teden, v katerem je delovnih vseh sedem dni.
+- Dolžina niza sama po sebi ni kršitev: kdor dela od srede do naslednje sobote (11 dni zapored), ima v prvem tednu prosta ponedeljek in torek, v drugem pa nedeljo – oba tedna sta v redu.
+
+## Statistika (obračun ur)
+- **LD (letni dopust) šteje 8 ur na dan** in je vštet v skupne delovne ure zaposlenega. Ostale odsotnosti (BS, STI, KRO) med delovne ure ne štejejo.
 
 ## Pravila za varčevanje s krediti (Output Rules)
 - **Samo spremembe (Diffs):** Nikoli ne izpisuj celotnih HTML ali JS datotek. Prikaži le funkcijo, blok kode ali git diff z navedbo točne vrstice ali funkcije.

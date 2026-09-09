@@ -557,7 +557,20 @@
 // konteksta. Števila se preračunajo ob vsaki spremembi celice in ob
 // razporedu, naloženem iz datoteke (JSON/CSV/Excel) naravnost v mrežo.
 // Nova datoteka statistika-core.js (cache-first), spremenjen admin.html.
-const CACHE = 'razpored-pbb-v159';
+// v160: Prost dan se preverja po KOLEDARSKEM TEDNU (PON-NED) in ne več
+// po dolžini niza. Spremenjen je delovni-cas.js (vse tri kopije), ki je
+// cache-first, zato dvig.
+// v161: objava v kosih po 100 vrstic in zaklep objavljene mreže; močnejša
+// rumena za predloge NZV; večje tarče peres v Željah; lepljiv prvi
+// stolpec v preglednici dopusta; urejanje paraf na mestu v Imeniku.
+// Spremenjeni so admin.html, zelje.html, imenik.html, dashboard.html in
+// theme.css - vsi cache-first, zato dvig.
+// v162: popravek objavljenega razporeda zahteva razlog (gre v revizijsko
+// sled) in pred shranjevanjem preveri delovnopravna pravila.
+// Spremenjena sta index.html in admin.html.
+// v163: Menjave (obrazec.html) - preklopno stikalo namesto kvadratka in
+// izrazitejši znak menjave med imenoma.
+const CACHE = 'razpored-pbb-v163';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

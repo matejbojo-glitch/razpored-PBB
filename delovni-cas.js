@@ -92,7 +92,7 @@
     maxZaporednihNocnih: 3,    // do sem brez pripombe
     absolutnoMaxZaporednihNocnih: 5, // nad tem kritično, ne glede na dogovor
     maxTedenskihUr: 56,        // zgornja meja ur v 7 zaporednih dneh (opozorilo)
-    zahtevajProstDanNaTeden: true, // vsaj en dan brez izmene v vsakem oknu 7 dni
+    zahtevajProstDanNaTeden: true, // ali se prost dan v tednu sploh preverja
   };
 
   // Zakonski razlogi za izjemo (prekoračitev), po katerih se izjema lahko
@@ -175,6 +175,14 @@
     var d = new Date(isoDan + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().slice(0, 10);
+  }
+
+  // Ponedeljek tedna, v katerem leži dani dan. Teden se povsod v aplikaciji
+  // šteje od ponedeljka do nedelje (getUTCDay vrne 0 za nedeljo, zato je ta
+  // primer poseben).
+  function ponedeljekTedna(isoDan) {
+    var dan = new Date(isoDan + "T00:00:00Z").getUTCDay();
+    return dodajDni(isoDan, -(dan === 0 ? 6 : dan - 1));
   }
 
   // Koliko ur izmene pade v nočni okvir 22:00-06:00. Ločeno od
@@ -318,19 +326,18 @@
         prejsnjiDatum = v.datum;
       });
 
-      // --- 3) tedenske ure in prost dan v vsakem oknu 7 dni ---
+      // --- 3) tedenske ure v vsakem oknu 7 dni ---
       if (delovni.length) {
         var poDatumu = {};
         delovni.forEach(function (v) { poDatumu[v.datum] = v; });
         var prvi = delovni[0].datum, zadnji = delovni[delovni.length - 1].datum;
         for (var d = prvi; d <= zadnji; d = dodajDni(d, 1)) {
-          var ure = 0, delovnihDni = 0;
+          var ure = 0;
           for (var k = 0; k < 7; k++) {
             var dan = dodajDni(d, k);
             if (dan > zadnji) break;
             var v2 = poDatumu[dan];
             if (v2) {
-              delovnihDni++;
               var izm2 = podatkiIzmene(v2.sifra);
               if (izm2 && izm2.ure) ure += izm2.ure;
             }
@@ -342,13 +349,44 @@
               sporocilo: Math.round(ure) + " ur v 7 dneh od " + d + " (meja " + p.maxTedenskihUr + " h).",
             });
           }
-          if (p.zahtevajProstDanNaTeden && delovnihDni === 7) {
-            krsitve.push({
-              oseba: oseba, datum: d, vrsta: "prostDan", resnost: "kriticno",
-              sporocilo: "7 zaporednih delovnih dni od " + d + " – brez prostega dne.",
-            });
-          }
         }
+      }
+
+      // --- 4) prost dan v koledarskem tednu (PON-NED) ---
+      //
+      // Pravilo je vezano na KOLEDARSKI TEDEN in ne na dolžino niza:
+      // v vsakem tednu od ponedeljka do nedelje mora biti vsaj en prost
+      // dan. Kršitev je torej teden, v katerem je delovnih vseh sedem dni.
+      //
+      // Uporabnikova zahteva (september 2026): niz, ki gre čez nedeljo,
+      // sam po sebi NI kršitev. Kdor dela od srede do naslednje sobote,
+      // ima v prvem tednu prosta ponedeljek in torek, v drugem pa nedeljo
+      // - oba tedna sta v redu, čeprav je vezanih enajst dni zapored.
+      // Prav zato je bilo prejšnje štetje niza (meja 7 dni) napačno: tak
+      // razpored je javljalo kot kritično kršitev.
+      //
+      // Delovni dan je dan z izmeno; prost dan, dopust (LD), bolniška in
+      // dan zunaj razporeda niso delovni. Teden, ki ni v celoti pokrit s
+      // podatki (npr. prvi teden meseca), zato sam po sebi ne more imeti
+      // vseh sedmih dni delovnih in se ne javi - kar je prav, saj o dneh
+      // pred začetkom razporeda ne vemo nič.
+      if (p.zahtevajProstDanNaTeden && delovni.length) {
+        var jeDelovni = {};
+        delovni.forEach(function (v) { jeDelovni[v.datum] = true; });
+        var ponedeljki = {};
+        delovni.forEach(function (v) { ponedeljki[ponedeljekTedna(v.datum)] = true; });
+        Object.keys(ponedeljki).sort().forEach(function (pon) {
+          for (var k = 0; k < 7; k++) {
+            if (!jeDelovni[dodajDni(pon, k)]) return; // ta teden ima prost dan
+          }
+          krsitve.push({
+            // Kršitev sedi na ponedeljku tedna - tam se v mreži pokaže in
+            // tam koordinator začne iskati, kateri dan sprostiti.
+            oseba: oseba, datum: pon, vrsta: "prostDan", resnost: "kriticno",
+            sporocilo: "Teden " + pon + " – " + dodajDni(pon, 6)
+              + ": delovnih je vseh sedem dni (PON–NED), brez enega prostega dne.",
+          });
+        });
       }
     });
 

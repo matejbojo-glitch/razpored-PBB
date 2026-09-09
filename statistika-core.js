@@ -39,6 +39,9 @@ window.Statistika = (function () {
     return {
       ime: ime, izmen: 0, ur: 0, nocnih: 0, vikendnih: 0,
       dezurstev: 0, odsotnosti: 0, prostih: 0,
+      // Letni dopust se šteje posebej: v "ur" je vštet (glej spodaj), tu
+      // pa ostane viden, da se v prikazu loči delo od dopusta.
+      ldDni: 0, ldUr: 0,
     };
   }
 
@@ -65,7 +68,7 @@ window.Statistika = (function () {
 
     var skupno = {
       celic: 0, izmen: 0, ur: 0, nocnih: 0, vikendnih: 0,
-      dezurstev: 0, odsotnosti: 0, prostih: 0,
+      dezurstev: 0, odsotnosti: 0, prostih: 0, ldDni: 0, ldUr: 0,
     };
     // Groba razporeditev dela po delu dneva – za vrstico deležev v predalu.
     var poSkupinah = { dop: 0, pop: 0, noc: 0, h12: 0, dez: 0 };
@@ -94,10 +97,26 @@ window.Statistika = (function () {
         } else {
           // dopust, bolniška, kroženje – oseba tisti dan oddelka ne pokriva
           o.odsotnosti++;
+          // LETNI DOPUST ŠTEJE MED URE (uporabnikova zahteva, september
+          // 2026): dan LD je po uradnem šifrantu 8 ur in tako je tudi
+          // plačan, zato mora biti v obremenitvi osebe. Brez tega je
+          // primerjava med ljudmi zavajajoča - kdor je bil teden na
+          // dopustu, izpade kot manj obremenjen, čeprav mu je mesečna
+          // obveznost polna. Ure so vzete iz iste tabele kot vse ostale
+          // (URE_SIFRANT v delovni-cas.js, LD = 8 h), ne iz svoje kopije.
+          if (kratica === "LD") {
+            var ldUr = ureCelice(dn.datum, "LD");
+            o.ldDni++;
+            o.ldUr += ldUr;
+            o.ur += ldUr;
+          }
         }
       });
       o.ur = Math.round(o.ur * 10) / 10;
+      o.ldUr = Math.round(o.ldUr * 10) / 10;
       poOsebi.push(o);
+      skupno.ldDni += o.ldDni;
+      skupno.ldUr += o.ldUr;
       skupno.izmen += o.izmen;
       skupno.ur += o.ur;
       skupno.nocnih += o.nocnih;
@@ -107,6 +126,7 @@ window.Statistika = (function () {
       skupno.prostih += o.prostih;
     });
     skupno.ur = Math.round(skupno.ur * 10) / 10;
+    skupno.ldUr = Math.round(skupno.ldUr * 10) / 10;
 
     // Največ ur ima ena oseba – merilo za stolpce obremenjenosti. Brez tega
     // bi bili vsi stolpci enako dolgi ali pa bi jih bilo treba deliti s

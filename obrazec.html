@@ -69,6 +69,31 @@
   .entry .who{ font-weight:700; font-size:13.5px; }
   .entry .meta{ font-size:12px; color:var(--muted); margin-top:2px; }
   .entry .actions{ display:flex; gap:6px; flex:0 0 auto; }
+
+  /* Preklopno stikalo namesto potrditvenega polja. Ostaja pravi
+     <input type="checkbox"> - le narisan drugače: tipkovnica, bralnik
+     zaslona in oddaja obrazca delujejo naprej sami od sebe, česar
+     nadomestek iz <div>-ov ne bi zmogel. Stikalo pove trenutno STANJE
+     ("vklopljeno/izklopljeno"), kvadratek pa izbiro z seznama - tu gre za
+     prvo. */
+  input.stikalo{ appearance:none; -webkit-appearance:none; margin:0; flex:0 0 auto;
+    width:46px; height:28px; border-radius:999px; background: var(--surface-2);
+    border:1px solid var(--line); position:relative; cursor:pointer;
+    transition: background var(--fast, .15s) ease, border-color var(--fast, .15s) ease; }
+  input.stikalo::after{ content:""; position:absolute; top:2px; left:2px; width:22px; height:22px;
+    border-radius:50%; background: var(--muted);
+    transition: transform var(--fast, .15s) ease, background var(--fast, .15s) ease; }
+  input.stikalo:checked{ background: rgba(var(--accent-rgb), .30); border-color: var(--accent); }
+  input.stikalo:checked::after{ transform: translateX(18px); background: var(--accent); }
+  input.stikalo:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  input.stikalo:disabled{ opacity:.5; cursor:not-allowed; }
+  /* Vrstica s stikalom je v celoti tarča za prst, ne samo stikalo samo. */
+  label.sStikalom{ display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
+
+  /* Menjava je izmenjava DVEH strani; puščica to pove hitreje kot stavek,
+     zato mora biti vidna in ne le presledek med imenoma. */
+  .menjavaPuscica{ display:inline-block; margin:0 7px; font-size:15px; font-weight:800;
+    color: var(--accent); vertical-align:-1px; }
   .actBtn{ border:0; border-radius:8px; padding:11px 14px; min-height:40px; font-size:13px; font-weight:800; cursor:pointer; }
   .actBtn.yes{ background: var(--ok); color:#12281A; }
   .actBtn.no{ background: var(--danger); color:#2A1608; }
@@ -539,8 +564,9 @@ function NovObrazec({ myId, profil, onOddano, prednapolni }){
 
         {vrsta === "menjava_sluzbe" && jeAdmin && (
           <div className="field adminTakoj">
-            <label htmlFor="zaDrugega" style={{display:"flex", alignItems:"center", gap:8, fontWeight:"normal"}}>
-              <input id="zaDrugega" type="checkbox" checked={zaDrugega}
+            <label htmlFor="zaDrugega" className="sStikalom" style={{fontWeight:"normal"}}>
+              <input id="zaDrugega" type="checkbox" className="stikalo" role="switch"
+                aria-checked={zaDrugega} checked={zaDrugega}
                 onChange={e => {
                   const v = e.target.checked;
                   setZaDrugega(v); setZaKogaId(""); setDatum(""); setIzbranSodelavec(null);
@@ -823,7 +849,11 @@ function UdelezencaMenjave({ obrazec }){
   return (
     <React.Fragment>
       <div className="meta">
-        <b>{kdo || "?"}</b>{obrazec.vrsta === "oddaja_dezurstva" ? " → " : " ↔ "}<b>{sKom || "?"}</b>
+        <b>{kdo || "?"}</b>{" "}
+        <span className="menjavaPuscica" aria-label={obrazec.vrsta === "oddaja_dezurstva" ? "odda" : "zamenjata"}>
+          {obrazec.vrsta === "oddaja_dezurstva" ? "→" : "⇄"}
+        </span>{" "}
+        <b>{sKom || "?"}</b>
       </div>
       <div className="meta">
         {obrazec.vrsta === "oddaja_dezurstva"
@@ -970,7 +1000,7 @@ function DetajlObrazca({ obrazec, profil, onNazaj }){
         <div className="field"><label>Vrsta</label><div>{vrstaLabel(obrazec.vrsta)}</div></div>
         {obrazec.vrsta === "menjava_sluzbe" && (
           <React.Fragment>
-            <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)} ↔ sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
+            <div className="field"><label>Menjava</label><div>Moja izmena {oznakaIzmene(p.izmena_a)} dne {p.datum_a && fmtDatum(p.datum_a)}<span className="menjavaPuscica" aria-label="zamenjata">⇄</span>sodelavčeva izmena {oznakaIzmene(p.izmena_b)} dne {p.datum_b && fmtDatum(p.datum_b)}</div></div>
             <OpozorilaMenjave obrazec={obrazec} />
           </React.Fragment>
         )}
@@ -1034,7 +1064,9 @@ function MenjaveMeseca({ rows }){
             <div>
               <div className="who">
                 {r.vlagatelj ? r.vlagatelj.full_name : "?"}
-                {r.vrsta === "oddaja_dezurstva" ? " → " : " ↔ "}
+                {" "}<span className="menjavaPuscica" aria-label={r.vrsta === "oddaja_dezurstva" ? "odda" : "zamenjata"}>
+                  {r.vrsta === "oddaja_dezurstva" ? "→" : "⇄"}
+                </span>{" "}
                 {r.sodelavec ? r.sodelavec.full_name : "?"}
                 {r.vrsta === "oddaja_dezurstva"
                   ? <span className="pill wait" style={{marginLeft:6}}>oddaja dežurstva</span>

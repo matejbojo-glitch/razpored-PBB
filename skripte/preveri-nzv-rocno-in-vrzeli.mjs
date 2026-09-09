@@ -262,6 +262,11 @@ function izvleciAsync(ime) {
   }
   throw new Error("Konec funkcije " + ime + " ni najden.");
 }
+// Objava gre od septembra 2026 skozi upsertRazporedVKosih (kosi po 100
+// vrstic), zato mora biti v peskovniku tudi ta pomočnik - sicer objava
+// pade na "is not defined" in preizkus meri napačno stvar.
+vm.runInContext(izvleciConstVrstico("const KOS_OBJAVE"), sandbox);
+vm.runInContext(izvleciAsync("upsertRazporedVKosih"), sandbox);
 vm.runInContext(izvleciAsync("publishLeadScheduleRows"), sandbox);
 
 const izidObjave = await sandbox.publishLeadScheduleRows([

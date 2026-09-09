@@ -187,6 +187,27 @@ try {
     const besedilo = await stran.evaluate(() => document.body.innerText);
     trdi(/Izvedi menjavo namesto drugega zaposlenega/i.test(besedilo), "admin vidi stikalo");
 
+    // Stikalo je NARISANO kot stikalo, ostane pa pravi <input type=checkbox>:
+    // tipkovnica, bralnik zaslona in oddaja obrazca tako delujejo sami od
+    // sebe. Nadomestek iz <div>-ov bi vse troje zahteval na roko in bi se
+    // prej ali slej pokvaril neopazno.
+    const stikalo = await stran.$eval("#zaDrugega", el => ({
+      tag: el.tagName.toLowerCase(),
+      tip: el.getAttribute("type"),
+      vloga: el.getAttribute("role"),
+      razred: el.className,
+      videz: getComputedStyle(el).appearance,
+      sirina: Math.round(el.getBoundingClientRect().width),
+      visina: Math.round(el.getBoundingClientRect().height),
+    }));
+    trdi(stikalo.tag === "input" && stikalo.tip === "checkbox",
+      "stikalo je pravi potrditveni element (" + stikalo.tag + "/" + stikalo.tip + ")");
+    trdi(stikalo.vloga === "switch", 'bralniku zaslona se predstavi kot stikalo (role="switch")');
+    trdi(/\bstikalo\b/.test(stikalo.razred) && stikalo.videz === "none",
+      "in je narisano kot stikalo, ne kot kvadratek (appearance: " + stikalo.videz + ")");
+    trdi(stikalo.sirina >= 40 && stikalo.visina >= 24,
+      `tarča za prst je dovolj velika (${stikalo.sirina}x${stikalo.visina})`);
+
     await stran.click("#zaDrugega");
     await stran.waitForTimeout(300);
     const gumbOb = await stran.$("button.submitBtn");

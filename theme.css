@@ -53,6 +53,10 @@
      generatorju. Ista barva kot "omejitev" v uradnih predlogah NZV. */
   --predlog: #FFD966;
   --predlog-rgb: 255,217,102;
+  /* Ista rumena kot podlaga je za BESEDILO in obrobo presvetla (#FFD966 na
+     belem se ne prebere). Predlog mora izstopati in biti berljiv, zato
+     ločen, temnejši odtenek - v temnem načinu obratno, svetlejši. */
+  --predlog-tekst: #8A6100;
 
   /* --- merski sistem --- */
   --radius-sm: 10px;
@@ -125,6 +129,7 @@
     --cool: #7C95E0;
     --predlog: #C7A93F;
     --predlog-rgb: 199,169,63;
+    --predlog-tekst: #E8C766;
   }
 }
 

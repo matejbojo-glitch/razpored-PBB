@@ -209,6 +209,73 @@ describe("zaporedne nočne izmene", () => {
   });
 });
 
+describe("prost dan v koledarskem tednu (PON-NED)", () => {
+  // Pravilo je vezano na koledarski teden, ne na dolžino niza (uporabnikova
+  // zahteva, september 2026): v vsakem tednu od ponedeljka do nedelje mora
+  // biti vsaj en prost dan. Niz, ki gre čez nedeljo, sam po sebi ni kršitev
+  // - prejšnja meja 7 zaporednih dni je tak, povsem običajen razpored
+  // javljala kot kritično kršitev.
+  const prostDan = (vnosi) =>
+    preveriPravila(vnosi).filter((k) => k.vrsta === "prostDan");
+
+  // Delovni dnevi od danega dne v novembru 2026 naprej. 1. 11. je nedelja,
+  // torej se teden začne 2. 11. (ponedeljek).
+  const niz = (n, od = 1, sifra = "Dopoldne") =>
+    Array.from({ length: n }, (_, i) => ({
+      oseba: "X",
+      datum: `2026-11-${String(od + i).padStart(2, "0")}`,
+      sifra,
+    }));
+
+  it("teden brez enega samega prostega dne je kritična kršitev", () => {
+    // PON 2. 11. - NED 8. 11., vseh sedem dni delovnih.
+    const k = prostDan(niz(7, 2));
+    expect(k).toHaveLength(1);
+    expect(k[0].resnost).toBe("kriticno");
+    // Kršitev sedi na ponedeljku tedna, na katerega se nanaša.
+    expect(k[0].datum).toBe("2026-11-02");
+    expect(k[0].sporocilo).toContain("2026-11-02 – 2026-11-08");
+  });
+
+  it("od srede do naslednje sobote NI kršitev, čeprav je 11 dni zapored", () => {
+    // Uporabnikov primer: SR 4. 11. - SO 14. 11. Prvi teden ima prosta
+    // ponedeljek in torek, drugi nedeljo - oba sta torej v redu.
+    expect(prostDan(niz(11, 4))).toHaveLength(0);
+  });
+
+  it("nepopoln teden na robu razporeda se ne javi", () => {
+    // SR 4. 11. - TO 10. 11. je sedem dni zapored, a noben koledarski teden
+    // ni v celoti delovni. O dneh pred začetkom razporeda ne vemo nič, zato
+    // se tak teden ne sme javiti.
+    expect(prostDan(niz(7, 4))).toHaveLength(0);
+  });
+
+  it("vsak polni teden se javi posebej", () => {
+    // PON 2. 11. - NED 15. 11. sta dva polna tedna brez prostega dne.
+    const k = prostDan(niz(14, 2));
+    expect(k).toHaveLength(2);
+    expect(k.map((x) => x.datum)).toEqual(["2026-11-02", "2026-11-09"]);
+  });
+
+  it("prost dan ali dopust v tednu kršitev odpravi", () => {
+    // Isti teden kot zgoraj, a brez sobote.
+    expect(prostDan(niz(7, 2).filter((v) => v.datum !== "2026-11-07"))).toHaveLength(0);
+    // Dopust ni delovni dan - LD med tednom torej zadošča.
+    const zDopustom = niz(7, 2).map((v) => (v.datum === "2026-11-05" ? { ...v, sifra: "LD" } : v));
+    expect(prostDan(zDopustom)).toHaveLength(0);
+  });
+
+  it("izmena in dežurstvo istega dne sta en sam delovni dan", () => {
+    // Dva vnosa za isti datum ne smeta veljati za dva dneva - teden s
+    // prostim dnem mora ostati brez kršitve.
+    const zDezurstvom = [
+      ...niz(7, 2).filter((v) => v.datum !== "2026-11-07"),
+      { oseba: "X", datum: "2026-11-03", sifra: "DEŽURSTVO" },
+    ];
+    expect(prostDan(zDezurstvom)).toHaveLength(0);
+  });
+});
+
 describe("kanonični modul in njegovi kopiji ostajajo usklajeni", () => {
   // Robna funkcija "koledar" ne more uvoziti datoteke iz korena (deploy
   // naloži samo supabase/functions/), zato kopija mora obstajati. Če se

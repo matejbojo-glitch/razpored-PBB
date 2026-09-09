@@ -190,6 +190,9 @@ create table if not exists public.dnevnik_razporeda (
     action text NOT NULL,
     changed_by uuid,
     changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    -- Zakaj je bila celica spremenjena. Brez tega pove sled samo, KAJ se je
+    -- spremenilo, ne pa zakaj in kdo je prosil - glej supabase/razlog-spremembe.sql.
+    razlog text,
     CONSTRAINT dnevnik_razporeda_action_check CHECK ((action = ANY (ARRAY['insert'::text, 'update'::text, 'delete'::text])))
 );
 
@@ -373,7 +376,10 @@ create table if not exists public.razpored (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     created_by uuid,
     updated_by uuid,
-    pokriva_oddelek text
+    pokriva_oddelek text,
+    -- Zakaj je bila celica nazadnje spremenjena. Sprožilec za revizijo ga
+    -- prepiše v dnevnik_razporeda - glej supabase/razlog-spremembe.sql.
+    razlog text
 );
 
 create table if not exists public.zgodovina_stanja_dopusta (
@@ -1011,6 +1017,11 @@ alter table public.zgodovina_stanja_dopusta add column if not exists dnevi numer
 alter table public.zgodovina_stanja_dopusta add column if not exists profile_id uuid;
 alter table public.zgodovina_stanja_dopusta add column if not exists uvozeno timestamp with time zone default now();
 alter table public.zgodovina_stanja_dopusta add column if not exists uvozil uuid;
+
+-- Razlog spremembe objavljenega razporeda (glej supabase/razlog-spremembe.sql).
+-- Tu zato, da baza, postavljena po tej datoteki, stolpca ne pogreša.
+alter table public.razpored add column if not exists razlog text;
+alter table public.dnevnik_razporeda add column if not exists razlog text;
 
 
 -- Popravek podvojene CHECK omejitve na zelje_zaposlenih za OBSTOJEČE baze:
@@ -3050,8 +3061,8 @@ create or replace function public.schedule_entries_audit() RETURNS trigger
     AS $$
 begin
   if TG_OP = 'DELETE' then
-    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-    values (old.id, old.employee_id, old.department_code, old.work_date, old.shift_code, null, 'delete', auth.uid());
+    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by, razlog)
+    values (old.id, old.employee_id, old.department_code, old.work_date, old.shift_code, null, 'delete', auth.uid(), old.razlog);
     return old;
   elsif TG_OP = 'UPDATE' then
     -- samo, če se je dejansko kaj vidnega spremenilo (ne vsak "ping" upsert
@@ -3059,13 +3070,13 @@ begin
     -- vedno posodobi updated_at/updated_by, kar bi sicer napolnilo dnevnik
     -- z nič-spremembami).
     if old.shift_code is distinct from new.shift_code or old.department_code is distinct from new.department_code then
-      insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-      values (new.id, new.employee_id, new.department_code, new.work_date, old.shift_code, new.shift_code, 'update', auth.uid());
+      insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by, razlog)
+      values (new.id, new.employee_id, new.department_code, new.work_date, old.shift_code, new.shift_code, 'update', auth.uid(), new.razlog);
     end if;
     return new;
   else
-    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by)
-    values (new.id, new.employee_id, new.department_code, new.work_date, null, new.shift_code, 'insert', auth.uid());
+    insert into public.dnevnik_razporeda (entry_id, employee_id, department_code, work_date, old_shift_code, new_shift_code, action, changed_by, razlog)
+    values (new.id, new.employee_id, new.department_code, new.work_date, null, new.shift_code, 'insert', auth.uid(), new.razlog);
     return new;
   end if;
 end;
