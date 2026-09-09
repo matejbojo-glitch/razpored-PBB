@@ -219,7 +219,7 @@ try {
   trdi(!!navodilo && !(await navodilo.evaluate(e => e.open)), "navodilo 'Kako to deluje' je zloženo");
   const zgodovina = await tel.$$eval("details.navodilo summary", els => els.map(e => e.textContent.trim()));
   trdi(zgodovina.some(t => t.startsWith("Zgodovina sprememb")), "zgodovina sprememb je zložena v isto obliko");
-  const dan = await tel.$(".monthRow");
+  const dan = await tel.$(".krmilnaVrstica");
   const y = dan ? await dan.evaluate(e => Math.round(e.getBoundingClientRect().top + window.scrollY)) : 99999;
   trdi(y < 915, `izbirnik meseca je na prvem zaslonu (${y} px < 915)`);
   const preseg = await tel.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -243,7 +243,7 @@ try {
   const naprej = naslednji.getFullYear() + "-" + String(naslednji.getMonth() + 1).padStart(2, "0");
   trdi(await naslovGumba("Generiraj razpored") === `admin.html?tab=kalup&oddelek=C1&mesec=${tekoci}`,
     `gumb pri C1 vodi v Generator → Oddelki z že izbranim C1 in mesecem (${mesecVPrikazu}): ` + await naslovGumba("Generiraj razpored"));
-  await g.click(".monthRow .navBtn >> nth=1");   // en mesec naprej
+  await g.click(".krmilnaVrstica .navBtn >> nth=1");   // en mesec naprej
   await g.waitForTimeout(400);
   trdi((await naslovGumba("Generiraj razpored") || "").endsWith("mesec=" + naprej),
     "gumb sledi izbranemu mesecu razpredelnice: " + await naslovGumba("Generiraj razpored"));
