@@ -234,7 +234,9 @@ try {
   };
   await izberi(g, "C1");
   // Mesec vzame iz razpredelnice, ki je odprta - ne iz današnjega dne.
-  const mesecVPrikazu = await g.$eval(".monthLbl", e => e.textContent.trim());
+  // Krepko besedilo z mesecem je odpadlo (bilo je podvojeno z izbirnikom
+  // takoj zraven), zato se mesec bere iz izbirnika samega.
+  const mesecVPrikazu = await g.$eval("#zeljeMesec", e => e.value);
   // Mesec izpeljemo iz DANAŠNJEGA dne - stran se odpre na tekočem mesecu,
   // zato bi trdno vpisan "2026-08" preizkus tiho pokvaril, ko ta mesec mine.
   const zdaj = new Date();

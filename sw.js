@@ -587,7 +587,9 @@
 // novi strani pri tisku. Spremenjena sta imenik.html in theme.css.
 // v170: Želje - ena sama krmilna vrstica (skupina, mesec, izvoz), brez
 // naslova in podnaslova, naslov skupine nad tabelo namesto v njej.
-const CACHE = 'razpored-pbb-v170';
+// v171: Želje - mesec ni več izpisan dvakrat (odpadlo je krepko
+// besedilo ob izbirniku), navodilo je pod legendo.
+const CACHE = 'razpored-pbb-v171';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
