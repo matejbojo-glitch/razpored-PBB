@@ -4421,7 +4421,7 @@ function RevizijaRazporeda(){
     if (!vnosi) return [];
     const s = iskanje.trim().toLowerCase();
     if (!s) return vnosi;
-    return vnosi.filter(v => (v.zaposleni || "").toLowerCase().includes(s) || (v.urednik || "").toLowerCase().includes(s) || (v.department_code || "").toLowerCase().includes(s));
+    return vnosi.filter(v => (v.zaposleni || "").toLowerCase().includes(s) || (v.urednik || "").toLowerCase().includes(s) || (v.department_code || "").toLowerCase().includes(s) || (v.razlog || "").toLowerCase().includes(s));
   }, [vnosi, iskanje]);
 
   const AKCIJA_NAZIV = { insert: "Nov vnos", update: "Sprememba", delete: "Izbris" };
@@ -4429,13 +4429,13 @@ function RevizijaRazporeda(){
   return (
     <div>
       <p className="hint">Zadnjih 300 sprememb v razporedu (razpored) - kdo, kdaj in kaj. Piše samodejno sprožilec v bazi, ne da bi bilo to mogoče izklopiti iz aplikacije.</p>
-      <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku ali oddelku …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
+      <div className="field"><input type="text" placeholder="Išči po zaposlenem, uredniku, oddelku ali razlogu …" value={iskanje} onChange={e => setIskanje(e.target.value)} /></div>
       {napaka && <p className="err">Napaka: {napaka} (najverjetneje je treba pognati zadnjo različico supabase/schema.sql).</p>}
       {vnosi === null ? <p className="hint">Nalagam …</p> : (
         <div className="tableScroller" style={{marginTop:10}}>
           <table className="fairTable">
             <thead>
-              <tr><th>Ko</th><th>Kdo</th><th>Kaj</th><th>Zaposleni</th><th>Oddelek</th><th>Datum</th><th>Iz → V</th></tr>
+              <tr><th>Ko</th><th>Kdo</th><th>Kaj</th><th>Zaposleni</th><th>Oddelek</th><th>Datum</th><th>Iz → V</th><th>Zakaj</th></tr>
             </thead>
             <tbody>
               {filtrirani.map(v => (
@@ -4447,6 +4447,12 @@ function RevizijaRazporeda(){
                   <td>{v.department_code}</td>
                   <td>{window.Datum.slo(v.work_date)}</td>
                   <td>{(v.old_shift_code || "prosto") + " → " + (v.new_shift_code || "prosto")}</td>
+                  {/* Razlog je bil dodan septembra 2026. Starejši zapisi ga
+                      nimajo in ga tudi ne morejo dobiti - "–" je pošteneje
+                      od prazne celice, ki je videti kot napaka prikaza. */}
+                  <td style={{textAlign:"left", whiteSpace:"normal", maxWidth:260}}>
+                    {v.razlog || <span className="hint">–</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

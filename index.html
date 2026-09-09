@@ -2060,6 +2060,15 @@ function OddelekUrejevalnik({ ur, urejam, setUrejam }){
           <button className="btn btn-ghost btn-sm" disabled={ur.busy || !ur.spremenjenih} onClick={ur.razveljavi}>
             Razveljavi spremembe
           </button>
+          {/* Razlog gre v revizijsko sled. Ni obvezen - popravek se ne sme
+              ustaviti zato, ker koordinator med delom nima besede - a je
+              zato takoj ob gumbu in ne skrit pod dodatnimi kliki. */}
+          <input type="text" value={ur.razlog} onChange={e => ur.setRazlog(e.target.value)}
+            placeholder="Razlog (npr. bolniška, menjava s Kovač Ano)"
+            aria-label="Razlog spremembe – zapiše se v revizijsko sled"
+            style={{flex:"1 1 240px", minWidth:180, minHeight:36, padding:"6px 10px",
+              borderRadius:8, border:"1px solid var(--line)", background:"var(--surface)",
+              color:"var(--text)", fontSize:13}} />
           <span className="sub">
             {ur.spremenjenih ? `${ur.spremenjenih} spremenjenih celic` : "ni sprememb"}
           </span>
@@ -2076,11 +2085,16 @@ function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavl
   const [busy, setBusy] = useState(false);
   const [sporocilo, setSporocilo] = useState(null);
   const [napaka, setNapaka] = useState(null);
+  // Zakaj se objavljeni razpored popravlja. Zapiše se v revizijsko sled,
+  // da se čez mesece vidi ne samo KAJ, ampak tudi zakaj in kdo je prosil
+  // ("bolniška", "menjava s Kovač Ano") - prav to vprašanje se zastavi ob
+  // pritožbi, odgovora pa dotlej ni bilo nikjer.
+  const [razlog, setRazlog] = useState("");
 
   // Ob menjavi oddelka ali meseca se nedokončani popravki zavržejo -
   // sicer bi se ključi "id|datum" prenesli na drug mesec in bi objava
   // pisala v dneve, ki jih koordinator sploh ni gledal.
-  useEffect(() => { setUrejeno({}); setSporocilo(null); setNapaka(null); }, [deptCode, month]);
+  useEffect(() => { setUrejeno({}); setRazlog(""); setSporocilo(null); setNapaka(null); }, [deptCode, month]);
 
   const vrednost = (empId, datum) => {
     const k = empId + "|" + datum;
@@ -2098,7 +2112,53 @@ function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavl
   });
   const razveljavi = () => { setUrejeno({}); setSporocilo(null); setNapaka(null); };
 
+  // Delovnopravna kontrola PRED shranjevanjem popravka objavljenega
+  // razporeda. Generator svoje kršitve pokaže sproti v mreži; ta pot pa je
+  // doslej shranila karkoli - prav tu, po objavi, pa nastane največ
+  // popravkov na hitro (bolniška zjutraj, menjava čez vikend) in prav tu
+  // je najlažje komu vpisati dopoldansko izmeno takoj po nočni.
+  //
+  // Preveri se CELOTEN prikazani mesec s popravki vštetimi, ne le
+  // spremenjene celice: pravila (počitek med izmenama, prost dan v tednu)
+  // se nanašajo na sosednje dni, zato posamezna celica sama zase ničesar
+  // ne pove.
+  function kriticneKrsitvePoPopravku(){
+    if (!(window.DelovniCas && typeof window.DelovniCas.preveriPravila === "function")) return [];
+    const imePoId = {};
+    (employees || []).forEach(o => { imePoId[o.id] = o.full_name; });
+    const vnosi = [];
+    Object.keys(byEmpDate).forEach(k => {
+      const [empId, datum] = k.split("|");
+      if (!imePoId[empId]) return;
+      const sifra = (k in urejeno) ? urejeno[k] : ((byEmpDate[k] && byEmpDate[k].shift_code) || "");
+      if (sifra) vnosi.push({ oseba: imePoId[empId], datum, sifra });
+    });
+    // Popravki v celicah, ki jih dotlej v razporedu sploh ni bilo.
+    Object.keys(urejeno).forEach(k => {
+      if (k in byEmpDate) return;
+      const [empId, datum] = k.split("|");
+      if (imePoId[empId] && urejeno[k]) vnosi.push({ oseba: imePoId[empId], datum, sifra: urejeno[k] });
+    });
+    try {
+      return window.DelovniCas.preveriPravila(vnosi).filter(kr => kr.resnost === "kriticno");
+    } catch (e) {
+      return [];   // brez šifranta preverjanja ni - popravka to ne sme ustaviti
+    }
+  }
+
   async function objavi(){
+    const kriticne = kriticneKrsitvePoPopravku();
+    if (kriticne.length) {
+      // Prve tri po imenu, da je opozorilo konkretno in ne le število.
+      const primeri = kriticne.slice(0, 3)
+        .map(kr => "· " + kr.oseba + ", " + datumSlo(kr.datum) + ": " + kr.sporocilo).join("\n");
+      const vec = kriticne.length > 3 ? "\n… in še " + (kriticne.length - 3) + "." : "";
+      // Objava se ne prepove: ob bolniški se včasih mora zgoditi in vodja
+      // to ureja naprej ročno. Ne sme pa se zgoditi, ne da bi vedel.
+      if (!window.confirm("Popravek povzroči " + kriticne.length
+        + (kriticne.length === 1 ? " kritično kršitev:" : " kritičnih kršitev:")
+        + "\n\n" + primeri + vec + "\n\nVseeno objavim?")) return;
+    }
     setBusy(true); setNapaka(null); setSporocilo(null);
     try {
       const vrstice = spremenjeniKljuci.map(k => {
@@ -2112,6 +2172,10 @@ function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavl
           employee_id, work_date,
           shift_code: urejeno[k] || "",
           department_code: (obstojeci && obstojeci.department_code) || deptCode,
+          // Razlog potuje z vrstico; sprožilec za revizijo ga prepiše v
+          // dnevnik_razporeda (supabase/razlog-spremembe.sql). Brez njega
+          // sled pove samo, KAJ se je spremenilo, ne pa zakaj.
+          razlog: razlog.trim() || null,
           ...(obstojeci && obstojeci.pokriva_oddelek ? { pokriva_oddelek: obstojeci.pokriva_oddelek } : {}),
         };
       });
@@ -2130,6 +2194,7 @@ function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavl
         obvestila = e.message || String(e);
       }
       setUrejeno({});
+      setRazlog("");
       setSporocilo(`Objavljeno: ${vrstice.length} ${vrstice.length === 1 ? "celica" : "celic"}.`
         + (obvestila ? ` Opozorilo: obvestila niso bila poslana (${obvestila}).` : ""));
       naObjavljeno();
@@ -2141,6 +2206,7 @@ function oddelekUrejanjeStanje({ deptCode, month, employees, byEmpDate, naObjavl
   }
 
   return { vrednost, nastavi, objavi, razveljavi, busy, sporocilo, napaka,
+           razlog, setRazlog,
            spremenjenih: spremenjeniKljuci.length };
 }
 

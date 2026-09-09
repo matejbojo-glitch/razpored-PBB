@@ -565,7 +565,10 @@
 // stolpec v preglednici dopusta; urejanje paraf na mestu v Imeniku.
 // Spremenjeni so admin.html, zelje.html, imenik.html, dashboard.html in
 // theme.css - vsi cache-first, zato dvig.
-const CACHE = 'razpored-pbb-v161';
+// v162: popravek objavljenega razporeda zahteva razlog (gre v revizijsko
+// sled) in pred shranjevanjem preveri delovnopravna pravila.
+// Spremenjena sta index.html in admin.html.
+const CACHE = 'razpored-pbb-v162';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
