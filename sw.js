@@ -570,7 +570,13 @@
 // Spremenjena sta index.html in admin.html.
 // v163: Menjave (obrazec.html) - preklopno stikalo namesto kvadratka in
 // izrazitejši znak menjave med imenoma.
-const CACHE = 'razpored-pbb-v163';
+// v164: Želje - gosta razpredelnica (kompaktne celice, odrezana imena,
+// zasilna pomanjšava) in popravek lepljivega naslova skupine, ki je
+// prekrival prvo vrstico in požiral klike.
+// v165: Želje po vzoru preglednice - razpredelnica je strnjen blok
+// (26x22 px celice, 150 px imena), okvir se ji prilega, peresa so z
+// miško manjša.
+const CACHE = 'razpored-pbb-v165';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,
