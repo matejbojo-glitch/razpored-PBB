@@ -129,7 +129,6 @@
   .navBtn{ border:1px solid var(--line); background:var(--surface); border-radius:8px; width:40px; height:40px;
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--text); }
   .navBtn:hover{ background:var(--surface-2); border-color:var(--accent); }
-  .monthLbl{ font-size:14.5px; font-weight:800; min-width:130px; text-align:center; }
   .mesecIzbirnik{
     padding:8px 10px; border:1px solid var(--line); border-radius:8px;
     background:var(--surface); color:var(--text); font:inherit; font-size:13px;
@@ -1280,22 +1279,6 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
 
   return (
     <div>
-      {/* Navodilo je zloženo: na telefonu je zavzelo pol zaslona, preden
-          se je pokazala prva vrstica podatkov. Naslov skupine je odslej
-          TIK NAD razpredelnico (spodaj) in ne na vrhu strani - tam je
-          stal predaleč od tabele, na katero se nanaša. */}
-      <details className="navodilo no-print">
-        <summary>Kako to deluje</summary>
-        <p className="hint" style={{marginTop:8}}>
-          Klikni barvo, nato klikni ali povleci čez dneve. Generatorji razporedov te vnose preberejo
-          samodejno – <b>dopust</b> blokira tudi dan pred začetkom strnjenega bloka, <b>omejitev</b>,{" "}
-          <b>bolniška</b> in <b>izobraževanje</b> pa samo označen dan. Če za osebo v tem mesecu ni
-          nobenega vnosa, se šteje, da je na voljo cel mesec.
-          {jeAdmin
-            ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
-            : " Urejaš lahko samo svojo vrstico, in to do 10. v mesecu pred prikazanim mesecem."}
-        </p>
-      </details>
       {jeAdmin && (
         <React.Fragment>
           <RazporedUvozVir kljuc="zelje-sheets" ikona="📗" naziv="Želje iz Google Sheets"
@@ -1378,7 +1361,10 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
         {izbirnikSkupine}
         <div className="monthNav">
           <button className="navBtn" onClick={() => { let m=view.month-1,y=view.year; if(m<0){m=11;y--;} pojdiNaMesec(y,m); }}>‹</button>
-          <div className="monthLbl">{MESECI_SL[view.month][0].toUpperCase()+MESECI_SL[view.month].slice(1)} {view.year}</div>
+          {/* Mesec je bil izpisan DVAKRAT: kot krepko besedilo med puščicama
+              in še enkrat v koledarskem izbirniku takoj zraven. Besedilo je
+              odpadlo (uporabnikova oznaka na posnetku, september 2026) -
+              izbirnik pove isto in ga je hkrati mogoče uporabiti. */}
           <button className="navBtn" onClick={() => { let m=view.month+1,y=view.year; if(m>11){m=0;y++;} pojdiNaMesec(y,m); }}>›</button>
           {/* Koledarski izbirnik meseca - isti kot v Razporedu →
               Razpredelnici (uporabnikova zahteva, september 2026: "ta
@@ -1408,6 +1394,23 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
             <span className="penSwatch"></span>Izbriši
           </button>
       </div>
+
+      {/* Navodilo je zloženo: na telefonu je zavzelo pol zaslona, preden
+          se je pokazala prva vrstica podatkov. Naslov skupine je odslej
+          TIK NAD razpredelnico (spodaj) in ne na vrhu strani - tam je
+          stal predaleč od tabele, na katero se nanaša. */}
+      <details className="navodilo no-print">
+        <summary>Kako to deluje</summary>
+        <p className="hint" style={{marginTop:8}}>
+          Klikni barvo, nato klikni ali povleci čez dneve. Generatorji razporedov te vnose preberejo
+          samodejno – <b>dopust</b> blokira tudi dan pred začetkom strnjenega bloka, <b>omejitev</b>,{" "}
+          <b>bolniška</b> in <b>izobraževanje</b> pa samo označen dan. Če za osebo v tem mesecu ni
+          nobenega vnosa, se šteje, da je na voljo cel mesec.
+          {jeAdmin
+            ? " Kot administrator lahko urejaš vrstico kogar koli, kadar koli."
+            : " Urejaš lahko samo svojo vrstico, in to do 10. v mesecu pred prikazanim mesecem."}
+        </p>
+      </details>
 
         <button className="toolBtn" style={{width:"auto"}}
           title="Izvozi v PDF (A4 ležeče, 1 stran)"
