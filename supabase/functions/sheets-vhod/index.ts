@@ -34,7 +34,7 @@
 // ---------------------------------------------------------------------
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  koordinateOddelka, kratkiKljuc, kratica, jePrazenZapis, istaIzmena,
+  koordinateOddelka, koordinateFlexi, kratkiKljuc, kratica, jePrazenZapis, istaIzmena,
 } from "../_shared/sheets-koordinate.js";
 import {
   preberiServisniRacun, pridobiZeton, preberiZavihek, ZavihekNiNajden,
@@ -98,12 +98,13 @@ Deno.serve(async (req: Request) => {
       povezava_id: povezava ? povezava.id : null,
     });
   }
-  if (povezava.oblika !== "oddelek") {
+  if (povezava.oblika !== "oddelek" && povezava.oblika !== "flexi") {
     return await napaka("nepodprta_oblika", {
       povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
       podrobnosti: `Oblika "${povezava.oblika}" še ni podprta za samodejno branje.`,
     });
   }
+  const jeFlexi = povezava.oblika === "flexi";
   if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
     return await napaka("api", { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
       podrobnosti: "Manjka GOOGLE_SERVICE_ACCOUNT_JSON." });
@@ -123,7 +124,10 @@ Deno.serve(async (req: Request) => {
       podrobnosti: String((e as Error).message || e) });
   }
 
-  const { celice } = koordinateOddelka(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO);
+  // FLEXI ima na osebo PAR stolpcev (levo pokriti oddelek, desno izmena).
+  const { celice } = jeFlexi
+    ? koordinateFlexi(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO)
+    : koordinateOddelka(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO);
   const { data: zaposleni } = await db.from("profili")
     .select("id, full_name").eq("department_code", povezava.skupina);
 
@@ -136,7 +140,11 @@ Deno.serve(async (req: Request) => {
   }
 
   for (const sporocena of sporocene) {
-    const celica = celice.find((c) => c.vrstica === sporocena.vrstica && c.stolpec === sporocena.stolpec);
+    // Pri FLEXI je urejena lahko katerakoli celica para - izmena ali
+    // oddelek levo od nje; obe pomenita isti zapis (oseba, dan).
+    const celica = celice.find((c) => c.vrstica === sporocena.vrstica
+      && (c.stolpec === sporocena.stolpec
+          || (jeFlexi && c.stolpecOddelka === sporocena.stolpec)));
     if (!celica) {
       // Urejena celica ni podatkovna celica razporeda: ali vrstica ni dan
       // (naslov meseca, glava, podpisni blok), ali stolpec nima imena v
@@ -178,20 +186,30 @@ Deno.serve(async (req: Request) => {
     }
     const novaKoda = jePrazenZapis(vListu) ? "" : vListu;
 
+    // FLEXI kader gre VEDNO v department_code "FLEXI", pokriti oddelek pa
+    // v pokriva_oddelek - tako kombinirana oznaka ("C/E2") ne zaleti v
+    // tuji ključ na oddelke. Enako kot pri uvozu (obdelajFlexiVrstice).
+    const noviOddelek = jeFlexi ? (celica.oddelek || "") : null;
     const { data: obstojece } = await db.from("razpored")
-      .select("id, shift_code").eq("employee_id", oseba.id).eq("work_date", celica.datum).limit(1);
+      .select("id, shift_code, pokriva_oddelek")
+      .eq("employee_id", oseba.id).eq("work_date", celica.datum).limit(1);
     const stara = (obstojece || [])[0];
     // Druga polovica zaščite pred zanko: brez razlike ni zapisa, torej se
     // sprožilec izhodne vrste sploh ne sproži.
-    if (stara && istaIzmena(stara.shift_code || "", novaKoda)) { brezSpremembe++; continue; }
+    const istaKoda = stara && istaIzmena(stara.shift_code || "", novaKoda);
+    const istOddelek = !jeFlexi || (stara && (stara.pokriva_oddelek || "").toUpperCase() === noviOddelek);
+    if (istaKoda && istOddelek) { brezSpremembe++; continue; }
 
-    const { error: napakaZapisa } = await db.from("razpored").upsert({
+    const zapis: Record<string, unknown> = {
       employee_id: oseba.id,
       department_code: povezava.skupina,
       work_date: celica.datum,
       shift_code: novaKoda,
       razlog: "sheets",
-    }, { onConflict: "employee_id,work_date" });
+    };
+    if (jeFlexi) zapis.pokriva_oddelek = noviOddelek;
+    const { error: napakaZapisa } = await db.from("razpored").upsert(zapis,
+      { onConflict: "employee_id,work_date" });
     if (napakaZapisa) {
       await zavrni(sporocena, "api", { work_date: celica.datum, podrobnosti: napakaZapisa.message });
       continue;

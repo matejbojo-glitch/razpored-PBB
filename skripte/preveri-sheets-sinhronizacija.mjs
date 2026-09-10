@@ -89,8 +89,12 @@ try {
 } catch (e) {
   trdi(false, "ponoven zagon: " + String(e.stderr || e).slice(0, 300));
 }
-eq(vrednost("select count(*) from public.sheet_connections;"), "1",
-   "ponoven zagon ne podvoji pilotne vrstice");
+eq(vrednost("select count(*) from public.sheet_connections;"), "7",
+   "ponoven zagon ne podvoji vrstic (7 zavihkov dokumenta)");
+eq(vrednost("select count(*) from public.sheet_connections where aktivno or app_v_sheets or sheets_v_app;"), "0",
+   "vse vpisane povezave so privzeto ugasnjene");
+eq(vrednost("select oblika from public.sheet_connections where skupina = 'FLEXI';"), "flexi",
+   "FLEXI je vpisan s svojo obliko lista");
 // Barvanje je SVOJE stikalo in je privzeto ugasnjeno: prepiše ročno
 // oblikovanje tistih celic, ki jih zapiše, zato se ne sme vklopiti samo.
 eq(vrednost("select barve::text from public.sheet_connections limit 1;"), "false",
@@ -169,6 +173,18 @@ eq(caka(), "1", "po nič-spremembi vrsta ni večja");
 eq(vrednost(`select ustvarjeno from public.sheet_sync_izhod where status='caka';`), prejPosodobljeno,
    "po nič-spremembi se čakajoča vrstica niti ne osveži");
 
+console.log("4b) FLEXI: sprememba samo pokritega oddelka je tudi sprememba");
+{
+  psql(`update public.sheet_sync_izhod set status='koncano', obdelano=now();`);
+  psql(`update public.razpored set pokriva_oddelek = 'C/E2'
+         where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
+  eq(caka(), "1", "zamenjan pokriti oddelek pri isti izmeni napolni vrsto");
+  psql(`update public.sheet_sync_izhod set status='koncano', obdelano=now();`);
+  psql(`update public.razpored set pokriva_oddelek = 'C/E2'
+         where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
+  eq(caka(), "0", "ponoven vpis istega oddelka ne sproži ničesar");
+}
+
 console.log("5) zaščita pred neskončno zanko");
 psql(`update public.sheet_sync_izhod set status = 'koncano', obdelano = now();`);
 psql(`update public.razpored set shift_code = 'N11', razlog = 'sheets'
@@ -179,7 +195,12 @@ psql(`update public.razpored set shift_code = 'DOP', razlog = 'bolniška'
 eq(caka(), "1", "sprememba z drugim razlogom se pošlje naprej");
 
 console.log("6) obdelana vrstica ne blokira naslednje spremembe");
-eq(vse(), "2", "poleg čakajoče ostane zapis o že obdelani");
+// Namenoma NE preverjamo skupnega števila (to se spremeni z vsakim novim
+// razdelkom zgoraj), ampak dejstvo: obdelane vrstice se ne brišejo in
+// hkrati ne preprečijo, da bi ista celica znova čakala.
+trdi(Number(vrednost("select count(*) from public.sheet_sync_izhod where status='koncano';")) > 0,
+  "obdelane vrstice ostanejo zapisane");
+eq(caka(), "1", "in ob njih ena čakajoča za isto celico");
 
 console.log("7) izbris celice se pošlje kot prazna vrednost");
 psql(`update public.sheet_sync_izhod set status = 'koncano', obdelano = now();

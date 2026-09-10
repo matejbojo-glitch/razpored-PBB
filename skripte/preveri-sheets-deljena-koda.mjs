@@ -218,6 +218,79 @@ console.log("8) primerjava vrednosti prenese razliko v zapisu (zaščita pred za
   trdi(!K.istaIzmena("XYZ", "ABC"), "dve različni neznani kodi nista enaki");
 }
 
+console.log("7b) FLEXI: isti zapisi kot obdelajFlexiVrstice() iz index.html");
+{
+  const html = readFileSync(join(koren, "index.html"), "utf8");
+  function izvleci(ime) {
+    const zac = html.indexOf("function " + ime + "(");
+    if (zac === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
+    let globina = 0;
+    for (let i = html.indexOf("{", zac); i < html.length; i++) {
+      if (html[i] === "{") globina++;
+      else if (html[i] === "}") { globina--; if (globina === 0) return html.slice(zac, i + 1); }
+    }
+    throw new Error("Konec funkcije " + ime + " ni najden.");
+  }
+  function izvleciVrstico(oznaka) {
+    const re = new RegExp("^" + oznaka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ".*$", "m");
+    const m = html.match(re);
+    if (!m) throw new Error("Vrstice " + oznaka + " ni v index.html.");
+    return m[0];
+  }
+  const pesk = { window: okno, console };
+  vm.createContext(pesk);
+  vm.runInContext([
+    izvleciVrstico("const ISO_DATUM_RX"),
+    izvleciVrstico("const VLOGA_RX"),
+    izvleciVrstico("const IME_S_PIKO_RX"),
+    readFileSync(join(koren, "datum.js"), "utf8"),
+    "var monthRange = window.Datum.obseg;",
+    izvleci("vrsticaJePrazna"),
+    izvleci("obdelajBlok"),
+    izvleci("najdiVrsticoImenFlexi"),
+    izvleci("obdelajFlexiVrstice"),
+  ].join("\n\n"), pesk);
+
+  // Oblika po pravem zavihku FLEXI: par stolpcev (oddelek + izmena) na
+  // osebo, ime v glavi nad DESNIM stolpcem para, stolpec "DODATNO ..." kot
+  // povzetek, in ponovljeno ime (blok stolpcev se v pravi datoteki enkrat
+  // ponovi z drugačnimi vrednostmi).
+  const V = [
+    ["FLEXI", "", "", "ALUKIĆ D.", "", "KOVAČ A.", "", "DODATNO C/E2 7-19", "", "ALUKIĆ D."],
+    ["1. 6. 2026", "PO", "C", "dopoldan", "E2", "popoldan", "", "Novak", "D", "NOČNA"],
+    ["2. 6. 2026", "TO", "D", "NOČNA", "C1", "LD", "", "", "C", "dopoldan"],
+  ];
+  const ZAM = V.map((v) => (v.length ? ["", ...v] : v));
+
+  const poKratkem = {};
+  poKratkem[Parafa.kratkoKljuc("ALUKIĆ D.")] = "alukic";
+  poKratkem[Parafa.kratkoKljuc("KOVAČ A.")] = "kovac";
+
+  [[V, "brez zamika"], [ZAM, "z zamikom 1"]].forEach(([vv, opis]) => {
+    const iz = pesk.obdelajFlexiVrstice(vv, "2026-06", poKratkem).zapisi
+      .map((z) => [z.employee_id, z.work_date, z.shift_code, z.pokriva_oddelek].join("|")).sort();
+    const kop = K.koordinateFlexi(vv, "2026-06-01", "2026-06-30").celice
+      .filter((c) => poKratkem[c.kljuc] && c.oddelek)
+      .map((c) => [poKratkem[c.kljuc], c.datum, c.vrednost === "Prosto" ? "" : c.vrednost, c.oddelek].join("|")).sort();
+    jseq(kop, iz, `FLEXI, ${opis}: isti zapisi (oseba, dan, izmena, pokriti oddelek)`);
+  });
+
+  // Zamik stolpcev je pri FLEXI kritičen: izmena in oddelek sta SOSEDNJA
+  // stolpca, zato zamik za ena pomeni, da se za izmeno prebere oznaka
+  // oddelka, za oddelek pa kratica dneva. Prav to je bilo v index.html
+  // narobe do septembra 2026.
+  const brez = K.koordinateFlexi(V, "2026-06-01", "2026-06-30").celice;
+  const zam = K.koordinateFlexi(ZAM, "2026-06-01", "2026-06-30").celice;
+  jseq(zam.map((c) => c.stolpec - 1), brez.map((c) => c.stolpec), "zamik premakne stolpce, ne vsebine");
+  jseq(zam.map((c) => c.vrednost + "/" + c.oddelek), brez.map((c) => c.vrednost + "/" + c.oddelek),
+    "izmena in pokriti oddelek ostaneta ista");
+  trdi(brez.every((c) => c.stolpecOddelka === c.stolpec - 1), "oddelek je vedno stolpec levo od izmene");
+  trdi(!brez.some((c) => /DODATNO/i.test(c.ime)), "stolpec »DODATNO ...« ni oseba in se izpusti");
+  const alukic = brez.filter((c) => c.kljuc === Parafa.kratkoKljuc("ALUKIĆ D.") && c.datum === "2026-06-01");
+  jseq(alukic.length, 1, "ponovljeno ime v isti glavi se upošteva samo enkrat (prva pojavitev)");
+  jseq(alukic[0] && alukic[0].vrednost, "dopoldan", "in to LEVA pojavitev");
+}
+
 console.log("8b) barve: isti odgovor kot Izmene.barva() / Izmene.barvaBesedila()");
 {
   const nabor = Izmene.moznosti().map((m) => m.zapis).concat([

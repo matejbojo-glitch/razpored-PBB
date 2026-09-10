@@ -258,6 +258,79 @@ export function koordinateOddelka(vrsteVrstic, startISO, endISO) {
   };
 }
 
+// --- FLEXI: par stolpcev na osebo -------------------------------------
+// Zavihek FLEXI ima drugačno obliko kot oddelčni: vsaka oseba zaseda PAR
+// stolpcev - levi je oddelek, ki ga tisti dan pokriva, desni je izmena.
+// Ime osebe stoji v glavi nad DESNIM (izmena). Zapis v razporedu gre v
+// department_code "FLEXI", pokriti oddelek pa v pokriva_oddelek.
+const IME_S_PIKO_RX = /^\S.*\s[A-ZČŠŽĐĆ]\.\s*$/;
+
+// Glava FLEXI bloka se ne prepozna po tem, da ima vsebino v tretjem
+// stolpcu (kot pri oddelkih), ampak po tem, da vsebuje vsaj eno ime
+// oblike "Priimek I.".
+export function najdiVrsticoImenFlexi(vrsteVrstic, zacetekBloka, zamik) {
+  zamik = zamik || 0;
+  for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < 6; i--, korakov++) {
+    const vrstica = vrsteVrstic[i] || [];
+    if (ISO_DATUM_RX.test(normalizirajDatum(vrstica[zamik]))) return null;
+    const imaIme = vrstica.some((c, idx) => idx >= zamik + 2 && IME_S_PIKO_RX.test((c || "").trim().toUpperCase()));
+    if (!imaIme) continue;
+    return i;
+  }
+  return null;
+}
+
+// Iste celice kot koordinateOddelka, le da vsak vnos nosi DVA stolpca:
+// "stolpec" je izmena, "stolpecOddelka" pa oddelek levo od nje.
+//
+// Stolpci "DODATNO ..." se izpustijo: niso oseba, ampak povzetek, kdo
+// tisti dan pokriva neko izmeno - ista izmena je zapisana že pri osebi
+// sami, zato bi jo vpisati še enkrat pomenilo prepisati njen zapis.
+//
+// Isto ime se v glavi lahko pojavi večkrat (ponovljen blok stolpcev v
+// pravi datoteki); obvelja PRVA (skrajno leva) pojavitev.
+export function koordinateFlexi(vrsteVrstic, startISO, endISO) {
+  const celice = [];
+  const stanje = { najdenDatum: false, najdenaGlava: false };
+  const zamik = najdiZamikStolpcev(vrsteVrstic);
+  let i = 0;
+  while (i < vrsteVrstic.length) {
+    const datum = normalizirajDatum((vrsteVrstic[i] || [])[zamik]);
+    if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
+    i = obdelajBlok(vrsteVrstic, i, startISO, endISO, najdiVrsticoImenFlexi, 0, (vrstica, glavaVrstica, datum, j) => {
+      const videne = new Set();
+      for (let c = 2; c < glavaVrstica.length; c++) {
+        const ime = (glavaVrstica[c] || "").trim();
+        if (/^DODATNO\b/i.test(ime)) continue;
+        if (!ime || !IME_S_PIKO_RX.test(ime.toUpperCase())) continue;
+        const kljuc = kratkoKljuc(ime);
+        if (!kljuc || videne.has(kljuc)) continue;
+        videne.add(kljuc);
+        // "c" je indeks v glavi, ta pa je odrezana za "zamik" - glej isto
+        // opombo pri obdelajFlexiVrstice v index.html.
+        const stolpecIzmene = zamik + c;
+        const stolpecOddelka = zamik + c - 1;
+        celice.push({
+          vrstica: j,
+          stolpec: stolpecIzmene,
+          stolpecOddelka: stolpecOddelka,
+          datum: datum,
+          ime: ime,
+          kljuc: kljuc,
+          vrednost: (vrstica[stolpecIzmene] == null ? "" : String(vrstica[stolpecIzmene])).trim(),
+          oddelek: (vrstica[stolpecOddelka] == null ? "" : String(vrstica[stolpecOddelka])).trim().toUpperCase(),
+        });
+      }
+    }, stanje, zamik);
+  }
+  return {
+    celice: celice,
+    najdenDatum: stanje.najdenDatum,
+    najdenaGlava: stanje.najdenaGlava,
+    zamik: zamik,
+  };
+}
+
 // --- Naslavljanje celic (A1) ------------------------------------------
 // 0 -> "A", 25 -> "Z", 26 -> "AA". Uporablja se SAMO za obseg v
 // values.batchUpdate; nobene druge oblike naslavljanja ni.

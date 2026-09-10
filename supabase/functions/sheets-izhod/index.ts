@@ -27,7 +27,7 @@
 // ---------------------------------------------------------------------
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  koordinateOddelka, kratkiKljuc, istaIzmena, obsegCelice,
+  koordinateOddelka, koordinateFlexi, kratkiKljuc, istaIzmena, obsegCelice,
   barvaZaZapis, zahtevaBarve,
 } from "../_shared/sheets-koordinate.js";
 import {
@@ -128,10 +128,10 @@ Deno.serve(async (req: Request) => {
       await koncaj(svezenj.map((v) => v.id));
       continue;
     }
-    if (povezava.oblika !== "oddelek") {
-      // FLEXI in NZV imata drugačno obliko lista (pari stolpcev oz. enote
-      // namesto oseb). Dokler nista podprta, se ne ugiba - vrstice se
-      // ustavijo in ostanejo vidne.
+    if (povezava.oblika !== "oddelek" && povezava.oblika !== "flexi") {
+      // NZV ima drugačno obliko lista (stolpci so ENOTE, ne osebe, del
+      // podatkov pa gre v odsotnosti in ne v razpored). Dokler ni podprt,
+      // se ne ugiba - vrstice se ustavijo in ostanejo vidne.
       await zabeleziNapako("nepodprta_oblika", {
         povezava_id: povezava.id, spreadsheet_id: povezava.spreadsheet_id, zavihek: povezava.zavihek,
         podrobnosti: `Oblika "${povezava.oblika}" še ni podprta za samodejno pisanje.`,
@@ -165,22 +165,35 @@ Deno.serve(async (req: Request) => {
 
     // Trenutno stanje razporeda za natanko te osebe in dneve - vrsta pove
     // KATERE celice osvežiti, vrednost pa je vedno zadnja iz baze.
+    const jeFlexi = povezava.oblika === "flexi";
     const dnevi = svezenj.map((v) => v.work_date).sort();
     const { data: zapisi } = await db.from("razpored")
-      .select("employee_id, work_date, shift_code")
+      .select("employee_id, work_date, shift_code, pokriva_oddelek")
       .eq("department_code", povezava.skupina)
       .gte("work_date", dnevi[0]).lte("work_date", dnevi[dnevi.length - 1])
       .in("employee_id", [...new Set(svezenj.map((v) => v.employee_id))]);
-    const vBazi = new Map<string, string>();
-    (zapisi || []).forEach((z: { employee_id: string; work_date: string; shift_code: string }) => {
-      vBazi.set(z.employee_id + "|" + z.work_date, z.shift_code || "");
+    const vBazi = new Map<string, { koda: string; oddelek: string }>();
+    (zapisi || []).forEach((z: { employee_id: string; work_date: string; shift_code: string; pokriva_oddelek: string }) => {
+      vBazi.set(z.employee_id + "|" + z.work_date,
+        { koda: z.shift_code || "", oddelek: (z.pokriva_oddelek || "").toUpperCase() });
     });
 
-    const { celice } = koordinateOddelka(vrsteVrstic, dnevi[0], dnevi[dnevi.length - 1]);
-    const poKljucuInDnevu = new Map<string, { vrstica: number; stolpec: number; vrednost: string }>();
+    // FLEXI ima na osebo PAR stolpcev (levo pokriti oddelek, desno izmena),
+    // oddelčni zavihek pa en sam stolpec - koordinate zato izračuna svoja
+    // funkcija, vse ostalo je enako.
+    const { celice } = jeFlexi
+      ? koordinateFlexi(vrsteVrstic, dnevi[0], dnevi[dnevi.length - 1])
+      : koordinateOddelka(vrsteVrstic, dnevi[0], dnevi[dnevi.length - 1]);
+    const poKljucuInDnevu = new Map<string, {
+      vrstica: number; stolpec: number; vrednost: string;
+      stolpecOddelka?: number; oddelek?: string;
+    }>();
     celice.forEach((c) => { poKljucuInDnevu.set(c.kljuc + "|" + c.datum, c); });
 
-    const zaZapis: { obseg: string; vrednost: string; vrstica: number; stolpec: number }[] = [];
+    // "barvaj" loči celico z izmeno (dobi barvo po šifrantu) od celice s
+    // pokritim oddelkom pri FLEXI (ta je oznaka oddelka, ne izmena, zato
+    // barve po šifrantu izmen zanjo nimajo pomena).
+    const zaZapis: { obseg: string; vrednost: string; vrstica: number; stolpec: number; barvaj: boolean }[] = [];
     const uspesne: number[] = [];
     const preskocene: number[] = [];
     for (const v of svezenj) {
@@ -207,15 +220,29 @@ Deno.serve(async (req: Request) => {
         });
         preskocene.push(v.id); continue;
       }
-      const zeljena = vBazi.get(v.employee_id + "|" + v.work_date) || "";
+      const stanjeVBazi = vBazi.get(v.employee_id + "|" + v.work_date) || { koda: "", oddelek: "" };
+      const zeljena = stanjeVBazi.koda;
       // Zaščita pred neskončno zanko: celica, ki že vsebuje to izmeno
       // (tudi če je zapisana drugače - "popoldan do 19" proti "Popoldne do
       // 19"), se ne prepiše, torej se onChange v listu ne sproži.
-      if (istaIzmena(cilj.vrednost, zeljena)) { preskocene.push(v.id); preskocenih++; continue; }
-      zaZapis.push({
-        obseg: obsegCelice(povezava.zavihek, cilj.vrstica, cilj.stolpec), vrednost: zeljena,
-        vrstica: cilj.vrstica, stolpec: cilj.stolpec,
-      });
+      const enakaIzmena = istaIzmena(cilj.vrednost, zeljena);
+      // Pri FLEXI je poleg izmene lahko spremenjen tudi pokriti oddelek;
+      // ta se primerja dobesedno (velike črke), ker "C/E2" ni koda izmene.
+      const enakOddelek = !jeFlexi || (cilj.oddelek || "") === stanjeVBazi.oddelek;
+      if (enakaIzmena && enakOddelek) { preskocene.push(v.id); preskocenih++; continue; }
+      if (!enakaIzmena) {
+        zaZapis.push({
+          obseg: obsegCelice(povezava.zavihek, cilj.vrstica, cilj.stolpec), vrednost: zeljena,
+          vrstica: cilj.vrstica, stolpec: cilj.stolpec, barvaj: true,
+        });
+      }
+      if (jeFlexi && !enakOddelek && cilj.stolpecOddelka != null) {
+        zaZapis.push({
+          obseg: obsegCelice(povezava.zavihek, cilj.vrstica, cilj.stolpecOddelka),
+          vrednost: stanjeVBazi.oddelek,
+          vrstica: cilj.vrstica, stolpec: cilj.stolpecOddelka, barvaj: false,
+        });
+      }
       uspesne.push(v.id);
     }
 
@@ -229,10 +256,10 @@ Deno.serve(async (req: Request) => {
       //  - če barvanje spodleti, vrednosti so vseeno zapisane in vrstice
       //    ostanejo "koncano" - napaka je vidna, a se ne poskuša v nedogled
       //    (drugače bi ena zavrnjena barva vrtela ponovni zapis vrednosti).
-      if (povezava.barve && zaZapis.length) {
+      if (povezava.barve && zaZapis.some((c) => c.barvaj)) {
         try {
           const sheetId = await preberiSheetId(zeton, povezava.spreadsheet_id, povezava.zavihek);
-          const zahteve = zaZapis.map((c) =>
+          const zahteve = zaZapis.filter((c) => c.barvaj).map((c) =>
             zahtevaBarve(sheetId, c.vrstica, c.stolpec, barvaZaZapis(c.vrednost)));
           pobarvanihSkupaj += await pobarvajCelice(zeton, povezava.spreadsheet_id, zahteve);
         } catch (e) {

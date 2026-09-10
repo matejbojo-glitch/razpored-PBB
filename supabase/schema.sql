@@ -4609,7 +4609,11 @@ begin
     -- obstoječemu, ne sproži UPDATE, torej se vrsta ne napolni.
     if TG_OP = 'UPDATE'
        and old.shift_code is not distinct from new.shift_code
-       and old.department_code is not distinct from new.department_code then
+       and old.department_code is not distinct from new.department_code
+       -- Pri FLEXI se lahko spremeni SAMO pokriti oddelek (ista izmena,
+       -- drug oddelek). Brez tega pogoja taka sprememba ne bi prišla v
+       -- vrsto in bi list ostal pri starem oddelku.
+       and old.pokriva_oddelek is not distinct from new.pokriva_oddelek then
       return new;
     end if;
     v_dept := new.department_code; v_koda := new.shift_code;

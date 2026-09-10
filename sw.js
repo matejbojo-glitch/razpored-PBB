@@ -601,7 +601,10 @@
 // v175: prenos barv v Google list po šifrantu izmen (svoje stikalo v
 // razdelku Povezani Google listi, privzeto ugasnjeno). Spremenjen je
 // admin.html (cache-first), zato dvig.
-const CACHE = 'razpored-pbb-v175';
+// v176: popravek zamika stolpcev pri uvozu zavihka FLEXI - pri branju prek
+// povezave (Google Sheets API) se je za izmeno bralo oznako oddelka, za
+// oddelek pa kratico dneva. Spremenjen je index.html, zato dvig.
+const CACHE = 'razpored-pbb-v176';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

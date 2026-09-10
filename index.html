@@ -3846,15 +3846,22 @@ function obdelajFlexiVrstice(vrsteVrstic, ciljniMesec, poKratkem){
         // izmeno iste osebe (razpored dovoli en zapis na oseba/dan).
         // Ne uvozimo ga, a v poročilu povemo, da obstaja.
         if (/^DODATNO\b/i.test(ime)) {
-          if ((vrstica[c] || "").trim()) steviloDodatnih++; // štej samo izpolnjene celice, ne praznih dni
+          if ((vrstica[zamik + c] || "").trim()) steviloDodatnih++; // štej samo izpolnjene celice, ne praznih dni
           continue;
         }
         if (!ime || !IME_S_PIKO_RX.test(ime.toUpperCase())) continue; // ni oblike "Priimek I." - opomba/naslov stolpca, ne oseba
         const kljucIme = window.Parafa.kratkoKljuc(ime);
         if (videneOsebe.has(kljucIme)) continue; // ponovljen blok stolpcev - obdrži samo prvo (levo) pojavitev
         videneOsebe.add(kljucIme);
-        const oddelek = (vrstica[c - 1] || "").trim().toUpperCase();
-        const sifra = (vrstica[c] || "").trim();
+        // "c" je indeks v GLAVI, ta pa je odrezana za "zamik" (obdelajBlok
+        // vrne glavo kot vrstica.slice(zamik + offset), pri FLEXI z
+        // offset 0). Vrstica s podatki NI odrezana, zato je treba zamik
+        // prišteti nazaj - sicer se pri branju prek Google Sheets API
+        // (kjer je zamik 1) za izmeno prebere oznaka oddelka, za oddelek
+        // pa kratica dneva ("PO", "TO"). Pri nalaganju .xlsx je zamik 0,
+        // zato se napaka tam ni pokazala.
+        const oddelek = (vrstica[zamik + c - 1] || "").trim().toUpperCase();
+        const sifra = (vrstica[zamik + c] || "").trim();
         if (!oddelek && !sifra) continue;
         const id = poKratkem[kljucIme];
         if (!id) { neujemanja.add(ime); continue; }
