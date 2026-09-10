@@ -54,9 +54,13 @@ console.log("1) kopija v supabase/functions/_shared/ je bajt za bajt enaka");
 
 console.log("2) šifrant izmen je isti kot v izmene.js");
 {
-  const izvirnik = Izmene.KRATICE.map((v) => [v[0].source, v[1]]);
-  const kopija = K.KRATICE.map((v) => [v[0].source, v[1]]);
-  jseq(kopija, izvirnik, "vzorci in kratice, v istem vrstnem redu");
+  // Peti stolpec v izmene.js je barva; v kopiji je tretji (vmesnih podatkov
+  // - naziv, delovni cas - kopija ne potrebuje). Primerja se oboje, kar
+  // kopija nosi, in v istem vrstnem redu: prvo ujemanje obvelja.
+  const izvirnik = Izmene.KRATICE.map((v) => [v[0].source, v[1], v[4]]);
+  const kopija = K.KRATICE.map((v) => [v[0].source, v[1], v[2]]);
+  jseq(kopija, izvirnik, "vzorci, kratice IN barve, v istem vrstnem redu");
+  jseq(K.BARVA_PROSTO, Izmene.STANJE_BARVA.prosto.barva, "barva prostega dne");
 }
 
 console.log("3) tabele popravkov imen so iste");
@@ -212,6 +216,35 @@ console.log("8) primerjava vrednosti prenese razliko v zapisu (zaščita pred za
   trdi(!K.istaIzmena("", "dopoldan"), "prazno proti izmeni je sprememba");
   trdi(K.istaIzmena("XYZ", "XYZ"), "dve enaki neznani kodi sta enaki");
   trdi(!K.istaIzmena("XYZ", "ABC"), "dve različni neznani kodi nista enaki");
+}
+
+console.log("8b) barve: isti odgovor kot Izmene.barva() / Izmene.barvaBesedila()");
+{
+  const nabor = Izmene.moznosti().map((m) => m.zapis).concat([
+    "dopoldan", "Nočna 12", "popoldan do 19", "LD", "KPU", "", "prosto", "XYZ neznano",
+  ]);
+  const razhajanja = nabor.filter((z) => K.barvaZaZapis(z) !== Izmene.barva(z));
+  jseq(razhajanja, [], `barvaZaZapis() se ujema z Izmene.barva() na ${nabor.length} primerih`);
+  const razhajanjaPisave = ["#4F9B6B", "#2F4785", "#E8A867", "#FFFFFF", "#000000", "", "abc"]
+    .filter((h) => K.barvaBesedila(h) !== Izmene.barvaBesedila(h));
+  jseq(razhajanjaPisave, [], "barvaBesedila() se ujema z izmene.js");
+  jseq(K.hexVRgb("#FFFFFF"), { red: 1, green: 1, blue: 1 }, "hexVRgb() bele");
+  jseq(K.hexVRgb("#000000"), { red: 0, green: 0, blue: 0 }, "hexVRgb() črne");
+}
+
+console.log("8c) zahteva za barvanje se dotakne ENE celice in DVEH lastnosti");
+{
+  const zahteva = K.zahtevaBarve(7, 4, 5, "#4F9B6B");
+  jseq(Object.keys(zahteva), ["repeatCell"], "zahteva je izključno repeatCell");
+  const z = zahteva.repeatCell;
+  jseq(z.range, { sheetId: 7, startRowIndex: 4, endRowIndex: 5, startColumnIndex: 5, endColumnIndex: 6 },
+    "obseg je natanko ena celica");
+  jseq(z.fields, "userEnteredFormat(backgroundColor,textFormat.foregroundColor)",
+    "spremenita se samo ozadje in barva pisave");
+  jseq(Object.keys(z.cell.userEnteredFormat).sort(), ["backgroundColor", "textFormat"],
+    "v zahtevi ni nobene druge oblikovne lastnosti");
+  jseq(Object.keys(z.cell.userEnteredFormat.textFormat), ["foregroundColor"],
+    "od pisave se dotakne samo barve (krepko/ležeče/velikost ostanejo)");
 }
 
 console.log("9) naslavljanje celic: samo A1 obseg, brez ustvarjanja česarkoli");

@@ -91,6 +91,10 @@ try {
 }
 eq(vrednost("select count(*) from public.sheet_connections;"), "1",
    "ponoven zagon ne podvoji pilotne vrstice");
+// Barvanje je SVOJE stikalo in je privzeto ugasnjeno: prepiše ročno
+// oblikovanje tistih celic, ki jih zapiše, zato se ne sme vklopiti samo.
+eq(vrednost("select barve::text from public.sheet_connections limit 1;"), "false",
+   "prenos barv je privzeto ugasnjen");
 
 console.log("1b) schema.sql sam postavi vrsto in sprožilec (fresh baza ju ne pogreša)");
 {

@@ -4229,6 +4229,8 @@ function PovezaniListi(){
         Kateri zavihek katerega dokumenta pripada kateremu oddelku. <b>Privzeto je vse ugasnjeno</b> –
         nova povezava ne začne pisati v uradni dokument, dokler je izrecno ne vklopiš.
         Nove povezave se dodajo s <code>supabase/sheets-povezave.sql</code>.
+        <br /><b>Barve</b> pobarvajo celico po šifrantu izmen (enako kot v aplikaciji) – a samo tiste celice,
+        ki jih sinhronizacija tisti hip zapiše; ročno oblikovanje drugod v listu ostane nedotaknjeno.
       </p>
       {napaka && (
         <p className="err">
@@ -4248,6 +4250,7 @@ function PovezaniListi(){
                 <th title="Ali se povezava sploh upošteva">Aktivno</th>
                 <th title="Aplikacija piše v Sheets">Apl. → Sheets</th>
                 <th title="Sheets piše v aplikacijo">Sheets → apl.</th>
+                <th title="Poleg vrednosti se prenese tudi barva celice po šifrantu izmen">Barve</th>
               </tr>
             </thead>
             <tbody>
@@ -4262,6 +4265,7 @@ function PovezaniListi(){
                   <td><Stikalo v={v} polje="aktivno" naslov="Ali se povezava sploh upošteva" /></td>
                   <td><Stikalo v={v} polje="app_v_sheets" naslov="Aplikacija piše v Sheets" /></td>
                   <td><Stikalo v={v} polje="sheets_v_app" naslov="Sheets piše v aplikacijo" /></td>
+                  <td><Stikalo v={v} polje="barve" naslov="Prenese tudi barvo celice (prepiše ročno oblikovanje TISTIH celic, ki se zapišejo)" /></td>
                 </tr>
               ))}
             </tbody>
@@ -4290,6 +4294,7 @@ const NAPAKA_OPIS = {
   zavihek_ni_najden: "Zavihek je preimenovan ali izbrisan",
   nepodprta_oblika: "Ta oblika lista še ni podprta",
   api: "Napaka pri klicu Google Sheets",
+  barve: "Vrednosti so zapisane, barve pa ne",
 };
 const SMER_OPIS = { app_v_sheets: "aplikacija → Sheets", sheets_v_app: "Sheets → aplikacija" };
 

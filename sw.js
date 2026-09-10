@@ -598,7 +598,10 @@
 // v174: samodejna sinhronizacija z Google Sheets - razdelek "Nerešene
 // napake sinhronizacije" v Generatorju. Spremenjen je admin.html
 // (cache-first), zato dvig.
-const CACHE = 'razpored-pbb-v174';
+// v175: prenos barv v Google list po šifrantu izmen (svoje stikalo v
+// razdelku Povezani Google listi, privzeto ugasnjeno). Spremenjen je
+// admin.html (cache-first), zato dvig.
+const CACHE = 'razpored-pbb-v175';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

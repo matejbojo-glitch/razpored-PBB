@@ -60,28 +60,36 @@ export function kratkoKljuc(ime) {
 // --- Izmene (izvirnik: izmene.js) -------------------------------------
 // Samo [vzorec, kratica]; barve, nazivi in časi so stvar prikaza in tu
 // niso potrebni. Vrstni red JE pomemben - prvo ujemanje obvelja.
+// [vzorec, kratica, barva]. Barve so iste kot v aplikaciji (izmene.js,
+// peti stolpec tamkajšnje tabele) - preveri-sheets-deljena-koda.mjs ju
+// primerja vrstico za vrstico, da se ne moreta raziti.
 const IZMENA_KRATICE = [
-  [/^dežurstvo|^dezurstvo/, "DEŽ"],
-  [/^dnevna12\(7-19\)|^dnevna12f/, "DF12"],
-  [/^dnevna12/, "D12"],
-  [/^nočna12|^nocna12/, "N12"],
-  [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11"],
-  [/^nočna|^nocna/, "N10"],
-  [/^popoldando19|^popoldnedo19/, "PO5"],
-  [/^popoldando20|^popoldnedo20/, "PO6"],
-  [/^dop\D*6/, "DO6"],
-  [/^dop\D*4/, "DO4"],
-  [/^pop\D*4/, "PO4"],
-  [/^popoldan|^popoldne/, "PO7"],
-  [/^do7|^dopoldan7/, "DO7"],
-  [/^dopoldan|^dopoldne|^prisoten/, "DOP"],
-  [/^kpu/, "KPU"],
-  [/^ld/, "LD"],
-  [/^por/, "POR"],
-  [/^sti/, "STI"],
-  [/^bs/, "BS"],
-  [/^kro/, "KRO"],
+  [/^dežurstvo|^dezurstvo/, "DEŽ", "#B3402A"],
+  [/^dnevna12\(7-19\)|^dnevna12f/, "DF12", "#B49BD0"],
+  [/^dnevna12/, "D12", "#8560A8"],
+  [/^nočna12|^nocna12/, "N12", "#2F4785"],
+  [/^nočnaod19|^nocnaod19|^nočna11|^nocna11/, "N11", "#7C90CE"],
+  [/^nočna|^nocna/, "N10", "#4A67B0"],
+  [/^popoldando19|^popoldnedo19/, "PO5", "#E8A867"],
+  [/^popoldando20|^popoldnedo20/, "PO6", "#D98E4E"],
+  [/^dop\D*6/, "DO6", "#63B588"],
+  [/^dop\D*4/, "DO4", "#A7DCC0"],
+  [/^pop\D*4/, "PO4", "#F0C08A"],
+  [/^popoldan|^popoldne/, "PO7", "#C9713F"],
+  [/^do7|^dopoldan7/, "DO7", "#8FCBA4"],
+  [/^dopoldan|^dopoldne|^prisoten/, "DOP", "#4F9B6B"],
+  [/^kpu/, "KPU", "#B8B29C"],
+  [/^ld/, "LD", "#E06666"],
+  [/^por/, "POR", "#E8A0C8"],
+  [/^sti/, "STI", "#B4A7D6"],
+  [/^bs/, "BS", "#3F8F86"],
+  [/^kro/, "KRO", "#9FC5E8"],
 ];
+
+// Prosto (prazna celica) in neznana koda - isti barvi kot v aplikaciji
+// (STANJE_BARVA.prosto oz. siva za neznano).
+export const BARVA_PROSTO = "#D8D2BE";
+export const BARVA_NEZNANO = "#8B8672";
 
 // Izvožen zato, da preizkus lahko primerja tabelo z izvirnikom v
 // izmene.js vrstico za vrstico - nova koda tam mora priti tudi sem.
@@ -90,14 +98,19 @@ export const KRATICE = IZMENA_KRATICE;
 // Uradna kratica za zapis iz lista, ali null. null pomeni dvoje in
 // klicatelj mora razlikovati: prazna celica / "prosto" (v redu) ali
 // neznana koda (gre v sync_errors) - glej jePrazenZapis.
-export function kratica(sifra) {
+function vrsticaSifranta(sifra) {
   const t = String(sifra || "").toLowerCase().replace(/[\s.]+/g, "");
   if (!t) return null;
   if (t === "prost" || t === "prosto") return null;
   for (let i = 0; i < IZMENA_KRATICE.length; i++) {
-    if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i][1];
+    if (IZMENA_KRATICE[i][0].test(t)) return IZMENA_KRATICE[i];
   }
   return null;
+}
+
+export function kratica(sifra) {
+  const v = vrsticaSifranta(sifra);
+  return v ? v[1] : null;
 }
 
 // Prazna celica in izrecno zapisano "prosto" pomenita isto: prost dan.
@@ -263,4 +276,63 @@ export function stolpecVCrko(idx) {
 export function obsegCelice(zavihek, vrstica, stolpec) {
   const ime = String(zavihek || "").replace(/'/g, "''");
   return `'${ime}'!${stolpecVCrko(stolpec)}${Number(vrstica) + 1}`;
+}
+
+// --- Barve (izvirnik: izmene.js) --------------------------------------
+// Barva ozadja za zapis iz razporeda. Prazna celica dobi barvo "prosto",
+// neznana koda pa nevtralno sivo - namenoma NE ostane brez barve, ker bi
+// bila potem videti kot prosti dan.
+export function barvaZaZapis(sifra) {
+  if (jePrazenZapis(sifra)) return BARVA_PROSTO;
+  const v = vrsticaSifranta(sifra);
+  return v ? v[2] : BARVA_NEZNANO;
+}
+
+// Črna ali bela pisava, kar je na tej barvi berljivo. Brez tega bi bila
+// nočna izmena (temno modra) črna na temnem.
+export function barvaBesedila(hex) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length < 6) return "#2B2717";
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#2B2717" : "#FFFFFF";
+}
+
+// "#4F9B6B" -> { red: 0.31, green: 0.61, blue: 0.42 } (Google hoče deleže).
+export function hexVRgb(hex) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length < 6) return { red: 0, green: 0, blue: 0 };
+  return {
+    red: parseInt(h.slice(0, 2), 16) / 255,
+    green: parseInt(h.slice(2, 4), 16) / 255,
+    blue: parseInt(h.slice(4, 6), 16) / 255,
+  };
+}
+
+// Polji, ki ju barvanje sme spremeniti - in nobenega drugega. Zapisano
+// tukaj kot ena sama konstanta, da preizkus preveri natanko to, kar gre
+// v zahtevo (preveri-sheets-brez-postavitve.mjs).
+export const BARVNA_POLJA = "userEnteredFormat(backgroundColor,textFormat.foregroundColor)";
+
+// Ena zahteva za pobarvanje ENE celice. Obseg je vedno ena sama celica
+// (konec = začetek + 1), zato ta zahteva ne more seči čez rob celice, ki
+// jo je sinhronizacija tisti hip tudi zapisala.
+export function zahtevaBarve(sheetId, vrstica, stolpec, hexOzadje) {
+  const ozadje = hexVRgb(hexOzadje);
+  const pisava = hexVRgb(barvaBesedila(hexOzadje));
+  return {
+    repeatCell: {
+      range: {
+        sheetId: Number(sheetId),
+        startRowIndex: Number(vrstica), endRowIndex: Number(vrstica) + 1,
+        startColumnIndex: Number(stolpec), endColumnIndex: Number(stolpec) + 1,
+      },
+      cell: {
+        userEnteredFormat: {
+          backgroundColor: ozadje,
+          textFormat: { foregroundColor: pisava },
+        },
+      },
+      fields: BARVNA_POLJA,
+    },
+  };
 }

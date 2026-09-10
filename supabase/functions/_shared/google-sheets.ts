@@ -1,13 +1,28 @@
 // ---------------------------------------------------------------------
 // Razpored PBB – dostop do Google Sheets iz Edge Functions
 //
-// NAMENOMA MAJHNA POVRŠINA: cel modul pozna natanko DVA klica Google
-// Sheets API - spreadsheets.values.get in spreadsheets.values.batchUpdate.
-// Nikjer ni ne values.append, ne batchUpdate na ravni preglednice
-// (insertDimension, deleteDimension, mergeCells, repeatCell,
-// updateSheetProperties, addSheet ...). Zato koda ne more dodati ali
+// NAMENOMA MAJHNA POVRŠINA: cel modul pozna natanko štiri klice Google
+// Sheets API:
+//   1. values.get            - branje vrednosti,
+//   2. values:batchUpdate    - zapis vrednosti,
+//   3. spreadsheets.get      - SAMO imena in številke zavihkov (fields=
+//                              sheets.properties), da barvanje ve, kateri
+//                              sheetId pripada imenu zavihka; ne bere celic,
+//   4. spreadsheets:batchUpdate - IZKLJUČNO repeatCell nad ENO celico, z
+//                              dvema lastnostma (ozadje in barva pisave).
+//
+// Nikjer ni values.append, insertDimension, deleteDimension, mergeCells,
+// updateSheetProperties, addSheet ... Zato koda ne more dodati ali
 // izbrisati vrstice, stolpca ali zavihka niti pomotoma - lahko samo
-// prepiše vsebino obstoječih celic.
+// prepiše vsebino obstoječih celic in jim nastavi barvo.
+//
+// ZAKAJ JE ŠTIRI IN NE DVA
+// Barve so bile dodane na uporabnikovo zahtevo (september 2026). Barvanja
+// prek values.* ni mogoče narediti - Googlov API ga ponuja samo prek
+// spreadsheets:batchUpdate. Namesto da bi se ta klic odprl na stežaj, je
+// zahteva sestavljena na ENEM mestu (sheets-koordinate.js, zahtevaBarve)
+// in preizkus preveri, da ne vsebuje ničesar drugega kot repeatCell nad
+// eno celico.
 //
 // To ni obljuba, ampak preverjeno: skripte/preveri-sheets-brez-postavitve.mjs
 // prebere VSE datoteke sinhronizacije in pade, če se pojavi katerikoli
@@ -131,4 +146,42 @@ export async function zapisiCelice(
   }
   const podatki = await odgovor.json();
   return Number(podatki.totalUpdatedCells || 0);
+}
+
+// spreadsheets.get z ozkim "fields" - vrne SAMO imena in številke zavihkov,
+// nobene celice. Potrebno, ker barvanje naslavlja zavihek s številko
+// (sheetId), vrednosti pa z imenom. Številke se namenoma ne hrani v bazi:
+// zavihek, ki ga nekdo izbriše in znova ustvari, dobi novo, in shranjena bi
+// takrat kazala v prazno (ali, slabše, na drug zavihek).
+export async function preberiSheetId(zeton: string, spreadsheetId: string, zavihek: string): Promise<number> {
+  const naslov = `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(sheetId,title)`;
+  const odgovor = await fetch(naslov, { headers: { authorization: "Bearer " + zeton } });
+  if (!odgovor.ok) {
+    throw new Error(`Branje seznama zavihkov ni uspelo (${odgovor.status}).`);
+  }
+  const podatki = await odgovor.json();
+  const najden = (podatki.sheets || []).find(
+    (l: { properties?: { title?: string } }) => l.properties && l.properties.title === zavihek);
+  if (!najden) throw new ZavihekNiNajden(`Zavihek "${zavihek}" ni najden (preimenovan ali izbrisan).`);
+  return Number(najden.properties.sheetId);
+}
+
+// spreadsheets:batchUpdate - EDINI način barvanja. Zahteve pridejo že
+// sestavljene iz sheets-koordinate.js (zahtevaBarve); ta funkcija jih samo
+// odpošlje in NE sestavlja nobene svoje, da je vsa vsebina zahtev na enem
+// mestu, ki ga pokriva preizkus.
+export async function pobarvajCelice(
+  zeton: string, spreadsheetId: string, zahteve: unknown[],
+): Promise<number> {
+  if (!zahteve.length) return 0;
+  const naslov = `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}:batchUpdate`;
+  const odgovor = await fetch(naslov, {
+    method: "POST",
+    headers: { authorization: "Bearer " + zeton, "content-type": "application/json" },
+    body: JSON.stringify({ requests: zahteve }),
+  });
+  if (!odgovor.ok) {
+    throw new Error(`Barvanje ni uspelo (${odgovor.status}): ${(await odgovor.text()).slice(0, 300)}`);
+  }
+  return zahteve.length;
 }

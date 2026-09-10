@@ -34,6 +34,9 @@ create table if not exists public.sheet_connections (
   oblika          text not null default 'oddelek',   -- 'oddelek' | 'flexi' | 'nzv'
   app_v_sheets    boolean not null default false,
   sheets_v_app    boolean not null default false,
+  -- Ali se poleg vrednosti prenese tudi BARVA celice (po šifrantu izmen).
+  -- Ločeno stikalo, ker barvanje prepiše ročno oblikovanje tistih celic.
+  barve           boolean not null default false,
   aktivno         boolean not null default false,
   opomba          text,
   created_at      timestamptz not null default now(),
@@ -41,6 +44,11 @@ create table if not exists public.sheet_connections (
   constraint sheet_connections_oblika_check check (oblika in ('oddelek','flexi','nzv')),
   unique (spreadsheet_id, zavihek)
 );
+
+-- Za baze, kjer je tabela nastala prej (stolpec "barve" je iz septembra
+-- 2026), da ponoven zagon te skripte ne zahteva ročnega popravka.
+alter table public.sheet_connections
+  add column if not exists barve boolean not null default false;
 
 comment on table public.sheet_connections is
   'Kateri zavihek katerega Google dokumenta pripada kateremu oddelku in v katero smer se sme sinhronizirati. Privzeto je vse ugasnjeno.';

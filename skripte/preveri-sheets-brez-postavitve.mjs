@@ -7,9 +7,13 @@
  * dokumentaciji tega ne prepreči; ta preizkus ga.
  *
  * Preverja STATIČNO, nad vsemi datotekami sinhronizacije:
- *  - edina naslova Google Sheets API sta values.get in values:batchUpdate;
+ *  - Sheets API se kliče na natanko štirih naslovih: branje vrednosti,
+ *    zapis vrednosti, seznam zavihkov (samo imena in številke) in
+ *    barvanje;
  *  - nikjer ni klica, ki spreminja POSTAVITEV (insertDimension,
- *    deleteDimension, mergeCells, repeatCell, addSheet, appendCells ...);
+ *    deleteDimension, mergeCells, addSheet, appendCells, updateCells ...);
+ *  - barvanje se sestavi na ENEM mestu in se dotakne ENE celice in DVEH
+ *    lastnosti (glej tudi preveri-sheets-deljena-koda.mjs, razdelek 8c);
  *  - Apps Script na dokumentu ne piše v preglednico, samo bere in pošlje.
  *
  * Zagon: node skripte/preveri-sheets-brez-postavitve.mjs
@@ -49,11 +53,15 @@ const PREPOVEDANO = [
   "values:append", "values.append", "appendCells",
   "insertDimension", "deleteDimension", "moveDimension", "updateDimensionProperties",
   "autoResizeDimensions", "insertRange", "deleteRange",
-  "mergeCells", "unmergeCells", "repeatCell", "updateCells",
+  "mergeCells", "unmergeCells", "updateCells", "updateBorders",
   "addSheet", "deleteSheet", "duplicateSheet", "updateSheetProperties",
   "addConditionalFormatRule", "setDataValidation", "addProtectedRange",
-  "spreadsheets.batchUpdate", "spreadsheets:batchUpdate",
+  "cutPaste", "copyPaste", "findReplace", "sortRange", "clearBasicFilter",
 ];
+// "repeatCell" in "spreadsheets:batchUpdate" NISTA na seznamu: barvanje ju
+// potrebuje in ju ni mogoče nadomestiti z values.*. Namesto pavšalne
+// prepovedi ju omejuje razdelek 3 spodaj - zahteva se sestavi na enem
+// samem mestu in se dotakne ene celice ter dveh lastnosti.
 
 // Apps Script sme brati in pošiljati, ne pa pisati v preglednico.
 const PREPOVEDANO_V_SKRIPTU = [
@@ -81,15 +89,19 @@ console.log("2) edina naslova Google Sheets API sta values.get in values:batchUp
   // Kar se na osnovo pripne: samo "/values/<obseg>" (get) in
   // "/values:batchUpdate" (pisanje).
   const poti = [...vsebina.matchAll(/\$\{SHEETS_API\}[^`]*/g)].map((m) => m[0]);
-  trdi(poti.length === 2, "na osnovni naslov se pripenjata natanko dve poti (" + poti.length + ")");
-  trdi(poti.some((p) => p.includes("/values/")), "ena je branje /values/<obseg>");
-  trdi(poti.some((p) => p.includes("/values:batchUpdate")), "druga je pisanje /values:batchUpdate");
+  trdi(poti.length === 4, "na osnovni naslov se pripenjajo natanko štiri poti (" + poti.length + ")");
+  trdi(poti.some((p) => p.includes("/values/")), "1. branje vrednosti /values/<obseg>");
+  trdi(poti.some((p) => p.includes("/values:batchUpdate")), "2. zapis vrednosti /values:batchUpdate");
+  trdi(poti.some((p) => p.includes("?fields=sheets.properties(sheetId,title)")),
+    "3. seznam zavihkov, omejen na sheetId in title (nobene celice)");
+  trdi(poti.some((p) => /\}:batchUpdate/.test(p)), "4. barvanje :batchUpdate");
+  trdi(!/includeGridData/.test(vsebina), "seznam zavihkov ne bere vsebine celic (brez includeGridData)");
 
   // Metoda POST se sme uporabiti samo za batchUpdate in za prijavo
   // (oauth2.googleapis.com/token) - branje je GET.
   const gs = readFileSync(join(koren, "supabase/functions/_shared/google-sheets.ts"), "utf8");
   const postov = (gs.match(/method:\s*"POST"/g) || []).length;
-  trdi(postov === 2, "v google-sheets.ts sta natanko dva POST klica (žeton + batchUpdate), našel " + postov);
+  trdi(postov === 3, "v google-sheets.ts so natanko trije POST klici (žeton + vrednosti + barve), našel " + postov);
 }
 
 console.log("3) piše se z valueInputOption, brez posegov v obliko");
@@ -97,6 +109,25 @@ console.log("3) piše se z valueInputOption, brez posegov v obliko");
   const gs = readFileSync(join(koren, "supabase/functions/_shared/google-sheets.ts"), "utf8");
   trdi(gs.includes('valueInputOption: "USER_ENTERED"'), "valueInputOption je USER_ENTERED (kot »Zapiši nazaj v Sheets«)");
   trdi(!/includeValuesInResponse|responseValueRenderOption/.test(gs), "brez nepotrebnih dodatkov v odgovoru");
+}
+
+console.log("3b) barvanje: ena celica, dve lastnosti, sestavljeno na enem mestu");
+{
+  const gs = brezKomentarjev(readFileSync(join(koren, "supabase/functions/_shared/google-sheets.ts"), "utf8"));
+  const koord = readFileSync(join(koren, "supabase/functions/_shared/sheets-koordinate.js"), "utf8");
+
+  // Zahteva se sestavi SAMO v sheets-koordinate.js (zahtevaBarve), ki ga
+  // preveri-sheets-deljena-koda.mjs preveri po vsebini, ne po besedilu.
+  trdi(!gs.includes("repeatCell"),
+    "google-sheets.ts zahteve ne sestavlja sam - samo odpošlje, kar dobi");
+  trdi(/body: JSON\.stringify\(\{ requests: zahteve \}\)/.test(gs),
+    "v telo gre natanko seznam prejetih zahtev");
+  trdi((koord.match(/repeatCell/g) || []).length === 1,
+    "repeatCell se pojavi na enem samem mestu v vsej sinhronizaciji");
+  trdi(koord.includes('"userEnteredFormat(backgroundColor,textFormat.foregroundColor)"'),
+    "barvanje spremeni samo ozadje in barvo pisave");
+  trdi(/endRowIndex: Number\(vrstica\) \+ 1/.test(koord) && /endColumnIndex: Number\(stolpec\) \+ 1/.test(koord),
+    "obseg zahteve je ena sama celica");
 }
 
 console.log("4) Apps Script na dokumentu ne piše v preglednico");

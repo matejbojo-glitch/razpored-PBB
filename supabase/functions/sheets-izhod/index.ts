@@ -28,9 +28,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   koordinateOddelka, kratkiKljuc, istaIzmena, obsegCelice,
+  barvaZaZapis, zahtevaBarve,
 } from "../_shared/sheets-koordinate.js";
 import {
-  preberiServisniRacun, pridobiZeton, preberiZavihek, zapisiCelice, ZavihekNiNajden,
+  preberiServisniRacun, pridobiZeton, preberiZavihek, zapisiCelice,
+  preberiSheetId, pobarvajCelice, ZavihekNiNajden,
 } from "../_shared/google-sheets.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -48,6 +50,7 @@ type Vrstica = {
 };
 type Povezava = {
   id: string; skupina: string; spreadsheet_id: string; zavihek: string; oblika: string;
+  barve: boolean;
 };
 
 Deno.serve(async (req: Request) => {
@@ -107,7 +110,7 @@ Deno.serve(async (req: Request) => {
   const povezaveIds = [...new Set(vrstice.map((v) => v.povezava_id))];
   const osebeIds = [...new Set(vrstice.map((v) => v.employee_id))];
   const [{ data: povezaveVrstic }, { data: osebe }] = await Promise.all([
-    db.from("sheet_connections").select("id, skupina, spreadsheet_id, zavihek, oblika").in("id", povezaveIds),
+    db.from("sheet_connections").select("id, skupina, spreadsheet_id, zavihek, oblika, barve").in("id", povezaveIds),
     db.from("profili").select("id, full_name").in("id", osebeIds),
   ]);
   const povezavaPoId = new Map<string, Povezava>();
@@ -115,7 +118,7 @@ Deno.serve(async (req: Request) => {
   const kljucOsebe = new Map<string, string>();
   (osebe || []).forEach((o: { id: string; full_name: string }) => kljucOsebe.set(o.id, kratkiKljuc(o.full_name)));
 
-  let zapisanihSkupaj = 0, preskocenih = 0;
+  let zapisanihSkupaj = 0, preskocenih = 0, pobarvanihSkupaj = 0;
 
   for (const povezavaId of povezaveIds) {
     const svezenj = vrstice.filter((v) => v.povezava_id === povezavaId);
@@ -177,7 +180,7 @@ Deno.serve(async (req: Request) => {
     const poKljucuInDnevu = new Map<string, { vrstica: number; stolpec: number; vrednost: string }>();
     celice.forEach((c) => { poKljucuInDnevu.set(c.kljuc + "|" + c.datum, c); });
 
-    const zaZapis: { obseg: string; vrednost: string }[] = [];
+    const zaZapis: { obseg: string; vrednost: string; vrstica: number; stolpec: number }[] = [];
     const uspesne: number[] = [];
     const preskocene: number[] = [];
     for (const v of svezenj) {
@@ -209,13 +212,36 @@ Deno.serve(async (req: Request) => {
       // (tudi če je zapisana drugače - "popoldan do 19" proti "Popoldne do
       // 19"), se ne prepiše, torej se onChange v listu ne sproži.
       if (istaIzmena(cilj.vrednost, zeljena)) { preskocene.push(v.id); preskocenih++; continue; }
-      zaZapis.push({ obseg: obsegCelice(povezava.zavihek, cilj.vrstica, cilj.stolpec), vrednost: zeljena });
+      zaZapis.push({
+        obseg: obsegCelice(povezava.zavihek, cilj.vrstica, cilj.stolpec), vrednost: zeljena,
+        vrstica: cilj.vrstica, stolpec: cilj.stolpec,
+      });
       uspesne.push(v.id);
     }
 
     try {
       zapisanihSkupaj += await zapisiCelice(zeton, povezava.spreadsheet_id, zaZapis);
       await koncaj(uspesne.concat(preskocene));
+
+      // Barve so LOČEN, neobvezen korak PO zapisu vrednosti:
+      //  - barva se nastavi samo celicam, ki jih je ta zagon res zapisal;
+      //    ročno oblikovanje drugod v listu ostane nedotaknjeno,
+      //  - če barvanje spodleti, vrednosti so vseeno zapisane in vrstice
+      //    ostanejo "koncano" - napaka je vidna, a se ne poskuša v nedogled
+      //    (drugače bi ena zavrnjena barva vrtela ponovni zapis vrednosti).
+      if (povezava.barve && zaZapis.length) {
+        try {
+          const sheetId = await preberiSheetId(zeton, povezava.spreadsheet_id, povezava.zavihek);
+          const zahteve = zaZapis.map((c) =>
+            zahtevaBarve(sheetId, c.vrstica, c.stolpec, barvaZaZapis(c.vrednost)));
+          pobarvanihSkupaj += await pobarvajCelice(zeton, povezava.spreadsheet_id, zahteve);
+        } catch (e) {
+          await zabeleziNapako("barve", {
+            povezava_id: povezava.id, spreadsheet_id: povezava.spreadsheet_id, zavihek: povezava.zavihek,
+            podrobnosti: "Vrednosti so zapisane, barve pa ne: " + String((e as Error).message || e),
+          });
+        }
+      }
     } catch (e) {
       await koncaj(preskocene);
       await odlozi(svezenj.filter((v) => uspesne.includes(v.id)), String((e as Error).message || e));
@@ -227,6 +253,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return new Response(JSON.stringify({
-    prevzetih: vrstice.length, zapisanih: zapisanihSkupaj, brez_spremembe: preskocenih,
+    prevzetih: vrstice.length, zapisanih: zapisanihSkupaj,
+    pobarvanih: pobarvanihSkupaj, brez_spremembe: preskocenih,
   }), { headers: { "content-type": "application/json" } });
 });

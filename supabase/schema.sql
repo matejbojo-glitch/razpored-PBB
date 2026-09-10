@@ -4485,6 +4485,7 @@ create table if not exists public.sheet_connections (
   oblika          text not null default 'oddelek',
   app_v_sheets    boolean not null default false,
   sheets_v_app    boolean not null default false,
+  barve           boolean not null default false,
   aktivno         boolean not null default false,
   opomba          text,
   created_at      timestamptz not null default now(),
