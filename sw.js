@@ -604,7 +604,10 @@
 // v176: popravek zamika stolpcev pri uvozu zavihka FLEXI - pri branju prek
 // povezave (Google Sheets API) se je za izmeno bralo oznako oddelka, za
 // oddelek pa kratico dneva. Spremenjen je index.html, zato dvig.
-const CACHE = 'razpored-pbb-v176';
+// v177: popravek zamika stolpcev pri "Zapiši nazaj v Sheets" za NZV -
+// posodobitve so šle preveč levo (pri zamiku 2 celo levo od stolpca A) in
+// bi prepisale stolpec DATUM ter tuje enote. Spremenjen je index.html.
+const CACHE = 'razpored-pbb-v177';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

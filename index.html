@@ -4471,7 +4471,12 @@ function pripraviPosodobitveNzv(vrsteVrstic, ciljniMesec, podatki){
       stolpci.forEach((naziv, idx) => {
         const koda = nazivVKodo[nzvKljucGlave(naziv)];
         if (!koda) return;
-        posodobitve.push({ vrstica: j, stolpec: 1 + idx, vrednost: podatki[koda + "|" + datum] || "" });
+        // "idx" je indeks v GLAVI, ta pa je odrezana za "zamik" (obdelajBlok
+        // vrne glavo kot vrstica.slice(zamik + offset), pri NZV z offset 1).
+        // Brez prištetega zamika bi pisali preveč levo - pri zamiku 2 čez
+        // stolpca DATUM in prvo enoto, torej čez tuje celice. Branje
+        // (obdelajNzvVrstice) je zamik upoštevalo že prej.
+        posodobitve.push({ vrstica: j, stolpec: zamik + 1 + idx, vrednost: podatki[koda + "|" + datum] || "" });
       });
     }, stanje, zamik);
   }

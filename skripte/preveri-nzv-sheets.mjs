@@ -296,6 +296,28 @@ console.log("4) PRAVA oblika datoteke: prazna vrstica med glavo in prvim datumom
   trdi(!!trp && !enoteZa(trp).includes("SADOP"), "in NE pristane hkrati v SA DOP");
 }
 
+console.log("4b) zavihek, ki se ne začne v stolpcu A (Google Sheets API vrne vodilne prazne celice)");
+{
+  // Ista past kot pri oddelkih in pri FLEXI: glava je odrezana za zamik,
+  // vrstica s podatki pa ne. Pri PISANJU nazaj je to nevarneje kot pri
+  // branju - posodobitve bi šle dva stolpca preveč levo, torej čez stolpec
+  // DATUM in čez tuje enote. Do septembra 2026 je bilo v
+  // pripraviPosodobitveNzv zapisano golo "1 + idx".
+  const zamaknjeno = vrsteVrstic.map(v => (v.length ? ["", "", ...v] : v));
+  const podatki = { "PDZN|2026-08-01": "KAR" };
+
+  const brez = pripraviPosodobitveNzv(vrsteVrstic, "2026-08", podatki);
+  const zam = pripraviPosodobitveNzv(zamaknjeno, "2026-08", podatki);
+  trdi(zam.najdenDatum && zam.najdenaGlava, "datum in glava enot se najdeta tudi z zamikom");
+  jseq(zam.posodobitve.length, brez.posodobitve.length, "enako število posodobitev kot brez zamika");
+  jseq(zam.posodobitve.map(p => p.stolpec - 2), brez.posodobitve.map(p => p.stolpec),
+    "stolpci so premaknjeni za 2 v desno, vsebina je ista");
+  jseq(zam.posodobitve.map(p => p.vrednost), brez.posodobitve.map(p => p.vrednost),
+    "vrednosti se ne premešajo");
+  trdi(zam.posodobitve.every(p => p.stolpec > 2),
+    "nobena posodobitev ne pade v stolpec DATUM ali levo od njega");
+}
+
 console.log("5) nič se ne izgubi: vsaka celica lista je najdena v uvoženih zapisih");
 {
   // Isti krog kot pri preverjanju prave datoteke: vsak trojček
