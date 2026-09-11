@@ -331,6 +331,255 @@ export function koordinateFlexi(vrsteVrstic, startISO, endISO) {
   };
 }
 
+// --- NZV: stolpci so ENOTE, ne osebe -----------------------------------
+// Pri oddelkih in FLEXI je stolpec oseba, celica pa njena izmena. Pri NZV
+// je obrnjeno: stolpec je organizacijska enota, celica pa pove, KDO (ena
+// ali več paraf) enoto tisti dan pokriva. Zadnji trije stolpci
+// (LD/IZOB/BS) niso enote, ampak povzetek odsotnosti in gredo v drugo
+// tabelo.
+//
+// Vir tabele je nzv-zasedba.js; preveri-sheets-deljena-koda.mjs ju
+// primerja vrstico za vrstico.
+export const NZV_ENOTE = [
+  ["PDZN", "PDZN"], ["SOBO", "SOBO"], ["ZO", "ŽO"], ["E1", "E1"], ["E2", "E2"], ["D", "D"], ["MO", "MO"],
+  ["B", "B"], ["C", "C"], ["C1", "C1"], ["PO", "PO"], ["A", "A"], ["B1B2", "B1,B2"], ["DB", "DB"],
+  ["URGENCA", "URGENCA"], ["U2", "U2"],
+];
+
+// Vrstni red v uradni predlogi ima "SA DOP"/"SA POP" MED "DB" in "URGENCA".
+export const NZV_STOLPCI = (function () {
+  const brezUrgence = NZV_ENOTE.filter((v) => v[0] !== "URGENCA" && v[0] !== "U2");
+  const urgencaU2 = NZV_ENOTE.filter((v) => v[0] === "URGENCA" || v[0] === "U2");
+  return brezUrgence.concat([["SADOP", "SA DOP"], ["SAPOP", "SA POP"]], urgencaU2);
+})();
+
+// LD/IZOB/BS -> vrsta odsotnosti v tabeli "odsotnosti".
+export const NZV_ODSOTNOST_KIND = { LD: "ld", IZOB: "sti", BS: "bs" };
+
+const NZV_GLAVA_NAJVEC_NAZAJ = 8;
+const NZV_GLAVA_NAJMANJ_ZADETKOV = 2;
+
+// Ista glava je v resničnih datotekah zapisana z različnimi presledki
+// ("B1,B2" proti "B1, B2"), zato se pred primerjavo presledki odstranijo.
+export function nzvKljucGlave(naziv) {
+  return String(naziv || "").replace(/\s+/g, "").toUpperCase();
+}
+
+function nzvNazivVKodo() {
+  const m = { "Dežurstvo": "DEZ", "DEŽURSTVO": "DEZ", "SA DOP": "SADOP", "SA POP": "SAPOP",
+              "LD": "LD", "IZOB": "IZOB", "BS": "BS" };
+  NZV_ENOTE.forEach(([koda, naziv]) => { m[naziv] = koda; });
+  return m;
+}
+
+function nzvNazivVKodoNorm() {
+  const vir = nzvNazivVKodo();
+  const m = {};
+  Object.keys(vir).forEach((k) => { m[nzvKljucGlave(k)] = vir[k]; });
+  return m;
+}
+
+// Glava NZV bloka se ne prepozna po enem samem stolpcu, ampak po tem, da
+// jih je v vrstici več znanih - med glavo in prvim datumom namreč stoji
+// prazna vrstica.
+export function poisciEnoteNzv(vrsteVrstic, zacetekBloka, zamik) {
+  zamik = zamik || 0;
+  const nazivVKodo = nzvNazivVKodoNorm();
+  for (let i = zacetekBloka - 1, korakov = 0; i >= 0 && korakov < NZV_GLAVA_NAJVEC_NAZAJ; i--, korakov++) {
+    const vrstica = vrsteVrstic[i] || [];
+    if (ISO_DATUM_RX.test(normalizirajDatum(vrstica[zamik]))) return null;
+    const zadetki = vrstica.slice(zamik + 1).filter((c) => nazivVKodo[nzvKljucGlave(c)]).length;
+    if (zadetki >= NZV_GLAVA_NAJMANJ_ZADETKOV) return i;
+  }
+  return null;
+}
+
+// Kaj se za posamezen stolpec zapiše v razpored.
+export function nzvZapisZaStolpec(koda) {
+  if (koda === "SADOP") return { department_code: "SA", shift_code: "Dopoldne" };
+  if (koda === "SAPOP") return { department_code: "SA", shift_code: "Popoldne" };
+  if (koda === "DEZ") return { department_code: "DEZ", shift_code: "DEŽURSTVO" };
+  return { department_code: koda, shift_code: "PRISOTEN" };
+}
+
+// Vse celice NZV zavihka v obdobju. "koda" je enota (ali LD/IZOB/BS/DEZ),
+// "vrednost" pa vsebina celice - ena ali več paraf, ločenih z vejico.
+export function koordinateNzv(vrsteVrstic, startISO, endISO) {
+  const nazivVKodo = nzvNazivVKodoNorm();
+  const celice = [];
+  const stanje = { najdenDatum: false, najdenaGlava: false };
+  const zamik = najdiZamikStolpcev(vrsteVrstic);
+  let i = 0;
+  while (i < vrsteVrstic.length) {
+    const datum = normalizirajDatum((vrsteVrstic[i] || [])[zamik]);
+    if (!ISO_DATUM_RX.test(datum)) { i++; continue; }
+    i = obdelajBlok(vrsteVrstic, i, startISO, endISO, poisciEnoteNzv, 1, (vrstica, stolpci, datum, j) => {
+      stolpci.forEach((naziv, idx) => {
+        const koda = nazivVKodo[nzvKljucGlave(naziv)];
+        if (!koda) return;
+        // "idx" je indeks v glavi, ta pa je odrezana za zamik + 1.
+        const stolpec = zamik + 1 + idx;
+        celice.push({
+          vrstica: j,
+          stolpec: stolpec,
+          datum: datum,
+          koda: koda,
+          naziv: String(naziv == null ? "" : naziv).trim(),
+          jeOdsotnost: Object.prototype.hasOwnProperty.call(NZV_ODSOTNOST_KIND, koda),
+          vrednost: (vrstica[stolpec] == null ? "" : String(vrstica[stolpec])).trim(),
+        });
+      });
+    }, stanje, zamik);
+  }
+  return {
+    celice: celice,
+    najdenDatum: stanje.najdenDatum,
+    najdenaGlava: stanje.najdenaGlava,
+    zamik: zamik,
+  };
+}
+
+// Ista oseba je lahko isti dan na več enotah - razpored pa dovoli en zapis
+// na (oseba, dan). Dodatne enote gredo v pokriva_oddelek.
+export function zdruziNzvZapise(zapisi) {
+  const poOsebiInDnevu = new Map();
+  (zapisi || []).forEach((z) => {
+    const kljuc = z.employee_id + "|" + z.work_date;
+    const prej = poOsebiInDnevu.get(kljuc);
+    if (!prej) {
+      poOsebiInDnevu.set(kljuc, {
+        employee_id: z.employee_id, work_date: z.work_date,
+        department_code: z.department_code, shift_code: z.shift_code,
+        stolpci: z.stolpec ? [z.stolpec] : [],
+      });
+      return;
+    }
+    // Dežurstvo nima svojega stolpca enote in ne sme prevzeti
+    // department_code, če je oseba tisti dan tudi na enoti.
+    if (!z.stolpec) { prej.shift_code = z.shift_code; return; }
+    if (!prej.stolpci.length) {
+      prej.department_code = z.department_code;
+      prej.stolpci = [z.stolpec];
+      return;
+    }
+    if (prej.stolpci.indexOf(z.stolpec) < 0) prej.stolpci.push(z.stolpec);
+  });
+  return [...poOsebiInDnevu.values()].map((v) => {
+    const zapis = {
+      employee_id: v.employee_id, department_code: v.department_code,
+      work_date: v.work_date, shift_code: v.shift_code,
+    };
+    const potrebenSeznam = v.stolpci.length > 1
+      || (v.stolpci.length === 1 && String(v.shift_code || "").toUpperCase() === "DEŽURSTVO");
+    if (potrebenSeznam) zapis.pokriva_oddelek = v.stolpci.join("/");
+    return zapis;
+  });
+}
+
+// --- Parafe (izvirnik: parafa.js) --------------------------------------
+// NZV mreža ne piše imen, ampak PARAFE ("DŽA, ALU"). Ista oseba je imela
+// pred 1. 10. 2026 lahko drugo parafo, zato se izbira po datumu razporeda,
+// ne po današnjem dnevu.
+export const PARAFA_PRESTOP = "2026-10";
+
+// Kadar parafa ni izrecno nastavljena: prve tri črke priimka. Prav to je
+// vir trkov (dva Pogačnika oba dobita "POG"), zato se taka oznaka NE
+// pripiše nikomur - gre med dvoumne.
+export function parafaAuto(fullName) {
+  const deli = String(fullName || "").trim().split(/\s+/);
+  const priimek = deli.length > 1 ? deli.slice(0, -1).join("") : (deli[0] || "");
+  return priimek.slice(0, 3).toUpperCase();
+}
+
+export function parafaZaDatum(profil, datum) {
+  if (!profil) return parafaAuto("");
+  if (datum && String(datum).slice(0, 7) < PARAFA_PRESTOP && profil.parafa_pred_oktobrom_2026) {
+    return profil.parafa_pred_oktobrom_2026;
+  }
+  return profil.parafa || parafaAuto(profil.full_name);
+}
+
+function parafaJeIzpeljana(profil, datum) {
+  if (!profil) return true;
+  if (datum && String(datum).slice(0, 7) < PARAFA_PRESTOP && profil.parafa_pred_oktobrom_2026) return false;
+  return !profil.parafa;
+}
+
+// Parafa -> oseba, za dani datum. Izrecno nastavljena parafa premaga
+// izpeljano; kadar ostane več kandidatov, oznaka pristane med dvoumnimi in
+// se NE pripiše nikomur.
+export function parafaLastniki(profili, datum) {
+  const skupine = {};
+  (profili || []).forEach((p) => {
+    const k = parafaZaDatum(p, datum).toUpperCase();
+    if (!k) return;
+    (skupine[k] = skupine[k] || []).push(p);
+  });
+  const poParafi = {};
+  const podvojene = [];
+  Object.keys(skupine).forEach((k) => {
+    const vsi = skupine[k];
+    const izrecni = vsi.filter((p) => !parafaJeIzpeljana(p, datum));
+    const kandidati = izrecni.length ? izrecni : vsi;
+    if (kandidati.length === 1) poParafi[k] = kandidati[0];
+    else podvojene.push(k);
+  });
+  return { poParafi: poParafi, podvojene: podvojene };
+}
+
+// Stolpec DEŽURSTVO piše POLNO IME, ne parafe - in pred njim je lahko naziv
+// ("dr. Tanja Torkar"), ki bi pri primerjavi "vreča besed" zgrešil ujemanje.
+const NAZIV_OSEBE_RX = /^(dr|mag|prim|doc|prof|as)\.\s*/i;
+export function ocistiNazivOsebe(s) {
+  return String(s || "").replace(NAZIV_OSEBE_RX, "").trim();
+}
+
+// --- Ime zavihka iz meseca --------------------------------------------
+// NZV dokument nima enega zavihka na oddelek, ampak enega na MESEC
+// ("Razpored SEPTEMBER 2026"). Povezava zato ne hrani imena, ampak vzorec;
+// ime se sestavi iz meseca, tako kot ga sestavi človek.
+export const MESECI_VELIKO = ["JANUAR", "FEBRUAR", "MAREC", "APRIL", "MAJ", "JUNIJ",
+  "JULIJ", "AVGUST", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DECEMBER"];
+
+export function jeVzorecZavihka(vzorec) {
+  return /\{MESEC\}|\{LETO\}/.test(String(vzorec || ""));
+}
+
+// "Razpored {MESEC} {LETO}" + "2026-09" -> "Razpored SEPTEMBER 2026".
+export function imeZavihka(vzorec, mesecYYYYMM) {
+  const v = String(vzorec || "");
+  if (!jeVzorecZavihka(v)) return v;
+  const deli = String(mesecYYYYMM || "").split("-");
+  const leto = deli[0] || "";
+  const m = Number(deli[1]);
+  const mesec = m >= 1 && m <= 12 ? MESECI_VELIKO[m - 1] : "";
+  return v.replace(/\{MESEC\}/g, mesec).replace(/\{LETO\}/g, leto);
+}
+
+// Obratno: iz imena zavihka razbere mesec, če se ujema z vzorcem.
+// Vrne "YYYY-MM" ali null. Primerja se brez velikih/malih črk, ker so
+// zavihki v dokumentu pisani različno ("Razpored JUNIJ 2026").
+export function mesecIzImenaZavihka(vzorec, ime) {
+  const v = String(vzorec || "");
+  if (!jeVzorecZavihka(v)) return null;
+  const ubezi = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const vzorecRe = new RegExp("^" + v.split(/(\{MESEC\}|\{LETO\})/)
+    .map((del) => (del === "{MESEC}" ? "([A-ZČŠŽa-zčšž]+)" : del === "{LETO}" ? "(\\d{4})" : ubezi(del)))
+    .join("") + "$", "i");
+  const zadetek = String(ime || "").trim().match(vzorecRe);
+  if (!zadetek) return null;
+  // Vrstni red skupin sledi vrstnemu redu oznak v vzorcu.
+  const oznake = v.match(/\{MESEC\}|\{LETO\}/g) || [];
+  let mesec = "", leto = "";
+  oznake.forEach((o, k) => {
+    if (o === "{MESEC}") mesec = zadetek[k + 1];
+    else leto = zadetek[k + 1];
+  });
+  const idx = MESECI_VELIKO.indexOf(nzvKljucGlave(mesec));
+  if (idx < 0 || !/^\d{4}$/.test(leto)) return null;
+  return leto + "-" + String(idx + 1).padStart(2, "0");
+}
+
 // --- Naslavljanje celic (A1) ------------------------------------------
 // 0 -> "A", 25 -> "Z", 26 -> "AA". Uporablja se SAMO za obseg v
 // values.batchUpdate; nobene druge oblike naslavljanja ni.

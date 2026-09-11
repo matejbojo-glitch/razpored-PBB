@@ -36,10 +36,10 @@ function jseq(a, b, opis) {
 const okno = { console };
 okno.window = okno;
 vm.createContext(okno);
-["imena.js", "parafa.js", "izmene.js", "import-utils.js"].forEach((d) => {
+["imena.js", "parafa.js", "izmene.js", "import-utils.js", "nzv-zasedba.js"].forEach((d) => {
   vm.runInContext(readFileSync(join(koren, d), "utf8"), okno);
 });
-const { Imena, Parafa, Izmene, ImportUtils } = okno;
+const { Imena, Parafa, Izmene, ImportUtils, NzvZasedba } = okno;
 
 // --- kopija, ki jo uporabljata Edge Functions -------------------------
 const K = await import(join(koren, "src/shared/sheets-koordinate.js"));
@@ -289,6 +289,156 @@ console.log("7b) FLEXI: isti zapisi kot obdelajFlexiVrstice() iz index.html");
   const alukic = brez.filter((c) => c.kljuc === Parafa.kratkoKljuc("ALUKIĆ D.") && c.datum === "2026-06-01");
   jseq(alukic.length, 1, "ponovljeno ime v isti glavi se upošteva samo enkrat (prva pojavitev)");
   jseq(alukic[0] && alukic[0].vrednost, "dopoldan", "in to LEVA pojavitev");
+}
+
+console.log("7c) NZV: tabele in zapisi so isti kot v nzv-zasedba.js / index.html");
+{
+  jseq(K.NZV_ENOTE, NzvZasedba.ENOTE, "seznam enot");
+  jseq(K.NZV_STOLPCI, NzvZasedba.STOLPCI, "vrstni red stolpcev (SA DOP/SA POP med DB in URGENCA)");
+  trdi(K.nzvZapisZaStolpec("B").shift_code === NzvZasedba.IZMENA_PRISOTEN,
+    "navadna enota se zapiše kot " + NzvZasedba.IZMENA_PRISOTEN);
+  jseq(K.nzvZapisZaStolpec("SADOP"), { department_code: "SA", shift_code: "Dopoldne" }, "SA DOP");
+  jseq(K.nzvZapisZaStolpec("SAPOP"), { department_code: "SA", shift_code: "Popoldne" }, "SA POP");
+  jseq(K.nzvZapisZaStolpec("DEZ"), { department_code: "DEZ", shift_code: "DEŽURSTVO" }, "dežurstvo");
+
+  // Združevanje: ista oseba na več enotah istega dne mora pristati v ENEM
+  // zapisu, dežurstvo pa ne sme prevzeti enote.
+  const primeri = [
+    [{ employee_id: "a", work_date: "2026-09-01", department_code: "B", shift_code: "PRISOTEN", stolpec: "B" },
+     { employee_id: "a", work_date: "2026-09-01", department_code: "C", shift_code: "PRISOTEN", stolpec: "C" }],
+    [{ employee_id: "b", work_date: "2026-09-01", department_code: "DEZ", shift_code: "DEŽURSTVO" },
+     { employee_id: "b", work_date: "2026-09-01", department_code: "SA", shift_code: "Popoldne", stolpec: "SAPOP" }],
+    [{ employee_id: "c", work_date: "2026-09-01", department_code: "DEZ", shift_code: "DEŽURSTVO" }],
+  ];
+  primeri.forEach((vhod, i) => {
+    jseq(K.zdruziNzvZapise(vhod), NzvZasedba.zdruziNzvZapise(vhod), `zdruziNzvZapise, primer ${i + 1}`);
+  });
+}
+
+console.log("7d) NZV koordinate: iste celice kot pripraviPosodobitveNzv() iz index.html");
+{
+  const html = readFileSync(join(koren, "index.html"), "utf8");
+  function izvleci(ime) {
+    const zac = html.indexOf("function " + ime + "(");
+    if (zac === -1) throw new Error("Funkcije " + ime + " ni v index.html.");
+    let globina = 0;
+    for (let i = html.indexOf("{", zac); i < html.length; i++) {
+      if (html[i] === "{") globina++;
+      else if (html[i] === "}") { globina--; if (globina === 0) return html.slice(zac, i + 1); }
+    }
+    throw new Error("Konec funkcije " + ime + " ni najden.");
+  }
+  function izvleciVrstico(oznaka) {
+    const re = new RegExp("^" + oznaka.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ".*$", "m");
+    const m = html.match(re);
+    if (!m) throw new Error("Vrstice " + oznaka + " ni v index.html.");
+    return m[0];
+  }
+  const pesk = { window: okno, console };
+  vm.createContext(pesk);
+  vm.runInContext([
+    izvleciVrstico("const ISO_DATUM_RX"),
+    izvleciVrstico("const NZV_ENOTE"),
+    izvleciVrstico("const NZV_STOLPCI"),
+    izvleciVrstico("const NZV_GLAVA_NAJVEC_NAZAJ"),
+    izvleciVrstico("const NZV_GLAVA_NAJMANJ_ZADETKOV"),
+    readFileSync(join(koren, "datum.js"), "utf8"),
+    "var monthRange = window.Datum.obseg;",
+    izvleci("vrsticaJePrazna"),
+    izvleci("obdelajBlok"),
+    izvleci("nzvKljucGlave"),
+    izvleci("nzvNazivVKodo"),
+    izvleci("nzvNazivVKodoNorm"),
+    izvleci("poisciEnoteNzv"),
+    izvleci("pripraviPosodobitveNzv"),
+  ].join("\n\n"), pesk);
+
+  // Oblika po pravem dokumentu: med glavo enot in prvim datumom stoji
+  // PRAZNA vrstica (tako je na vseh mesečnih listih).
+  const GLAVA = ["DATUM", "PDZN", "SOBO", "ŽO", "E1", "E2", "SA DOP", "SA POP", "DEŽURSTVO", "LD", "IZOB", "BS"];
+  const V = [
+    ["SEPTEMBER 2026"],
+    GLAVA,
+    [],
+    ["1. 9. 2026", "DŽA", "VEL", "ALU", "LEL", "PER", "TOR", "HUM", "Amal Perviz", "BOJ, VEL", "HRO", "LUN"],
+    ["2. 9. 2026", "DŽA", "VEL", "ALU", "LEL", "PER", "TOR", "HUM", "Grega Arnež", "BIZ", "", ""],
+  ];
+  const ZAM = V.map((v) => (v.length ? ["", "", ...v] : v));
+
+  [[V, "brez zamika"], [ZAM, "z zamikom 2"]].forEach(([vv, opis]) => {
+    const iz = pesk.pripraviPosodobitveNzv(vv, "2026-09", {}).posodobitve
+      .map((p) => p.vrstica + ":" + p.stolpec).sort();
+    const kop = K.koordinateNzv(vv, "2026-09-01", "2026-09-30").celice
+      .map((c) => c.vrstica + ":" + c.stolpec).sort();
+    jseq(kop, iz, `NZV, ${opis}: iste (vrstica, stolpec)`);
+  });
+
+  const celice = K.koordinateNzv(V, "2026-09-01", "2026-09-30").celice;
+  const prvi = (koda) => celice.find((c) => c.koda === koda && c.datum === "2026-09-01");
+  jseq(prvi("PDZN") && [prvi("PDZN").stolpec, prvi("PDZN").vrednost], [1, "DŽA"], "PDZN / 1. 9.");
+  jseq(prvi("SADOP") && prvi("SADOP").vrednost, "TOR", "SA DOP se prepozna po nazivu");
+  jseq(prvi("DEZ") && prvi("DEZ").vrednost, "Amal Perviz", "DEŽURSTVO nosi polno ime, ne parafe");
+  jseq(prvi("LD") && [prvi("LD").vrednost, prvi("LD").jeOdsotnost], ["BOJ, VEL", true],
+    "LD je označen kot odsotnost, ne enota");
+  trdi(celice.every((c) => c.vrstica >= 3), "glava in naslov meseca nista med celicami");
+  trdi(K.koordinateNzv(V, "2026-09-01", "2026-09-30").najdenaGlava,
+    "glava se najde tudi čez prazno vrstico pod njo");
+}
+
+console.log("7f) parafe: isti odgovor kot parafa.js");
+{
+  // Nabor pokriva oba dela prestopa 1. 10. 2026 in oba vira parafe
+  // (izrecna, izpeljana), pa tudi trk dveh izpeljanih.
+  const profili = [
+    { id: "1", full_name: "Džamastagić Denis", parafa: "DŽA" },
+    { id: "2", full_name: "Alukić Dino", parafa: "ALU", parafa_pred_oktobrom_2026: "DIN" },
+    { id: "3", full_name: "Pogačnik Teja" },
+    { id: "4", full_name: "Pogorevc Ana" },
+    { id: "5", full_name: "Mavri Tratnik Magdalena", parafa: "TRA" },
+  ];
+  ["2026-09-15", "2026-10-01", "2026-09", "2026-10", "", null].forEach((datum) => {
+    const kop = K.parafaLastniki(profili, datum);
+    const iz = Parafa.lastniki(profili, datum);
+    jseq(Object.keys(kop.poParafi).sort(), Object.keys(iz.poParafi).sort(),
+      `parafaLastniki(${JSON.stringify(datum)}): iste parafe`);
+    jseq(Object.keys(kop.poParafi).sort().map((k) => kop.poParafi[k].id),
+      Object.keys(iz.poParafi).sort().map((k) => iz.poParafi[k].id),
+      `parafaLastniki(${JSON.stringify(datum)}): iste osebe`);
+    jseq([...kop.podvojene].sort(), [...iz.podvojene].sort(),
+      `parafaLastniki(${JSON.stringify(datum)}): isti trki`);
+  });
+  const razhajanja = profili.filter((p) =>
+    ["2026-09-15", "2026-10-01"].some((d) => K.parafaZaDatum(p, d) !== Parafa.zaDatum(p, d)));
+  jseq(razhajanja.map((p) => p.full_name), [], "parafaZaDatum() se ujema na obeh straneh prestopa");
+  jseq(K.parafaZaDatum(profili[1], "2026-09-15"), "DIN", "pred 1. 10. 2026 velja stara parafa");
+  jseq(K.parafaZaDatum(profili[1], "2026-10-01"), "ALU", "od 1. 10. 2026 nova");
+  trdi(K.parafaLastniki(profili, "2026-10").podvojene.indexOf("POG") >= 0,
+    "dve izpeljani »POG« ostaneta dvoumni in se ne pripišeta nikomur");
+  jseq(K.ocistiNazivOsebe("dr. Tanja Torkar"), "Tanja Torkar", "naziv pred imenom se odstrani");
+  jseq(K.ocistiNazivOsebe("Grega Arnež"), "Grega Arnež", "ime brez naziva ostane");
+}
+
+console.log("7e) ime zavihka iz meseca in nazaj");
+{
+  const VZOREC = "Razpored {MESEC} {LETO}";
+  jseq(K.imeZavihka(VZOREC, "2026-09"), "Razpored SEPTEMBER 2026", "mesec -> ime zavihka");
+  jseq(K.imeZavihka(VZOREC, "2026-01"), "Razpored JANUAR 2026", "januar");
+  jseq(K.imeZavihka("B", "2026-09"), "B", "ime brez oznak ostane nespremenjeno");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "Razpored SEPTEMBER 2026"), "2026-09", "ime zavihka -> mesec");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "Razpored september 2026"), "2026-09", "male črke se tolerirajo");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "Razpored JUNIJ 2025"), "2025-06", "drugo leto");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "September 2026"), null, "druga družina zavihkov se NE ujame");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "List29"), null, "ostanek »List29« se ne ujame");
+  jseq(K.mesecIzImenaZavihka(VZOREC, "Razpored NEKAJ 2026"), null, "neznano ime meseca se ne ujame");
+  jseq(K.mesecIzImenaZavihka("B", "B"), null, "brez vzorca ni ugibanja meseca");
+  trdi(K.jeVzorecZavihka(VZOREC) && !K.jeVzorecZavihka("FLEXI"), "vzorec se loči od navadnega imena");
+  // Vsi meseci se morajo peljati tja in nazaj.
+  const krog = [];
+  for (let m = 1; m <= 12; m++) {
+    const mm = "2026-" + String(m).padStart(2, "0");
+    if (K.mesecIzImenaZavihka(VZOREC, K.imeZavihka(VZOREC, mm)) !== mm) krog.push(mm);
+  }
+  jseq(krog, [], "vseh 12 mesecev preživi pot tja in nazaj");
 }
 
 console.log("8b) barve: isti odgovor kot Izmene.barva() / Izmene.barvaBesedila()");
