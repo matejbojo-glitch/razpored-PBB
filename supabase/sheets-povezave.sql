@@ -34,6 +34,9 @@ create table if not exists public.sheet_connections (
   oblika          text not null default 'oddelek',   -- 'oddelek' | 'flexi' | 'nzv'
   app_v_sheets    boolean not null default false,
   sheets_v_app    boolean not null default false,
+  -- Ali se poleg vrednosti prenese tudi BARVA celice (po šifrantu izmen).
+  -- Ločeno stikalo, ker barvanje prepiše ročno oblikovanje tistih celic.
+  barve           boolean not null default false,
   aktivno         boolean not null default false,
   opomba          text,
   created_at      timestamptz not null default now(),
@@ -41,6 +44,11 @@ create table if not exists public.sheet_connections (
   constraint sheet_connections_oblika_check check (oblika in ('oddelek','flexi','nzv')),
   unique (spreadsheet_id, zavihek)
 );
+
+-- Za baze, kjer je tabela nastala prej (stolpec "barve" je iz septembra
+-- 2026), da ponoven zagon te skripte ne zahteva ročnega popravka.
+alter table public.sheet_connections
+  add column if not exists barve boolean not null default false;
 
 comment on table public.sheet_connections is
   'Kateri zavihek katerega Google dokumenta pripada kateremu oddelku in v katero smer se sme sinhronizirati. Privzeto je vse ugasnjeno.';
@@ -61,8 +69,8 @@ create policy sheet_connections_admin on public.sheet_connections
 -- iz njegovega naslova - to je niz med "/d/" in "/edit":
 --   docs.google.com/spreadsheets/d/<TU_JE_ID>/edit#gid=...
 --
--- Odkomentiran je SAMO oddelek B - pilotni oddelek (razdelek 8 načrta).
--- Ostale odkomentiraj šele, ko bo pilot tekel brez pripomb.
+-- Vpišejo se vsi znani zavihki tega dokumenta, a UGASNJENI - vklop je
+-- odločitev, ki se sprejme v aplikaciji, ne ob zagonu skripte.
 --
 -- Vrstice so zapisane z "on conflict do nothing", da ponovni zagon skripte
 -- ne povozi nastavitev, ki jih je nekdo medtem vklopil v aplikaciji.
@@ -72,14 +80,17 @@ values ('2026 SMS RAZPORED – B', 'B', '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8X
         'Pilotni oddelek. Datum je v stolpcu C, podatki se začnejo v vrstici 2.')
 on conflict (spreadsheet_id, zavihek) do nothing;
 
--- insert into public.sheet_connections (oznaka, skupina, spreadsheet_id, zavihek, oblika, opomba)
--- values ('2026 SMS RAZPORED – C',    'C',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C',    'oddelek', 'Dva bloka drug ob drugem.'),
---        ('2026 SMS RAZPORED – C1',   'C1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C1',   'oddelek', 'En blok, datum v stolpcu B.'),
---        ('2026 SMS RAZPORED – D',    'D',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'D',    'oddelek', 'En blok, brez FLEXI parov.'),
---        ('2026 SMS RAZPORED – E1',   'E1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E1',   'oddelek', 'Dva bloka, datum v stolpcu C.'),
---        ('2026 SMS RAZPORED – E2',   'E2',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E2',   'oddelek', 'Dva bloka.'),
---        ('2026 SMS RAZPORED – FLEXI','FLEXI','1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'FLEXI','flexi',   'Pari stolpcev (oddelek + izmena) na osebo.')
--- on conflict (spreadsheet_id, zavihek) do nothing;
+-- Ostali zavihki istega dokumenta. Vrstice se VPIŠEJO, a ostanejo ugasnjene
+-- (glej privzetke zgoraj) - vklopi jih v aplikaciji, Generator -> Povezani
+-- Google listi, ko si za posamezen zavihek pripravljen.
+insert into public.sheet_connections (oznaka, skupina, spreadsheet_id, zavihek, oblika, opomba)
+values ('2026 SMS RAZPORED – C',    'C',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C',    'oddelek', 'Dva bloka drug ob drugem.'),
+       ('2026 SMS RAZPORED – C1',   'C1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'C1',   'oddelek', 'En blok, datum v stolpcu B.'),
+       ('2026 SMS RAZPORED – D',    'D',    '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'D',    'oddelek', 'En blok, brez FLEXI parov.'),
+       ('2026 SMS RAZPORED – E1',   'E1',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E1',   'oddelek', 'Dva bloka, datum v stolpcu C.'),
+       ('2026 SMS RAZPORED – E2',   'E2',   '1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'E2',   'oddelek', 'Dva bloka.'),
+       ('2026 SMS RAZPORED – FLEXI','FLEXI','1yf6k6XtGx4Ds20aJjJr7GpkWFznKhwfU1Y-Z8XvA_f4', 'FLEXI','flexi',   'Pari stolpcev (oddelek + izmena) na osebo; zapis gre v department_code FLEXI, pokriti oddelek v pokriva_oddelek.')
+on conflict (spreadsheet_id, zavihek) do nothing;
 
 -- 4) Preverjanje ---------------------------------------------------------
 -- select oznaka, skupina, zavihek, oblika, aktivno, app_v_sheets, sheets_v_app

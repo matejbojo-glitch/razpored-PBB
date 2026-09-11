@@ -534,7 +534,9 @@ dokument torej zahteva tale ročni korak s tvoje strani:**
 4. Na vrhu skripta zamenjaj dve vrstici: naslov Edge Function in
    `SHEETS_WEBHOOK_SECRET`.
 5. **Sprožilci (ura levo) → Dodaj sprožilec:**
-   funkcija `obObremembi`, vir **Iz preglednice**, vrsta **Ob spremembi**.
+   funkcija `obSpremembi`, vir **Iz preglednice**, vrsta **Ob spremembi**.
+   (Ali preprosteje: v urejevalniku zaženi funkcijo `namestiSprozilce`, ki
+   oba sprožilca nastavi sama.)
 6. Prvi zagon zahteva tvojo potrditev dovoljenj (»Advanced → Go to …«) —
    pričakovano, ker skript kliče zunanji naslov.
 7. V aplikaciji (`admin.html` → Povezani Google listi) ali s SQL vrstico

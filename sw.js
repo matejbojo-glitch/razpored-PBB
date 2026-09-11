@@ -595,7 +595,19 @@
 // sheets-mreza.js, index.html, admin.html, theme.css.
 // v173: polje "Razlog spremembe" ima svojo vrstico z vidno oznako - med
 // gumbi je bilo premalo opazno in je ob prvi uporabi ostalo prazno.
-const CACHE = 'razpored-pbb-v173';
+// v174: samodejna sinhronizacija z Google Sheets - razdelek "Nerešene
+// napake sinhronizacije" v Generatorju. Spremenjen je admin.html
+// (cache-first), zato dvig.
+// v175: prenos barv v Google list po šifrantu izmen (svoje stikalo v
+// razdelku Povezani Google listi, privzeto ugasnjeno). Spremenjen je
+// admin.html (cache-first), zato dvig.
+// v176: popravek zamika stolpcev pri uvozu zavihka FLEXI - pri branju prek
+// povezave (Google Sheets API) se je za izmeno bralo oznako oddelka, za
+// oddelek pa kratico dneva. Spremenjen je index.html, zato dvig.
+// v177: popravek zamika stolpcev pri "Zapiši nazaj v Sheets" za NZV -
+// posodobitve so šle preveč levo (pri zamiku 2 celo levo od stolpca A) in
+// bi prepisale stolpec DATUM ter tuje enote. Spremenjen je index.html.
+const CACHE = 'razpored-pbb-v177';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

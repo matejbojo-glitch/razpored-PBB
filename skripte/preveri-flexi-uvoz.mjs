@@ -230,8 +230,13 @@ console.log("8) stolpec 'DODATNO C/E2 7-19' se ne uvozi, a se PRIJAVI");
   const html2 = readFileSync(join(koren, "index.html"), "utf8");
   trdi(/\/\^DODATNO\\b\/i\.test\(ime\)/.test(html2), "stolpec se prepozna po naslovu");
   trdi(/steviloDodatnih\+\+/.test(html2), "šteje se, kolikokrat je bil preskočen");
-  trdi(/if \(\(vrstica\[c\] \|\| ""\)\.trim\(\)\) steviloDodatnih\+\+/.test(html2),
+  // "zamik + c", ne "c": glava je odrezana za zamik, vrstica s podatki pa
+  // ne (glej opombo v obdelajFlexiVrstice). Do septembra 2026 je bilo tu
+  // golo "c" in branje prek Google Sheets API je bilo za en stolpec mimo.
+  trdi(/if \(\(vrstica\[zamik \+ c\] \|\| ""\)\.trim\(\)\) steviloDodatnih\+\+/.test(html2),
     "šteje SAMO izpolnjene celice (sicer bi poročilo štelo prazne dni)");
+  trdi(/const sifra = \(vrstica\[zamik \+ c\]/.test(html2) && /const oddelek = \(vrstica\[zamik \+ c - 1\]/.test(html2),
+    "izmena in oddelek se bereta z upoštevanim zamikom stolpcev");
   trdi(/ni uvožen \(\$\{steviloDodatnih\} celic\)/.test(html2),
     "število konča v poročilu uvoza, ne tiho");
 }
