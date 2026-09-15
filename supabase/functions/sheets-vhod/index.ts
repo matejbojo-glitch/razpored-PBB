@@ -62,8 +62,21 @@ Deno.serve(async (req: Request) => {
   }
 
   const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Ista nerešena napaka se ne podvaja. Brez tega je ena oseba, ki je v
+  // listu na napačnem zavihku, ustvarila po en vnos NA DAN (opaženo: 326
+  // enakih vrstic), prave napake pa so se izgubile med njimi.
+  async function zabelezi(vrsta: string, p: Record<string, unknown>) {
+    const podrobnosti = String(p.podrobnosti ?? "");
+    const { data: ze } = await db.from("sync_errors")
+      .select("id").eq("resen", false).eq("smer", "sheets_v_app").eq("vrsta", vrsta)
+      .eq("podrobnosti", podrobnosti).limit(1);
+    if (ze && ze.length) return;
+    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...p, podrobnosti });
+  }
+
   async function napaka(vrsta: string, p: Record<string, unknown>) {
-    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...p });
+    await zabelezi(vrsta, p);
     return odgovor({ sprejeto: false, vrsta });
   }
 
@@ -172,8 +185,7 @@ Deno.serve(async (req: Request) => {
       else zavrnjeneNzv.push({ vrstica: sporocena.vrstica + 1, stolpec: sporocena.stolpec + 1, vrsta: "brez_datuma" });
     }
     if (!dnevi.size) {
-      await db.from("sync_errors").insert({
-        smer: "sheets_v_app", vrsta: "brez_datuma",
+      await zabelezi("zunaj_mreze", {
         povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
         podrobnosti: "Urejene celice niso znotraj mreže NZV (glava, naslov meseca ali podpisni blok).",
       });
@@ -243,9 +255,9 @@ Deno.serve(async (req: Request) => {
         const { error: e1 } = await db.from("razpored")
           .upsert(zeleni.map((z) => ({ ...z, razlog: "sheets" })), { onConflict: "employee_id,work_date" });
         if (e1) {
-          await db.from("sync_errors").insert({
-            smer: "sheets_v_app", vrsta: "api", povezava_id: povezava.id,
-            spreadsheet_id: spreadsheetId, zavihek, work_date: datum, podrobnosti: e1.message,
+          await zabelezi("api", {
+            povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+            work_date: datum, podrobnosti: e1.message,
           });
         } else { vpisanih += zeleni.length; }
       }
@@ -293,9 +305,8 @@ Deno.serve(async (req: Request) => {
     }
 
     if (neznane.size) {
-      await db.from("sync_errors").insert({
-        smer: "sheets_v_app", vrsta: "neznano_ime", povezava_id: povezava.id,
-        spreadsheet_id: spreadsheetId, zavihek,
+      await zabelezi("neznano_ime", {
+        povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
         podrobnosti: "Brez ujemanja med osebjem NZV: " + [...neznane].join(", ") + ".",
       });
     }
@@ -317,9 +328,19 @@ Deno.serve(async (req: Request) => {
   const osnova = { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek };
   let spremenjenih = 0, brezSpremembe = 0;
   const zavrnjene: { vrstica: number; stolpec: number; vrsta: string }[] = [];
+  // Celice ZUNAJ mreže (glava, opomba, podpisni blok, prazen prostor) niso
+  // napaka razporeda - ob eni večji izbiri jih je na stotine. Štejejo se in
+  // zapišejo kot EN povzetek; prave napake ostanejo posamič.
+  let zunajMreze = 0;
+  const zunajPrimeri: string[] = [];
   async function zavrni(c: { vrstica: number; stolpec: number }, vrsta: string, p: Record<string, unknown>) {
-    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...osnova, ...p });
     zavrnjene.push({ vrstica: c.vrstica + 1, stolpec: c.stolpec + 1, vrsta });
+    if (vrsta === "zunaj_mreze") {
+      zunajMreze++;
+      if (zunajPrimeri.length < 5) zunajPrimeri.push(`vrstica ${c.vrstica + 1}, stolpec ${c.stolpec + 1}`);
+      return;
+    }
+    await zabelezi(vrsta, { ...osnova, ...p });
   }
 
   for (const sporocena of sporocene) {
@@ -329,16 +350,9 @@ Deno.serve(async (req: Request) => {
       && (c.stolpec === sporocena.stolpec
           || (jeFlexi && c.stolpecOddelka === sporocena.stolpec)));
     if (!celica) {
-      // Urejena celica ni podatkovna celica razporeda: ali vrstica ni dan
-      // (naslov meseca, glava, podpisni blok), ali stolpec nima imena v
-      // glavi. Oboje je normalno - dokument ni samo razpored - zato se
-      // zabeleži in ne popravlja.
-      const vrsticaJeDan = celice.some((c) => c.vrstica === sporocena.vrstica);
-      await zavrni(sporocena, vrsticaJeDan ? "neznano_ime" : "brez_datuma", {
-        podrobnosti: vrsticaJeDan
-          ? `Stolpec ${sporocena.stolpec + 1} v vrstici ${sporocena.vrstica + 1} nima imena osebe v glavi bloka.`
-          : `Vrstica ${sporocena.vrstica + 1} ni znotraj mesečnega bloka (ni datuma).`,
-      });
+      // Ni celica razporeda: ali vrstica ni dan, ali stolpec nima imena v
+      // glavi. Oboje je normalno - dokument ni samo razpored.
+      await zavrni(sporocena, "zunaj_mreze", {});
       continue;
     }
 
@@ -400,5 +414,16 @@ Deno.serve(async (req: Request) => {
     spremenjenih++;
   }
 
-  return odgovor({ sprejeto: true, spremenjenih, brez_spremembe: brezSpremembe, zavrnjene });
+  if (zunajMreze) {
+    await zabelezi("zunaj_mreze", {
+      ...osnova,
+      podrobnosti: `${zunajMreze} urejenih celic ni v mreži razporeda `
+        + `(glava, opomba ali prazen prostor) - npr. ${zunajPrimeri.join("; ")}.`,
+    });
+  }
+
+  return odgovor({
+    sprejeto: true, spremenjenih, brez_spremembe: brezSpremembe,
+    zunaj_mreze: zunajMreze, zavrnjene,
+  });
 });

@@ -173,6 +173,29 @@ console.log("4b) NZV: varovalke pri brisanju (list je merodajen za DAN, ne za ve
   trdi(/razlog: "sheets"/.test(vhod), "vsak zapis nosi razlog 'sheets' (vidno v Reviziji)");
 }
 
+console.log("4c) pregled napak ne sme zaliti sam sebe");
+{
+  // Iz pravih podatkov (11. 9. 2026): ena večja izbira v listu je ustvarila
+  // 1411 vnosov "celica ni v mreži", ena oseba na napačnem zavihku pa 326
+  // enakih vnosov - prave napake so se izgubile med njimi.
+  const vhod = brezKomentarjev(readFileSync(join(koren, "supabase/functions/sheets-vhod/index.ts"), "utf8"));
+
+  trdi(/async function zabelezi\(vrsta: string/.test(vhod),
+    "vsi vpisi napak gredo skozi eno funkcijo");
+  trdi(/\.eq\("resen", false\)[\s\S]{0,160}?if \(ze && ze\.length\) return;/.test(vhod),
+    "ista NEREŠENA napaka se ne vpiše dvakrat");
+
+  const vpisi = (vhod.match(/from\("sync_errors"\)\s*\.insert/g) || []).length;
+  trdi(vpisi === 1, "vpis v sync_errors je na enem samem mestu (najdenih " + vpisi + ")");
+
+  trdi(/if \(vrsta === "zunaj_mreze"\) \{[\s\S]{0,200}?zunajMreze\+\+/.test(vhod),
+    "celice zunaj mreže se štejejo, ne zapisujejo po kosih");
+  trdi(/if \(zunajMreze\) \{[\s\S]{0,300}?zabelezi\("zunaj_mreze"/.test(vhod),
+    "ob koncu se zapiše EN povzetek");
+  trdi(/zunajPrimeri\.length < 5/.test(vhod),
+    "povzetek nosi nekaj primerov, da se da ugotoviti, kje je bilo");
+}
+
 console.log("5) v vrsto pišeta samo Edge Functions (service_role)");
 {
   const sql = readFileSync(join(koren, "supabase/sheets-sinhronizacija.sql"), "utf8");
