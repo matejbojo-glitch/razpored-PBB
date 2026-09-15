@@ -322,8 +322,18 @@ Deno.serve(async (req: Request) => {
   const { celice } = jeFlexi
     ? koordinateFlexi(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO)
     : koordinateOddelka(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO);
-  const { data: zaposleni } = await db.from("profili")
-    .select("id, full_name").eq("department_code", povezava.skupina);
+  // Osebje: NAJPREJ tega oddelka. Sledi rezerva med vsemi ostalimi, ker
+  // ima FLEXI kader (in kdor je v Imeniku se pri starem oddelku) svoj
+  // stolpec tudi v listu oddelka, na katerem dela. Brez rezerve se take
+  // izmene niso prenesle NIKOLI - v aplikaciji jih ni bilo, v listu pa so.
+  // Rezerva se uporabi samo, kadar v oddelku ni ujemanja; dvoumnost se
+  // se vedno zavrne, ne ugiba.
+  const { data: vsiZaposleni } = await db.from("profili")
+    .select("id, full_name, department_code");
+  const zaposleni = (vsiZaposleni || []).filter(
+    (z: { department_code: string | null }) => (z.department_code || "") === povezava.skupina);
+  const zaposleniRezerva = (vsiZaposleni || []).filter(
+    (z: { department_code: string | null }) => (z.department_code || "") !== povezava.skupina);
 
   const osnova = { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek };
   let spremenjenih = 0, brezSpremembe = 0;
@@ -356,19 +366,25 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    // Oseba: glava stolpca proti zaposlenim tega oddelka. Kratko ime, ki se
-    // ujame z dvema osebama, se NE ugiba.
-    const najdeni = (zaposleni || []).filter(
-      (z: { id: string; full_name: string }) => kratkiKljuc(z.full_name) === celica.kljuc);
+    // Oseba: glava stolpca najprej proti zaposlenim TEGA oddelka, sele nato
+    // proti vsem ostalim. Kratko ime, ki se ujame z dvema osebama, se NE
+    // ugiba - v obeh krogih.
+    type Zaposlen = { id: string; full_name: string; department_code: string | null };
+    const ujemanje = (seznam: Zaposlen[]) =>
+      seznam.filter((z) => kratkiKljuc(z.full_name) === celica.kljuc);
+    let najdeni = ujemanje(zaposleni as Zaposlen[]);
+    // Oseba iz drugega oddelka se prizna SAMO, kadar je v tem oddelku ni.
+    const izRezerve = najdeni.length === 0;
+    if (izRezerve) najdeni = ujemanje(zaposleniRezerva as Zaposlen[]);
     if (najdeni.length === 0) {
       await zavrni(sporocena, "neznano_ime", { work_date: celica.datum,
-        podrobnosti: `»${celica.ime}« se ne ujema z nobenim zaposlenim na oddelku ${povezava.skupina}.` });
+        podrobnosti: `»${celica.ime}« se ne ujema z nobenim zaposlenim (niti na oddelku ${povezava.skupina} niti drugje).` });
       continue;
     }
     if (najdeni.length > 1) {
       await zavrni(sporocena, "dvoumno_ime", { work_date: celica.datum,
         podrobnosti: `»${celica.ime}« se ujema z več osebami: `
-          + najdeni.map((z: { full_name: string }) => z.full_name).join(", ") + "." });
+          + najdeni.map((z) => `${z.full_name} (${z.department_code || "brez oddelka"})`).join(", ") + "." });
       continue;
     }
     const oseba = najdeni[0];
@@ -386,7 +402,16 @@ Deno.serve(async (req: Request) => {
     // FLEXI kader gre VEDNO v department_code "FLEXI", pokriti oddelek pa
     // v pokriva_oddelek - tako kombinirana oznaka ("C/E2") ne zaleti v
     // tuji ključ na oddelke. Enako kot pri uvozu (obdelajFlexiVrstice).
-    const noviOddelek = jeFlexi ? (celica.oddelek || "") : null;
+    //
+    // Enako velja za osebo iz rezerve: ostane pod SVOJIM oddelkom, delovišče
+    // tega dne pa gre v pokriva_oddelek. Tako je v aplikaciji še naprej tam,
+    // kjer je v Imeniku, in hkrati piše, kje je tisti dan delala.
+    const oddelekZapisa = izRezerve
+      ? (oseba.department_code || povezava.skupina)
+      : povezava.skupina;
+    const noviOddelek = jeFlexi
+      ? (celica.oddelek || "")
+      : (izRezerve ? String(povezava.skupina).toUpperCase() : null);
     const { data: obstojece } = await db.from("razpored")
       .select("id, shift_code, pokriva_oddelek")
       .eq("employee_id", oseba.id).eq("work_date", celica.datum).limit(1);
@@ -394,17 +419,18 @@ Deno.serve(async (req: Request) => {
     // Druga polovica zaščite pred zanko: brez razlike ni zapisa, torej se
     // sprožilec izhodne vrste sploh ne sproži.
     const istaKoda = stara && istaIzmena(stara.shift_code || "", novaKoda);
-    const istOddelek = !jeFlexi || (stara && (stara.pokriva_oddelek || "").toUpperCase() === noviOddelek);
+    const istOddelek = (!jeFlexi && !izRezerve)
+      || (stara && (stara.pokriva_oddelek || "").toUpperCase() === noviOddelek);
     if (istaKoda && istOddelek) { brezSpremembe++; continue; }
 
     const zapis: Record<string, unknown> = {
       employee_id: oseba.id,
-      department_code: povezava.skupina,
+      department_code: oddelekZapisa,
       work_date: celica.datum,
       shift_code: novaKoda,
       razlog: "sheets",
     };
-    if (jeFlexi) zapis.pokriva_oddelek = noviOddelek;
+    if (jeFlexi || izRezerve) zapis.pokriva_oddelek = noviOddelek;
     const { error: napakaZapisa } = await db.from("razpored").upsert(zapis,
       { onConflict: "employee_id,work_date" });
     if (napakaZapisa) {
