@@ -51,6 +51,18 @@ export function kratkiKljuc(s) {
   return besede.slice(0, -1).join(" ") + "|" + besede[besede.length - 1].charAt(0);
 }
 
+// Ključ za primerjavo POLNIH imen: "vreča besed" - vrstni red ni pomemben,
+// ker viri pišejo enkrat "Priimek Ime" in drugič "Ime Priimek". Stolpec
+// DEŽURSTVO v NZV mreži piše polno ime, ne parafe.
+export function imeKljuc(s) {
+  return brezStresic(normaliziraj(s)).split(" ").filter(Boolean).sort().join(" ");
+}
+
+export function imenaSeUjemata(a, b) {
+  const ka = imeKljuc(a), kb = imeKljuc(b);
+  return !!ka && ka === kb;
+}
+
 // Kratko ime, prebrano IZ LISTA (glava stolpca), v isti ključ.
 export function kratkoKljuc(ime) {
   const k = String(ime || "").trim().toUpperCase();

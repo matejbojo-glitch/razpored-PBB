@@ -99,6 +99,13 @@ console.log("5) ključ kratkega imena: isti odgovor kot Parafa.kratkoKljuc()");
   jseq(razhajanja, [], `kratkoKljuc() se ujema na vseh ${nabor.length} primerih`);
   const razhajanjaPolna = nabor.filter((n) => K.kratkiKljuc(n) !== Imena.kratkiKljuc(n));
   jseq(razhajanjaPolna, [], "kratkiKljuc() se ujema z imena.js");
+  // Polno ime (stolpec DEŽURSTVO v NZV mreži) se ujema po "vreči besed".
+  const polna = ["Grega Arnež", "Arnež Grega", "dr. Tanja Torkar", "TORKAR TANJA",
+    "Mavri Tratnik Magdalena", "Magdalena Mavri Tratnik", "Bećirović Nelvedin", "BEČIROVIĆ NELVEDIN", ""];
+  jseq(polna.filter((n) => K.imeKljuc(n) !== Imena.kljuc(n)), [], "imeKljuc() se ujema z Imena.kljuc()");
+  jseq(polna.filter((n) => K.imenaSeUjemata(n, "Grega Arnež") !== Imena.seUjemata(n, "Grega Arnež")), [],
+    "imenaSeUjemata() se ujema z Imena.seUjemata()");
+  trdi(K.imenaSeUjemata("Arnež Grega", "Grega Arnež"), "obrnjen vrstni red besed je ista oseba");
 }
 
 console.log("6) datum in zamik stolpcev: isti odgovor kot import-utils.js");

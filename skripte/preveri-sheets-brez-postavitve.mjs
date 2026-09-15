@@ -139,6 +139,40 @@ console.log("4) Apps Script na dokumentu ne piše v preglednico");
   trdi(/getRow\(\)|getColumn\(\)/.test(skript), "pošlje se koordinata celice, ne vsebina razporeda");
 }
 
+console.log("4b) NZV: varovalke pri brisanju (list je merodajen za DAN, ne za več)");
+{
+  // Pri NZV je celica seznam oseb, zato se ob spremembi uskladi CEL DAN -
+  // vključno z brisanjem tistih, ki jih v listu ni več. To je edino mesto
+  // v sinhronizaciji, ki briše, zato so varovalke preverjene po besedilu:
+  // destruktivne poti ni mogoče varno pognati v preizkusu.
+  const vhod = brezKomentarjev(readFileSync(join(koren, "supabase/functions/sheets-vhod/index.ts"), "utf8"));
+
+  trdi(/if \(!najdenDatum \|\| !najdenaGlava \|\| !nzvCelice\.length\)[\s\S]{0,400}?return await napaka/.test(vhod),
+    "če zavihka ni bilo mogoče razbrati, se NE briše nič");
+
+  const brisanja = [...vhod.matchAll(/\.from\("razpored"\)\s*\.delete\(\)([\s\S]{0,200})/g)].map((m) => m[1]);
+  trdi(brisanja.length > 0, "brisanje razporeda je v kodi (" + brisanja.length + "x)");
+  trdi(brisanja.every((rep) => /\.eq\("work_date", datum\)/.test(rep)),
+    "vsako brisanje je omejeno na EN dan");
+  trdi(brisanja.every((rep) => /\.in\("employee_id", odvec\)/.test(rep)),
+    "vsako brisanje je omejeno na poimensko naštete osebe");
+  trdi(/const odvec = \(obstojeci \|\| \[\]\)[\s\S]{0,300}?!obdrzi\.has\(String\(id\)\)/.test(vhod),
+    "seznam za brisanje nastane iz vrstic, ki so bile prebrane pri osebju NZV");
+  trdi(/\.select\("employee_id"\)\.eq\("work_date", datum\)\.in\("employee_id", idjiNzv\)/.test(vhod),
+    "obstoječe vrstice se berejo samo za osebje NZV - razpored oddelkov se ne pogleda");
+  trdi(/\.from\("profili"\)[\s\S]{0,200}?\.eq\("department_code", povezava\.skupina\)/.test(vhod),
+    "osebje NZV je določeno s skupino povezave, ne uganjeno");
+
+  trdi(/\.update\(\{ razlog: "sheets" \}\)[\s\S]{0,200}?\.from\("razpored"\)\s*\.delete\(\)/.test(vhod),
+    "pred izbrisom se vrstici nastavi razlog 'sheets' (sicer bi se izbris vračal v Sheets)");
+
+  const brisanjaOds = [...vhod.matchAll(/\.from\("odsotnosti"\)\s*\.delete\(\)([\s\S]{0,200})/g)].map((m) => m[1]);
+  trdi(brisanjaOds.every((rep) => /\.eq\("work_date", datum\)/.test(rep) && /\.in\("full_name", odvecIme\)/.test(rep)),
+    "brisanje odsotnosti je omejeno na en dan in na poimensko naštete osebe");
+
+  trdi(/razlog: "sheets"/.test(vhod), "vsak zapis nosi razlog 'sheets' (vidno v Reviziji)");
+}
+
 console.log("5) v vrsto pišeta samo Edge Functions (service_role)");
 {
   const sql = readFileSync(join(koren, "supabase/sheets-sinhronizacija.sql"), "utf8");
