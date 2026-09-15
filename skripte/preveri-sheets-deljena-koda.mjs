@@ -425,6 +425,50 @@ console.log("7f) parafe: isti odgovor kot parafa.js");
   jseq(K.ocistiNazivOsebe("Grega Arnež"), "Grega Arnež", "ime brez naziva ostane");
 }
 
+console.log("7g) NZV: datum, kot ga PRIKAŽE dokument (»1. sep.«)");
+{
+  // Prek Google Sheets API pride datum tak, kot je videti - brez leta in z
+  // okrajšanim mesecem. Manjkajoča podatka prideta iz imena zavihka.
+  jseq(K.dnevVMesecu("1. sep.", "2026-09"), "2026-09-01", "»1. sep.« + zavihek september 2026");
+  jseq(K.dnevVMesecu("15.sep.", "2026-09"), "2026-09-15", "brez presledka");
+  jseq(K.dnevVMesecu("2. sep", "2026-09"), "2026-09-02", "brez končne pike");
+  jseq(K.dnevVMesecu("1.", "2026-09"), "2026-09-01", "gola številka dneva");
+  jseq(K.dnevVMesecu("2026-09-05", "2026-09"), "2026-09-05", "poln ISO datum ostane");
+  jseq(K.dnevVMesecu("1. 9. 2026", "2026-09"), "2026-09-01", "poln slovenski datum ostane");
+  jseq(K.dnevVMesecu("31. sep.", "2026-09"), "", "31. september ne obstaja in se zavrne");
+  jseq(K.dnevVMesecu("1. okt.", "2026-09"), "", "dan DRUGEGA meseca se ne prilašča zavihku");
+  jseq(K.dnevVMesecu("1. sep.", null), "", "brez znanega meseca se ne ugiba");
+  jseq(K.dnevVMesecu("Amal Perviz", "2026-09"), "", "ime ni datum");
+
+  // Cela mreža v obliki, kot pride iz dokumenta.
+  const GLAVA = ["DATUM", "PDZN", "SOBO", "ŽO", "DEŽURSTVO", "LD"];
+  const PRAVI = [
+    ["SEPTEMBER 2026"],
+    GLAVA,
+    [],
+    ["1. sep.", "DŽA", "VEL", "ALU", "Amal Perviz", "BOJ, VEL"],
+    ["2. sep.", "DŽA", "VEL", "ALU", "Grega Arnež", "BIZ"],
+  ];
+  const brezMeseca = K.koordinateNzv(PRAVI, "2026-09-01", "2026-09-30");
+  jseq(brezMeseca.celice.length, 0, "brez meseca se tak zapis ne prebere (kot doslej)");
+
+  const zMesecem = K.koordinateNzv(PRAVI, "2026-09-01", "2026-09-30", "2026-09");
+  trdi(zMesecem.najdenDatum && zMesecem.najdenaGlava, "z mesecem se mreža prebere");
+  const prvi = (koda) => zMesecem.celice.find((c) => c.koda === koda && c.datum === "2026-09-01");
+  jseq(prvi("PDZN") && prvi("PDZN").vrednost, "DŽA", "PDZN / 1. sep.");
+  jseq(prvi("DEZ") && prvi("DEZ").vrednost, "Amal Perviz", "DEŽURSTVO / 1. sep.");
+  jseq(prvi("LD") && [prvi("LD").vrednost, prvi("LD").jeOdsotnost], ["BOJ, VEL", true], "LD / 1. sep.");
+  jseq([...new Set(zMesecem.celice.map((c) => c.datum))].sort(), ["2026-09-01", "2026-09-02"],
+    "oba dneva sta prebrana");
+
+  // Zamaknjen zavihek (Sheets API vrne vodilne prazne celice).
+  const ZAM = PRAVI.map((v) => (v.length ? ["", "", ...v] : v));
+  const zZamikom = K.koordinateNzv(ZAM, "2026-09-01", "2026-09-30", "2026-09");
+  jseq(zZamikom.celice.map((c) => c.stolpec - 2), zMesecem.celice.map((c) => c.stolpec),
+    "zamik premakne stolpce, vsebina ostane");
+  jseq(zZamikom.celice.map((c) => c.vrednost), zMesecem.celice.map((c) => c.vrednost), "iste vrednosti");
+}
+
 console.log("7e) ime zavihka iz meseca in nazaj");
 {
   const VZOREC = "Razpored {MESEC} {LETO}";

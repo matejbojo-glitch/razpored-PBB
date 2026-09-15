@@ -94,8 +94,14 @@ Deno.serve(async (req: Request) => {
     .select("id, skupina, spreadsheet_id, zavihek, oblika, aktivno, sheets_v_app")
     .eq("spreadsheet_id", spreadsheetId);
   let povezava = (vsePovezave || []).find((p) => p.zavihek === zavihek);
+  // Mesec iz IMENA zavihka - NZV dokument datuma ne piše z letom ("1. sep."),
+  // zato manjkajoči mesec in leto prideta od tod.
+  let mesecZavihka: string | null = null;
   if (!povezava) {
-    povezava = (vsePovezave || []).find((p) => mesecIzImenaZavihka(p.zavihek, zavihek));
+    for (const p of vsePovezave || []) {
+      const m = mesecIzImenaZavihka(p.zavihek, zavihek);
+      if (m) { povezava = p; mesecZavihka = m; break; }
+    }
   }
   if (!povezava || !povezava.aktivno || !povezava.sheets_v_app) {
     return await napaka("nepovezan_zavihek", {
@@ -145,7 +151,7 @@ Deno.serve(async (req: Request) => {
   // NZV - razpored oddelkov ostane nedotaknjen.
   if (jeNzv) {
     const { celice: nzvCelice, najdenaGlava, najdenDatum } =
-      koordinateNzv(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO);
+      koordinateNzv(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO, mesecZavihka);
 
     // Varovalka: če zavihka ni bilo mogoče razbrati (ni glave enot ali ni
     // datumskih vrstic), se NE briše nič. Brez tega bi vsaka motnja pri
@@ -153,7 +159,8 @@ Deno.serve(async (req: Request) => {
     if (!najdenDatum || !najdenaGlava || !nzvCelice.length) {
       return await napaka("brez_datuma", {
         povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
-        podrobnosti: "V zavihku ni bilo mogoče najti glave enot ali datumskih vrstic - dan ni bil spremenjen.",
+        podrobnosti: "V zavihku ni bilo mogoče najti glave enot ali datumskih vrstic"
+          + (mesecZavihka ? ` (mesec zavihka: ${mesecZavihka})` : "") + " - dan ni bil spremenjen.",
       });
     }
 

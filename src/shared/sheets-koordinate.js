@@ -416,10 +416,78 @@ export function nzvZapisZaStolpec(koda) {
 
 // Vse celice NZV zavihka v obdobju. "koda" je enota (ali LD/IZOB/BS/DEZ),
 // "vrednost" pa vsebina celice - ena ali več paraf, ločenih z vejico.
-export function koordinateNzv(vrsteVrstic, startISO, endISO) {
+// NZV dokument datuma ne piše kot "1. 9. 2026", ampak kot ga PRIKAŽE
+// ("1. sep.") - brez leta in z okrajšanim mesecem. Pri nalaganju .xlsx to
+// ni vidno (tam je celica pravi datum in ga SheetJS pretvori), prek Google
+// Sheets API pa pride natanko tako, kot je videti. Brez tega se v zavihku
+// ne najde noben datum in mreža ostane neprebrana.
+//
+// Manjkajoče leto in mesec prideta iz IMENA ZAVIHKA ("Razpored SEPTEMBER
+// 2026"), ne iz ugibanja.
+const MESEC_KRATICA = ["jan", "feb", "mar", "apr", "maj", "jun",
+  "jul", "avg", "sep", "okt", "nov", "dec"];
+
+export function dnevVMesecu(besedilo, mesecYYYYMM) {
+  const poln = normalizirajDatum(besedilo);
+  if (ISO_DATUM_RX.test(poln)) return poln;
+  if (!mesecYYYYMM) return "";
+  const deli = String(mesecYYYYMM).split("-");
+  const leto = Number(deli[0]);
+  const mesec = Number(deli[1]);
+  if (!(leto > 0) || !(mesec >= 1 && mesec <= 12)) return "";
+
+  const t = String(besedilo == null ? "" : besedilo).trim().toLowerCase();
+  const m = t.match(/^(\d{1,2})\s*\.?\s*([a-zčšžćđ]*)\.?$/);
+  if (!m) return "";
+  const dan = Number(m[1]);
+  if (!(dan >= 1 && dan <= 31)) return "";
+
+  // Kadar je mesec zapisan, se MORA ujemati z mesecem zavihka - sicer gre
+  // za vrstico drugega meseca (rep prejšnjega ali začetek naslednjega) in
+  // se je ne prilašča.
+  const beseda = brezStresic(m[2]).toLowerCase().slice(0, 3);
+  if (beseda && MESEC_KRATICA[mesec - 1] !== beseda) return "";
+
+  const vMesecu = new Date(Date.UTC(leto, mesec, 0)).getUTCDate();
+  if (dan > vMesecu) return "";
+  return deli[0] + "-" + String(mesec).padStart(2, "0") + "-" + String(dan).padStart(2, "0");
+}
+
+// Vrstice pripravi tako, da v datumskem stolpcu stoji ISO datum - od tam
+// naprej dela ista logika kot povsod drugje. Stolpec se poišče enako kot
+// sicer: tisti, v katerem je največ celic videti kot dan.
+function nzvVrsticeZDatumi(vrsteVrstic, mesec) {
+  if (!mesec) return vrsteVrstic;
+  const meja = 8;
+  const poStolpcu = [];
+  (vrsteVrstic || []).forEach((vrstica) => {
+    if (!vrstica) return;
+    for (let k = 0; k < meja && k < vrstica.length; k++) {
+      if (ISO_DATUM_RX.test(dnevVMesecu(vrstica[k], mesec))) poStolpcu[k] = (poStolpcu[k] || 0) + 1;
+    }
+  });
+  let najboljsi = -1, najvec = 0;
+  for (let k = 0; k < meja; k++) {
+    if ((poStolpcu[k] || 0) > najvec) { najvec = poStolpcu[k]; najboljsi = k; }
+  }
+  if (najboljsi < 0) return vrsteVrstic;
+  return (vrsteVrstic || []).map((vrstica) => {
+    if (!vrstica || vrstica.length <= najboljsi) return vrstica;
+    const iso = dnevVMesecu(vrstica[najboljsi], mesec);
+    if (!ISO_DATUM_RX.test(iso)) return vrstica;
+    const kopija = vrstica.slice();
+    kopija[najboljsi] = iso;
+    return kopija;
+  });
+}
+
+export function koordinateNzv(vrsteVrstic, startISO, endISO, mesec) {
   const nazivVKodo = nzvNazivVKodoNorm();
   const celice = [];
   const stanje = { najdenDatum: false, najdenaGlava: false };
+  // Brez "mesec" se obnaša natanko kot doslej (pot iz .xlsx, kjer so
+  // datumi pravi); z mesecem zna prebrati tudi prikazni zapis "1. sep.".
+  vrsteVrstic = nzvVrsticeZDatumi(vrsteVrstic, mesec);
   const zamik = najdiZamikStolpcev(vrsteVrstic);
   let i = 0;
   while (i < vrsteVrstic.length) {
