@@ -68,7 +68,7 @@ Supabase → Project Settings → Edge Functions → Secrets:
 |---|---|
 | `VAPID_PUBLIC_KEY` | javni ključ zgoraj |
 | `VAPID_PRIVATE_KEY` | zasebni ključ zgoraj |
-| `VAPID_SUBJECT` | `mailto:razpored@pb-begunje.si` (ali druga veljavna e-pošta) |
+| `VAPID_SUBJECT` | `mailto:razpored@pb-begunje.si` (ali druga veljavna e-pošta) — **predpona `mailto:` je obvezna**; gol naslov brez nje je funkcijo prej ubil ob zagonu, zdaj ga koda popravi sama |
 | `PUSH_CRON_SECRET` | poljubno dolgo naključno geslo, npr. iz `openssl rand -hex 32` |
 
 `SUPABASE_URL` in `SUPABASE_SERVICE_ROLE_KEY` nastavi Supabase sam – teh ni treba dodajati.

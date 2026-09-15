@@ -21,7 +21,17 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:razpored@pb-begunje.si";
+// web-push zahteva URL ali "mailto:". Skrivnost VAPID_SUBJECT je vsebovala
+// gol e-naslov, zato je setVapidDetails vrgel izjemo ZUNAJ zahtevka in ubil
+// celega delavca (WORKER_ERROR) — cron je dobival 500, obvestila pa niso
+// odsla NIKOLI. Naslov zato popravimo sami.
+function vapidNaslov(vrednost: string): string {
+  const t = (vrednost ?? "").trim();
+  if (!t) return "mailto:razpored@pb-begunje.si";
+  if (/^(https?:|mailto:)/i.test(t)) return t;
+  return "mailto:" + t;
+}
+const VAPID_SUBJECT = vapidNaslov(Deno.env.get("VAPID_SUBJECT") ?? "");
 const PUSH_CRON_SECRET = Deno.env.get("PUSH_CRON_SECRET") ?? "";
 
 // E-pošta je NEOBVEZNA: dokler RESEND_API_KEY ni nastavljen, se e-pošta
@@ -34,7 +44,15 @@ const APP_URL = (Deno.env.get("APP_URL") ?? "https://razpored.netlify.app").repl
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+// Tudi popravljen naslov ali prazen kljuc lahko se vedno sprozi izjemo.
+// Na vrhu modula bi to pomenilo mrtvega delavca brez uporabne napake, zato
+// jo ujamemo in jo vrnemo sele v zahtevku kot berljiv 500.
+let vapidNapaka = "";
+try {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} catch (e) {
+  vapidNapaka = (e as Error).message;
+}
 
 // Koliko obvestil največ obdelamo v enem klicu. Namenoma skromno: pg_cron
 // kliče funkcijo pogosto, preostanek gre v naslednjem krogu (push_sent_at
@@ -56,6 +74,11 @@ Deno.serve(async (req: Request) => {
   }
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     return new Response(JSON.stringify({ napaka: "Manjkata VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY." }), {
+      status: 500, headers: { "content-type": "application/json" },
+    });
+  }
+  if (vapidNapaka) {
+    return new Response(JSON.stringify({ napaka: "VAPID: " + vapidNapaka }), {
       status: 500, headers: { "content-type": "application/json" },
     });
   }
