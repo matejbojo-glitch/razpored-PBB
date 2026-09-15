@@ -110,6 +110,13 @@ declare
   r record;
 begin
   if TG_OP = 'DELETE' then
+    -- Izbris, ki ga je PRINESEL Sheets, se vanj ne vrača. Pri UPDATE to
+    -- pove new.razlog, pri DELETE pa novega zapisa ni - zato klicatelj
+    -- vrstici pred izbrisom nastavi razlog='sheets' (to je UPDATE brez
+    -- vidne spremembe, ki ga spodnji pogoj tako ali tako preskoči).
+    if old.razlog = 'sheets' then
+      return old;
+    end if;
     v_dept := old.department_code; v_koda := null;
     v_datum := old.work_date;      v_oseba := old.employee_id;
   else

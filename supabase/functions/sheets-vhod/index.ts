@@ -34,7 +34,10 @@
 // ---------------------------------------------------------------------
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  koordinateOddelka, koordinateFlexi, kratkiKljuc, kratica, jePrazenZapis, istaIzmena,
+  koordinateOddelka, koordinateFlexi, koordinateNzv, kratkiKljuc, kratica,
+  jePrazenZapis, istaIzmena, mesecIzImenaZavihka,
+  parafaLastniki, nzvZapisZaStolpec, zdruziNzvZapise, NZV_ODSOTNOST_KIND,
+  ocistiNazivOsebe, imenaSeUjemata,
 } from "../_shared/sheets-koordinate.js";
 import {
   preberiServisniRacun, pridobiZeton, preberiZavihek, ZavihekNiNajden,
@@ -59,8 +62,21 @@ Deno.serve(async (req: Request) => {
   }
 
   const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Ista nerešena napaka se ne podvaja. Brez tega je ena oseba, ki je v
+  // listu na napačnem zavihku, ustvarila po en vnos NA DAN (opaženo: 326
+  // enakih vrstic), prave napake pa so se izgubile med njimi.
+  async function zabelezi(vrsta: string, p: Record<string, unknown>) {
+    const podrobnosti = String(p.podrobnosti ?? "");
+    const { data: ze } = await db.from("sync_errors")
+      .select("id").eq("resen", false).eq("smer", "sheets_v_app").eq("vrsta", vrsta)
+      .eq("podrobnosti", podrobnosti).limit(1);
+    if (ze && ze.length) return;
+    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...p, podrobnosti });
+  }
+
   async function napaka(vrsta: string, p: Record<string, unknown>) {
-    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...p });
+    await zabelezi(vrsta, p);
     return odgovor({ sprejeto: false, vrsta });
   }
 
@@ -85,10 +101,21 @@ Deno.serve(async (req: Request) => {
     return odgovor({ sprejeto: false, vrsta: "nepopolno_sporocilo" });
   }
 
-  const { data: povezave } = await db.from("sheet_connections")
+  // Povezava se najde po TOČNEM imenu zavihka (oddelki, FLEXI) ali po
+  // VZORCU (NZV: "Razpored {MESEC} {LETO}", en zavihek na mesec).
+  const { data: vsePovezave } = await db.from("sheet_connections")
     .select("id, skupina, spreadsheet_id, zavihek, oblika, aktivno, sheets_v_app")
-    .eq("spreadsheet_id", spreadsheetId).eq("zavihek", zavihek).limit(1);
-  const povezava = (povezave || [])[0];
+    .eq("spreadsheet_id", spreadsheetId);
+  let povezava = (vsePovezave || []).find((p) => p.zavihek === zavihek);
+  // Mesec iz IMENA zavihka - NZV dokument datuma ne piše z letom ("1. sep."),
+  // zato manjkajoči mesec in leto prideta od tod.
+  let mesecZavihka: string | null = null;
+  if (!povezava) {
+    for (const p of vsePovezave || []) {
+      const m = mesecIzImenaZavihka(p.zavihek, zavihek);
+      if (m) { povezava = p; mesecZavihka = m; break; }
+    }
+  }
   if (!povezava || !povezava.aktivno || !povezava.sheets_v_app) {
     return await napaka("nepovezan_zavihek", {
       spreadsheet_id: spreadsheetId, zavihek,
@@ -98,13 +125,14 @@ Deno.serve(async (req: Request) => {
       povezava_id: povezava ? povezava.id : null,
     });
   }
-  if (povezava.oblika !== "oddelek" && povezava.oblika !== "flexi") {
+  if (povezava.oblika !== "oddelek" && povezava.oblika !== "flexi" && povezava.oblika !== "nzv") {
     return await napaka("nepodprta_oblika", {
       povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
       podrobnosti: `Oblika "${povezava.oblika}" še ni podprta za samodejno branje.`,
     });
   }
   const jeFlexi = povezava.oblika === "flexi";
+  const jeNzv = povezava.oblika === "nzv";
   if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
     return await napaka("api", { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
       podrobnosti: "Manjka GOOGLE_SERVICE_ACCOUNT_JSON." });
@@ -124,6 +152,172 @@ Deno.serve(async (req: Request) => {
       podrobnosti: String((e as Error).message || e) });
   }
 
+  // ------------------------------------------------------------------
+  // NZV: uskladitev CELEGA DNE, ne posamezne celice
+  //
+  // Pri oddelkih je ena celica ena oseba. Pri NZV je stolpec ENOTA, celica
+  // pa našteje VSE, ki jo tisti dan pokrivajo - sprememba ene celice torej
+  // spremeni nabor ljudi, ne enega zapisa. Zato se za vsak prizadeti DAN
+  // znova prebere cela vrstica in dan se uskladi v celoti.
+  //
+  // Uskladi se samo DAN, ki se ga je sprememba dotaknila, in samo osebje
+  // NZV - razpored oddelkov ostane nedotaknjen.
+  if (jeNzv) {
+    const { celice: nzvCelice, najdenaGlava, najdenDatum } =
+      koordinateNzv(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO, mesecZavihka);
+
+    // Varovalka: če zavihka ni bilo mogoče razbrati (ni glave enot ali ni
+    // datumskih vrstic), se NE briše nič. Brez tega bi vsaka motnja pri
+    // branju izpraznila dan.
+    if (!najdenDatum || !najdenaGlava || !nzvCelice.length) {
+      return await napaka("brez_datuma", {
+        povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+        podrobnosti: "V zavihku ni bilo mogoče najti glave enot ali datumskih vrstic"
+          + (mesecZavihka ? ` (mesec zavihka: ${mesecZavihka})` : "") + " - dan ni bil spremenjen.",
+      });
+    }
+
+    const dnevi = new Set<string>();
+    const zavrnjeneNzv: { vrstica: number; stolpec: number; vrsta: string }[] = [];
+    for (const sporocena of sporocene) {
+      const c = nzvCelice.find((x) => x.vrstica === sporocena.vrstica && x.stolpec === sporocena.stolpec);
+      if (c) dnevi.add(c.datum);
+      else zavrnjeneNzv.push({ vrstica: sporocena.vrstica + 1, stolpec: sporocena.stolpec + 1, vrsta: "brez_datuma" });
+    }
+    if (!dnevi.size) {
+      await zabelezi("zunaj_mreze", {
+        povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+        podrobnosti: "Urejene celice niso znotraj mreže NZV (glava, naslov meseca ali podpisni blok).",
+      });
+      return odgovor({ sprejeto: true, spremenjenih: 0, zavrnjene: zavrnjeneNzv });
+    }
+
+    // Samo osebje NZV - parafe se iščejo med njimi, in samo njihovi zapisi
+    // se smejo pobrisati.
+    const { data: osebje } = await db.from("profili")
+      .select("id, full_name, parafa, parafa_pred_oktobrom_2026")
+      .eq("department_code", povezava.skupina);
+    const nzvOsebje = osebje || [];
+    const idjiNzv = nzvOsebje.map((o: { id: string }) => o.id);
+    const imenaNzv = nzvOsebje.map((o: { full_name: string }) => o.full_name);
+
+    let vpisanih = 0, odstranjenih = 0, odsotnostiVpisanih = 0, odsotnostiOdstranjenih = 0;
+    const neznane = new Set<string>();
+
+    for (const datum of dnevi) {
+      // Parafa je odvisna od DATUMA razporeda (prestop 1. 10. 2026).
+      const { poParafi, podvojene } = parafaLastniki(nzvOsebje, datum);
+      const zaDan = nzvCelice.filter((c) => c.datum === datum);
+
+      const surovi: Record<string, unknown>[] = [];
+      const zeleneOdsotnosti = new Map<string, { full_name: string; work_date: string; kind: string }>();
+
+      for (const c of zaDan) {
+        const deli = String(c.vrednost || "").split(",").map((t) => t.trim()).filter(Boolean);
+        if (!deli.length) continue;
+
+        if (c.jeOdsotnost) {
+          for (const parafa of deli) {
+            const oseba = poParafi[parafa.toUpperCase()];
+            if (!oseba) { neznane.add(parafa + (podvojene.indexOf(parafa.toUpperCase()) >= 0 ? " (dvoumna parafa)" : "")); continue; }
+            const kind = NZV_ODSOTNOST_KIND[c.koda];
+            zeleneOdsotnosti.set(oseba.full_name + "|" + kind,
+              { full_name: oseba.full_name, work_date: datum, kind });
+          }
+          continue;
+        }
+
+        if (c.koda === "DEZ") {
+          // Stolpec DEŽURSTVO piše POLNO IME, ne parafe.
+          for (const surovoIme of deli) {
+            const ime = ocistiNazivOsebe(surovoIme);
+            const oseba = nzvOsebje.find((o: { full_name: string }) => imenaSeUjemata(o.full_name, ime));
+            if (!oseba) { neznane.add(ime); continue; }
+            const z = nzvZapisZaStolpec("DEZ");
+            surovi.push({ employee_id: oseba.id, work_date: datum, ...z });
+          }
+          continue;
+        }
+
+        const z = nzvZapisZaStolpec(c.koda);
+        for (const parafa of deli) {
+          const oseba = poParafi[parafa.toUpperCase()];
+          if (!oseba) { neznane.add(parafa + (podvojene.indexOf(parafa.toUpperCase()) >= 0 ? " (dvoumna parafa)" : "")); continue; }
+          surovi.push({ employee_id: oseba.id, work_date: datum, ...z, stolpec: c.koda });
+        }
+      }
+
+      // Ista oseba na več enotah istega dne -> EN zapis (dodatne enote v
+      // pokriva_oddelek), enako kot pri ročnem uvozu.
+      const zeleni = zdruziNzvZapise(surovi);
+
+      if (zeleni.length) {
+        const { error: e1 } = await db.from("razpored")
+          .upsert(zeleni.map((z) => ({ ...z, razlog: "sheets" })), { onConflict: "employee_id,work_date" });
+        if (e1) {
+          await zabelezi("api", {
+            povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+            work_date: datum, podrobnosti: e1.message,
+          });
+        } else { vpisanih += zeleni.length; }
+      }
+
+      // List je merodajen: kdor je v aplikaciji vpisan na ta dan, v listu
+      // pa ga ni, se odstrani. Pred izbrisom se vrstici nastavi
+      // razlog='sheets', da sprožilec izhodne vrste tega izbrisa ne pošlje
+      // nazaj v Sheets (zaščita pred zanko velja tudi za brisanje).
+      if (idjiNzv.length) {
+        const obdrzi = new Set(zeleni.map((z) => String(z.employee_id)));
+        const { data: obstojeci } = await db.from("razpored")
+          .select("employee_id").eq("work_date", datum).in("employee_id", idjiNzv);
+        const odvec = (obstojeci || [])
+          .map((r: { employee_id: string }) => r.employee_id)
+          .filter((id: string) => !obdrzi.has(String(id)));
+        if (odvec.length) {
+          await db.from("razpored").update({ razlog: "sheets" })
+            .eq("work_date", datum).in("employee_id", odvec);
+          const { error: e2 } = await db.from("razpored").delete()
+            .eq("work_date", datum).in("employee_id", odvec);
+          if (!e2) odstranjenih += odvec.length;
+        }
+      }
+
+      // Odsotnosti (LD/IZOB/BS) so svoja tabela in se vodijo po IMENU.
+      const zeleneList = [...zeleneOdsotnosti.values()];
+      if (zeleneList.length) {
+        const { error: e3 } = await db.from("odsotnosti")
+          .upsert(zeleneList, { onConflict: "full_name,work_date" });
+        if (!e3) odsotnostiVpisanih += zeleneList.length;
+      }
+      if (imenaNzv.length) {
+        const obdrziIme = new Set(zeleneList.map((o) => o.full_name));
+        const { data: obstojeceOds } = await db.from("odsotnosti")
+          .select("full_name").eq("work_date", datum).in("full_name", imenaNzv);
+        const odvecIme = (obstojeceOds || [])
+          .map((r: { full_name: string }) => r.full_name)
+          .filter((n: string) => !obdrziIme.has(n));
+        if (odvecIme.length) {
+          const { error: e4 } = await db.from("odsotnosti").delete()
+            .eq("work_date", datum).in("full_name", odvecIme);
+          if (!e4) odsotnostiOdstranjenih += odvecIme.length;
+        }
+      }
+    }
+
+    if (neznane.size) {
+      await zabelezi("neznano_ime", {
+        povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+        podrobnosti: "Brez ujemanja med osebjem NZV: " + [...neznane].join(", ") + ".",
+      });
+    }
+
+    return odgovor({
+      sprejeto: true, dnevi: [...dnevi],
+      vpisanih, odstranjenih, odsotnostiVpisanih, odsotnostiOdstranjenih,
+      zavrnjene: zavrnjeneNzv,
+    });
+  }
+
   // FLEXI ima na osebo PAR stolpcev (levo pokriti oddelek, desno izmena).
   const { celice } = jeFlexi
     ? koordinateFlexi(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO)
@@ -134,9 +328,19 @@ Deno.serve(async (req: Request) => {
   const osnova = { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek };
   let spremenjenih = 0, brezSpremembe = 0;
   const zavrnjene: { vrstica: number; stolpec: number; vrsta: string }[] = [];
+  // Celice ZUNAJ mreže (glava, opomba, podpisni blok, prazen prostor) niso
+  // napaka razporeda - ob eni večji izbiri jih je na stotine. Štejejo se in
+  // zapišejo kot EN povzetek; prave napake ostanejo posamič.
+  let zunajMreze = 0;
+  const zunajPrimeri: string[] = [];
   async function zavrni(c: { vrstica: number; stolpec: number }, vrsta: string, p: Record<string, unknown>) {
-    await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...osnova, ...p });
     zavrnjene.push({ vrstica: c.vrstica + 1, stolpec: c.stolpec + 1, vrsta });
+    if (vrsta === "zunaj_mreze") {
+      zunajMreze++;
+      if (zunajPrimeri.length < 5) zunajPrimeri.push(`vrstica ${c.vrstica + 1}, stolpec ${c.stolpec + 1}`);
+      return;
+    }
+    await zabelezi(vrsta, { ...osnova, ...p });
   }
 
   for (const sporocena of sporocene) {
@@ -146,16 +350,9 @@ Deno.serve(async (req: Request) => {
       && (c.stolpec === sporocena.stolpec
           || (jeFlexi && c.stolpecOddelka === sporocena.stolpec)));
     if (!celica) {
-      // Urejena celica ni podatkovna celica razporeda: ali vrstica ni dan
-      // (naslov meseca, glava, podpisni blok), ali stolpec nima imena v
-      // glavi. Oboje je normalno - dokument ni samo razpored - zato se
-      // zabeleži in ne popravlja.
-      const vrsticaJeDan = celice.some((c) => c.vrstica === sporocena.vrstica);
-      await zavrni(sporocena, vrsticaJeDan ? "neznano_ime" : "brez_datuma", {
-        podrobnosti: vrsticaJeDan
-          ? `Stolpec ${sporocena.stolpec + 1} v vrstici ${sporocena.vrstica + 1} nima imena osebe v glavi bloka.`
-          : `Vrstica ${sporocena.vrstica + 1} ni znotraj mesečnega bloka (ni datuma).`,
-      });
+      // Ni celica razporeda: ali vrstica ni dan, ali stolpec nima imena v
+      // glavi. Oboje je normalno - dokument ni samo razpored.
+      await zavrni(sporocena, "zunaj_mreze", {});
       continue;
     }
 
@@ -217,5 +414,16 @@ Deno.serve(async (req: Request) => {
     spremenjenih++;
   }
 
-  return odgovor({ sprejeto: true, spremenjenih, brez_spremembe: brezSpremembe, zavrnjene });
+  if (zunajMreze) {
+    await zabelezi("zunaj_mreze", {
+      ...osnova,
+      podrobnosti: `${zunajMreze} urejenih celic ni v mreži razporeda `
+        + `(glava, opomba ali prazen prostor) - npr. ${zunajPrimeri.join("; ")}.`,
+    });
+  }
+
+  return odgovor({
+    sprejeto: true, spremenjenih, brez_spremembe: brezSpremembe,
+    zunaj_mreze: zunajMreze, zavrnjene,
+  });
 });

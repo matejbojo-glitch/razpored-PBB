@@ -194,6 +194,28 @@ psql(`update public.razpored set shift_code = 'DOP', razlog = 'bolniška'
        where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
 eq(caka(), "1", "sprememba z drugim razlogom se pošlje naprej");
 
+console.log("5b) izbris, ki ga je prinesel Sheets, se ne vrača vanj");
+{
+  psql(`update public.sheet_sync_izhod set status='koncano', obdelano=now();`);
+  // Tako dela Edge Function: vrstici pred izbrisom nastavi razlog, nato
+  // izbriše. Brez tega bi šel izbris nazaj v Sheets in bi se lovila v krogu.
+  psql(`update public.razpored set razlog = 'sheets'
+         where employee_id = '${OSEBA}' and work_date = '2026-11-02';
+        delete from public.razpored
+         where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
+  eq(caka(), "0", "izbris z razlogom 'sheets' vrste ne napolni");
+
+  // Navaden izbris (iz aplikacije) pa mora iti naprej.
+  psql(`insert into public.razpored (employee_id, department_code, work_date, shift_code)
+        values ('${OSEBA}','B','2026-11-02','DOP');
+        update public.sheet_sync_izhod set status='koncano', obdelano=now();
+        delete from public.razpored
+         where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
+  eq(caka(), "1", "navaden izbris se pošlje v Sheets");
+  eq(vrednost(`select coalesce(shift_code,'<null>') from public.sheet_sync_izhod where status='caka';`),
+     "<null>", "in sicer kot prazna vrednost");
+}
+
 console.log("6) obdelana vrstica ne blokira naslednje spremembe");
 // Namenoma NE preverjamo skupnega števila (to se spremeni z vsakim novim
 // razdelkom zgoraj), ampak dejstvo: obdelane vrstice se ne brišejo in
@@ -203,7 +225,12 @@ trdi(Number(vrednost("select count(*) from public.sheet_sync_izhod where status=
 eq(caka(), "1", "in ob njih ena čakajoča za isto celico");
 
 console.log("7) izbris celice se pošlje kot prazna vrednost");
-psql(`update public.sheet_sync_izhod set status = 'koncano', obdelano = now();
+// Vrstico najprej postavimo v znano stanje (razdelek 5b jo je pobrisal),
+// da razdelek ni odvisen od vrstnega reda razdelkov nad njim.
+psql(`insert into public.razpored (employee_id, department_code, work_date, shift_code)
+      values ('${OSEBA}','B','2026-11-02','DOP')
+      on conflict (employee_id, work_date) do update set shift_code = 'DOP', razlog = null;
+      update public.sheet_sync_izhod set status = 'koncano', obdelano = now();
       delete from public.razpored where employee_id = '${OSEBA}' and work_date = '2026-11-02';`);
 eq(caka(), "1", "izbris napolni vrsto");
 eq(vrednost(`select coalesce(shift_code,'<null>') from public.sheet_sync_izhod where status='caka';`),
