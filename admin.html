@@ -114,6 +114,14 @@
      berljivih, zato tam ostane vodoravno drsenje. */
   @media (min-width: 900px){
     .wardScroller.kompakt{ overflow-x:hidden; }
+    /* theme.css da .wardScroller.vOkvirju "min-height:360px". V index.html
+       je to prav (mreža cele bolnišnice je vedno visoka), tu pa je oddelek
+       lahko majhen - pri šestih zaposlenih je pod zadnjo vrstico ostalo
+       okoli 180 px praznega okvirja, ki je objavo in orodja odrinil niže,
+       ne da bi karkoli pokazal. Mrežo naj meri njena vsebina; zgornja meja
+       (max-height) ostane, zato velike mreže še naprej drsijo v okvirju.
+       Velja samo za mrežo generatorja: .vOkvirju.kompakt ni nikjer drugje. */
+    .wardScroller.vOkvirju.kompakt{ min-height:0; }
     /* zoom je zasilni izhod, ne prva izbira: --wardMerilo nastavi šele
        izračun v KalupTab (učinek "kompaktna mreža"), in to samo takrat, kadar
        so stolpci tudi po stiskanju ožji od 26 px - npr. 31 dni na ozkem
@@ -287,19 +295,14 @@
     border:1px solid var(--line); background:var(--surface-2); color:var(--text);
   }
   .statusTrak .znacka .ikona{ font-weight:900; font-size:12px; }
-  .statusTrak .znacka .puscica{ color:var(--muted); font-size:10px; transition: transform var(--fast) var(--ease); }
-  .statusTrak .znacka[aria-expanded="true"] .puscica{ transform: rotate(180deg); }
+  /* Puščica kaže V DESNO (›): značka ne razgrne plošče pod sabo, ampak
+     odpre predal Statistika ob strani. Prej je bila "▾" z zasukom ob
+     aria-expanded - to je obljubljalo razgrnitev, ki je ni več. */
+  .statusTrak .znacka .puscica{ color:var(--muted); font-size:12px; font-weight:700; }
   .statusTrak .znacka.kriticno{ background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
   .statusTrak .znacka.opozorilo{ background: rgba(201,148,47,.14); border-color:#C9942F; color:#7A5A12; }
   .statusTrak .znacka.ok{ background: rgba(var(--ok-rgb),.14); border-color: var(--ok); color: var(--ok); }
   .statusTrak .znacka.nevtralno{ color: var(--muted); }
-  .statusTrak .podrobnosti{ margin-top:10px; }
-  /* Seznam napak je namenjen KLIKANJU v mrežo pod njim - na oddelku z
-     nenastavljenimi minimumi jih je lahko čez sto in mreža bi padla pod
-     rob zaslona, torej ravno tja, kamor klik pelje. Zato seznam drsi
-     znotraj svoje višine namesto da razrine stran. */
-  .statusTrak .podrobnosti .warnBox ul{ max-height:210px; overflow-y:auto; margin-bottom:0; }
-  .statusTrak .podrobnosti > .warnBox{ margin-top:0; }
   @media (prefers-color-scheme: dark){
     .statusTrak .znacka.opozorilo{ color:#E8C766; }
   }
@@ -1382,103 +1385,55 @@ function Zlozljivo({ naslov, opis, privzetoOdprto, children }){
   );
 }
 
-function StatusPravil({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito }){
-  const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
-  const opozorila = rezultat.opozorila || [];
-
-  // Delovnopravna pravila (počitek med izmenama, zaporedne nočne, prost dan
-  // v tednu) – krsitve prihajajo od zunaj (KalupTab), izračunane nad
-  // DEJANSKIM razporedom (vključno z ročnimi popravki celic), tako da jih
-  // lahko ista izračunana lista pobarva tudi v mreži spodaj, ne samo tu.
-  const pov = window.DelovniCas.povzetek(krsitve);
-
-  const pravila = [
-    vrzeli.length === 0
-      ? { stanje: "ok", naslov: "Pokritost izmen", opis: imaMinimume
-          ? "Vsak dan dosega nastavljene minimume po izmenah."
-          : "Vsak dan dosega pričakovano zasedbo kalupa." }
-      : { stanje: "kriticno", naslov: "Nepokrite izmene", opis:
-          `${vrzeli.length} ${vrzeli.length === 1 ? "vrzel" : "vrzeli"} v pokritosti – glej razdelek "Pokritost po dnevih" spodaj.` },
-
-    opozorila.length === 0
-      ? { stanje: "ok", naslov: "Želje in omejitve", opis: "Vse vnesene omejitve so samodejno pokrite z nadomestilom." }
-      : { stanje: "opozorilo", naslov: "Omejitve brez nadomestila", opis:
-          `${opozorila.length} ${opozorila.length === 1 ? "omejitev" : "omejitev"} ni bilo mogoče samodejno pokriti – potreben ročen pregled.` },
-
-    imaMinimume
-      ? { stanje: "ok", naslov: "Minimumi po izmenah", opis: "Za ta oddelek so nastavljeni natančni minimumi, zato je zaznava vrzeli natančna." }
-      : { stanje: "opozorilo", naslov: "Minimumi niso nastavljeni", opis: "Uporablja se groba primerjava s kalupom. Za natančno zaznavo nastavi minimume po izmenah v razdelku »Pokritost po dnevih« pod tabelo." },
-
-    pov.kriticnih > 0
-      ? { stanje: "kriticno", naslov: "Delovnopravne kršitve", opis:
-          `${pov.kriticnih} kritičnih${pov.opozoril ? ` in ${pov.opozoril} opozoril` : ""} (počitek med izmenama, zaporedne nočne, prost dan v tednu).` }
-      : pov.opozoril > 0
-        ? { stanje: "opozorilo", naslov: "Delovnopravna opozorila", opis: `${pov.opozoril} opozoril – brez kritičnih kršitev.` }
-        : { stanje: "ok", naslov: "Delovnopravna pravila", opis: "Počitek med izmenama, zaporedne nočne in prost dan v tednu so v mejah." },
-
-    { stanje: "ok", naslov: "Obseg razporeda", opis: `${rezultat.staff.length} zaposlenih × ${rezultat.dnevi.length} dni.` },
-  ];
-
-  const IKONA = { ok: "✓", opozorilo: "!", kriticno: "✗" };
-
-  return (
-    <div className="card no-print">
-      {pravila.map(pr => (
-        <div className="pravilo" key={pr.naslov}>
-          <span className={"statusIkona " + pr.stanje}>{IKONA[pr.stanje]}</span>
-          <span className="besedilo">
-            <span className="naslov">{pr.naslov}</span>
-            <span className="opis">{pr.opis}</span>
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Kompakten vodoravni statusni trak nad mrežo (zahteva uporabnika,
-// september 2026). Prej je isti podatek zasedal pol zaslona: naslov
-// "4 · Rezultat", kartica s petimi vrsticami pravil in še opozorilni okvir
-// nad njo - vse to je razpored samega odrinilo pod rob. Zdaj so v traku
-// samo števci; podrobnosti (ista kartica StatusPravil in isti seznam
-// opozoril) se odprejo šele ob kliku na značko.
-function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito, poudari, poudarek }){
+// Kompakten vodoravni statusni trak nad mrežo. Trak je SAMO povzetek -
+// tri značke s števci; klik na katerokoli odpre predal Statistika na
+// pripadajočem razdelku.
+//
+// Do te čistke je vsaka značka odpirala SVOJO ploščo pod trakom: kartico
+// StatusPravil (pet vrstic, ki so z besedami ponovile ravno to, kar piše
+// na treh značkah) in pod njo seznam nepokritih izmen in kritičnih
+// kršitev - torej natanko tisto, kar predal Statistika že pokaže, z
+// istimi klikljivimi vrsticami in istim poudarjanjem celic. Ista številka
+// na dveh mestih se prej ali slej razide, zato je podrobnost odslej na
+// enem samem mestu (predal), trak pa pove samo, koliko je česa.
+function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPokrito, odpriStatistiko }){
   const { vrzeli, imaMinimume } = izracunajVrzeli({ rezultat, celica, pragPopravki, minimumi, flexiPokrito });
   const opozorila = rezultat.opozorila || [];
   const pov = window.DelovniCas.povzetek(krsitve);
-  // null = zaprto; sicer ključ odprtega razdelka ("napake" | "omejitve" | "obseg").
-  const [odprto, setOdprto] = useState(null);
-  const preklopi = k => setOdprto(o => (o === k ? null : k));
 
   const napak = vrzeli.length + pov.kriticnih;
-  // Samo kritične kršitve gredo v klikljiv seznam napak - opozorila
-  // (npr. presežene tedenske ure) so našteta v razdelku pod mrežo in bi
-  // seznam napak na majhnem oddelku zalila do neuporabnosti.
-  const kriticne = krsitve.filter(k => k.resnost === "kriticno" && k.datum && k.oseba);
   const znacke = [
     {
+      // "razdelek" je ključ razdelka v predalu, na katerega se ta značka
+      // odpre - ista imena nosijo data-razdelek atributi v StatistikaPredal.
       kljuc: "napake",
+      razdelek: "napake",
       stanje: napak > 0 ? "kriticno" : "ok",
       ikona: napak > 0 ? "✗" : "✓",
       besedilo: napak > 0
         ? `${vrzeli.length} nepokritih izmen · ${pov.kriticnih} kršitev`
         : "Pokritost in delovnopravna pravila v mejah",
+      namig: "Odpri statistiko: nepokrite izmene in delovnopravne kršitve",
     },
     {
       kljuc: "omejitve",
+      razdelek: "omejitve",
       stanje: (opozorila.length + pov.opozoril) > 0 ? "opozorilo" : "ok",
       ikona: (opozorila.length + pov.opozoril) > 0 ? "!" : "✓",
       besedilo: (opozorila.length + pov.opozoril) > 0
         ? `${opozorila.length} omejitev brez nadomestila${pov.opozoril ? ` · ${pov.opozoril} opozoril` : ""}`
         : "Vse omejitve pokrite z nadomestilom",
+      namig: "Odpri statistiko: omejitve brez samodejnega nadomestila",
     },
     {
       kljuc: "obseg",
+      razdelek: "obseg",
       stanje: imaMinimume ? "nevtralno" : "opozorilo",
       ikona: imaMinimume ? "▦" : "!",
       besedilo: imaMinimume
         ? `${rezultat.staff.length} × ${rezultat.dnevi.length} dni`
         : `${rezultat.staff.length} × ${rezultat.dnevi.length} dni · minimumi niso nastavljeni`,
+      namig: "Odpri statistiko: obseg razporeda in obremenjenost",
     },
   ];
 
@@ -1487,120 +1442,15 @@ function StatusTrak({ rezultat, celica, pragPopravki, minimumi, krsitve, flexiPo
       <div className="znacke">
         {znacke.map(z => (
           <button type="button" key={z.kljuc} className={"znacka " + z.stanje}
-            aria-expanded={odprto === z.kljuc} onClick={() => preklopi(z.kljuc)}>
+            aria-haspopup="dialog" title={z.namig}
+            onClick={() => odpriStatistiko(z.razdelek)}>
             <span className="ikona">{z.ikona}</span>
             <span className="txt">{z.besedilo}</span>
-            <span className="puscica">▾</span>
+            <span className="puscica" aria-hidden="true">›</span>
           </button>
         ))}
       </div>
-
-      {/* Podrobnosti so isti obstoječi bloki, le da privzeto ne zasedajo
-          vertikalnega prostora. */}
-      {odprto === "napake" && (
-        <div className="podrobnosti">
-          <StatusPravil rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
-            minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito} />
-          {/* Vsaka napaka je klikljiva in pokaže SVOJE mesto v mreži.
-              Nepokrita izmena je napaka DNEVA (za ta dan primanjkuje
-              ljudi, ne gre za enega človeka), zato osvetli glavo stolpca;
-              delovnopravna kršitev pa se zgodi eni osebi na en dan, zato
-              osvetli celico. Prej sta bila oba seznama samo besedilo in
-              koordinator je z očmi iskal, kateri od 31 stolpcev je 16. */}
-          {(vrzeli.length > 0 || kriticne.length > 0) && (
-            <div className="warnBox">
-              <div className="t">✗ {vrzeli.length + kriticne.length} napak – klikni vrstico, da se mesto označi v mreži</div>
-              <ul>
-                {vrzeli.map((v, i) => (
-                  <li key={"v" + i} className={poudarek === v.datum ? "izbrana" : null}>
-                    <button type="button" className="opozoriloVrstica" title="Pokaži dan v mreži"
-                      onClick={() => poudari(v.datum)}>
-                      {window.Datum.slo(v.datum)}: nepokrita izmena
-                      {v.bucket ? " (" + (IZMENA_LABEL[v.bucket] || v.bucket) + ")" : ""} – manjka {v.primanjkljaj}.
-                    </button>
-                  </li>
-                ))}
-                {kriticne.map((k, i) => {
-                  const kljuc = kljucCelice(k.oseba, k.datum);
-                  return (
-                    <li key={"k" + i} className={poudarek === kljuc ? "izbrana" : null}>
-                      <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
-                        onClick={() => poudari(kljuc)}>
-                        {window.Datum.slo(k.datum)}: {k.oseba}: {k.sporocilo}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-      {odprto === "omejitve" && (
-        <div className="podrobnosti">
-          {opozorila.length > 0 ? (
-            <div className="warnBox">
-              <div className="t">⚠ {opozorila.length} omejitev brez samodejnega nadomestila</div>
-              {/* Klik na opozorilo osvetli pripadajočo celico v mreži in jo
-                  pripelje v vidno polje - povezava med seznamom in tabelo,
-                  ki jo je uporabnik zahteval (september 2026). Kadar osebe
-                  iz opozorila ni mogoče razbrati, vrstica ostane navadno
-                  besedilo, da gumb ne obljublja česa, česar ne stori. */}
-              <ul>{opozorila.map((o, i) => {
-                const ime = osebaIzOpozorila(o);
-                const kljuc = ime ? kljucCelice(ime, o.datum) : null;
-                const besedilo = <React.Fragment>{window.Datum.slo(o.datum)}: {o.sporocilo}</React.Fragment>;
-                return (
-                  <li key={i} className={kljuc && kljuc === poudarek ? "izbrana" : null}>
-                    {kljuc && poudari
-                      ? <button type="button" className="opozoriloVrstica"
-                          title="Pokaži celico v mreži"
-                          onClick={() => poudari(kljuc)}>{besedilo}</button>
-                      : besedilo}
-                  </li>
-                );
-              })}</ul>
-            </div>
-          ) : (
-            <p className="hint" style={{margin:0}}>Vse vnesene omejitve so samodejno pokrite z nadomestilom.</p>
-          )}
-          {pov.opozoril > 0 && (
-            <p className="hint" style={{marginBottom:0}}>
-              Delovnopravna opozorila ({pov.opozoril}) so našteta v razdelku »Podroben seznam delovnopravnih kršitev« pod tabelo.
-            </p>
-          )}
-        </div>
-      )}
-      {odprto === "obseg" && (
-        <div className="podrobnosti">
-          <p className="hint" style={{margin:0}}>
-            {rezultat.naziv}, {rezultat.mesec} – {rezultat.staff.length} zaposlenih × {rezultat.dnevi.length} dni.
-            {imaMinimume
-              ? " Za ta oddelek so nastavljeni natančni minimumi po izmenah, zato je zaznava vrzeli natančna."
-              : " Minimumi po izmenah niso nastavljeni – uporablja se groba primerjava s kalupom. Nastavi jih v razdelku »Pokritost po dnevih« pod tabelo."}
-          </p>
-          <p className="hint" style={{marginBottom:0}}>
-            Vsako celico v mreži lahko ročno prepišeš – sprememba se upošteva povsod: v prikazu, izvozu (PDF/CSV)
-            IN ob objavi v Supabase.
-          </p>
-        </div>
-      )}
     </div>
-  );
-}
-
-// Podroben seznam delovnopravnih kršitev - preseljen izpod povzetka v
-// samostojen zložljiv razdelek pod tabelo.
-function KrsitveSeznam({ krsitve }){
-  if (!krsitve.length) return null;
-  return (
-    <ul className="hint" style={{marginTop:0, paddingLeft:18}}>
-      {krsitve.map((k, i) => (
-        <li key={i} style={{marginBottom:4, color: k.resnost === "kriticno" ? "var(--danger)" : "var(--text)"}}>
-          <b>{k.oseba}</b> – {k.sporocilo}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -1807,8 +1657,9 @@ function StatKartica({ lbl, vrednost, decimalke, enota, pod, ton }){
 // Stranski predal s statistiko. Odpre se ČEZ generator in ne namesto
 // njega: na širokem zaslonu ostane mreža vidna in klikljiva ob njem, zato
 // klik na nepokrit dan v seznamu spodaj osvetli stolpec v mreži.
-function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaMinimume, poudari, poudarek }){
+function StatistikaPredal({ odprto, razdelek, zapri, stat, rezultat, vrzeli, krsitve, imaMinimume, poudari, poudarek }){
   const predalRef = useRef();
+  const telesRef = useRef();
   // "zapri" je ob vsakem izrisu nova funkcija, zato NE sme biti med
   // odvisnostmi učinka: sicer bi se ta ob vsakem popravku celice pognal
   // znova in fokus bi skočil z izbirnika v mreži na predal - torej ravno
@@ -1829,11 +1680,34 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
     };
   }, [odprto]);
 
+  // Predal je edino mesto s podrobnostmi, zato mora znati odpreti na
+  // pravem razdelku: značka v traku nad mrežo pove, kaj je koordinatorja
+  // zanimalo, in predal se pomakne tja. Brez tega bi klik na "3 nepokrite
+  // izmene" odprl predal na vrhu in bi bilo treba seznam šele poiskati.
+  useEffect(() => {
+    if (!odprto || !razdelek || !telesRef.current) return;
+    const cilj = telesRef.current.querySelector(`[data-razdelek="${razdelek}"]`);
+    if (!cilj) return;
+    // "obseg" so kartice na samem vrhu - tam je pomik na vrh pravilnejši
+    // od pomika na element, ki se ga s tem odreže od naslova predala.
+    telesRef.current.scrollTop = razdelek === "obseg" ? 0 : Math.max(0, cilj.offsetTop - 8);
+  }, [odprto, razdelek]);
+
   // Značka na gumbu šteje nepokrite izmene IN kritične kršitve, zato
   // morata biti v predalu vidna oba seznama - sicer številka na gumbu
   // obljublja več, kot predal pokaže, in razliko je treba iskati v traku
   // nad mrežo.
   const kriticne = (krsitve || []).filter(k => k.resnost === "kriticno");
+  // Delovnopravna OPOZORILA (presežene tedenske ure ipd.) so bila do te
+  // čistke v svojem zložljivem razdelku pod mrežo, kritične kršitve pa tu.
+  // Isti pojem na dveh mestih: odslej sta oba seznama v tem razdelku,
+  // kritične najprej.
+  const opozorilneKrsitve = (krsitve || []).filter(k => k.resnost !== "kriticno");
+  // Omejitve brez samodejnega nadomestila (želje, ki jih generator ni
+  // mogel pokriti). Prej so živele v razširjeni znački "omejitve" nad
+  // mrežo - tam so bile edina vsebina, ki je predal ni imel, zato so se
+  // preselile sem in je trak lahko postal čist povzetek.
+  const omejitve = (rezultat && rezultat.opozorila) || [];
   const skupine = stat ? [
     { k:"dop", naziv:"Dopoldne" }, { k:"pop", naziv:"Popoldne" },
     { k:"noc", naziv:"Nočna" }, { k:"h12", naziv:"12-urne" }, { k:"dez", naziv:"Dežurstvo" },
@@ -1846,10 +1720,10 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
       <div className={"statOzadje no-print" + (odprto ? " odprto" : "")} onClick={zapri} />
       <aside className={"statPredal no-print" + (odprto ? " odprto" : "")}
         ref={predalRef} tabIndex={-1} role="dialog" aria-modal="false"
-        aria-hidden={odprto ? null : "true"} aria-label="Statistika razporeda">
+        aria-hidden={odprto ? null : "true"} aria-label="Statistika mreže">
         <div className="glava">
           <div>
-            <h3>📊 Statistika</h3>
+            <h3>📊 Statistika mreže</h3>
             {rezultat && (
               <span className="vir">
                 {rezultat.naziv} · {rezultat.mesec}
@@ -1860,7 +1734,7 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
           <button type="button" className="modalZapri" onClick={zapri} aria-label="Zapri statistiko">×</button>
         </div>
 
-        <div className="telo">
+        <div className="telo" ref={telesRef}>
           {!stat ? (
             <p className="hint" style={{margin:0}}>
               Statistika se izriše, ko je v mreži razpored – <b>⚡ Generiraj takoj</b> ali <b>📂 Naloži razpored iz datoteke</b> zgoraj.
@@ -1868,7 +1742,7 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
             </p>
           ) : (
             <React.Fragment>
-              <div className="statMreza">
+              <div className="statMreza" data-razdelek="obseg">
                 <StatKartica lbl="Izmen skupaj" vrednost={stat.skupno.izmen}
                   pod={`${sklanjaj(stat.oseb, OBLIKE_ZAPOSLENIH)} × ${sklanjaj(stat.dni, OBLIKE_DNI)}`} />
                 <StatKartica lbl="Nepokrite izmene" vrednost={stat.vrzeli.skupaj}
@@ -1911,7 +1785,7 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
                 </div>
               )}
 
-              <div>
+              <div data-razdelek="napake">
                 <p className="statNaslov">Nepokrite izmene {vrzeli.length > 0 ? `(${vrzeli.length})` : ""}</p>
                 {vrzeli.length === 0 ? (
                   <p className="hint" style={{margin:0}}>
@@ -1944,26 +1818,71 @@ function StatistikaPredal({ odprto, zapri, stat, rezultat, vrzeli, krsitve, imaM
               </div>
 
               <div>
-                <p className="statNaslov">Kritične kršitve {kriticne.length > 0 ? `(${kriticne.length})` : ""}</p>
-                {kriticne.length === 0 ? (
+                <p className="statNaslov">
+                  Delovnopravne kršitve {kriticne.length + opozorilneKrsitve.length > 0
+                    ? `(${kriticne.length} kritičnih · ${opozorilneKrsitve.length} opozoril)` : ""}
+                </p>
+                {kriticne.length + opozorilneKrsitve.length === 0 ? (
                   <p className="hint" style={{margin:0}}>
                     Počitek med izmenami, zaporedne nočne in prosti dan (največ 7 zaporednih delovnih dni)
                     so v mejah.
                   </p>
                 ) : (
                   <div className="warnBox" style={{marginTop:0}}>
-                    <ul style={{maxHeight:180, overflowY:"auto", marginBottom:0}}>
-                      {kriticne.map((k, i) => {
+                    {/* Kritične najprej, opozorila za njimi: seznam je
+                        namenjen odpravljanju napak po vrsti nujnosti. */}
+                    <ul style={{maxHeight:220, overflowY:"auto", marginBottom:0}}>
+                      {kriticne.concat(opozorilneKrsitve).map((k, i) => {
                         const kljuc = kljucCelice(k.oseba, k.datum);
+                        const besedilo = (k.datum ? window.Datum.slo(k.datum) + " · " : "") + k.oseba + ": " + k.sporocilo;
+                        // Brez datuma (npr. tedenski seštevek ur) ni celice,
+                        // ki bi jo bilo mogoče pokazati - takrat vrstica
+                        // ostane besedilo in gumb ne obljublja česa, česar
+                        // ne stori.
                         return (
-                          <li key={i} className={poudarek === kljuc ? "izbrana" : null}>
-                            <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
-                              onClick={() => {
-                                poudari(kljuc);
-                                if (window.innerWidth < 900) zapri();
-                              }}>
-                              {window.Datum.slo(k.datum)} · {k.oseba}: {k.sporocilo}
-                            </button>
+                          <li key={i} className={k.datum && poudarek === kljuc ? "izbrana" : null}
+                            style={k.resnost === "kriticno" ? null : { color: "var(--muted)" }}>
+                            {k.datum ? (
+                              <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
+                                onClick={() => {
+                                  poudari(kljuc);
+                                  if (window.innerWidth < 900) zapri();
+                                }}>
+                                {besedilo}
+                              </button>
+                            ) : besedilo}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Omejitve brez samodejnega nadomestila - preseljene iz
+                  razširjene značke nad mrežo, da je podrobnost na enem mestu. */}
+              <div data-razdelek="omejitve">
+                <p className="statNaslov">Omejitve brez nadomestila {omejitve.length > 0 ? `(${omejitve.length})` : ""}</p>
+                {omejitve.length === 0 ? (
+                  <p className="hint" style={{margin:0}}>Vse vnesene omejitve so samodejno pokrite z nadomestilom.</p>
+                ) : (
+                  <div className="warnBox" style={{marginTop:0}}>
+                    <ul style={{maxHeight:180, overflowY:"auto", marginBottom:0}}>
+                      {omejitve.map((o, i) => {
+                        const ime = osebaIzOpozorila(o);
+                        const kljuc = ime ? kljucCelice(ime, o.datum) : null;
+                        const besedilo = window.Datum.slo(o.datum) + ": " + o.sporocilo;
+                        return (
+                          <li key={i} className={kljuc && kljuc === poudarek ? "izbrana" : null}>
+                            {kljuc ? (
+                              <button type="button" className="opozoriloVrstica" title="Pokaži celico v mreži"
+                                onClick={() => {
+                                  poudari(kljuc);
+                                  if (window.innerWidth < 900) zapri();
+                                }}>
+                                {besedilo}
+                              </button>
+                            ) : besedilo}
                           </li>
                         );
                       })}
@@ -2040,6 +1959,10 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   const [uvozMsg, setUvozMsg] = useState(null);
   // Stranski predal s statistiko (odpre ga lebdeči gumb spodaj desno).
   const [statOdprt, setStatOdprt] = useState(false);
+  // Na katerem razdelku naj se predal odpre. Značke v traku nad mrežo so
+  // odslej samo bližnjice v predal, zato morajo povedati, kaj pokazati.
+  const [statRazdelek, setStatRazdelek] = useState(null);
+  const odpriStatistiko = (razdelek) => { setStatRazdelek(razdelek || null); setStatOdprt(true); };
   const wardRef = useRef();
   const meriloRef = useRef(1);
   // Zapis PREDOGLEDA (še ne objavljenega) nazaj v Google Sheets – ista
@@ -2582,6 +2505,21 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
   // generiranjem in po njem) res isti blok in se ne razideta.
   const sekundarnaOrodja = (
     <React.Fragment>
+      {/* RazporedUvozVir MORA stati zunaj vseh zložljivih razdelkov.
+          Zlozljivo svojih otrok, dokler je zaprt, sploh ne izriše, sprožilec
+          za "?uvoz=<kljuc>" pa živi v viru samem - dokler je ta vir stal v
+          razdelku "Predlog prednosti za prost teden", povezava iz uvoz.html
+          (admin.html?tab=kalup&uvoz=kvote-dopusta) ni odprla ničesar, razen
+          če je kdo razdelek prej ročno odprl. Skrito polje za datoteko stoji
+          tu ob njem, da ju klik iz kataloga najde oba; gumb v razdelku
+          spodaj uporablja isti kvoteFileRef. */}
+      <RazporedUvozVir kljuc="kvote-dopusta" ikona="🏖" naziv="Kvote letnega dopusta"
+        opis="CSV / Excel – mat. št. in dnevi"
+        onemogocen={kvoteUvozBusy}
+        onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()} />
+      <input ref={kvoteFileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
+        onChange={e => { uvoziKvote(e.target.files[0]); e.target.value = ""; }} />
+
       <Zlozljivo naslov="📥 Uvozi že sestavljen razpored"
         opis="Excel / PDF / CSV / Google Sheets – namesto izračuna">
         <UvozRazporedaNapotek koda={koda} month={month} />
@@ -2592,11 +2530,6 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       <Zlozljivo naslov="Predlog prednosti za prost teden" opis="Razvrstitev po dejanski obremenjenosti – neobvezno">
       <p className="hint">Razvrstitev po dejanski obremenjenosti (od januarja do zdaj). Kliknite »Predlagaj teden«, da za izbrano osebo označite naslednji prosti teden spodaj – potrdite ali spremenite pred generiranjem.</p>
       <div className="card no-print" style={{marginBottom:10}}>
-        <RazporedUvozVir kljuc="kvote-dopusta" ikona="🏖" naziv="Kvote letnega dopusta"
-          opis="CSV / Excel – mat. št. in dnevi"
-          onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()} />
-        <input ref={kvoteFileRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
-          onChange={e => { uvoziKvote(e.target.files[0]); e.target.value = ""; }} />
         <button className="dlBtn" disabled={kvoteUvozBusy} onClick={() => kvoteFileRef.current && kvoteFileRef.current.click()}>
           {kvoteUvozBusy ? "Nalagam …" : "📤 Uvozi letne kvote dopusta (CSV/Excel)"}
         </button>
@@ -2759,11 +2692,12 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
             </div>
           )}
 
-          {/* 2 · Statusni trak: števci nepokritih izmen, kršitev in
-              omejitev; podrobnosti se odprejo šele ob kliku. */}
+          {/* Statusni trak: števci nepokritih izmen, kršitev in omejitev.
+              Klik na značko odpre predal Statistika na tem razdelku -
+              podrobnosti so samo tam. */}
           <StatusTrak rezultat={rezultat} celica={celica} pragPopravki={pragPopravki}
             minimumi={minimumi} krsitve={krsitve} flexiPokrito={flexiPokrito}
-            poudari={poudari} poudarek={poudarek} />
+            odpriStatistiko={odpriStatistiko} />
 
           {/* 3 · Glavni delovni prostor: mreža takoj pod traku. Prvi
               stolpec z imeni je lepljiv; na širokem zaslonu ("vOkvirju")
@@ -2896,7 +2830,17 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
               objava in zapis v Sheets ločena razdelka z naslovoma in po
               petimi vrsticami razlage, zaradi česar sta padla čez rob
               zaslona. Vsa besedila so ohranjena, le zložena. */}
+          {/* Akcijska vrstica bere kot delovni tok: najprej zapolni vrzeli,
+              nato objavi, po potrebi še zapiši v Sheets. "Predlagaj mesec"
+              je bil do te čistke zložljiv razdelek NIŽE na strani, čigar
+              edina vsebina je bil gumb z DOSLOVNO istim imenom kot naslov
+              razdelka - dva klika za eno dejanje in eno ime na dveh mestih. */}
           <div className="orodjaDno no-print">
+            <button className="dlBtn" type="button" style={{marginTop:0, flex:"0 1 220px"}}
+              onClick={predlagajVrzeli} disabled={zaklenjeno}
+              title="Za vsako nepokrito izmeno predlaga osebo, ki ta dan ne dela – v razpored se vpiše šele po potrditvi">
+              🧩 Predlagaj mesec
+            </button>
             <button className="genBtn" style={{marginTop:0, flex:"1 1 220px"}} onClick={objavi} disabled={publishBusy}>
               {publishBusy ? "Objavljam …" : "📤 Objavi neposredno v Supabase"}
             </button>
@@ -2946,15 +2890,12 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           {/* "Predlagaj mesec" - enaka pot kot pri mreži NZV: aplikacija
               vrzel najde in za vsako predlaga osebo, v razpored pa se
               vpiše šele po potrditvi. */}
-          <Zlozljivo naslov="🧩 Predlagaj mesec (zapolni vrzeli)"
-            opis="Za vsako nepokrito izmeno predlaga osebo – vpiše se šele po potrditvi">
+          {/* Izid gumba "🧩 Predlagaj mesec" iz akcijske vrstice zgoraj.
+              Izriše se šele, ko je kaj pokazati - prazna kartica z eno samo
+              razlago je prej stala pod vsako mrežo, tudi kadar predlogov
+              sploh ni bilo. */}
+          {predlogiVrzeli && (
             <div className="card no-print">
-              <button className="btn" onClick={predlagajVrzeli} disabled={zaklenjeno}>🧩 Predlagaj mesec (zapolni vrzeli)</button>
-              <p className="hint" style={{margin:"8px 0 0"}}>
-                Za vsako nepokrito izmeno predlaga osebo, ki tisti dan ne dela (prost dan po vzorcu, šele nato KPU).
-                Dopusta in »POMOČ DRUGJE« ne dotakne, predlog, ki bi kršil delovnopravno pravilo, pa preskoči –
-                in če drugega ni, ga označi. Predlogi se vpišejo <b>šele, ko jih potrdiš</b>.
-              </p>
               {predlogiVrzeli && predlogiVrzeli.napaka && (
                 <p className="hint" style={{marginBottom:0, color:"var(--danger)"}}>{predlogiVrzeli.napaka}</p>
               )}
@@ -2995,28 +2936,26 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
                 </div>
               )}
             </div>
-          </Zlozljivo>
+          )}
 
           {sekundarnaOrodja}
 
-          {/* Podroben seznam delovnopravnih kršitev - prej skrit za gumbom
-              znotraj povzetka, zdaj samostojen razdelek na dnu. */}
-          <Zlozljivo naslov="Podroben seznam delovnopravnih kršitev"
-            opis={krsitve.length
-              ? `${krsitve.length} vnosov – počitek med izmenama, zaporedne nočne, prost dan v tednu`
-              : "Ni zaznanih kršitev"}>
-            {krsitve.length
-              ? <KrsitveSeznam krsitve={krsitve} />
-              : <p className="hint" style={{margin:0}}>Počitek med izmenama, zaporedne nočne in prost dan v tednu so v mejah.</p>}
-          </Zlozljivo>
+          {/* Zložljivega razdelka "Podroben seznam delovnopravnih kršitev"
+              tu ni več: isti seznam (kritične IN opozorila) je v predalu
+              Statistika mreže, kjer so vrstice povrhu klikljive in pokažejo
+              celico v mreži. Dve kopiji istega seznama sta bili dve mesti,
+              kjer je bilo treba isto stvar odkljukati. */}
 
           {/* Pokritost po dnevih je na uporabnikovo zahtevo (september 2026)
               PRESELJENA NA DNO in ZLOŽENA: stala je takoj pod razporedom in
               potisnila objavo ter zapis v Sheets čez rob zaslona, čeprav je
               kontrolni pripomoček, ki ga ni treba videti ob vsakem
-              generiranju. Vsebina je nespremenjena. */}
-          <Zlozljivo naslov="4b · Pokritost po dnevih"
-            opis="Kontrola zasedbe po dnevih in minimumi po izmeni – neobvezno">
+              generiranju. Vsebina je nespremenjena.
+              Naslov je bil do čistke "4b · Pokritost po dnevih" - oštevilčenje
+              razdelkov (1 · 2 · 3 · 4) je bilo s tega zavihka odstranjeno že
+              prej, ostal je samo ta viseči "4b", ki se ni skliceval na nič. */}
+          <Zlozljivo naslov="Pokritost po dnevih in minimumi po izmeni"
+            opis="Kontrola zasedbe po dnevih – neobvezno">
             <p className="hint no-print">Minimum po izmeni (spodaj) je osnutek, ročno urejaj po potrebi – ko je nastavljen za ta oddelek, se uporabi za natančno zaznavo primanjkljaja po izmeni namesto grobe primerjave z osnovnim kalupom.</p>
             <MinimumiUrejevalnik koda={koda} minimumi={minimumi} setMinimumi={setMinimumi} />
             <PokritostPoDnevih rezultat={rezultat} celica={celica} pragPopravki={pragPopravki} setPragPopravki={setPragPopravki} minimumi={minimumi} flexiPokrito={flexiPokrito} setFlexiPokrito={setFlexiPokrito} />
@@ -3045,12 +2984,24 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
       {/* Lebdeči gumb za statistiko: viden na vsakem zavihku mreže, ne
           glede na to, kako daleč je stran zdrsnjena. Značka pove, koliko
           stvari čaka na rešitev (nepokrite izmene + kritične kršitve) -
-          brez nje je treba predal odpreti, da se to sploh izve. */}
-      <button type="button" className="statFab no-print" onClick={() => setStatOdprt(o => !o)}
+          brez nje je treba predal odpreti, da se to sploh izve.
+
+          Piše "Statistika mreže" in ne samo "Statistika": v spodnji
+          navigaciji stoji HKRATI postavka "📊 Statistika", ki pelje na
+          dashboard.html (kumulativno spremljanje obremenitev čez mesece).
+          Dva enako imenovana gumba z isto ikono na istem zaslonu, ki vodita
+          vsak drugam, sta bila past - ta gumb pokaže mrežo, ki je zdaj na
+          zaslonu, in to mora povedati že ime. */}
+      <button type="button" className="statFab no-print" onClick={() => {
+          if (statOdprt) { setStatOdprt(false); return; }
+          odpriStatistiko(null);
+        }}
         aria-haspopup="dialog" aria-expanded={statOdprt}
-        title={statistika ? "Statistika razporeda" : "Statistika (najprej generiraj ali naloži razpored)"}>
+        title={statistika
+          ? "Statistika mreže, ki je na zaslonu (za kumulativni pregled čez mesece glej Statistika v navigaciji)"
+          : "Statistika mreže (najprej generiraj ali naloži razpored)"}>
         <span className="ikona" aria-hidden="true">📊</span>
-        <span>Statistika</span>
+        <span>Statistika mreže</span>
         {statistika && statistika.nerazresenih > 0 && (
           <span className="znak utripa"
             aria-label={statistika.nerazresenih + " nerešenih opozoril o pokritosti"}>
@@ -3058,7 +3009,7 @@ function KalupTab({ zacetniOddelek, zacetniMesec }){
           </span>
         )}
       </button>
-      <StatistikaPredal odprto={statOdprt} zapri={() => setStatOdprt(false)}
+      <StatistikaPredal odprto={statOdprt} razdelek={statRazdelek} zapri={() => setStatOdprt(false)}
         stat={statistika} rezultat={rezultat} vrzeli={vrzeliMreze} krsitve={krsitve}
         imaMinimume={pokritost.imaMinimume} poudari={poudari} poudarek={poudarek} />
     </div>
@@ -4483,8 +4434,15 @@ function UporabnikiTab(){
         trenutnem (primarnem) oddelku – premik na drug oddelek naredite kar s spustnim seznamom v vrstici osebe.
       </p>
       <div className="card" style={{marginBottom:14}}>
-        <RazporedUvozVir kljuc="omejitve-nzv" ikona="📄" naziv="Omejitve za NZV"
-          opis="CSV / Excel – ime, dopust, omejitve"
+        {/* Postavka je bila do te čistke napačno označena: v katalogu uvozov
+            (uvoz.html) je pisalo "Omejitve za NZV · ime, dopust, omejitve",
+            klik pa je odprl uvoz VLOG IN ODDELKOV (uvoziVlogeOddelke) - torej
+            nekaj povsem drugega, kot je vnos obljubljal, in kdor je sledil
+            opisu, je pripravil napačno datoteko. Ključ, ime in opis se zdaj
+            ujemajo z dejanjem (popravljeno tudi v uvoz.html). */}
+        <RazporedUvozVir kljuc="vloge-oddelki" ikona="👥" naziv="Vloge in oddelki"
+          opis="CSV / Excel – full_name, role, department_code"
+          onemogocen={uvozBusy}
           onClick={() => uvozRef.current && uvozRef.current.click()} />
         <input ref={uvozRef} type="file" accept={window.ImportUtils.PODPRTE_PRIPONE} style={{display:"none"}}
           onChange={e => { uvoziVlogeOddelke(e.target.files[0]); e.target.value = ""; }} />
@@ -4814,11 +4772,12 @@ function App({ ogled, profil }){
       {tab==="uporabniki" && <UporabnikiTab/>}
       {tab==="revizija" && <AuditLogTab/>}
 
-      <footer className="foot no-print">
-        <p><b>Modul 2 – generator z omejitvami.</b> Kalup je preverjen proti že objavljenemu oktobrskemu razporedu (1.240 celic, 0 neujemanj). Generator dežurstev upošteva minimalni razmik in kumulativno pravičnost od julija 2026 naprej.</p>
-        <p>Poleg ročnega prenosa JSON lahko rezultat objaviš neposredno v Supabase – to je edini vir podatkov, ki ga bere index.html.</p>
-      </footer>
-
+      {/* Noga je odstranjena. Bila sta dva odstavka statičnega besedila
+          ("Modul 2 – generator z omejitvami", štetje celic iz preverjanja
+          oktobra 2026, opomba o JSON/Supabase) - zgodovina razvoja, ne
+          navodilo: koordinatorju ni povedala ničesar, kar bi lahko naredil,
+          ampak je vsak zaslon podaljšala za tri vrstice nad spodnjo
+          navigacijo. */}
       <RazporedNav active="admin" role="admin" unread={0} />
     </div>
   );

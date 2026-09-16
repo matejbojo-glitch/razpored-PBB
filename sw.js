@@ -610,7 +610,7 @@
 // v178: pregled napak sinhronizacije - celice zunaj mreže se zapišejo kot
 // en povzetek namesto po kosih, ista nerešena napaka pa se ne podvaja.
 // Spremenjen je admin.html (nov opis vrste napake), zato dvig.
-const CACHE = 'razpored-pbb-v179';
+const CACHE = 'razpored-pbb-v180';
 const ASSETS = [
   // Sem gradnja vstavi zgrajene datoteke iz dist/assets/ (theme-<hash>.css).
   // Imena nosijo zgoščeno vrednost vsebine in se ob vsaki gradnji spremenijo,

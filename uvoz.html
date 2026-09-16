@@ -79,9 +79,14 @@ const SKUPINE = [
       { ikona: "📄", naziv: "Omejitve za dežurstva",
         opis: "Kdo tisti mesec ne more dežurati (dopust, omejitve). CSV, Excel ali PDF: ime, dopust, omejitve.",
         kam: "Generator → NZV → Dežurstva", href: "admin.html?tab=nzv&pod=dez&uvoz=omejitve-dezurstva" },
-      { ikona: "📄", naziv: "Omejitve za NZV",
-        opis: "Enako za vodstveni kader (NZV). CSV ali Excel: ime, dopust, omejitve.",
-        kam: "Generator → Uporabniki", href: "admin.html?tab=uporabniki&uvoz=omejitve-nzv" },
+      // Ta vnos je bil do septembra 2026 napačno opisan kot "Omejitve za
+      // NZV · ime, dopust, omejitve". Ključ je res odpiral uvoz na zavihku
+      // Uporabniki, a ta uvaža VLOGE IN ODDELKE (full_name, role,
+      // department_code) - kdor je sledil opisu, je pripravil napačno
+      // datoteko. Ime, opis in ključ se zdaj ujemajo z dejanjem.
+      { ikona: "👥", naziv: "Vloge in oddelki",
+        opis: "Komu pripada katera vloga in oddelek. CSV ali Excel: full_name, role, department_code. Velja samo za že registrirane osebe.",
+        kam: "Generator → Uporabniki", href: "admin.html?tab=uporabniki&uvoz=vloge-oddelki" },
     ],
   },
   {

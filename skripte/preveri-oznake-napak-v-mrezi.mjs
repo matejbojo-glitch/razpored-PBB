@@ -154,16 +154,23 @@ try {
     "lebdenje nad celico pove besedilo napake");
 
   console.log("4) klik na opozorilo v seznamu osvetli celico v mreži");
+  // Od čistke vmesnika (september 2026) značka v traku ne razgrne plošče
+  // pod sabo, ampak odpre predal "Statistika mreže" na svojem razdelku -
+  // podrobnosti so odslej samo tam. Seznam in klikanje sta nespremenjena,
+  // zato je spremenjena samo pot do njega. Selektor je omejen na razdelek
+  // "omejitve": predal ima še warnBox z delovnopravnimi kršitvami in
+  // neomejen ".warnBox" bi štel vrstice obeh seznamov.
   await stran.click('.statusTrak .znacka:has-text("omejitev brez nadomestila")');
-  await stran.waitForSelector(".warnBox", { timeout: 5000 });
+  await stran.waitForSelector('.statPredal.odprto [data-razdelek="omejitve"] .warnBox', { timeout: 5000 });
+  const VRSTICE = '.statPredal [data-razdelek="omejitve"] .warnBox .opozoriloVrstica';
   // Namenoma brez waitForSelector na vrstico: če gumbov ni, mora preizkus
   // to POVEDATI kot napako, ne pasti z iztekom časa.
-  const vrstice = await stran.$$eval(".warnBox .opozoriloVrstica", e => e.map(x => x.textContent.trim()));
+  const vrstice = await stran.$$eval(VRSTICE, e => e.map(x => x.textContent.trim()));
   trdi(vrstice.length === celice.length,
     "seznam ima klikljivo vrstico za vsako označeno celico (" + vrstice.length + ")");
   trdi(!(await stran.$(".wardTable td.poudarjena")), "pred klikom ni nič osvetljeno");
   if (vrstice.length) {
-    await stran.click(".warnBox .opozoriloVrstica");
+    await stran.click(VRSTICE);
     await stran.waitForTimeout(300);
   }
   const osvetljene = await stran.$$eval(".wardTable td.poudarjena", e => e.map(x => x.getAttribute("data-celica")));

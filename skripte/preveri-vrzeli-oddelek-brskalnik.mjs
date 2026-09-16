@@ -115,18 +115,15 @@ try {
     "mreža ima vrstico za vsakega zaposlenega");
 
   console.log("2) »Predlagaj mesec« najde vrzeli in jih ponudi v potrditev");
-  // Od preureditve Generatorja (september 2026) je "Predlagaj mesec" v
-  // ZLOŽLJIVEM razdelku pod mrežo: naslov razdelka nosi isto besedilo kot
-  // gumb v njem, zato je treba razdelek najprej odpreti - klik na naslov
-  // sicer samo razgrne vsebino in gumb ostane nepritisnjen.
-  const glava = await stran.$('.zlozljiv .glava:has-text("Predlagaj mesec")');
-  trdi(!!glava, "razdelek »Predlagaj mesec« je na strani");
-  if (glava && (await glava.getAttribute("aria-expanded")) !== "true") {
-    await glava.click();
-    await stran.waitForTimeout(400);
-  }
-  const gumbPredlagaj = await stran.$('.zlozljiv .vsebina button:has-text("Predlagaj mesec")');
-  trdi(!!gumbPredlagaj, "in v njem gumb za predlaganje");
+  // "Predlagaj mesec" je bil nekaj časa ZLOŽLJIV razdelek pod mrežo, čigar
+  // naslov je nosil isto besedilo kot edini gumb v njem - dva klika za eno
+  // dejanje. Od čistke vmesnika (september 2026) je to navaden gumb v
+  // akcijski vrstici pod mrežo (.orodjaDno), prvi v zaporedju
+  // "zapolni vrzeli → objavi → zapiši v Sheets".
+  trdi(!(await stran.$('.zlozljiv .glava:has-text("Predlagaj mesec")')),
+    "»Predlagaj mesec« ni več zložljiv razdelek s podvojenim imenom");
+  const gumbPredlagaj = await stran.$('.orodjaDno button:has-text("Predlagaj mesec")');
+  trdi(!!gumbPredlagaj, "gumb za predlaganje je v akcijski vrstici pod mrežo");
   await gumbPredlagaj.click();
   await stran.waitForTimeout(800);
   // Iz vsake postavke se preberejo trije podatki ločeno (datum, oseba,

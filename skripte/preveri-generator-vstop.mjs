@@ -182,12 +182,20 @@ try {
   // Pred generiranjem je ni (rezultata še ni) - to je v redu; preverjamo,
   // da je v kodi zložljiva in ZA gumbom za objavo, ne pred njim.
   const src = readFileSync(join(koren, "admin.html"), "utf8");
-  const iPokritost = src.indexOf('naslov="4b · Pokritost po dnevih"');
+  // Naslov se je ob čistki vmesnika (september 2026) preimenoval iz
+  // "4b · Pokritost po dnevih" v "Pokritost po dnevih in minimumi po
+  // izmeni": oštevilčenje razdelkov je bilo s tega zavihka odstranjeno že
+  // prej, ostal je samo viseči "4b", ki se ni skliceval na nič. Mesto in
+  // oblika razdelka (zložljiv, pod gumbom za objavo) se NISTA spremenila
+  // in ju ta preizkus varuje naprej.
+  const iPokritost = src.indexOf('naslov="Pokritost po dnevih in minimumi po izmeni"');
   const iObjava = src.indexOf("📤 Objavi neposredno v Supabase");
-  trdi(iPokritost > 0, "razdelek 4b je zložljiv (Zlozljivo)");
+  trdi(iPokritost > 0, "razdelek »Pokritost po dnevih« je zložljiv (Zlozljivo)");
   trdi(iPokritost > iObjava, "in stoji ZA gumbom za objavo, torej na dnu strani");
-  trdi(!/<h2 className="section no-print">4b · Pokritost po dnevih<\/h2>/.test(src),
+  trdi(!/<h2 className="section no-print">[^<]*Pokritost po dnevih<\/h2>/.test(src),
     "starega, vedno odprtega naslova ni več");
+  trdi(!/4b · Pokritost po dnevih/.test(src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")),
+    "visečega oštevilčenja »4b ·« ni več v kodi");
 
   const prave = konzola.filter(t => !/supabase|Failed to|net::|401|400|sw\.js|manifest|ServiceWorker/i.test(t));
   trdi(prave.length === 0, "brez napak v konzoli" + (prave.length ? ": " + prave.join(" | ") : ""));
