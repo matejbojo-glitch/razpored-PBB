@@ -76,7 +76,21 @@ trdi(/if \(!obstojeci \|\| obstojeci\.length < STRAN\) break;/.test(vhod),
 trdi(/\.order\("id", \{ ascending: true \}\)/.test(vhod),
   "strani imajo stabilen vrstni red, sicer se vrstice podvojijo ali izpustijo");
 
-console.log("\n5) Prazna celica ne ustvarja vrstic");
+console.log("\n5) Delovisce je v svezenj VEDNO zapisano");
+
+// supabase-js poravna svezenj na unijo kljucev: vrstica, ki polja nima, ga
+// dobi kot null in povozi delovisce, ki ga je nastavila druga vrstica
+// istega svezenja. Opazeno: ista oseba je imela isti dan enkrat null in
+// drugic "", uskladitev pa se ni umirila nikoli.
+trdi(/pokriva_oddelek: zeljenoDelovisce \|\| null,/.test(vhod),
+  "pokriva_oddelek je v zapisu vedno, tudi ko je prazen");
+trdi(!/if \(jeFlexi \|\| izRezerve\) zapis\.pokriva_oddelek/.test(vhod),
+  "pogojnega dodajanja polja ni vec");
+trdi(/const zeljenoDelovisce = jeFlexi/.test(vhod)
+  && /\.toUpperCase\(\) === zeljenoDelovisce;/.test(vhod),
+  "primerja se ISTA normalizirana vrednost, kot se zapise");
+
+console.log("\n6) Prazna celica ne ustvarja vrstic");
 
 // Polna uskladitev enega zavihka je napisala 852 praznih vrstic od 1993.
 // Prazna celica in neobstojec zapis pomenita isto - prost dan.
@@ -87,7 +101,7 @@ trdi(
   "preskok je ZA primerjavo, da prazna celica \u0161e vedno pobri\u0161e obstoje\u010do izmeno",
 );
 
-console.log("\n6) Urnik");
+console.log("\n7) Urnik");
 
 trdi(/cron\.unschedule\('sheets-nocna-uskladitev'\)/.test(urnik),
   "staro opravilo se odstrani - ponoven zagon ga ne podvoji");

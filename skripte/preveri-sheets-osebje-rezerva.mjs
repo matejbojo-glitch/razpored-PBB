@@ -78,11 +78,15 @@ trdi(
   "oddelekZapisa se res uporabi v zapisu",
 );
 trdi(
-  /if \(jeFlexi \|\| izRezerve\) zapis\.pokriva_oddelek = noviOddelek;/.test(izvorna),
+  /const zeljenoDelovisce = jeFlexi[\s\S]{0,220}izRezerve \? String\(povezava\.skupina\)\.toUpperCase\(\)/.test(izvorna),
+  "delovi\u0161\u010de osebe iz rezerve je oddelek LISTA",
+);
+trdi(
+  /pokriva_oddelek: zeljenoDelovisce \|\| null,/.test(izvorna),
   "delovišče tega dne gre v pokriva_oddelek",
 );
 trdi(
-  /const istOddelek = \(!jeFlexi && !izRezerve\)/.test(izvorna),
+  /const istOddelek = stara\s*\n?\s*&& \(stara\.pokriva_oddelek \|\| ""\)\.toUpperCase\(\) === zeljenoDelovisce;/.test(izvorna),
   "primerjava 'brez spremembe' upošteva tudi pokriva_oddelek iz rezerve",
 );
 

@@ -484,15 +484,18 @@ Deno.serve(async (req: Request) => {
     const oddelekZapisa = izRezerve
       ? (oseba.department_code || povezava.skupina)
       : povezava.skupina;
-    const noviOddelek = jeFlexi
-      ? (celica.oddelek || "")
-      : (izRezerve ? String(povezava.skupina).toUpperCase() : null);
+    // Eno samo, NORMALIZIRANO merilo za delovišče: prazen niz pomeni "dela
+    // na svojem oddelku". Brez normalizacije sta se null in "" izmenjevala
+    // in zapis se ni nikoli umiril.
+    const zeljenoDelovisce = jeFlexi
+      ? String(celica.oddelek || "").toUpperCase()
+      : (izRezerve ? String(povezava.skupina).toUpperCase() : "");
     const stara = obstojeciPoKljucu.get(oseba.id + "|" + celica.datum);
     // Druga polovica zaščite pred zanko: brez razlike ni zapisa, torej se
     // sprožilec izhodne vrste sploh ne sproži.
     const istaKoda = stara && istaIzmena(stara.shift_code || "", novaKoda);
-    const istOddelek = (!jeFlexi && !izRezerve)
-      || (stara && (stara.pokriva_oddelek || "").toUpperCase() === noviOddelek);
+    const istOddelek = stara
+      && (stara.pokriva_oddelek || "").toUpperCase() === zeljenoDelovisce;
     if (istaKoda && istOddelek) { brezSpremembe++; continue; }
 
     // Prazna celica ob zapisu, ki ga SPLOH NI, ne pomeni ničesar: oboje
@@ -502,15 +505,19 @@ Deno.serve(async (req: Request) => {
     // zapisu je nekaj drugega: tam izmeno pobriše, in to se mora zgoditi.
     if (!stara && jePrazenZapis(novaKoda)) { brezSpremembe++; continue; }
 
-    const zapis: Record<string, unknown> = {
+    // pokriva_oddelek je v zapisu VEDNO, tudi kadar je prazen. supabase-js
+    // namreč sveženj poravna na unijo ključev: vrstica, ki polja nima, ga
+    // dobi kot null - in s tem povozi delovišče, ki ga je pravkar nastavila
+    // druga vrstica istega svežnja. Opaženo: ista oseba je imela isti dan
+    // enkrat null in drugič "", zapis pa se ni umiril NIKOLI.
+    zaZapis.push({
       employee_id: oseba.id,
       department_code: oddelekZapisa,
       work_date: celica.datum,
       shift_code: novaKoda,
       razlog: "sheets",
-    };
-    if (jeFlexi || izRezerve) zapis.pokriva_oddelek = noviOddelek;
-    zaZapis.push(zapis);
+      pokriva_oddelek: zeljenoDelovisce || null,
+    });
   }
 
   // --- zapis v svežnjih ----------------------------------------------
