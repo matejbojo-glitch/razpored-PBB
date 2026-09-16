@@ -101,7 +101,28 @@ trdi(
   "preskok je ZA primerjavo, da prazna celica \u0161e vedno pobri\u0161e obstoje\u010do izmeno",
 );
 
-console.log("\n7) Urnik");
+console.log("\n7) Nasprotje med listi se ne prepisuje, ampak javi");
+
+// Lista si lahko za isto osebo in dan nasprotujeta (list C je za Misotic R.
+// pisal "popoldan", list FLEXI "dopoldan"). Brez pravila prednosti se
+// vsako noc izmenjaje prepisujeta in uskladitev se ne umiri nikoli.
+trdi(/if \(izRezerve && stara\) \{/.test(vhod),
+  "gost (oseba iz rezerve) obstojecega zapisa NE povozi");
+trdi(/const nasprotja = new Map<string, string>\(\);/.test(vhod)
+  && /nasprotja\.set\(oseba\.id,/.test(vhod),
+  "nasprotje se zabelezi po OSEBI, ne po dnevu");
+trdi(/zabelezi\("nasprotje_listov"/.test(vhod),
+  "nasprotje se javi kot svoja vrsta napake");
+trdi(
+  vhod.indexOf("if (izRezerve && stara)") > vhod.indexOf("if (!stara && jePrazenZapis(novaKoda))"),
+  "gost sme zapis \u0161e vedno USTVARITI, kadar ga \u0161e ni",
+);
+
+const admin = readFileSync(join(koren, "admin.html"), "utf8");
+trdi(/nasprotje_listov: "/.test(admin),
+  "nova vrsta napake ima razlago v pregledu napak");
+
+console.log("\n8) Urnik");
 
 trdi(/cron\.unschedule\('sheets-nocna-uskladitev'\)/.test(urnik),
   "staro opravilo se odstrani - ponoven zagon ga ne podvoji");

@@ -461,6 +461,9 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- drugi prehod: kaj se dejansko spremeni -------------------------
+  // Nasprotja med listi: en primer na osebo, ne na dan. Misotič R. jih ima
+  // sama 117 - z enim vnosom na dan bi pregled napak spet zalilo.
+  const nasprotja = new Map<string, string>();
   const zaZapis: Record<string, unknown>[] = [];
   for (const { sporocena, celica, oseba, izRezerve } of pripravljene) {
 
@@ -505,6 +508,24 @@ Deno.serve(async (req: Request) => {
     // zapisu je nekaj drugega: tam izmeno pobriše, in to se mora zgoditi.
     if (!stara && jePrazenZapis(novaKoda)) { brezSpremembe++; continue; }
 
+    // PREDNOST MATIČNEGA LISTA. Oseba iz rezerve je v tem listu GOST: njen
+    // razpored vodi list njenega oddelka (Misotič R. je FLEXI kader in jo
+    // vodi list FLEXI). Gost sme zato zapis samo USTVARITI, ne povoziti -
+    // sicer se lista, ki si nasprotujeta, vsako noč izmenjaje prepisujeta
+    // in uskladitev se ne umiri NIKOLI. Opaženo: list C je za Misotič R.
+    // pisal "popoldan", list FLEXI "dopoldan", za iste dneve.
+    if (izRezerve && stara) {
+      brezSpremembe++;
+      if (!istaKoda && !nasprotja.has(oseba.id)) {
+        nasprotja.set(oseba.id, `»${celica.ime}« (${oseba.full_name}, oddelek `
+          + `${oseba.department_code || "brez oddelka"}): list "${zavihek}" pravi `
+          + `»${vListu || "prosto"}«, v aplikaciji pa je »${stara.shift_code || "prosto"}« `
+          + `iz njenega matičnega razporeda. Primer: ${celica.datum}. `
+          + `Obvelja matični razpored - popravi enega od listov.`);
+      }
+      continue;
+    }
+
     // pokriva_oddelek je v zapisu VEDNO, tudi kadar je prazen. supabase-js
     // namreč sveženj poravna na unijo ključev: vrstica, ki polja nima, ga
     // dobi kot null - in s tem povozi delovišče, ki ga je pravkar nastavila
@@ -544,6 +565,10 @@ Deno.serve(async (req: Request) => {
     spremenjenih += kos.length;
   }
 
+  for (const opis of nasprotja.values()) {
+    await zabelezi("nasprotje_listov", { ...osnova, podrobnosti: opis });
+  }
+
   if (zunajMreze) {
     await zabelezi("zunaj_mreze", {
       ...osnova,
@@ -555,6 +580,6 @@ Deno.serve(async (req: Request) => {
   return odgovor({
     sprejeto: true, cel_zavihek: celZavihek, celic_v_mrezi: celice.length,
     spremenjenih, brez_spremembe: brezSpremembe,
-    zunaj_mreze: zunajMreze, zavrnjene: celZavihek ? zavrnjene.length : zavrnjene,
+    nasprotij: nasprotja.size, zunaj_mreze: zunajMreze, zavrnjene: celZavihek ? zavrnjene.length : zavrnjene,
   });
 });
