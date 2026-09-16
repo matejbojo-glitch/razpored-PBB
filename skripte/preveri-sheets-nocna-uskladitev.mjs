@@ -122,34 +122,47 @@ const admin = readFileSync(join(koren, "admin.html"), "utf8");
 trdi(/nasprotje_listov: "/.test(admin),
   "nova vrsta napake ima razlago v pregledu napak");
 
-console.log("\n8) Polna uskladitev se ne ubada z oddelanimi meseci");
+console.log("\n8) Trda meja podatkov: razpored je aktualen od septembra 2026");
 
-// Zavihek pokriva celo leto, a januar-avgust so oddelani: razpored izveden,
-// ure obracunane. Prepisovati jih vsako noc pomeni tvegati zgodovino in
-// zaliti pregled napak z nasprotji, ki jih nima smisla popravljati.
+// Uporabnikova zahteva (september 2026): podatki razporeda so v aplikaciji
+// aktualni SAMO od 2026-09-01 naprej. Januar-avgust so oddelani - razpored
+// izveden, ure obracunane - in ne smejo vec priti v bazo po nobeni poti.
+trdi(/const MEJA_PODATKOV = "2026-09-01";/.test(vhod),
+  "meja je ena sama imenovana konstanta");
+trdi(!/VSI_DNEVI_OD/.test(vhod),
+  "stare odprte spodnje meje (VSI_DNEVI_OD) ni vec nikjer");
 trdi(/function zacetekUskladitve\(danes: Date\): string \{/.test(vhod),
-  "meja se izracuna iz danasnjega dne");
-trdi(/const odDneva = celZavihek \? zacetekUskladitve\(new Date\(\)\) : VSI_DNEVI_OD;/.test(vhod),
-  "meja velja SAMO za polno uskladitev");
+  "polna uskladitev izhodisce se vedno izracuna iz danasnjega dne");
+trdi(/const odDneva = celZavihek \? zacetekUskladitve\(new Date\(\)\) : MEJA_PODATKOV;/.test(vhod),
+  "dogodkovna pot ima odslej ISTO trdo mejo (prej je bila brez nje)");
 trdi(/koordinateFlexi\(vrsteVrstic, odDneva, VSI_DNEVI_DO\)/.test(vhod)
   && /koordinateOddelka\(vrsteVrstic, odDneva, VSI_DNEVI_DO\)/.test(vhod),
   "meja se res uporabi pri obeh oblikah");
-trdi(/mesecIzImenaZavihka|VSI_DNEVI_OD, VSI_DNEVI_DO, mesecZavihka/.test(vhod),
-  "NZV pot ostane nespremenjena (meje nima)");
+trdi(/koordinateNzv\(vrsteVrstic, MEJA_PODATKOV, VSI_DNEVI_DO, mesecZavihka\)/.test(vhod),
+  "tudi NZV pot ne sega pred mejo");
 
-// Funkcijo POZENEMO - prehod cez leto je natanko tisto, kar se zgresi.
+// Funkcijo POZENEMO - prehod cez leto in ucinek meje sta natanko tisto,
+// kar se zgresi ob branju.
 const ujem = vhod.match(/function zacetekUskladitve\(danes: Date\): string \{([\s\S]*?)\n\}/);
 trdi(!!ujem, "telo funkcije je berljivo");
 if (ujem) {
-  const zacetek = new Function("danes", ujem[1].replace(/: string/g, "") + "\n");
+  const telo = ujem[1].replace(/: string/g, "");
+  const zacetek = new Function("MEJA_PODATKOV", "danes", telo + "\n").bind(null, "2026-09-01");
   const primeri = [
-    ["2026-10-16", "2026-09-01", "oktober -> zacne s septembrom"],
-    ["2026-01-05", "2025-12-01", "januar -> zacne z decembrom LANI"],
+    // Nad mejo se obnasa kot doslej: prvi dan prejsnjega meseca.
     ["2026-12-31", "2026-11-01", "december -> zacne z novembrom"],
-    ["2026-03-01", "2026-02-01", "prvi dan meseca -> prejsnji mesec"],
+    ["2026-11-02", "2026-10-01", "november -> zacne z oktobrom"],
+    ["2026-10-16", "2026-09-01", "oktober -> zacne s septembrom (ravno meja)"],
+    // Pod mejo se USTAVI na njej, namesto da bi segla v oddelane mesece.
+    ["2026-09-16", "2026-09-01", "september -> se NE vrne v avgust"],
+    ["2026-03-01", "2026-09-01", "marec -> meja prevlada nad prejsnjim mesecem"],
+    ["2026-01-05", "2026-09-01", "januar -> meja prevlada tudi cez prehod leta"],
+    // Prihodnje leto: meja ne sme zamrzniti okna.
+    ["2027-02-10", "2027-01-01", "februar 2027 -> zacne z januarjem 2027"],
   ];
   for (const [dan, pricakovano, opis] of primeri) {
-    trdi(zacetek(new Date(dan + "T12:00:00Z")) === pricakovano, `${opis} (${dan})`);
+    const dobil = zacetek(new Date(dan + "T12:00:00Z"));
+    trdi(dobil === pricakovano, `${opis} (${dan}) – dobil ${dobil}`);
   }
 }
 

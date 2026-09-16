@@ -48,27 +48,38 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SHEETS_WEBHOOK_SECRET = Deno.env.get("SHEETS_WEBHOOK_SECRET") ?? "";
 const GOOGLE_SERVICE_ACCOUNT_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") ?? "";
 
-const VSI_DNEVI_OD = "0000-01-01";
 const VSI_DNEVI_DO = "9999-12-31";
 
-// Nočna polna uskladitev se ne ubada s celim letom. Zavihek pokriva vseh
-// dvanajst mesecev, a januar do avgust so ODDELANI - razpored je bil
-// izveden, ure obračunane, in noben list se tam ne bo več spremenil.
-// Prepisovati jih vsako noč pomeni le tvegati, da kakšna pozna sprememba
-// v listu podre zgodovino, in zaliti pregled napak z nasprotji, ki jih
-// nima smisla popravljati.
+// TRDA MEJA PODATKOV (uporabnikova zahteva, september 2026): razpored v
+// aplikaciji je aktualen SAMO od septembra 2026 naprej. Januar do avgust
+// 2026 so oddelani - razpored je bil izveden, ure obračunane - in v
+// aplikaciji ne štejejo več za veljaven podatek. Aplikacija to mejo na
+// enem mestu že ima (pravičnost dežurstev bere živo iz Supabase šele od
+// 2026-09-01, prej pa uporablja zaprto zgodovino), zdaj velja povsod.
 //
-// Meja je prvi dan PREJŠNJEGA meseca: tekoči mesec se še ureja, prejšnji
-// pa se pogosto popravlja za nazaj (zamude pri dopustih, menjave).
-// Dogodkovna pot (urejena celica) te meje NIMA - kdor namenoma popravi
-// star mesec, hoče, da se prenese.
+// Meja velja OBEM potem: nočni polni uskladitvi in dogodkovni poti. Prej
+// je dogodkovna pot meje namenoma NIMALA ("kdor popravi star mesec, hoče,
+// da se prenese") - a s trdo mejo bi tak popravek ustvaril vrstico v
+// obdobju, ki ga aplikacija ne prikazuje, torej tiho smet v bazi.
+const MEJA_PODATKOV = "2026-09-01";
+
+// Nočna polna uskladitev se ne ubada s celim letom. Zavihek pokriva vseh
+// dvanajst mesecev, prepisovati vse pa pomeni le tvegati, da kakšna pozna
+// sprememba v listu podre zgodovino, in zaliti pregled napak z nasprotji,
+// ki jih nima smisla popravljati.
+//
+// Izhodišče je prvi dan PREJŠNJEGA meseca: tekoči mesec se še ureja,
+// prejšnji pa se pogosto popravlja za nazaj (zamude pri dopustih,
+// menjave). Nikoli pa ne seže pred MEJA_PODATKOV.
 function zacetekUskladitve(danes: Date): string {
   // getUTCMonth() je 0-11, torej je sam po sebi že "prejšnji mesec" v
   // štetju 1-12. Date.UTC pa negativen mesec normalizira v prejšnje leto
   // (Date.UTC(2026, -1, 1) je december 2025), zato prehoda čez leto ni
   // treba obravnavati posebej - preizkus to tudi prežene.
   const d = new Date(Date.UTC(danes.getUTCFullYear(), danes.getUTCMonth() - 1, 1));
-  return d.toISOString().slice(0, 10);
+  const prejsnjiMesec = d.toISOString().slice(0, 10);
+  // Nizi ISO datumov se primerjajo leksikografsko enako kot časovno.
+  return prejsnjiMesec < MEJA_PODATKOV ? MEJA_PODATKOV : prejsnjiMesec;
 }
 
 function odgovor(telo: Record<string, unknown>, status = 200) {
@@ -201,7 +212,7 @@ Deno.serve(async (req: Request) => {
   // NZV - razpored oddelkov ostane nedotaknjen.
   if (jeNzv) {
     const { celice: nzvCelice, najdenaGlava, najdenDatum } =
-      koordinateNzv(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO, mesecZavihka);
+      koordinateNzv(vrsteVrstic, MEJA_PODATKOV, VSI_DNEVI_DO, mesecZavihka);
 
     // Varovalka: če zavihka ni bilo mogoče razbrati (ni glave enot ali ni
     // datumskih vrstic), se NE briše nič. Brez tega bi vsaka motnja pri
@@ -357,7 +368,7 @@ Deno.serve(async (req: Request) => {
 
   // Pri POLNI uskladitvi se obdela samo tekoči in prejšnji mesec naprej;
   // pri urejeni celici pa vse, ker je človek tisto spremembo hotel.
-  const odDneva = celZavihek ? zacetekUskladitve(new Date()) : VSI_DNEVI_OD;
+  const odDneva = celZavihek ? zacetekUskladitve(new Date()) : MEJA_PODATKOV;
 
   // FLEXI ima na osebo PAR stolpcev (levo pokriti oddelek, desno izmena).
   const { celice } = jeFlexi
