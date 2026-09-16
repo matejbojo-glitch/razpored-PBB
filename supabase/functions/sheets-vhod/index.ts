@@ -84,12 +84,19 @@ Deno.serve(async (req: Request) => {
     spreadsheet_id?: string; zavihek?: string;
     vrstica?: number; stolpec?: number; nova_vrednost?: string;
     celice?: { vrstica: number; stolpec: number; nova_vrednost?: string }[];
+    cel_zavihek?: boolean;
     urejevalec?: string; cas?: string;
   };
   try { telo = await req.json(); } catch { return odgovor({ sprejeto: false, vrsta: "neberljiv_json" }); }
 
   const spreadsheetId = String(telo.spreadsheet_id || "");
   const zavihek = String(telo.zavihek || "");
+  // Polna uskladitev: obdela se CELA mreža zavihka, ne le sporočene celice.
+  // Uporablja jo nočni pg_cron. Brez nje sprememba, katere dogodek se je
+  // izgubil (izpad omrežja, Googlova kvota, ugasnjen sprožilec), ne pride v
+  // aplikacijo NIKOLI - in nov stolpec se ne pojavi, ker vstavljanja stolpca
+  // Apps Script sploh ne javi.
+  const celZavihek = telo.cel_zavihek === true;
   // Ena celica ali seznam celic - obe obliki sta veljavni.
   const sporocene = (telo.celice && telo.celice.length
     ? telo.celice
@@ -97,7 +104,7 @@ Deno.serve(async (req: Request) => {
     // Apps Script šteje od 1, values.get vrne polje od 0.
     .map((c) => ({ vrstica: Number(c.vrstica) - 1, stolpec: Number(c.stolpec) - 1 }))
     .filter((c) => c.vrstica >= 0 && c.stolpec >= 0);
-  if (!spreadsheetId || !zavihek || !sporocene.length) {
+  if (!spreadsheetId || !zavihek || (!celZavihek && !sporocene.length)) {
     return odgovor({ sprejeto: false, vrsta: "nepopolno_sporocilo" });
   }
 
@@ -133,6 +140,16 @@ Deno.serve(async (req: Request) => {
   }
   const jeFlexi = povezava.oblika === "flexi";
   const jeNzv = povezava.oblika === "nzv";
+  // Polna uskladitev NZV bi pomenila uskladiti VSAK dan zavihka - torej tudi
+  // pobrisati vse, česar v listu ni. Dokler NZV dokument v aplikacijo ni
+  // prenesel niti ene vrstice, bi to izbrisalo ročno uvožene mesece. Zato je
+  // nočna uskladitev zaenkrat samo za oddelke in FLEXI.
+  if (celZavihek && jeNzv) {
+    return await napaka("nepodprta_oblika", {
+      povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
+      podrobnosti: "Polna uskladitev za obliko NZV še ni vklopljena.",
+    });
+  }
   if (!GOOGLE_SERVICE_ACCOUNT_JSON) {
     return await napaka("api", { povezava_id: povezava.id, spreadsheet_id: spreadsheetId, zavihek,
       podrobnosti: "Manjka GOOGLE_SERVICE_ACCOUNT_JSON." });
@@ -353,29 +370,52 @@ Deno.serve(async (req: Request) => {
     await zabelezi(vrsta, { ...osnova, ...p });
   }
 
-  for (const sporocena of sporocene) {
-    // Pri FLEXI je urejena lahko katerakoli celica para - izmena ali
-    // oddelek levo od nje; obe pomenita isti zapis (oseba, dan).
-    const celica = celice.find((c) => c.vrstica === sporocena.vrstica
-      && (c.stolpec === sporocena.stolpec
-          || (jeFlexi && c.stolpecOddelka === sporocena.stolpec)));
-    if (!celica) {
-      // Ni celica razporeda: ali vrstica ni dan, ali stolpec nima imena v
-      // glavi. Oboje je normalno - dokument ni samo razpored.
-      await zavrni(sporocena, "zunaj_mreze", {});
-      continue;
+  // Kaj je treba obdelati: pri polni uskladitvi CELA mreža, sicer pa samo
+  // celice, ki jih je javil Apps Script. Vsaka naloga nosi tudi koordinato,
+  // ki se sporoči nazaj ob zavrnitvi.
+  type Naloga = { sporocena: { vrstica: number; stolpec: number }; celica: typeof celice[number] };
+  const naloge: Naloga[] = [];
+  if (celZavihek) {
+    for (const c of celice) naloge.push({ sporocena: { vrstica: c.vrstica, stolpec: c.stolpec }, celica: c });
+  } else {
+    for (const sporocena of sporocene) {
+      // Pri FLEXI je urejena lahko katerakoli celica para - izmena ali
+      // oddelek levo od nje; obe pomenita isti zapis (oseba, dan).
+      const celica = celice.find((c) => c.vrstica === sporocena.vrstica
+        && (c.stolpec === sporocena.stolpec
+            || (jeFlexi && c.stolpecOddelka === sporocena.stolpec)));
+      if (!celica) {
+        // Ni celica razporeda: ali vrstica ni dan, ali stolpec nima imena v
+        // glavi. Oboje je normalno - dokument ni samo razpored.
+        await zavrni(sporocena, "zunaj_mreze", {});
+        continue;
+      }
+      naloge.push({ sporocena, celica });
     }
+  }
 
-    // Oseba: glava stolpca najprej proti zaposlenim TEGA oddelka, sele nato
-    // proti vsem ostalim. Kratko ime, ki se ujame z dvema osebama, se NE
-    // ugiba - v obeh krogih.
-    type Zaposlen = { id: string; full_name: string; department_code: string | null };
-    const ujemanje = (seznam: Zaposlen[]) =>
-      seznam.filter((z) => kratkiKljuc(z.full_name) === celica.kljuc);
-    let najdeni = ujemanje(zaposleni as Zaposlen[]);
+  // Obstoječi zapisi za VSE prizadete osebe in dni naenkrat. Prej je bila
+  // ena poizvedba na celico - pri eni urejeni celici je to nepomembno, pri
+  // polni uskladitvi (~450 celic na zavihek) pa nevzdržno.
+  const obstojeciPoKljucu = new Map<string, { shift_code: string | null; pokriva_oddelek: string | null }>();
+
+  // --- prvi prehod: kdo je oseba v glavi stolpca ----------------------
+  // Loči se od pisanja zato, da se obstoječi zapisi lahko preberejo v ENI
+  // poizvedbi. Zavrnitve (neznano/dvoumno ime) se zabeležijo že tu.
+  type Zaposlen = { id: string; full_name: string; department_code: string | null };
+  const ujemanje = (seznam: Zaposlen[], kljuc: string) =>
+    seznam.filter((z) => kratkiKljuc(z.full_name) === kljuc);
+  const pripravljene: { sporocena: { vrstica: number; stolpec: number };
+    celica: typeof celice[number]; oseba: Zaposlen; izRezerve: boolean }[] = [];
+
+  for (const { sporocena, celica } of naloge) {
+    // Glava stolpca najprej proti zaposlenim TEGA oddelka, sele nato proti
+    // vsem ostalim. Kratko ime, ki se ujame z dvema osebama, se NE ugiba -
+    // v obeh krogih.
+    let najdeni = ujemanje(zaposleni as Zaposlen[], celica.kljuc);
     // Oseba iz drugega oddelka se prizna SAMO, kadar je v tem oddelku ni.
     const izRezerve = najdeni.length === 0;
-    if (izRezerve) najdeni = ujemanje(zaposleniRezerva as Zaposlen[]);
+    if (izRezerve) najdeni = ujemanje(zaposleniRezerva as Zaposlen[], celica.kljuc);
     if (najdeni.length === 0) {
       await zavrni(sporocena, "neznano_ime", { work_date: celica.datum,
         podrobnosti: `»${celica.ime}« se ne ujema z nobenim zaposlenim (niti na oddelku ${povezava.skupina} niti drugje).` });
@@ -387,7 +427,27 @@ Deno.serve(async (req: Request) => {
           + najdeni.map((z) => `${z.full_name} (${z.department_code || "brez oddelka"})`).join(", ") + "." });
       continue;
     }
-    const oseba = najdeni[0];
+    pripravljene.push({ sporocena, celica, oseba: najdeni[0], izRezerve });
+  }
+
+  // --- obstoječi zapisi v eni poizvedbi -------------------------------
+  if (pripravljene.length) {
+    const idji = [...new Set(pripravljene.map((n) => n.oseba.id))];
+    const datumi = pripravljene.map((n) => n.celica.datum).sort();
+    const { data: obstojeci } = await db.from("razpored")
+      .select("employee_id, work_date, shift_code, pokriva_oddelek")
+      .in("employee_id", idji)
+      .gte("work_date", datumi[0])
+      .lte("work_date", datumi[datumi.length - 1]);
+    for (const r of obstojeci || []) {
+      obstojeciPoKljucu.set(r.employee_id + "|" + r.work_date,
+        { shift_code: r.shift_code, pokriva_oddelek: r.pokriva_oddelek });
+    }
+  }
+
+  // --- drugi prehod: kaj se dejansko spremeni -------------------------
+  const zaZapis: Record<string, unknown>[] = [];
+  for (const { sporocena, celica, oseba, izRezerve } of pripravljene) {
 
     // Vrednost se vzame iz PREBRANEGA lista, ne iz sporočila: med dogodkom
     // in klicem je lahko minila sekunda in nekdo je pisal naprej.
@@ -412,16 +472,20 @@ Deno.serve(async (req: Request) => {
     const noviOddelek = jeFlexi
       ? (celica.oddelek || "")
       : (izRezerve ? String(povezava.skupina).toUpperCase() : null);
-    const { data: obstojece } = await db.from("razpored")
-      .select("id, shift_code, pokriva_oddelek")
-      .eq("employee_id", oseba.id).eq("work_date", celica.datum).limit(1);
-    const stara = (obstojece || [])[0];
+    const stara = obstojeciPoKljucu.get(oseba.id + "|" + celica.datum);
     // Druga polovica zaščite pred zanko: brez razlike ni zapisa, torej se
     // sprožilec izhodne vrste sploh ne sproži.
     const istaKoda = stara && istaIzmena(stara.shift_code || "", novaKoda);
     const istOddelek = (!jeFlexi && !izRezerve)
       || (stara && (stara.pokriva_oddelek || "").toUpperCase() === noviOddelek);
     if (istaKoda && istOddelek) { brezSpremembe++; continue; }
+
+    // Prazna celica ob zapisu, ki ga SPLOH NI, ne pomeni ničesar: oboje
+    // pove "prost dan". Vrstice zato ne ustvarimo - sicer bi polna
+    // uskladitev enega zavihka napisala na stotine praznih vrstic (na
+    // listu C jih je bilo 852 od 1993). Prazna celica ob OBSTOJEČEM
+    // zapisu je nekaj drugega: tam izmeno pobriše, in to se mora zgoditi.
+    if (!stara && jePrazenZapis(novaKoda)) { brezSpremembe++; continue; }
 
     const zapis: Record<string, unknown> = {
       employee_id: oseba.id,
@@ -431,13 +495,31 @@ Deno.serve(async (req: Request) => {
       razlog: "sheets",
     };
     if (jeFlexi || izRezerve) zapis.pokriva_oddelek = noviOddelek;
-    const { error: napakaZapisa } = await db.from("razpored").upsert(zapis,
+    zaZapis.push(zapis);
+  }
+
+  // --- zapis v svežnjih ----------------------------------------------
+  // Postgres ne dovoli, da bi en upsert dvakrat zadel isto vrstico
+  // ("cannot affect row a second time") - cel sveženj bi padel. Isti par
+  // (oseba, dan) se v mreži lahko pojavi dvakrat, kadar je ime v glavi
+  // zapisano v dveh stolpcih (ponovljen blok). Obvelja ZADNJI, tako kot bi
+  // obveljal, če bi šla zapisa drug za drugim.
+  const poKljucu = new Map<string, Record<string, unknown>>();
+  for (const z of zaZapis) poKljucu.set(String(z.employee_id) + "|" + String(z.work_date), z);
+  const zaZapisEnkrat = [...poKljucu.values()];
+
+  // Supabase upsert zna več vrstic naenkrat; sveženj je omejen, da telo
+  // zahtevka ostane obvladljivo tudi pri polni uskladitvi.
+  const SVEZENJ = 200;
+  for (let i = 0; i < zaZapisEnkrat.length; i += SVEZENJ) {
+    const kos = zaZapisEnkrat.slice(i, i + SVEZENJ);
+    const { error: napakaZapisa } = await db.from("razpored").upsert(kos,
       { onConflict: "employee_id,work_date" });
     if (napakaZapisa) {
-      await zavrni(sporocena, "api", { work_date: celica.datum, podrobnosti: napakaZapisa.message });
+      await zabelezi("api", { ...osnova, podrobnosti: napakaZapisa.message });
       continue;
     }
-    spremenjenih++;
+    spremenjenih += kos.length;
   }
 
   if (zunajMreze) {
@@ -449,7 +531,8 @@ Deno.serve(async (req: Request) => {
   }
 
   return odgovor({
-    sprejeto: true, spremenjenih, brez_spremembe: brezSpremembe,
-    zunaj_mreze: zunajMreze, zavrnjene,
+    sprejeto: true, cel_zavihek: celZavihek, celic_v_mrezi: celice.length,
+    spremenjenih, brez_spremembe: brezSpremembe,
+    zunaj_mreze: zunajMreze, zavrnjene: celZavihek ? zavrnjene.length : zavrnjene,
   });
 });

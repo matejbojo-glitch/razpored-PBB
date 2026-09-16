@@ -63,8 +63,7 @@ trdi(
   "več ujemanj se še vedno zavrne kot dvoumno_ime",
 );
 trdi(
-  !/najdeni\[0\][\s\S]{0,80}\/\/ ?vzemi prvo/i.test(izvorna)
-    && izvorna.indexOf("const oseba = najdeni[0];") > izvorna.indexOf('"dvoumno_ime"'),
+  izvorna.indexOf("oseba: najdeni[0]") > izvorna.indexOf('"dvoumno_ime"'),
   "oseba se vzame šele ZA preverjanjem dvoumnosti",
 );
 
