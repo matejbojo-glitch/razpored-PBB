@@ -63,10 +63,18 @@ console.log("\n4) Dostop do baze je zbatchan");
 trdi(!/\.eq\("employee_id", oseba\.id\)\.eq\("work_date", celica\.datum\)/.test(vhod),
   "poizvedbe na posamezno celico ni vec");
 trdi(/\.in\("employee_id", idji\)\s*\n\s*\.gte\("work_date", datumi\[0\]\)/.test(vhod),
-  "obstojeci zapisi se preberejo v eni poizvedbi za vse osebe in dni");
+  "obstojeci zapisi se preberejo skupinsko, ne po eni na celico");
 trdi(/const obstojeciPoKljucu = new Map</.test(vhod)
   && /obstojeciPoKljucu\.get\(oseba\.id \+ "\|" \+ celica\.datum\)/.test(vhod),
   "primerjava 'brez spremembe' bere iz predpomnilnika, ne iz baze");
+// PostgREST vrne najvec 1000 vrstic. Brez stranicenja je vse cez prvo stran
+// videti, kot da zapisa ni - in se prepise ob vsakem nocnem teku znova.
+trdi(/\.range\(od, od \+ STRAN - 1\)/.test(vhod),
+  "obstojeci zapisi se berejo po straneh (.range)");
+trdi(/if \(!obstojeci \|\| obstojeci\.length < STRAN\) break;/.test(vhod),
+  "branje se ustavi sele, ko je stran nepopolna");
+trdi(/\.order\("id", \{ ascending: true \}\)/.test(vhod),
+  "strani imajo stabilen vrstni red, sicer se vrstice podvojijo ali izpustijo");
 
 console.log("\n5) Prazna celica ne ustvarja vrstic");
 

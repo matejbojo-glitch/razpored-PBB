@@ -430,18 +430,33 @@ Deno.serve(async (req: Request) => {
     pripravljene.push({ sporocena, celica, oseba: najdeni[0], izRezerve });
   }
 
-  // --- obstoječi zapisi v eni poizvedbi -------------------------------
+  // --- obstoječi zapisi, po straneh -----------------------------------
+  // PostgREST vrne NAJVEČ 1000 vrstic na poizvedbo. Cel zavihek pokriva
+  // leto dni in ~30 ljudi, torej krepko čez 1000 zapisov - brez straničenja
+  // je vse čez prvo stran videti, kot da zapisa ni, in se prepiše ob VSAKEM
+  // nočnem teku znova. Opaženo: 1153 nepotrebnih zapisov na zagon, vsakič
+  // enako, in nikoli se ni umirilo.
+  const STRAN = 1000;
   if (pripravljene.length) {
     const idji = [...new Set(pripravljene.map((n) => n.oseba.id))];
     const datumi = pripravljene.map((n) => n.celica.datum).sort();
-    const { data: obstojeci } = await db.from("razpored")
-      .select("employee_id, work_date, shift_code, pokriva_oddelek")
-      .in("employee_id", idji)
-      .gte("work_date", datumi[0])
-      .lte("work_date", datumi[datumi.length - 1]);
-    for (const r of obstojeci || []) {
-      obstojeciPoKljucu.set(r.employee_id + "|" + r.work_date,
-        { shift_code: r.shift_code, pokriva_oddelek: r.pokriva_oddelek });
+    for (let od = 0; ; od += STRAN) {
+      const { data: obstojeci, error: napakaBranja } = await db.from("razpored")
+        .select("employee_id, work_date, shift_code, pokriva_oddelek")
+        .in("employee_id", idji)
+        .gte("work_date", datumi[0])
+        .lte("work_date", datumi[datumi.length - 1])
+        .order("id", { ascending: true })
+        .range(od, od + STRAN - 1);
+      if (napakaBranja) {
+        await zabelezi("api", { ...osnova, podrobnosti: napakaBranja.message });
+        break;
+      }
+      for (const r of obstojeci || []) {
+        obstojeciPoKljucu.set(r.employee_id + "|" + r.work_date,
+          { shift_code: r.shift_code, pokriva_oddelek: r.pokriva_oddelek });
+      }
+      if (!obstojeci || obstojeci.length < STRAN) break;
     }
   }
 
