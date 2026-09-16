@@ -122,7 +122,38 @@ const admin = readFileSync(join(koren, "admin.html"), "utf8");
 trdi(/nasprotje_listov: "/.test(admin),
   "nova vrsta napake ima razlago v pregledu napak");
 
-console.log("\n8) Urnik");
+console.log("\n8) Polna uskladitev se ne ubada z oddelanimi meseci");
+
+// Zavihek pokriva celo leto, a januar-avgust so oddelani: razpored izveden,
+// ure obracunane. Prepisovati jih vsako noc pomeni tvegati zgodovino in
+// zaliti pregled napak z nasprotji, ki jih nima smisla popravljati.
+trdi(/function zacetekUskladitve\(danes: Date\): string \{/.test(vhod),
+  "meja se izracuna iz danasnjega dne");
+trdi(/const odDneva = celZavihek \? zacetekUskladitve\(new Date\(\)\) : VSI_DNEVI_OD;/.test(vhod),
+  "meja velja SAMO za polno uskladitev");
+trdi(/koordinateFlexi\(vrsteVrstic, odDneva, VSI_DNEVI_DO\)/.test(vhod)
+  && /koordinateOddelka\(vrsteVrstic, odDneva, VSI_DNEVI_DO\)/.test(vhod),
+  "meja se res uporabi pri obeh oblikah");
+trdi(/mesecIzImenaZavihka|VSI_DNEVI_OD, VSI_DNEVI_DO, mesecZavihka/.test(vhod),
+  "NZV pot ostane nespremenjena (meje nima)");
+
+// Funkcijo POZENEMO - prehod cez leto je natanko tisto, kar se zgresi.
+const ujem = vhod.match(/function zacetekUskladitve\(danes: Date\): string \{([\s\S]*?)\n\}/);
+trdi(!!ujem, "telo funkcije je berljivo");
+if (ujem) {
+  const zacetek = new Function("danes", ujem[1].replace(/: string/g, "") + "\n");
+  const primeri = [
+    ["2026-10-16", "2026-09-01", "oktober -> zacne s septembrom"],
+    ["2026-01-05", "2025-12-01", "januar -> zacne z decembrom LANI"],
+    ["2026-12-31", "2026-11-01", "december -> zacne z novembrom"],
+    ["2026-03-01", "2026-02-01", "prvi dan meseca -> prejsnji mesec"],
+  ];
+  for (const [dan, pricakovano, opis] of primeri) {
+    trdi(zacetek(new Date(dan + "T12:00:00Z")) === pricakovano, `${opis} (${dan})`);
+  }
+}
+
+console.log("\n9) Urnik");
 
 trdi(/cron\.unschedule\('sheets-nocna-uskladitev'\)/.test(urnik),
   "staro opravilo se odstrani - ponoven zagon ga ne podvoji");

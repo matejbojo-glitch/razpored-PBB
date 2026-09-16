@@ -51,6 +51,26 @@ const GOOGLE_SERVICE_ACCOUNT_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON") 
 const VSI_DNEVI_OD = "0000-01-01";
 const VSI_DNEVI_DO = "9999-12-31";
 
+// Nočna polna uskladitev se ne ubada s celim letom. Zavihek pokriva vseh
+// dvanajst mesecev, a januar do avgust so ODDELANI - razpored je bil
+// izveden, ure obračunane, in noben list se tam ne bo več spremenil.
+// Prepisovati jih vsako noč pomeni le tvegati, da kakšna pozna sprememba
+// v listu podre zgodovino, in zaliti pregled napak z nasprotji, ki jih
+// nima smisla popravljati.
+//
+// Meja je prvi dan PREJŠNJEGA meseca: tekoči mesec se še ureja, prejšnji
+// pa se pogosto popravlja za nazaj (zamude pri dopustih, menjave).
+// Dogodkovna pot (urejena celica) te meje NIMA - kdor namenoma popravi
+// star mesec, hoče, da se prenese.
+function zacetekUskladitve(danes: Date): string {
+  // getUTCMonth() je 0-11, torej je sam po sebi že "prejšnji mesec" v
+  // štetju 1-12. Date.UTC pa negativen mesec normalizira v prejšnje leto
+  // (Date.UTC(2026, -1, 1) je december 2025), zato prehoda čez leto ni
+  // treba obravnavati posebej - preizkus to tudi prežene.
+  const d = new Date(Date.UTC(danes.getUTCFullYear(), danes.getUTCMonth() - 1, 1));
+  return d.toISOString().slice(0, 10);
+}
+
 function odgovor(telo: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(telo), { status, headers: { "content-type": "application/json" } });
 }
@@ -335,10 +355,14 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Pri POLNI uskladitvi se obdela samo tekoči in prejšnji mesec naprej;
+  // pri urejeni celici pa vse, ker je človek tisto spremembo hotel.
+  const odDneva = celZavihek ? zacetekUskladitve(new Date()) : VSI_DNEVI_OD;
+
   // FLEXI ima na osebo PAR stolpcev (levo pokriti oddelek, desno izmena).
   const { celice } = jeFlexi
-    ? koordinateFlexi(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO)
-    : koordinateOddelka(vrsteVrstic, VSI_DNEVI_OD, VSI_DNEVI_DO);
+    ? koordinateFlexi(vrsteVrstic, odDneva, VSI_DNEVI_DO)
+    : koordinateOddelka(vrsteVrstic, odDneva, VSI_DNEVI_DO);
   // Osebje: NAJPREJ tega oddelka. Sledi rezerva med vsemi ostalimi, ker
   // ima FLEXI kader (in kdor je v Imeniku se pri starem oddelku) svoj
   // stolpec tudi v listu oddelka, na katerem dela. Brez rezerve se take
@@ -578,7 +602,8 @@ Deno.serve(async (req: Request) => {
   }
 
   return odgovor({
-    sprejeto: true, cel_zavihek: celZavihek, celic_v_mrezi: celice.length,
+    sprejeto: true, cel_zavihek: celZavihek, od_dneva: odDneva,
+    celic_v_mrezi: celice.length,
     spremenjenih, brez_spremembe: brezSpremembe,
     nasprotij: nasprotja.size, zunaj_mreze: zunajMreze, zavrnjene: celZavihek ? zavrnjene.length : zavrnjene,
   });
