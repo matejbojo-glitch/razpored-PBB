@@ -469,6 +469,11 @@ function DopustTab(){
 
 function DopustPregled({ oddelki }){
   const [vrstice, setVrstice] = useState(null);
+  // Napaka pri branju se je doslej pokazala kot PRAZNA tabela - za
+  // koordinatorja neločljivo od "nihče nima vpisanega dopusta". Poleg tega
+  // Supabase napake NE vrže, ampak jo vrne v { error }, zato .catch() skoraj
+  // nikoli ni stekel; tiho je delal "data || []".
+  const [napaka, setNapaka] = useState(null);
   // "ključ imena" -> [ISO datumi z vpisanim LD]. Ključ je iz imena.js, ker
   // se zapis imena med viri razlikuje (uvoz z velikimi črkami).
   const [ldPoOsebi, setLdPoOsebi] = useState({});
@@ -483,7 +488,8 @@ function DopustPregled({ oddelki }){
     client.from("profili")
       .select("id, full_name, department_code, kadrovski_podatki(annual_leave_total, leave_balance_days, leave_balance_asof)")
       .order("full_name")
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { setNapaka(error.message || String(error)); setVrstice([]); return; }
         setVrstice((data || []).map(p => {
           const hr = Array.isArray(p.kadrovski_podatki) ? p.kadrovski_podatki[0] : p.kadrovski_podatki;
           return {
@@ -496,7 +502,7 @@ function DopustPregled({ oddelki }){
           };
         }));
       })
-      .catch(() => setVrstice([]));
+      .catch(e => { setNapaka(e.message || String(e)); setVrstice([]); });
 
     // Dnevi letnega dopusta, vpisani v Željah. Iz njih se izpelje
     // preostanek (dopust.js): stanje iz Kadrisa se NE prepisuje, ker bi ga
@@ -539,6 +545,11 @@ function DopustPregled({ oddelki }){
   });
 
   if (!vrstice) return <p className="hint">Nalagam …</p>;
+  if (napaka) return (
+    <p className="hint" style={{color:"var(--danger)"}}>
+      Stanja dopusta ni bilo mogoče naložiti: {napaka}. Prazna tabela spodaj <b>ne</b> pomeni, da podatkov ni.
+    </p>
+  );
 
   return (
     <div className="card" style={{marginTop:12}}>

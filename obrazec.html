@@ -1113,6 +1113,11 @@ function App(){
   const [zavihek, setZavihek] = useState("nov"); // nov | caka | moji | mesec
   const [caka, setCaka] = useState([]);
   const [moji, setMoji] = useState([]);
+  // Napaka pri branju obrazcev je doslej pomenila PRAZEN seznam "Čaka name"
+  // - torej sporočilo "nič te ne čaka", čeprav menjava morda čaka na tvojo
+  // odobritev. Supabase napake ne vrže, ampak jo vrne v { error }, zato je
+  // "data || []" požrl tudi obravnavane napake.
+  const [napakaBranja, setNapakaBranja] = useState(null);
   const [mesec, setMesec] = useState(null);
   const [odprt, setOdprt] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -1142,9 +1147,13 @@ function App(){
     // njen profil); pravila so enaka kot v pogledu (glej obrazci_moja_naloga
     // v schema.sql). Vrstice pripelje RLS, ki je nespremenjen.
     client.from("obrazci").select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)").neq("status", "osnutek").order("ustvarjen")
-      .then(({ data }) => setCaka((data || [])
-        .map(r => ({ ...r, moje_dejanje: mojeDejanje(r, myId, auth.profile) }))
-        .filter(r => r.moje_dejanje)));
+      .then(({ data, error }) => {
+        if (error) { setNapakaBranja(error.message || String(error)); return; }
+        setNapakaBranja(null);
+        setCaka((data || [])
+          .map(r => ({ ...r, moje_dejanje: mojeDejanje(r, myId, auth.profile) }))
+          .filter(r => r.moje_dejanje));
+      });
     client.from("obrazci").select("*, vlagatelj:profili!obrazci_vlagatelj_id_fkey(full_name), sodelavec:profili!obrazci_sodelavec_id_fkey(full_name)").or(`vlagatelj_id.eq.${myId},sodelavec_id.eq.${myId}`).order("ustvarjen", { ascending: false })
       .then(({ data }) => setMoji(data || []));
 
@@ -1197,7 +1206,12 @@ function App(){
               <NovObrazec myId={myId} profil={profile} onOddano={() => { reload(); setZavihek("moji"); }} prednapolni={prednapolni} />
             </div>
           )}
-          {zavihek === "caka" && <CakaName rows={caka} onOdloceno={reload} ogled={!!auth.ogled} />}
+          {zavihek === "caka" && (napakaBranja
+            ? <div className="card"><p className="hint" style={{margin:0, color:"var(--danger)"}}>
+                Seznama ni bilo mogoče naložiti: {napakaBranja}. Prazen seznam <b>ne</b> pomeni, da te nič ne čaka –
+                osveži stran.
+              </p></div>
+            : <CakaName rows={caka} onOdloceno={reload} ogled={!!auth.ogled} />)}
           {zavihek === "moji" && (
             <React.Fragment>
               <MojiObrazci rows={moji} onOdpri={setOdprt} />
