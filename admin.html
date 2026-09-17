@@ -4318,14 +4318,27 @@ const NAPAKA_OPIS = {
 };
 const SMER_OPIS = { app_v_sheets: "aplikacija → Sheets", sheets_v_app: "Sheets → aplikacija" };
 
+// Vrste napak, ki NE zahtevajo ukrepa: povedo le, da je nekdo pisal zunaj
+// mreze razporeda (glava, opomba, podpisni blok). Sinhronizacija jih
+// pravilno preskoci in nic se ne izgubi.
+//
+// Zakaj locen razdelek: te vrstice se KOPICIJO. Sporocilo nosi stevilo in
+// primere koordinat, ki se med tekoma razlikujeta, zato odpravljanje
+// podvojitev po besedilu (zabelezi v sheets-vhod) odpove in vsak tek doda
+// novo vrstico. Ob meritvi 17. 9. 2026 je bilo od 136 nerešenih napak 63
+// takih - 46 % - prava nasprotja med listi pa so se izgubljala med njimi.
+const NAPAKE_BREZ_UKREPA = ["zunaj_mreze"];
+
 function NapakeSinhronizacije(){
   const [vrstice, setVrstice] = useState(null);
   const [napaka, setNapaka] = useState(null);
   const [delam, setDelam] = useState(null);
+  const [obvestilaOdprta, setObvestilaOdprta] = useState(false);
+  const [ciscenjeBusy, setCiscenjeBusy] = useState(false);
 
   const nalozi = () => {
     client.from("sync_errors").select("*").eq("resen", false)
-      .order("ustvarjeno", { ascending: false }).limit(200)
+      .order("ustvarjeno", { ascending: false }).limit(500)
       .then(({ data, error }) => {
         if (error) { setNapaka(error.message || String(error)); setVrstice([]); return; }
         setNapaka(null); setVrstice(data || []);
@@ -4341,6 +4354,21 @@ function NapakeSinhronizacije(){
       nalozi();
     } catch (e) { setNapaka(e.message || String(e)); }
     finally { setDelam(null); }
+  };
+
+  // Skupinsko zapiranje obvestil. Brez tega bi bilo treba 63-krat klikniti
+  // "Rešeno". Zaporedje je isto kot pri vseh vecstopenjskih dejanjih:
+  // preveri -> zakleni -> delo v try -> osvezi ob uspehu -> odkleni v finally.
+  const pocistiObvestila = async (idji) => {
+    if (ciscenjeBusy || !idji.length) return;
+    if (!confirm(`Označim ${idji.length} obvestil za rešena? To so zapisi o urejanju zunaj mreže razporeda – nič se ne izgubi.`)) return;
+    setCiscenjeBusy(true); setNapaka(null);
+    try {
+      const { error } = await client.from("sync_errors").update({ resen: true }).in("id", idji);
+      if (error) throw error;
+      nalozi();
+    } catch (e) { setNapaka(e.message || String(e)); }
+    finally { setCiscenjeBusy(false); }
   };
 
   return (
@@ -4360,7 +4388,40 @@ function NapakeSinhronizacije(){
       )}
       {vrstice === null ? <p className="hint">Nalagam …</p> : vrstice.length === 0 ? (
         <p className="hint">Nerešenih napak ni.</p>
-      ) : (
+      ) : (() => {
+        const zahtevajo = vrstice.filter(v => !NAPAKE_BREZ_UKREPA.includes(v.vrsta));
+        const obvestila = vrstice.filter(v => NAPAKE_BREZ_UKREPA.includes(v.vrsta));
+        return (
+        <React.Fragment>
+          {obvestila.length > 0 && (
+            <div className="card no-print" style={{marginBottom:12}}>
+              <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+                <b>{obvestila.length} obvestil brez ukrepa</b>
+                <span className="hint" style={{margin:0, flex:"1 1 220px"}}>
+                  Urejanje zunaj mreže razporeda (glava, opomba, podpisni blok). Sinhronizacija to preskoči –
+                  nič se ne izgubi. Vrstice se kopičijo, ker vsak tek zapiše svojo.
+                </span>
+                <button type="button" className="btn btn-sm btn-ghost"
+                  onClick={() => setObvestilaOdprta(o => !o)}>
+                  {obvestilaOdprta ? "Skrij" : "Pokaži"}
+                </button>
+                <button type="button" className="btn btn-sm" disabled={ciscenjeBusy}
+                  onClick={() => pocistiObvestila(obvestila.map(o => o.id))}>
+                  {ciscenjeBusy ? "Čistim …" : "Počisti vsa"}
+                </button>
+              </div>
+              {obvestilaOdprta && (
+                <ul className="hint" style={{marginTop:10, marginBottom:0, paddingLeft:18, maxHeight:200, overflowY:"auto"}}>
+                  {obvestila.map(o => (
+                    <li key={o.id}>{o.zavihek || "–"}: {o.podrobnosti}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {zahtevajo.length === 0 ? (
+            <p className="hint">Napak, ki bi zahtevale ukrep, ni.</p>
+          ) : (
         <div className="tableScroller">
           <table className="fairTable">
             <thead>
@@ -4370,7 +4431,7 @@ function NapakeSinhronizacije(){
               </tr>
             </thead>
             <tbody>
-              {vrstice.map(v => (
+              {zahtevajo.map(v => (
                 <tr key={v.id}>
                   <td style={{whiteSpace:"nowrap"}}>{window.Datum.sloSCasom(v.ustvarjeno)}</td>
                   <td style={{whiteSpace:"nowrap"}}>{SMER_OPIS[v.smer] || v.smer}</td>
@@ -4388,7 +4449,10 @@ function NapakeSinhronizacije(){
             </tbody>
           </table>
         </div>
-      )}
+          )}
+        </React.Fragment>
+        );
+      })()}
     </div>
   );
 }

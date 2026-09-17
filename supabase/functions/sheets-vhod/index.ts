@@ -97,11 +97,22 @@ Deno.serve(async (req: Request) => {
   // Ista nerešena napaka se ne podvaja. Brez tega je ena oseba, ki je v
   // listu na napačnem zavihku, ustvarila po en vnos NA DAN (opaženo: 326
   // enakih vrstic), prave napake pa so se izgubile med njimi.
+  // Vrste, pri katerih se BESEDILO med tekoma spreminja (nosi število in
+  // primere koordinat), zato se ne smejo primerjati po njem - sicer vsak
+  // tek doda novo vrstico. Zanje je ključ (vrsta, zavihek): ena odprta
+  // vrstica na zavihek, primeri v njej pa ostanejo, da koordinator ve, kje
+  // pogledati. Izmerjeno 17. 9. 2026: brez tega 63 nerešenih vrstic v enem
+  // dnevu in 39 novih v nekaj minutah po ročnem čiščenju.
+  const KLJUC_PO_ZAVIHKU = ["zunaj_mreze"];
+
   async function zabelezi(vrsta: string, p: Record<string, unknown>) {
     const podrobnosti = String(p.podrobnosti ?? "");
-    const { data: ze } = await db.from("sync_errors")
-      .select("id").eq("resen", false).eq("smer", "sheets_v_app").eq("vrsta", vrsta)
-      .eq("podrobnosti", podrobnosti).limit(1);
+    let q = db.from("sync_errors")
+      .select("id").eq("resen", false).eq("smer", "sheets_v_app").eq("vrsta", vrsta);
+    q = KLJUC_PO_ZAVIHKU.includes(vrsta)
+      ? q.eq("zavihek", String(p.zavihek ?? ""))
+      : q.eq("podrobnosti", podrobnosti);
+    const { data: ze } = await q.limit(1);
     if (ze && ze.length) return;
     await db.from("sync_errors").insert({ smer: "sheets_v_app", vrsta, ...p, podrobnosti });
   }
@@ -605,6 +616,10 @@ Deno.serve(async (req: Request) => {
   }
 
   if (zunajMreze) {
+    // Število in primeri OSTANEJO v besedilu - koordinator brez njiju ne
+    // ve, kje pogledati. Kopičenja ne prepreči besedilo, ampak ključ:
+    // "zunaj_mreze" je v KLJUC_PO_ZAVIHKU, zato ostane ena odprta vrstica
+    // na zavihek, ne glede na to, kolikokrat se povzetek spremeni.
     await zabelezi("zunaj_mreze", {
       ...osnova,
       podrobnosti: `${zunajMreze} urejenih celic ni v mreži razporeda `

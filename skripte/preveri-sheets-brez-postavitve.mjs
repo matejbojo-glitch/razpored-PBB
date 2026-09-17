@@ -182,8 +182,17 @@ console.log("4c) pregled napak ne sme zaliti sam sebe");
 
   trdi(/async function zabelezi\(vrsta: string/.test(vhod),
     "vsi vpisi napak gredo skozi eno funkcijo");
-  trdi(/\.eq\("resen", false\)[\s\S]{0,160}?if \(ze && ze\.length\) return;/.test(vhod),
+  trdi(/\.eq\("resen", false\)[\s\S]{0,400}?if \(ze && ze\.length\) return;/.test(vhod),
     "ista NEREŠENA napaka se ne vpiše dvakrat");
+  // Pri "zunaj_mreze" se besedilo med tekoma spreminja (nosi število in
+  // primere koordinat), zato primerjava po besedilu ne prepreči kopičenja:
+  // izmerjeno 17. 9. 2026 je bilo 63 takih nerešenih vrstic v enem dnevu in
+  // 39 novih v nekaj minutah po ročnem čiščenju. Ključ je zato (vrsta,
+  // zavihek) - ena odprta vrstica na zavihek, primeri v njej pa ostanejo.
+  trdi(/const KLJUC_PO_ZAVIHKU = \["zunaj_mreze"\];/.test(vhod),
+    "vrste s spremenljivim besedilom se odpravljajo po zavihku, ne po besedilu");
+  trdi(/KLJUC_PO_ZAVIHKU\.includes\(vrsta\)[\s\S]{0,120}?\.eq\("zavihek"/.test(vhod),
+    "in ključ se res uporabi");
 
   const vpisi = (vhod.match(/from\("sync_errors"\)\s*\.insert/g) || []).length;
   trdi(vpisi === 1, "vpis v sync_errors je na enem samem mestu (najdenih " + vpisi + ")");

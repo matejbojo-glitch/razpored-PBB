@@ -80,10 +80,26 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Ista NEREŠENA napaka se ne podvaja - enako kot v sheets-vhod
+  // (zabelezi). Tu je manjkalo: zapis je bil navaden insert, zato je vsak
+  // poskus zapisa dodal novo vrstico. Ker izhodna vrsta poskuša znova za
+  // vsako osebo in vsak dan posebej, se je "brez_stolpca" nabral v stotine
+  // enakih vrstic (izmerjeno 17. 9. 2026: 117 nerešenih, največja skupina
+  // v celem pregledu) in prava nasprotja med listi so se izgubljala.
+  //
+  // Ključ je enak kot na vhodni strani: nerešena napaka iste vrste, iste
+  // smeri in z istim besedilom. work_date namenoma NI del ključa - "oseba
+  // nima stolpca" je lastnost osebe in lista, ne posameznega dne, in bi z
+  // datumom v ključu spet dala eno vrstico na dan.
   async function zabeleziNapako(vrsta: string, p: Partial<{
     povezava_id: string; spreadsheet_id: string; zavihek: string; work_date: string; podrobnosti: string;
   }>) {
-    await db.from("sync_errors").insert({ smer: "app_v_sheets", vrsta, ...p });
+    const podrobnosti = String(p.podrobnosti ?? "");
+    const { data: ze } = await db.from("sync_errors")
+      .select("id").eq("resen", false).eq("smer", "app_v_sheets").eq("vrsta", vrsta)
+      .eq("podrobnosti", podrobnosti).limit(1);
+    if (ze && ze.length) return;
+    await db.from("sync_errors").insert({ smer: "app_v_sheets", vrsta, ...p, podrobnosti });
   }
   async function koncaj(ids: number[]) {
     if (ids.length) {
