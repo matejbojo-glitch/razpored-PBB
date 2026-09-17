@@ -57,7 +57,39 @@ console.log("2) Pregled stanja dopusta");
     "prazna tabela je izrecno ločena od napake");
 }
 
-console.log("3) Praznih catch blokov ni v kodi aplikacije");
+console.log("3) Zapis v bazo ne javi uspeha, če ni uspel");
+{
+  const t = readFileSync(join(koren, "imenik.html"), "utf8");
+  const blok = t.slice(t.indexOf("const prenesiPodatkeNaProfil"),
+    t.indexOf("const prenesiPodatkeNaProfil") + 4500);
+  trdi(blok.length > 500, "prenesiPodatkeNaProfil je berljiv");
+  // Funkcija piše v tri tabele. Prva je izid vedno preverjala, drugi dve
+  // sta napako ZAVRGLI in funkcija je vrnila null (= uspeh) - klicatelj je
+  // javil uspeh, čeprav telefon ali kadrovski podatki niso bili shranjeni.
+  // Ravno kadrovski podatki poganjajo izračun stanja dopusta.
+  trdi(/const \{ error: e1 \}[\s\S]{0,400}if \(e1\) return e1;/.test(blok),
+    "zapis v profili vrne napako");
+  trdi(/const \{ error: e2 \}[\s\S]{0,300}if \(e2\) return e2;/.test(blok),
+    "zapis v telefoni_kontaktov vrne napako");
+  // Objekt upserta je dolg (deset polj), zato se preverjata oba dela
+  // posebej in njun vrstni red - ne razdalja med njima.
+  trdi(/const \{ error: e3 \} = await client\.from\("kadrovski_podatki"\)/.test(blok)
+    && /if \(e3\) return e3;/.test(blok)
+    && blok.indexOf("error: e3") < blok.indexOf("if (e3) return e3;"),
+    "zapis v kadrovski_podatki vrne napako");
+}
+
+console.log("4) Znane, utemeljene izjeme pri pisanju");
+{
+  // Označevanje obvestil kot prebranih: ob neuspehu značka preprosto
+  // ostane in se popravi ob naslednjem nalaganju. Ni odločitve, ki bi jo
+  // uporabnik sprejel narobe, zato tu preverjanje izida ni potrebno.
+  const t = readFileSync(join(koren, "obrazec.html"), "utf8");
+  trdi(/from\("obvestila"\)\.update\(\{ read_at/.test(t),
+    "obvestila se še vedno označijo kot prebrana (samopopravljiva pot)");
+}
+
+console.log("5) Praznih catch blokov ni v kodi aplikacije");
 {
   // sw.js je izjema: tam je "ne uspe - ni hudega" pravilna strategija
   // (predpomnjenje, prednalaganje pisav).

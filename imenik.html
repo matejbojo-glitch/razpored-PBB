@@ -1380,13 +1380,19 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
       full_name: zapis.full_name, role: novaVloga, department_code: noviOddelek,
     }).eq("id", profileId);
     if (e1) return e1;
+    // Napaka teh dveh zapisov se je doslej ZAVRGLA, funkcija pa je vrnila
+    // null (= uspeh). Klicatelj ("Poveži", "Dodaj ročno") je zato javil
+    // uspeh, čeprav telefon ali kadrovski podatki niso bili shranjeni - in
+    // ravno kadrovski podatki (annual_leave_total, leave_balance_days)
+    // poganjajo izračun stanja dopusta, kjer se tiha izguba ne vidi.
     if (zapis.phone) {
-      await client.from("telefoni_kontaktov").upsert({ profile_id: profileId, phone: zapis.phone, updated_at: new Date().toISOString() });
+      const { error: e2 } = await client.from("telefoni_kontaktov").upsert({ profile_id: profileId, phone: zapis.phone, updated_at: new Date().toISOString() });
+      if (e2) return e2;
     }
     const imaHrPodatke = zapis.employee_code || zapis.birth_date || zapis.position_name || zapis.manager_name
       || zapis.parental_leave || zapis.annual_leave_total != null || zapis.leave_balance_days != null;
     if (imaHrPodatke) {
-      await client.from("kadrovski_podatki").upsert({
+      const { error: e3 } = await client.from("kadrovski_podatki").upsert({
         profile_id: profileId,
         employee_code: zapis.employee_code || null, birth_date: zapis.birth_date || null,
         position_name: zapis.position_name || null, manager_name: zapis.manager_name || null,
@@ -1394,6 +1400,7 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
         leave_balance_days: zapis.leave_balance_days, leave_balance_asof: zapis.leave_balance_asof,
         updated_at: new Date().toISOString(),
       });
+      if (e3) return e3;
     }
     return null;
   };
