@@ -210,19 +210,6 @@ header.top{
 .whoRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; }
 .whoRow .who{ font-size:12.5px; color:var(--muted); }
 .whoRow .who b{ color:var(--text); font-weight:700; }
-.navLinks{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-.navLink{
-  font-size:12px; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
-  text-decoration-color:var(--line); background:none; border:0; cursor:pointer; padding:0;
-  transition: color var(--fast) var(--ease);
-}
-.navLink:hover{ color:var(--accent-2); }
-
-/* eyebrow / naslov razdelka (uporabljano dosledno namesto ad-hoc velikih tipk) */
-.eyebrow{
-  font-size: 11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
-  color: var(--muted);
-}
 h1.pageTitle, h2.pageTitle{
   font-family: var(--font-display); font-weight:600; letter-spacing:-0.01em;
   font-size: 21px; margin: 2px 0 0; color: var(--text);
@@ -379,14 +366,8 @@ button{ cursor:pointer; }
 .btn-ghost{ background: var(--surface); color: var(--text); border-color: var(--line); box-shadow: var(--shadow-xs); }
 .btn-ghost:hover{ background: var(--surface-2); border-color: var(--muted); }
 
-.btn-outline{ background: transparent; color: var(--accent-2); border-color: var(--accent); }
-.btn-outline:hover{ background: rgba(var(--accent-rgb),.10); }
-
 .btn-danger{ background: #FBEAE6; color: var(--danger); border-color: #F0C9BE; }
 .btn-danger:hover{ background: var(--danger); color:#fff; border-color: var(--danger); }
-
-.btn-link{ background:none; border:0; color: var(--accent-2); text-decoration:underline; text-underline-offset:3px; padding:4px 2px; min-height:auto; font-weight:700; }
-.btn-link:hover{ color: var(--text); }
 
 /* ---------- kartice ---------- */
 .card{
@@ -396,16 +377,7 @@ button{ cursor:pointer; }
 .card + .card{ margin-top: 14px; }
 .section{ margin-top: 22px; }
 .section > .eyebrow{ display:block; margin: 0 2px 8px; }
-
-.todayCard{
-  margin-top:16px; background: linear-gradient(135deg, var(--surface-2), var(--surface));
-  border:1px solid var(--line); border-radius: var(--radius-lg); padding:18px;
-  box-shadow: var(--shadow-md);
-}
 .todayCard .lbl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
-.todayCard .shift{ display:flex; align-items:center; gap:11px; margin-top:9px; }
-.todayCard .shiftName{ font-family: var(--font-display); font-size: 21px; font-weight: 600; letter-spacing:-0.01em; }
-.todayCard .shiftTime{ font-size:12.5px; color: var(--muted); margin-top:2px; }
 
 /* ---------- pas krmil (oddelek · mesec · današnja izmena) ----------
    Uporabnikova zahteva (september 2026): vsi izbirniki v ENI vrstici.
@@ -588,14 +560,6 @@ table tbody tr:hover td.name{ background: var(--surface-2); }
   margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
   background: rgba(var(--accent-rgb),.12); border:1px solid rgba(var(--accent-rgb),.35); color: var(--accent-2);
 }
-.okBox{
-  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
-  background: rgba(var(--ok-rgb),.12); border:1px solid rgba(var(--ok-rgb),.35); color:#2E5C40;
-}
-.dangerBox{
-  margin-top:14px; padding:12px 14px; border-radius: var(--radius-sm); font-size:13px; line-height:1.5;
-  background: #FBEAE6; border:1px solid #F0C9BE; color: var(--danger);
-}
 
 /* ---------- vznožje ---------- */
 footer.foot{
@@ -603,12 +567,6 @@ footer.foot{
   font-size: 11.5px; color: var(--muted); line-height:1.65;
 }
 footer.foot b{ color: var(--text); }
-
-.installBar{
-  position: sticky; bottom: 0; margin-top: 20px; background: var(--surface);
-  border:1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px 14px;
-  display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow: var(--shadow-md);
-}
 .installBar .t{ font-size:13px; font-weight:700; }
 .installBar .s{ font-size:11.5px; color:var(--muted); margin-top:1px; }
 
@@ -646,18 +604,7 @@ footer.foot b{ color: var(--text); }
   cursor: pointer; font-family: inherit;
 }
 .uvodGumb:disabled{ opacity: .5; cursor: default; }
-
-/* ---------- nalaganje (skeleton) ---------- */
-.skel{
-  background: linear-gradient(90deg, var(--surface-2) 25%, #EAE4CE 37%, var(--surface-2) 63%);
-  background-size: 400% 100%; animation: skel-shine 1.4s ease infinite; border-radius: var(--radius-sm);
-}
 @keyframes skel-shine{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
-
-/* ---------- majhne pripomočke ---------- */
-.stack-xs > * + *{ margin-top:6px; }
-.stack-sm > * + *{ margin-top:10px; }
-.stack > * + *{ margin-top:16px; }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
@@ -804,12 +751,14 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 .dlBtn:hover, .fileBtn:hover, .navBtn:hover, .toolBtn:hover{ background: var(--surface-2); border-color: var(--muted); }
 
 /* nevarni gumbi (izbriši, odstrani …) */
-.dangerBtn, .delBtn, .clearImg{
+/* .delBtn in .clearImg sta bila odstranjena septembra 2026: definirana sta
+   bila tu in v zelje.html, uporabljena pa nikjer. */
+.dangerBtn{
   background: #FBEAE6; color: var(--danger); border:1px solid #F0C9BE;
   padding:10px 14px; border-radius: var(--radius-sm); font-weight:700; font-size:13px; cursor:pointer;
   transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
-.dangerBtn:hover, .delBtn:hover, .clearImg:hover{ background: var(--danger); color:#fff; border-color:var(--danger); }
+.dangerBtn:hover{ background: var(--danger); color:#fff; border-color:var(--danger); }
 
 /* majhne okrogle ikonske tipke (puščice, urejanje …) */
 .iconBtn, .chev{
@@ -819,14 +768,6 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
 }
 .iconBtn:hover, .chev:hover{ background: var(--surface-2); }
 .iconBtn:active, .chev:active{ transform: scale(.94); }
-
-/* preklopni gumbi za oddelke/tedne (aria-pressed) */
-.deptBtn{
-  border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-weight:800;
-  padding:9px 16px; border-radius:var(--radius-pill); cursor:pointer; font-size:14px;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
-}
-.deptBtn[aria-pressed="true"]{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); box-shadow: var(--shadow-accent); }
 .weekToggle{
   border:1px solid var(--line); background:transparent; color:var(--muted); font-size:11px;
   font-weight:800; padding:6px 9px; border-radius:8px; cursor:pointer; white-space:nowrap;
@@ -876,26 +817,11 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
    iz goste tabele v kartice, značke in vizualne pokazatelje.
    ============================================================ */
 
-/* ---------- statusne ikone pravil (✓ / ! / ✗) ---------- */
-.statusIkona{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:20px; height:20px; border-radius:50%; font-size:12px; font-weight:800;
-  flex:0 0 auto; color:#fff; line-height:1;
-}
-.statusIkona.ok{ background: var(--ok); }
-.statusIkona.opozorilo{ background: #C9942F; }
-.statusIkona.kritično, .statusIkona.kriticno{ background: var(--danger); }
-
-.pravilo{
-  display:flex; align-items:flex-start; gap:10px; padding:10px 0;
-  border-bottom:1px solid var(--line); font-size:13px;
-}
-.pravilo:last-child{ border-bottom:0; }
-.pravilo .besedilo{ flex:1; min-width:0; }
-/* naslov in opis morata biti bloka - kot inline span-a bi se besedili
-   zlepili v eno vrstico ("Nepokrite izmene12 vrzeli ...") */
-.pravilo .naslov{ display:block; font-weight:700; }
-.pravilo .opis{ display:block; color: var(--muted); font-size:12px; margin-top:2px; line-height:1.5; }
+/* Razreda .statusIkona in .pravilo sta bila odstranjena septembra 2026
+   skupaj s komponento StatusPravil (admin.html): njena kartica s petimi
+   vrsticami pravil je z besedami ponovila tri značke statusnega traku,
+   podrobnosti pa so se preselile v predal "Statistika mreže". Uporabljal
+   ju je samo ta ena komponenta. */
 
 /* ---------- KPI kartice (Statistika) ---------- */
 .kpiMreza{
@@ -941,7 +867,6 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   width:15px; height:15px; border-radius:3px; flex:0 0 auto;
   background: var(--surface-2); position:relative;
 }
-.heatLegenda{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); margin-top:10px; }
 .heatLegenda .vzorec{ width:14px; height:14px; border-radius:3px; }
 
 /* ---------- časovna premica (status zahtevka) ---------- */
@@ -1109,21 +1034,6 @@ p.hint{ color:var(--muted); font-size:13px; margin: -4px 0 14px; line-height:1.5
   color: var(--muted);
   font-size: 13px;
   padding: 4px 0;
-}
-
-.zeljeSekcija{ margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
-.zeljeToggle{
-  width: 100%;
-  text-align: left;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  min-height: 44px;
 }
 
 /* Most iz Želja v Generator: pod razpredelnico, ko je izbrana ena skupina.
