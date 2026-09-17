@@ -1281,10 +1281,13 @@ function Razpredelnica({ role, myId, myFullName, vsiLjudje, naslovSkupine, skupi
     <div>
       {jeAdmin && (
         <React.Fragment>
+          {/* "onemogocen" med uvozom: postavka v meniju se sicer da
+              klikniti znova, dokler prvi uvoz se tece. */}
           <RazporedUvozVir kljuc="zelje-sheets" ikona="📗" naziv="Želje iz Google Sheets"
-            opis="dopust in omejitve po povezavi" onClick={() => uvoziIzSheets(null)} />
+            opis="dopust in omejitve po povezavi" onemogocen={uvozBusy}
+            onClick={() => uvoziIzSheets(null)} />
           <RazporedUvozVir kljuc="zelje-datoteka" ikona="📄" naziv="Želje iz datoteke"
-            opis="CSV / Excel / JSON – ime, dopust, omejitve"
+            opis="CSV / Excel / JSON – ime, dopust, omejitve" onemogocen={uvozBusy}
             onClick={() => uvozRef.current && uvozRef.current.click()} />
           <RazporedUvozVir kljuc="zelje-foto" ikona="📷" naziv="Želje s fotografije"
             opis={barvnaMapa ? `barve celic – v ${MESECI_SL[view.month]} ${view.year}` : "nalagam barvno mapo …"}

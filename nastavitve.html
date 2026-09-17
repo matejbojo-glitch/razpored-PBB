@@ -231,6 +231,9 @@ function Kanali({ myId, email }){
   const [n, setN] = useState(null);
   const [nedosegljivo, setNedosegljivo] = useState(false);
   const [msg, setMsg] = useState(null);
+  // Brez zaklepa je hitro preklapljanje stikal poslalo dva upserta hkrati
+  // in obveljal je tisti, ki se je vrnil zadnji - ne nujno zadnji klik.
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,17 +250,27 @@ function Kanali({ myId, email }){
   }, [myId]);
 
   const preklopi = async (polje) => {
+    if (busy) return;
+    const prejsnje = n;
     const novo = { ...n, [polje]: !n[polje] };
-    setN(novo); setMsg(null);
-    const { error } = await client.from("nastavitve_obvestil").upsert({
-      profile_id: myId,
-      email_enabled: novo.email_enabled,
-      push_enabled: novo.push_enabled,
-      sms_enabled: novo.sms_enabled,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "profile_id" });
-    if (error) { setMsg({ ok:false, text:"Napaka: " + error.message }); setN(n); }
-    else setMsg({ ok:true, text:"Shranjeno." });
+    // Stikalo se premakne takoj (odziv brez čakanja), ob napaki pa se vrne.
+    setN(novo); setMsg(null); setBusy(true);
+    try {
+      const { error } = await client.from("nastavitve_obvestil").upsert({
+        profile_id: myId,
+        email_enabled: novo.email_enabled,
+        push_enabled: novo.push_enabled,
+        sms_enabled: novo.sms_enabled,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "profile_id" });
+      if (error) throw error;
+      setMsg({ ok:true, text:"Shranjeno." });
+    } catch (e) {
+      setN(prejsnje);
+      setMsg({ ok:false, text:"Napaka: " + (e.message || String(e)) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (nedosegljivo) {
@@ -274,7 +287,7 @@ function Kanali({ myId, email }){
 
   const Vrstica = ({ polje, naslov, opis, onemogoceno }) => (
     <label className={"kanalVrstica" + (onemogoceno ? " nedejaven" : "")}>
-      <input type="checkbox" checked={!!n[polje]} disabled={onemogoceno}
+      <input type="checkbox" checked={!!n[polje]} disabled={onemogoceno || busy}
         onChange={() => !onemogoceno && preklopi(polje)} />
       <span>
         <b>{naslov}</b>
@@ -334,41 +347,65 @@ function Koledar(){
     return () => { cancelled = true; };
   }, []);
 
+  // Vsi trije klici RPC so bili pisani z "setBusy(false)" TAKOJ za await,
+  // ne v finally: ob izjemi (izpad omrežja, ne pa napaka, ki jo vrne
+  // Supabase) se zaklep ni sprostil in stran je ostala izklopljena do
+  // osvežitve. Odklep je zato odslej v finally, stanje pa se posodobi
+  // šele ob uspehu.
   const preklopiSinhronizacijo = async () => {
+    if (busy) return;
     const cilj = !vklopljeno;
     setBusy(true); setMsg(null);
-    const { data, error } = await client.rpc("koledar_sinhronizacija", { p_vklop: cilj });
-    setBusy(false);
-    if (error) { setMsg({ ok:false, text:"Napaka: " + error.message }); return; }
-    setVklopljeno(data);
-    if (!data) { setPrikazi(false); setToken(null); }
-    setMsg({ ok:true, text: data
-      ? "Sinhronizacija je vklopljena. Če si koledar že dodal, bo spet deloval sam."
-      : "Sinhronizacija je izklopljena. Povezava ne deluje več, dokler je znova ne vklopiš." });
+    try {
+      const { data, error } = await client.rpc("koledar_sinhronizacija", { p_vklop: cilj });
+      if (error) throw error;
+      setVklopljeno(data);
+      if (!data) { setPrikazi(false); setToken(null); }
+      setMsg({ ok:true, text: data
+        ? "Sinhronizacija je vklopljena. Če si koledar že dodal, bo spet deloval sam."
+        : "Sinhronizacija je izklopljena. Povezava ne deluje več, dokler je znova ne vklopiš." });
+    } catch (e) {
+      setMsg({ ok:false, text:"Napaka: " + (e.message || String(e)) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const naloziToken = async () => {
     setBusy(true); setMsg(null);
-    const { data, error } = await client.rpc("koledar_token");
-    setBusy(false);
-    if (error) { setMsg({ ok:false, text:"Napake pri pripravi povezave: " + error.message }); return null; }
-    setToken(data);
-    return data;
+    try {
+      const { data, error } = await client.rpc("koledar_token");
+      if (error) throw error;
+      setToken(data);
+      return data;
+    } catch (e) {
+      setMsg({ ok:false, text:"Napake pri pripravi povezave: " + (e.message || String(e)) });
+      return null;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const pokazi = async () => {
+    if (busy) return;
     const t = token || await naloziToken();
     if (t) { setPrikazi(true); setVklopljeno(true); }
   };
 
   const ponastavi = async () => {
+    if (busy) return;
     if (!confirm("Ustvarim novo povezavo? Stara takoj neha delovati in jo bo treba v koledarju zamenjati.")) return;
     setBusy(true); setMsg(null);
-    const { data, error } = await client.rpc("koledar_token_ponastavi");
-    setBusy(false);
-    if (error) { setMsg({ ok:false, text:"Napaka: " + error.message }); return; }
-    setToken(data); setPrikazi(true);
-    setMsg({ ok:true, text:"Nova povezava je pripravljena. Stara ne deluje več." });
+    try {
+      const { data, error } = await client.rpc("koledar_token_ponastavi");
+      if (error) throw error;
+      setToken(data); setPrikazi(true);
+      setMsg({ ok:true, text:"Nova povezava je pripravljena. Stara ne deluje več." });
+    } catch (e) {
+      setMsg({ ok:false, text:"Napaka: " + (e.message || String(e)) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const osnova = (RazporedAuth.SUPABASE_URL || "").replace(/\/$/, "");

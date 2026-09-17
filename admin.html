@@ -3104,6 +3104,12 @@ function DezurstvaTab({ zacetniMesec }){
   const [zaklenjeni, setZaklenjeni] = useState({});
   const [publishBusy, setPublishBusy] = useState(false);
   const [publishMsg, setPublishMsg] = useState(null);
+  // Generiranje dežurstev je bilo do te uskladitve edini večstopenjski
+  // gumb v aplikaciji brez zaklepa: gumb ni imel "disabled", funkcija pa
+  // med potjo čaka na branje objavljenega razporeda iz baze. Dvojni klik
+  // je zato pognal dva izračuna hkrati, drugi pa je prepisal prvega.
+  const [genBusy, setGenBusy] = useState(false);
+  const [genMsg, setGenMsg] = useState(null);
   const [uvozMsg, setUvozMsg] = useState(null);
   const [uvozBusy, setUvozBusy] = useState(false);
   const [gsheetUrl, setGsheetUrl] = useState("");
@@ -3278,26 +3284,54 @@ function DezurstvaTab({ zacetniMesec }){
     return m;
   };
 
+  // Zaporedje je isto kot pri vseh večstopenjskih gumbih v aplikaciji:
+  // 1) preveri vhod, 2) zakleni vmesnik, 3) opravi delo v try,
+  // 4) stanje posodobi šele ob uspehu, 5) odkleni v finally in javi izid.
   const generiraj = async () => {
-    const staff = roster.map(z => ({
-      ime: z.ime,
-      obstojeceStevilo: Number(z.stevilo) || 0,
-      zadnjeDezurstvo: z.zadnje || null,
-      odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
-      dopust: z.dopust.split(",").map(s => s.trim()).filter(Boolean),
-      omejitve: z.omejitve.split(",").map(s => s.trim()).filter(Boolean),
-      prostDanVTednu: z.prostDanVTednu || null,
-      minMesecno: z.minMesecno === "" ? null : Number(z.minMesecno),
-      maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
-      samoMedTednom: !!z.samoMedTednom,
-    }));
-    const zakleni = zakleniObjavljeno ? await nalozitObjavljena(month) : {};
-    setZaklenjeni(zakleni);
-    const res = Generator.generirajDezurstva({
-      startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
-      maxVikendMesecno: maxVikend, staff, zaklenjeni: zakleni,
-    });
-    setRezultat({ mesec: month, staff, ...res });
+    // 1 · Preverjanje pred zagonom. Brez dežurnega kadra ni kaj razporejati;
+    // prej je ta klic padel z "Cannot read properties of null".
+    if (genBusy) return;
+    if (!roster || !roster.length) {
+      setGenMsg({ ok: false, text: "Dežurnega kadra ni – v Imeniku mora biti vsaj ena oseba z oddelkom »DEZ«." });
+      return;
+    }
+
+    // 2 · Zaklep vmesnika.
+    setGenBusy(true);
+    setGenMsg(null);
+    try {
+      const staff = roster.map(z => ({
+        ime: z.ime,
+        obstojeceStevilo: Number(z.stevilo) || 0,
+        zadnjeDezurstvo: z.zadnje || null,
+        odsotnosti: z.odsotnosti.split(",").map(s => s.trim()).filter(Boolean),
+        dopust: z.dopust.split(",").map(s => s.trim()).filter(Boolean),
+        omejitve: z.omejitve.split(",").map(s => s.trim()).filter(Boolean),
+        prostDanVTednu: z.prostDanVTednu || null,
+        minMesecno: z.minMesecno === "" ? null : Number(z.minMesecno),
+        maxMesecno: z.maxMesecno === "" ? null : Number(z.maxMesecno),
+        samoMedTednom: !!z.samoMedTednom,
+      }));
+
+      // 3 · Delo (branje iz baze + izračun).
+      const zakleni = zakleniObjavljeno ? await nalozitObjavljena(month) : {};
+      const res = Generator.generirajDezurstva({
+        startISO, endISO, minRazmikDni: Number(minRazmik), prostDanPoDezurstvu: prostDan,
+        maxVikendMesecno: maxVikend, staff, zaklenjeni: zakleni,
+      });
+
+      // 4 · Stanje se posodobi ŠELE ob uspehu. Prej je setZaklenjeni teklo
+      // pred izračunom - če je ta padel, je mreža ostala z zaklenjenimi
+      // dnevi prejšnjega meseca in brez rezultata.
+      setZaklenjeni(zakleni);
+      setRezultat({ mesec: month, staff, ...res });
+      setGenMsg({ ok: true, text: `Razporejenih ${res.razpored.length} dni za ${month}.` });
+    } catch (e) {
+      setGenMsg({ ok: false, text: "Generiranje ni uspelo: " + (e.message || String(e)) });
+    } finally {
+      // 5 · Odklep je v finally, da napaka ne pusti gumba trajno izklopljenega.
+      setGenBusy(false);
+    }
   };
 
   // Ročni popravek posameznega dne. Kršitve se preračunajo za CEL mesec -
@@ -3463,7 +3497,10 @@ function DezurstvaTab({ zacetniMesec }){
         </p>
       </div>
 
-      <button className="genBtn no-print" onClick={generiraj}>⚡ Generiraj takoj</button>
+      <button className="genBtn no-print" onClick={generiraj} disabled={genBusy || !roster}>
+        {genBusy ? "Generiram …" : "⚡ Generiraj takoj"}
+      </button>
+      {genMsg && <p className="hint no-print" style={{color: genMsg.ok ? "var(--ok)" : "var(--danger)"}}>{genMsg.text}</p>}
       </React.Fragment>
       )}
 
@@ -3657,6 +3694,7 @@ function VodjeTab({ zacetniMesec }){
   // pravilih, v bazo pa nič ne gre mimo človeka.
   const [potrjeni, setPotrjeni] = useState({});
   const [vrzeliMsg, setVrzeliMsg] = useState(null);
+  const [napakaGen, setNapakaGen] = useState(null);
   const wardRef = useRef();
 
   useEffect(() => {
@@ -3667,9 +3705,27 @@ function VodjeTab({ zacetniMesec }){
   const imeOddelka = {};
   oddelki.forEach(o => { imeOddelka[o.code] = o.name; });
 
+  // Isto petstopenjsko zaporedje kot drugod: preveri → zakleni → delo v
+  // try → stanje ob uspehu → odkleni v finally in javi izid. Zunanja
+  // ovojnica nosi zaklep, notranja pa delo, da telo (nad sto vrstic
+  // sestavljanja mreže) ostane, kot je bilo.
   const generiraj = async () => {
-    if (!vodje) return;
+    if (nalagam || !vodje) return;
     setNalagam(true);
+    setNapakaGen(null);
+    try {
+      await generirajNotranje();
+    } catch (e) {
+      // Brez tega je napaka v katerikoli od štirih poizvedb pustila gumb
+      // trajno izklopljen (setNalagam(false) je stal na koncu, zunaj try)
+      // in uporabnik ni izvedel ničesar.
+      setNapakaGen("Generiranje ni uspelo: " + (e.message || String(e)));
+    } finally {
+      setNalagam(false);
+    }
+  };
+
+  const generirajNotranje = async () => {
     const { startISO, endISO } = monthRange(month);
     const [{ data: leaveRows }, { data: dezRows }, { data: pariRows }, { data: nastRows }] = await Promise.all([
       client.from("odsotnosti").select("full_name, work_date, kind").gte("work_date", startISO).lte("work_date", endISO),
@@ -3795,7 +3851,6 @@ function VodjeTab({ zacetniMesec }){
     setPopravki({});
     setIzjeme({});
     setVrzeliMsg(null);
-    setNalagam(false);
   };
 
   const celica = (dn, k) => {
@@ -3988,6 +4043,7 @@ function VodjeTab({ zacetniMesec }){
           </div>
         </div>
         <button className="genBtn" style={{marginTop:10}} onClick={generiraj} disabled={nalagam}>{nalagam ? "Nalagam …" : "⚡ Generiraj takoj"}</button>
+        {napakaGen && <p className="hint" style={{color:"var(--danger)", marginBottom:0}}>{napakaGen}</p>}
       </div>
 
       {rezultat && (
@@ -4373,12 +4429,20 @@ function UporabnikiTab(){
     if (!confirm(`Vsem uporabnikom RAZEN treh stalnih administratorjev (${cilj.length} oseb) bo vloga ponastavljena na "Zaposleni" in oddelek izbrisan. Prijava (e-pošta/geslo) ostane nespremenjena. Nadaljuj?`)) return;
     setPonastaviBusy(true); setPonastaviMsg(null);
     let ok = 0, napak = 0;
-    for (const p of cilj) {
-      const err = await posodobi(p.id, { role: "user", department_code: null });
-      if (err) napak++; else ok++;
+    try {
+      // Zanka tece cez vse uporabnike; ce ena posodobitev vrze izjemo, se
+      // brez finally zaklep ne sprosti in gumb ostane trajno izklopljen -
+      // sredi delno opravljene ponastavitve, kar je najslabsi trenutek.
+      for (const p of cilj) {
+        const err = await posodobi(p.id, { role: "user", department_code: null });
+        if (err) napak++; else ok++;
+      }
+      setPonastaviMsg(`Ponastavljenih ${ok} uporabnikov.` + (napak ? ` ${napak} napak.` : ""));
+    } catch (e) {
+      setPonastaviMsg(`Prekinjeno po ${ok} ponastavitvah: ` + (e.message || String(e)));
+    } finally {
+      setPonastaviBusy(false);
     }
-    setPonastaviBusy(false);
-    setPonastaviMsg(`Ponastavljenih ${ok} uporabnikov.` + (napak ? ` ${napak} napak.` : ""));
   };
 
   const uvoziVlogeOddelke = async (file) => {

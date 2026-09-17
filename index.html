@@ -3082,24 +3082,32 @@ function SaNastavitveUrejanje({ saNast, naShranjeno }){
     || meseci.replace(/\s/g, "") !== (saNast.poletniMeseci || []).join(",");
 
   const shrani = async () => {
+    if (busy) return;
     setBusy(true); setNapaka(null);
-    const ocisceni = meseci.split(",").map(x => Number(x.trim()))
-      .filter(n => n >= 1 && n <= 12).join(",");
-    const { error } = await client.from("nzv_nastavitve").upsert([
-      { kljuc: "sa_liho_teden", vrednost: lihoTeden },
-      { kljuc: "sa_poletni_meseci", vrednost: ocisceni },
-    ], { onConflict: "kljuc" });
-    setBusy(false);
-    if (error) {
-      // Tabele še ni -> administrator mora pognati SQL. Povemo katerega.
-      const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
-      setNapaka(manjkaTabela
-        ? "Tabele nzv_nastavitve še ni – v Supabase poženi supabase/nzv-nastavitve.sql."
-        : (error.message || "Shranjevanje ni uspelo."));
-      return;
+    try {
+      const ocisceni = meseci.split(",").map(x => Number(x.trim()))
+        .filter(n => n >= 1 && n <= 12).join(",");
+      const { error } = await client.from("nzv_nastavitve").upsert([
+        { kljuc: "sa_liho_teden", vrednost: lihoTeden },
+        { kljuc: "sa_poletni_meseci", vrednost: ocisceni },
+      ], { onConflict: "kljuc" });
+      if (error) {
+        // Tabele še ni -> administrator mora pognati SQL. Povemo katerega.
+        const manjkaTabela = error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
+        throw new Error(manjkaTabela
+          ? "Tabele nzv_nastavitve še ni – v Supabase poženi supabase/nzv-nastavitve.sql."
+          : (error.message || "Shranjevanje ni uspelo."));
+      }
+      // Stanje se posodobi šele ob uspehu.
+      setMeseci(ocisceni);
+      naShranjeno();
+    } catch (e) {
+      setNapaka(e.message || String(e));
+    } finally {
+      // Prej je setBusy(false) stal takoj za await, zunaj vsake zaščite:
+      // ob izjemi (izpad omrežja) je gumb ostal na "Shranjujem …" za vedno.
+      setBusy(false);
     }
-    setMeseci(ocisceni);
-    naShranjeno();
   };
 
   return (

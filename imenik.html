@@ -556,10 +556,18 @@ function Profil({ oseba, myId, myRole, oddelki, ogled, onNazaj, onSpremenjeno })
   const [ogledMsg, setOgledMsg] = useState(null);
 
   const zacniOgledOsebe = async () => {
+    if (ogledBusy) return;
     setOgledBusy(true); setOgledMsg(null);
-    const { error } = await RazporedAuth.zacniOgled({ id: oseba.id, full_name: oseba.full_name, email: oseba.email });
-    if (error) { setOgledMsg(error); setOgledBusy(false); return; }
-    location.href = "index.html";
+    try {
+      const { error } = await RazporedAuth.zacniOgled({ id: oseba.id, full_name: oseba.full_name, email: oseba.email });
+      if (error) throw new Error(error);
+      // Ob uspehu se stran zamenja; zaklep namenoma ostane do preusmeritve,
+      // da med njo ni mogoce klikniti se enkrat.
+      location.href = "index.html";
+    } catch (e) {
+      setOgledMsg(e.message || String(e));
+      setOgledBusy(false);
+    }
   };
 
   // Več oddelkov na osebo (pokriva_oddelek) – prvi (primarni) je tisti,
@@ -1279,6 +1287,10 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   const [uvozBusy, setUvozBusy] = useState(false);
   const [novo, setNovo] = useState(PRAZEN_NOV);
   const [dodajBusy, setDodajBusy] = useState(false);
+  // Zaklep po VRSTICI (ne en sam za cel seznam): v tabeli je več vrstic in
+  // vsaka ima svoja gumba, zato bi skupni zaklep ob kliku na eno vrstico
+  // izklopil tudi vse druge. Isti vzorec kot busyId v obrazec.html.
+  const [vrsticaBusy, setVrsticaBusy] = useState(null);
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [pdfBesedilo, setPdfBesedilo] = useState(null); // surovo besedilo iz PDF, čaka na ročni pregled/uvoz
   const fileRef = useRef();
@@ -1521,34 +1533,59 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
   };
 
   const dodajRocno = async () => {
+    if (dodajBusy) return;
     const zapis = vrsticaVZapis(novo);
     if (!zapis) return;
     setDodajBusy(true);
-    const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
-    const err = obstojeci ? await prenesiPodatkeNaProfil(zapis, obstojeci.id) : await dodajAliPosodobiVrstico(zapis);
-    setDodajBusy(false);
-    if (!err) {
-      setNovo(PRAZEN_NOV); nalozi();
+    try {
+      const obstojeci = osebe.find(o => (o.email || "").toLowerCase() === zapis.email.toLowerCase());
+      const err = obstojeci ? await prenesiPodatkeNaProfil(zapis, obstojeci.id) : await dodajAliPosodobiVrstico(zapis);
+      if (err) throw err;
+      // Obrazec se izprazni SELE ob uspehu - prej je ostal izpolnjen samo
+      // ob napaki, ob izjemi pa je zaklep obvisel in gumb je bil mrtev.
+      setNovo(PRAZEN_NOV);
+      await nalozi();
       if (obstojeci) onSpremenjeno();
+    } catch (e) {
+      alert(e.message || String(e));
+    } finally {
+      setDodajBusy(false);
     }
-    else alert(err.message || String(err));
   };
 
+  // Zaporedje: preveri → zakleni vrstico → delo v try → osveži ob uspehu →
+  // odkleni v finally. Oba gumba pišeta v bazo, zato je zaklep nujen:
+  // dvojni klik na "Poveži" je prej dvakrat prenesel podatke na profil.
   const odstraniUvoz = async (id) => {
+    if (vrsticaBusy) return;
     if (!confirm("Odstranim to vrstico iz seznama za uvoz?")) return;
-    const { error } = await client.from("uvozi_kontaktov").delete().eq("id", id);
-    if (error) { alert(error.message); return; }
-    nalozi();
+    setVrsticaBusy(id);
+    try {
+      const { error } = await client.from("uvozi_kontaktov").delete().eq("id", id);
+      if (error) throw error;
+      await nalozi();
+    } catch (e) {
+      alert("Odstranitev ni uspela: " + (e.message || String(e)));
+    } finally {
+      setVrsticaBusy(null);
+    }
   };
 
   const poveziZProfilom = async (uvoz, profileId) => {
-    if (!profileId) return;
-    const err = await prenesiPodatkeNaProfil(uvoz, profileId);
-    if (err) { alert(err.message); return; }
-    const { error } = await client.from("uvozi_kontaktov").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
-    if (error) { alert(error.message); return; }
-    nalozi();
-    onSpremenjeno();
+    if (vrsticaBusy || !profileId) return;
+    setVrsticaBusy(uvoz.id);
+    try {
+      const err = await prenesiPodatkeNaProfil(uvoz, profileId);
+      if (err) throw err;
+      const { error } = await client.from("uvozi_kontaktov").update({ linked_profile_id: profileId }).eq("id", uvoz.id);
+      if (error) throw error;
+      await nalozi();
+      onSpremenjeno();
+    } catch (e) {
+      alert("Povezovanje ni uspelo: " + (e.message || String(e)));
+    } finally {
+      setVrsticaBusy(null);
+    }
   };
 
   if (uvozi === null) return <p className="hint">Nalagam …</p>;
@@ -1651,18 +1688,18 @@ function AdminUvoz({ osebe, oddelki, onSpremenjeno }){
             {ujemanje ? (
               <p className="hint" style={{margin:"8px 0"}}>
                 Ujema se z že registriranim profilom <b>{ujemanje.full_name}</b> (ista e-pošta).
-                <button className="iconBtn" style={{marginLeft:8}} onClick={() => poveziZProfilom(u, ujemanje.id)}>Poveži</button>
+                <button className="iconBtn" style={{marginLeft:8}} disabled={vrsticaBusy === u.id} onClick={() => poveziZProfilom(u, ujemanje.id)}>{vrsticaBusy === u.id ? "Povezujem …" : "Poveži"}</button>
               </p>
             ) : (
               <div className="field" style={{marginTop:8}}>
                 <label>Ali ročno poveži z obstoječim profilom (če se e-pošta ne ujema natančno)</label>
-                <select defaultValue="" onChange={e => e.target.value && poveziZProfilom(u, e.target.value)}>
+                <select defaultValue="" disabled={vrsticaBusy === u.id} onChange={e => e.target.value && poveziZProfilom(u, e.target.value)}>
                   <option value="">Izberi profil …</option>
                   {osebe.map(o => <option key={o.id} value={o.id}>{o.full_name} ({o.email})</option>)}
                 </select>
               </div>
             )}
-            <button className="dangerBtn" onClick={() => odstraniUvoz(u.id)}>Odstrani iz seznama za uvoz</button>
+            <button className="dangerBtn" disabled={vrsticaBusy === u.id} onClick={() => odstraniUvoz(u.id)}>{vrsticaBusy === u.id ? "Odstranjujem …" : "Odstrani iz seznama za uvoz"}</button>
           </div>
         );
       })}
