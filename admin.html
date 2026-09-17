@@ -1822,10 +1822,21 @@ function StatistikaPredal({ odprto, razdelek, zapri, stat, rezultat, vrzeli, krs
                   Delovnopravne kršitve {kriticne.length + opozorilneKrsitve.length > 0
                     ? `(${kriticne.length} kritičnih · ${opozorilneKrsitve.length} opozoril)` : ""}
                 </p>
+                {/* Besedilo spodaj je do te čistke obljubljalo "največ 7
+                    zaporednih delovnih dni" - to pa NI pravilo, ki ga
+                    delovni-cas.js preverja, in bi koordinatorja pripravilo do
+                    tega, da bi iskal napako, ki je ni. Pravilo je vezano na
+                    KOLEDARSKI TEDEN: v vsakem tednu PON-NED mora biti vsaj en
+                    prost dan. Niz, ki gre čez nedeljo, sam po sebi ni kršitev
+                    - kdor dela od srede do naslednje sobote (11 dni zapored),
+                    ima v prvem tednu prosta ponedeljek in torek, v drugem pa
+                    nedeljo. Komentar stoji TU, med otroki div-a, in ne znotraj
+                    oklepaja ternarnega izraza: tam JSX komentar ni veljaven in
+                    gradnja pade z "Expected ) but found className". */}
                 {kriticne.length + opozorilneKrsitve.length === 0 ? (
                   <p className="hint" style={{margin:0}}>
-                    Počitek med izmenami, zaporedne nočne in prosti dan (največ 7 zaporednih delovnih dni)
-                    so v mejah.
+                    Počitek med izmenami, zaporedne nočne in prost dan v vsakem koledarskem tednu
+                    (PON–NED) so v mejah.
                   </p>
                 ) : (
                   <div className="warnBox" style={{marginTop:0}}>
